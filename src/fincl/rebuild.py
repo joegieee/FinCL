@@ -88,6 +88,7 @@ def rebuild_database(database: Path, evidence_directory: Path, output: Path) -> 
             else:
                 quarantined += 1
         _recompute_narrow_links(staging)
+        _carry_forward_fx_rates(database, staging)
         projection = connect_sqlite(staging)
         try:
             link_narrow_transfers(projection, journal_path=default_journal_path(database))
@@ -159,6 +160,49 @@ def _restore_source_path(database: Path, sha256: str, original_path: str) -> Non
         connection.commit()
     finally:
         connection.close()
+
+
+def _carry_forward_fx_rates(source: Path, staging: Path) -> None:
+    """Copy reference FX rates into the rebuilt database.
+
+    Rates are external reference data, not derived from evidence and not
+    originating decisions, so a rebuild must preserve them verbatim. A source
+    database that predates the ``fx_rates`` table simply has none to copy.
+    """
+    reader = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
+    try:
+        has_table = reader.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'fx_rates'"
+        ).fetchone()
+        if has_table is None:
+            return
+        rows = reader.execute(
+            """
+            SELECT base_currency, quote_currency, period, rate_numerator,
+                   rate_denominator, rate_text, source, source_version, imported_at
+            FROM fx_rates
+            """
+        ).fetchall()
+    finally:
+        reader.close()
+    if not rows:
+        return
+    writer = connect_sqlite(staging)
+    try:
+        with writer:
+            writer.executemany(
+                """
+                INSERT INTO fx_rates(
+                    base_currency, quote_currency, period, rate_numerator,
+                    rate_denominator, rate_text, source, source_version, imported_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(base_currency, quote_currency, period, source_version)
+                DO NOTHING
+                """,
+                rows,
+            )
+    finally:
+        writer.close()
 
 
 def _recompute_narrow_links(database: Path) -> None:

@@ -3,12 +3,16 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import Counter
+from fractions import Fraction
 from pathlib import Path
 from typing import Any, TypedDict
 
+from . import fx
 from .db import connect_sqlite, initialize_schema
 from .decisions import replay_journal
 from .money import ExactMoney, exact_sum, format_decimal
+
+_REPORTING_CURRENCY = "SGD"
 
 
 def _dangling_decisions(connection: sqlite3.Connection) -> int:
@@ -258,7 +262,6 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
     ).fetchall()
     coverage = _economic_flow_coverage(connection)
     dangling = _dangling_decisions(connection)
-    connection.close()
 
     covered_start, covered_end = _covered_window(coverage)
     covered_window = (
@@ -266,6 +269,7 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
     )
 
     by_currency: dict[str, _EconomicFlowBucket] = {}
+    netting: list[tuple[str, int, int, str]] = []
     for row in rows:
         bucket = by_currency.setdefault(row["currency"], _empty_bucket())
         bucket["entries"] += 1
@@ -274,14 +278,23 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
         ):
             bucket["outside_window"] += 1
             continue
+        period = row["posted_date"][:7]
         if row["is_linked"]:
             bucket["excluded_linked"] += 1
         elif row["economic_direction"] == "OUT":
             bucket["spending"].append(_magnitude(row, "amount"))
-        elif row["economic_direction"] == "IN":
-            _classify_inbound(bucket, row)
+            netting.append(
+                (row["currency"], -abs(int(row["amount_coefficient"])), int(row["amount_scale"]), period)
+            )
+        elif row["economic_direction"] == "IN" and _classify_inbound(bucket, row):
+            netting.append(
+                (row["currency"], abs(int(row["amount_coefficient"])), int(row["amount_scale"]), period)
+            )
         if row["fee_coefficient"]:
             bucket["fees"].append(_magnitude(row, "fee"))
+            netting.append(
+                (row["currency"], -abs(int(row["fee_coefficient"])), int(row["fee_scale"]), period)
+            )
 
     currencies = []
     for currency, values in sorted(by_currency.items()):
@@ -314,20 +327,47 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
             }
         )
     any_incomplete = any(not currency["coverage_complete"] for currency in currencies)
+    if any_incomplete:
+        consolidated_total, consolidated_status = None, "UNAVAILABLE_COVERAGE_INCOMPLETE"
+    else:
+        consolidated_total, consolidated_status = _consolidate_sgd(connection, netting)
+    connection.close()
+
     return {
         "kind": "ECONOMIC_FLOW",
-        "reporting_currency": "SGD",
-        "consolidated_sgd_total": None,
-        "consolidated_sgd_total_status": (
-            "UNAVAILABLE_COVERAGE_INCOMPLETE"
-            if any_incomplete
-            else "UNAVAILABLE_FX_RATES_NOT_IMPORTED"
-        ),
+        "reporting_currency": _REPORTING_CURRENCY,
+        "consolidated_sgd_total": consolidated_total,
+        "consolidated_sgd_total_status": consolidated_status,
         "coverage_complete": not any_incomplete,
         "currencies": currencies,
         "coverage": coverage,
         "dangling_decisions": dangling,
     }
+
+
+def _consolidate_sgd(
+    connection: sqlite3.Connection, netting: list[tuple[str, int, int, str]]
+) -> tuple[str | None, str]:
+    """Value every netting entry into SGD at its month's loaded rate.
+
+    Returns ``(total_text, "AVAILABLE")`` only when a rate is loaded for every
+    (foreign currency, month) that appears; otherwise the total is ``None`` and
+    the status names why. The sum is exact until a single final rounding to the
+    cent, half away from zero.
+    """
+    total = Fraction(0)
+    for currency, coefficient, scale, period in netting:
+        amount = Fraction(coefficient, 10**scale)
+        if currency == _REPORTING_CURRENCY:
+            total += amount
+            continue
+        rate = fx.rate_fraction(connection, currency, _REPORTING_CURRENCY, period)
+        if rate is None:
+            return None, "UNAVAILABLE_FX_RATES_NOT_IMPORTED"
+        total += amount * rate
+    cents = total * 100
+    rounded = int(cents + Fraction(1, 2)) if cents >= 0 else -int(-cents + Fraction(1, 2))
+    return format_decimal(rounded, 2), "AVAILABLE"
 
 
 def _empty_bucket() -> _EconomicFlowBucket:
@@ -339,21 +379,30 @@ def _empty_bucket() -> _EconomicFlowBucket:
     }
 
 
-def _classify_inbound(bucket: _EconomicFlowBucket, row: sqlite3.Row) -> None:
-    """Route an inbound entry by its journaled classification (§15.1)."""
+def _classify_inbound(bucket: _EconomicFlowBucket, row: sqlite3.Row) -> bool:
+    """Route an inbound entry by its journaled classification (§15.1).
+
+    Returns True when the entry nets into ``net_economic_flow`` (income,
+    reimbursement, gift, family_transfer) and False otherwise.
+    """
     classification = row["inbound_classification"]
     if classification == "income":
         bucket["income"].append(_magnitude(row, "amount"))
-    elif classification == "self_transfer":
+        return True
+    if classification == "self_transfer":
         bucket["excluded_self_transfer"] += 1
-    elif classification == "reimbursement":
+        return False
+    if classification == "reimbursement":
         bucket["reimbursements"].append(_magnitude(row, "amount"))
-    elif classification in ("gift", "family_transfer"):
+        return True
+    if classification in ("gift", "family_transfer"):
         bucket["non_income_inflow"].append(_magnitude(row, "amount"))
-    elif classification == "other":
+        return True
+    if classification == "other":
         bucket["other_classified_inbound"].append(_magnitude(row, "amount"))
-    else:
-        bucket["pending_review"].append(_magnitude(row, "amount"))
+        return False
+    bucket["pending_review"].append(_magnitude(row, "amount"))
+    return False
 
 
 def _covered_window(
@@ -390,9 +439,15 @@ def _covered_window(
 
 def build_economic_flow_report(database_path: Path) -> str:
     data = economic_flow_report_data(database_path)
+    if data["consolidated_sgd_total"] is None:
+        consolidated_line = (
+            f"consolidated_sgd_total: unavailable ({data['consolidated_sgd_total_status']})"
+        )
+    else:
+        consolidated_line = f"consolidated_sgd_total: {data['consolidated_sgd_total']} SGD"
     lines = [
         "economic_flow: per-currency exact totals",
-        f"consolidated_sgd_total: unavailable ({data['consolidated_sgd_total_status']})",
+        consolidated_line,
         f"coverage_complete: {data['coverage_complete']}",
         f"dangling_decisions: {data['dangling_decisions']}",
     ]

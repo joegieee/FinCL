@@ -455,6 +455,19 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             UNIQUE (left_entry_id, right_entry_id, method_version)
         ) STRICT;
 
+        CREATE TABLE IF NOT EXISTS fx_rates (
+            base_currency TEXT NOT NULL CHECK (length(base_currency) = 3),
+            quote_currency TEXT NOT NULL CHECK (length(quote_currency) = 3),
+            period TEXT NOT NULL CHECK (length(period) = 7),
+            rate_numerator INTEGER NOT NULL CHECK (rate_numerator > 0),
+            rate_denominator INTEGER NOT NULL CHECK (rate_denominator > 0),
+            rate_text TEXT NOT NULL,
+            source TEXT NOT NULL,
+            source_version TEXT NOT NULL,
+            imported_at TEXT NOT NULL,
+            PRIMARY KEY (base_currency, quote_currency, period, source_version)
+        ) STRICT;
+
         CREATE INDEX IF NOT EXISTS statements_by_identity
             ON statements(statement_identity, selection_state);
         CREATE INDEX IF NOT EXISTS document_records_by_extraction

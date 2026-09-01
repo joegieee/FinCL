@@ -12,6 +12,7 @@ from .decision_journal import append_decision, default_journal_path
 from .decisions import entry_anchor, invariant_violation_is_live, resolve_anchor
 from .document_service import DocumentImportService, link_narrow_transfers
 from .errors import FinCLError
+from .fx import load_fx_rates_file
 from .rebuild import rebuild_database
 from .recovery import recover_extraction
 from .report import (
@@ -177,9 +178,12 @@ def economic_flow(
                 str(currency["coverage_complete"]),
             )
         console.print(table)
-        console.print(
-            f"Consolidated SGD total: unavailable ({data['consolidated_sgd_total_status']})."
-        )
+        if data["consolidated_sgd_total"] is None:
+            console.print(
+                f"Consolidated SGD total: unavailable ({data['consolidated_sgd_total_status']})."
+            )
+        else:
+            console.print(f"Consolidated SGD total: {data['consolidated_sgd_total']} SGD.")
         console.print(f"Coverage complete: {data['coverage_complete']}")
         console.print(f"Dangling journal decisions: {data['dangling_decisions']}")
 
@@ -195,6 +199,24 @@ def link_transfers(database: Path = typer.Option(..., "--database")) -> None:
     except (FinCLError, OSError) as exc:
         _fail(exc)
     console.print(f"Created {created} confirmed transfer link(s).")
+
+
+@app.command("import-fx-rates")
+def import_fx_rates(
+    file: Path = typer.Option(..., "--file", help="JSON rate document (see docs)."),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Load reference FX rates used to value cross-currency flow into SGD."""
+    try:
+        connection = connect_sqlite(database)
+        initialize_schema(connection)
+        written = load_fx_rates_file(connection, file)
+        connection.close()
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    _emit_mapping({"status": "LOADED", "rates_written": written}, plain, json_output)
 
 
 @app.command("profile")
