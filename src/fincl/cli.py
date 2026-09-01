@@ -162,16 +162,26 @@ def economic_flow(
         typer.echo(build_economic_flow_report(database))
     else:
         table = Table(title="Economic flow (per currency)")
-        for heading in ("Currency", "Spending", "Income", "Unclassified inbound", "Fees", "Net", "Excluded links"):
+        for heading in (
+            "Currency", "Spending", "Income", "Reimb.", "Non-income in",
+            "Pending review", "Other", "Fees", "Net", "Excl. links", "Covered",
+        ):
             table.add_column(heading)
         for currency in data["currencies"]:
             table.add_row(
                 str(currency["currency"]), str(currency["spending"]), str(currency["income"]),
-                str(currency["unclassified_inbound"]), str(currency["fees"]),
-                str(currency["net_economic_flow"]), str(currency["excluded_confirmed_internal_entries"]),
+                str(currency["reimbursements"]), str(currency["non_income_inflow"]),
+                str(currency["pending_review"]), str(currency["other_classified_inbound"]),
+                str(currency["fees"]), str(currency["net_economic_flow"]),
+                str(currency["excluded_confirmed_internal_entries"]),
+                str(currency["coverage_complete"]),
             )
         console.print(table)
-        console.print("Consolidated SGD total: unavailable until frozen FX rates are imported.")
+        console.print(
+            f"Consolidated SGD total: unavailable ({data['consolidated_sgd_total_status']})."
+        )
+        console.print(f"Coverage complete: {data['coverage_complete']}")
+        console.print(f"Dangling journal decisions: {data['dangling_decisions']}")
 
 
 @app.command("link-transfers")

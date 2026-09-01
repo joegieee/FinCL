@@ -282,11 +282,17 @@ class EconomicFlowReportTests(unittest.TestCase):
         self.database = root / "fincl.sqlite3"
         FinCLService.plaintext_phase1(self.database, root / "evidence").import_revolut(self.source)
 
-    def test_confirmed_internal_legs_are_excluded_but_fees_and_unclassified_inbound_remain_visible(self):
-        before_link = economic_flow_report_data(self.database)["currencies"]
+    def test_confirmed_internal_legs_are_excluded_but_fees_and_pending_review_remain_visible(self):
+        before = economic_flow_report_data(self.database)
+        before_link = before["currencies"]
         self.assertEqual(before_link[0]["spending"], "10.00")
         self.assertEqual(before_link[0]["income"], "0")
-        self.assertEqual(before_link[0]["unclassified_inbound"], "100.00")
+        self.assertEqual(before_link[0]["pending_review"], "100.00")
+        self.assertTrue(before["coverage_complete"])
+        self.assertTrue(before_link[0]["coverage_complete"])
+        self.assertEqual(
+            before_link[0]["covered_window"], {"start": "2026-01-01", "end": "2026-01-02"}
+        )
         with sqlite3.connect(self.database) as connection:
             entries = connection.execute(
                 "SELECT id, amount_text, amount_coefficient, amount_scale, currency_pocket "
@@ -311,10 +317,150 @@ class EconomicFlowReportTests(unittest.TestCase):
         self.assertEqual(data["consolidated_sgd_total_status"], "UNAVAILABLE_FX_RATES_NOT_IMPORTED")
         self.assertEqual(data["currencies"], [{
             "currency": "USD", "entries": 2, "spending": "0", "income": "0",
-            "unclassified_inbound": "0", "fees": "1.00", "net_economic_flow": "-1.00",
+            "reimbursements": "0", "non_income_inflow": "0", "pending_review": "0",
+            "other_classified_inbound": "0", "fees": "1.00", "net_economic_flow": "-1.00",
             "excluded_confirmed_internal_entries": 2,
+            "excluded_self_transfer_entries": 0,
+            "entries_outside_covered_window": 0,
+            "coverage_complete": True,
+            "covered_window": {"start": "2026-01-01", "end": "2026-01-02"},
         }])
         self.assertEqual(data["coverage"][0]["source_type"], "REVOLUT_CSV")
+
+
+_INBOUND_BUCKET_ROWS = [
+    ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "First in", "40.00", "0.00", "USD", "COMPLETED", "40.00"],
+    ["Topup", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01", "Second in", "25.00", "0.00", "USD", "COMPLETED", "65.00"],
+    ["Card Payment", "Current", "2026-01-03 10:00:00", "2026-01-03 10:00:01", "Spend", "-10.00", "1.00", "USD", "COMPLETED", "54.00"],
+]
+
+
+class EconomicFlowInboundBucketTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        root = Path(self.temporary.name)
+        self.source = root / "revolut.csv"
+        self.source.write_bytes(_csv_bytes(_INBOUND_BUCKET_ROWS))
+        self.database = root / "fincl.sqlite3"
+        FinCLService.plaintext_phase1(self.database, root / "evidence").import_revolut(self.source)
+
+    def _inbound_anchors(self) -> list[str]:
+        with sqlite3.connect(self.database) as connection:
+            return [
+                row[0]
+                for row in connection.execute(
+                    "SELECT natural_anchor FROM ledger_entries "
+                    "WHERE economic_direction = 'IN' ORDER BY effective_at"
+                )
+            ]
+
+    def _classify(self, anchor: str, classification: str) -> None:
+        from typer.testing import CliRunner
+
+        from fincl.cli import app
+
+        result = CliRunner().invoke(
+            app,
+            [
+                "review", "classify-inbound", "--anchor", anchor, "--as", classification,
+                "--reason", "test", "--database", str(self.database),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+
+    def test_pending_review_before_any_classification(self):
+        usd = economic_flow_report_data(self.database)["currencies"][0]
+        self.assertEqual(usd["pending_review"], "65.00")
+        self.assertEqual(usd["income"], "0")
+        self.assertEqual(usd["net_economic_flow"], "-11.00")
+
+    def test_income_and_non_income_inflow_route_separately(self):
+        first, second = self._inbound_anchors()
+        self._classify(first, "income")
+        self._classify(second, "gift")
+
+        usd = economic_flow_report_data(self.database)["currencies"][0]
+
+        self.assertEqual(usd["income"], "40.00")
+        self.assertEqual(usd["non_income_inflow"], "25.00")
+        self.assertEqual(usd["reimbursements"], "0")
+        self.assertEqual(usd["pending_review"], "0")
+        self.assertEqual(usd["net_economic_flow"], "54.00")
+
+    def test_self_transfer_and_other_are_excluded_from_net(self):
+        first, second = self._inbound_anchors()
+        self._classify(first, "self_transfer")
+        self._classify(second, "other")
+
+        usd = economic_flow_report_data(self.database)["currencies"][0]
+
+        self.assertEqual(usd["income"], "0")
+        self.assertEqual(usd["non_income_inflow"], "0")
+        self.assertEqual(usd["other_classified_inbound"], "25.00")
+        self.assertEqual(usd["excluded_self_transfer_entries"], 1)
+        self.assertEqual(usd["net_economic_flow"], "-11.00")
+
+
+class CoveredWindowTests(unittest.TestCase):
+    def _coverage(self, *spans: tuple[str, str, str]) -> list[dict[str, object]]:
+        return [
+            {
+                "source_type": source_type,
+                "period_start": start,
+                "period_end": end,
+                "status": "ACCEPTED",
+                "selection_state": "SELECTED",
+            }
+            for source_type, start, end in spans
+        ]
+
+    def test_single_source_window_is_its_own_range(self):
+        from fincl.report import _covered_window
+
+        self.assertEqual(
+            _covered_window(self._coverage(("REVOLUT_CSV", "2026-01-01", "2026-01-31"))),
+            ("2026-01-01", "2026-01-31"),
+        )
+
+    def test_same_source_periods_union(self):
+        from fincl.report import _covered_window
+
+        self.assertEqual(
+            _covered_window(
+                self._coverage(
+                    ("REVOLUT_CSV", "2026-01-01", "2026-01-15"),
+                    ("REVOLUT_CSV", "2026-01-10", "2026-02-05"),
+                )
+            ),
+            ("2026-01-01", "2026-02-05"),
+        )
+
+    def test_distinct_sources_intersect(self):
+        from fincl.report import _covered_window
+
+        self.assertEqual(
+            _covered_window(
+                self._coverage(
+                    ("REVOLUT_CSV", "2026-01-01", "2026-01-31"),
+                    ("DBS_CONSOLIDATED", "2026-01-10", "2026-02-28"),
+                )
+            ),
+            ("2026-01-10", "2026-01-31"),
+        )
+
+    def test_quarantined_source_does_not_contribute(self):
+        from fincl.report import _covered_window
+
+        coverage = self._coverage(("REVOLUT_CSV", "2026-01-01", "2026-01-31"))
+        coverage.append(
+            {
+                "source_type": "DBS_CONSOLIDATED", "period_start": "2026-06-01",
+                "period_end": "2026-06-30", "status": "QUARANTINED",
+                "selection_state": "QUARANTINED",
+            }
+        )
+        self.assertEqual(_covered_window(coverage), ("2026-01-01", "2026-01-31"))
 
 
 if __name__ == "__main__":

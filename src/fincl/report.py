@@ -25,10 +25,15 @@ def _dangling_decisions(connection: sqlite3.Connection) -> int:
 class _EconomicFlowBucket(TypedDict):
     spending: list[ExactMoney]
     income: list[ExactMoney]
-    unclassified_inbound: list[ExactMoney]
+    reimbursements: list[ExactMoney]
+    non_income_inflow: list[ExactMoney]
+    pending_review: list[ExactMoney]
+    other_classified_inbound: list[ExactMoney]
     fees: list[ExactMoney]
     excluded_linked: int
+    excluded_self_transfer: int
     entries: int
+    outside_window: int
 
 
 def build_report(database_path: Path) -> str:
@@ -220,6 +225,7 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
     """
     connection = connect_sqlite(database_path)
     initialize_schema(connection)
+    replay_journal(connection)
     rows = connection.execute(
         """
         WITH entries AS (
@@ -251,34 +257,38 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
         """
     ).fetchall()
     coverage = _economic_flow_coverage(connection)
+    dangling = _dangling_decisions(connection)
     connection.close()
+
+    covered_start, covered_end = _covered_window(coverage)
+    covered_window = (
+        None if covered_start is None else {"start": covered_start, "end": covered_end}
+    )
 
     by_currency: dict[str, _EconomicFlowBucket] = {}
     for row in rows:
-        bucket = by_currency.setdefault(
-            row["currency"],
-            {
-                "spending": [], "income": [], "unclassified_inbound": [], "fees": [],
-                "excluded_linked": 0, "entries": 0,
-            },
-        )
+        bucket = by_currency.setdefault(row["currency"], _empty_bucket())
         bucket["entries"] += 1
+        if covered_start is not None and not (
+            covered_start <= row["posted_date"] <= covered_end
+        ):
+            bucket["outside_window"] += 1
+            continue
         if row["is_linked"]:
             bucket["excluded_linked"] += 1
         elif row["economic_direction"] == "OUT":
             bucket["spending"].append(_magnitude(row, "amount"))
         elif row["economic_direction"] == "IN":
-            if row["inbound_classification"] == "income":
-                bucket["income"].append(_magnitude(row, "amount"))
-            else:
-                bucket["unclassified_inbound"].append(_magnitude(row, "amount"))
+            _classify_inbound(bucket, row)
         if row["fee_coefficient"]:
             bucket["fees"].append(_magnitude(row, "fee"))
 
     currencies = []
     for currency, values in sorted(by_currency.items()):
-        spending = _format_money_list(values["spending"])
         income = _format_money_list(values["income"])
+        reimbursements = _format_money_list(values["reimbursements"])
+        non_income_inflow = _format_money_list(values["non_income_inflow"])
+        spending = _format_money_list(values["spending"])
         fees = _format_money_list(values["fees"])
         currencies.append(
             {
@@ -286,33 +296,117 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
                 "entries": values["entries"],
                 "spending": spending,
                 "income": income,
-                "unclassified_inbound": _format_money_list(values["unclassified_inbound"]),
+                "reimbursements": reimbursements,
+                "non_income_inflow": non_income_inflow,
+                "pending_review": _format_money_list(values["pending_review"]),
+                "other_classified_inbound": _format_money_list(
+                    values["other_classified_inbound"]
+                ),
                 "fees": fees,
-                "net_economic_flow": _subtract_money_texts(income, spending, fees),
+                "net_economic_flow": _net_money(
+                    [income, reimbursements, non_income_inflow], [spending, fees]
+                ),
                 "excluded_confirmed_internal_entries": values["excluded_linked"],
+                "excluded_self_transfer_entries": values["excluded_self_transfer"],
+                "entries_outside_covered_window": values["outside_window"],
+                "coverage_complete": values["outside_window"] == 0,
+                "covered_window": covered_window,
             }
         )
+    any_incomplete = any(not currency["coverage_complete"] for currency in currencies)
     return {
         "kind": "ECONOMIC_FLOW",
         "reporting_currency": "SGD",
         "consolidated_sgd_total": None,
-        "consolidated_sgd_total_status": "UNAVAILABLE_FX_RATES_NOT_IMPORTED",
+        "consolidated_sgd_total_status": (
+            "UNAVAILABLE_COVERAGE_INCOMPLETE"
+            if any_incomplete
+            else "UNAVAILABLE_FX_RATES_NOT_IMPORTED"
+        ),
+        "coverage_complete": not any_incomplete,
         "currencies": currencies,
         "coverage": coverage,
+        "dangling_decisions": dangling,
     }
+
+
+def _empty_bucket() -> _EconomicFlowBucket:
+    return {
+        "spending": [], "income": [], "reimbursements": [], "non_income_inflow": [],
+        "pending_review": [], "other_classified_inbound": [], "fees": [],
+        "excluded_linked": 0, "excluded_self_transfer": 0, "entries": 0,
+        "outside_window": 0,
+    }
+
+
+def _classify_inbound(bucket: _EconomicFlowBucket, row: sqlite3.Row) -> None:
+    """Route an inbound entry by its journaled classification (§15.1)."""
+    classification = row["inbound_classification"]
+    if classification == "income":
+        bucket["income"].append(_magnitude(row, "amount"))
+    elif classification == "self_transfer":
+        bucket["excluded_self_transfer"] += 1
+    elif classification == "reimbursement":
+        bucket["reimbursements"].append(_magnitude(row, "amount"))
+    elif classification in ("gift", "family_transfer"):
+        bucket["non_income_inflow"].append(_magnitude(row, "amount"))
+    elif classification == "other":
+        bucket["other_classified_inbound"].append(_magnitude(row, "amount"))
+    else:
+        bucket["pending_review"].append(_magnitude(row, "amount"))
+
+
+def _covered_window(
+    coverage: list[dict[str, Any]],
+) -> tuple[str | None, str | None]:
+    """Intersection of every accepted, selected source's period (§11).
+
+    An entry outside this window is not fully cross-source observed, so it is
+    excluded from the per-currency baselines. This uses one window for all
+    currencies; per-pocket coverage is a tracked refinement.
+    """
+    spans: dict[str, tuple[str, str]] = {}
+    for source in coverage:
+        if source["status"] != "ACCEPTED" or source["selection_state"] != "SELECTED":
+            continue
+        if not source["period_start"] or not source["period_end"]:
+            continue
+        source_type = source["source_type"]
+        start, end = source["period_start"], source["period_end"]
+        if source_type in spans:
+            low, high = spans[source_type]
+            spans[source_type] = (min(low, start), max(high, end))
+        else:
+            spans[source_type] = (start, end)
+    if not spans:
+        return None, None
+    # Same-source periods union; distinct sources must overlap to count as
+    # fully cross-source observed.
+    return (
+        max(low for low, _ in spans.values()),
+        min(high for _, high in spans.values()),
+    )
 
 
 def build_economic_flow_report(database_path: Path) -> str:
     data = economic_flow_report_data(database_path)
     lines = [
         "economic_flow: per-currency exact totals",
-        "consolidated_sgd_total: unavailable (FX rates not imported)",
+        f"consolidated_sgd_total: unavailable ({data['consolidated_sgd_total_status']})",
+        f"coverage_complete: {data['coverage_complete']}",
+        f"dangling_decisions: {data['dangling_decisions']}",
     ]
     for currency in data["currencies"]:
         lines.append(
             "{currency}: spending={spending} income={income} "
-            "unclassified_inbound={unclassified_inbound} fees={fees} net={net_economic_flow} "
-            "excluded_confirmed_internal_entries={excluded_confirmed_internal_entries}".format(**currency)
+            "reimbursements={reimbursements} non_income_inflow={non_income_inflow} "
+            "pending_review={pending_review} "
+            "other_classified_inbound={other_classified_inbound} "
+            "fees={fees} net={net_economic_flow} "
+            "excluded_confirmed_internal_entries={excluded_confirmed_internal_entries} "
+            "excluded_self_transfer_entries={excluded_self_transfer_entries} "
+            "coverage_complete={coverage_complete} "
+            "entries_outside_covered_window={entries_outside_covered_window}".format(**currency)
         )
     for source in data["coverage"]:
         lines.append(
@@ -520,15 +614,12 @@ def _format_money_list(values: list[ExactMoney]) -> str:
     return format_decimal(coefficient, scale)
 
 
-def _subtract_money_texts(income: str, spending: str, fees: str) -> str:
-    income_value = ExactMoney.parse(income)
-    spending_value = ExactMoney.parse(spending)
-    fee_value = ExactMoney.parse(fees)
-    coefficient, scale = exact_sum(
-        income_value,
-        ExactMoney(-spending_value.coefficient, spending_value.scale, spending),
-        ExactMoney(-fee_value.coefficient, fee_value.scale, fees),
-    )
+def _net_money(positives: list[str], negatives: list[str]) -> str:
+    terms = [ExactMoney.parse(text) for text in positives]
+    for text in negatives:
+        value = ExactMoney.parse(text)
+        terms.append(ExactMoney(-value.coefficient, value.scale, text))
+    coefficient, scale = exact_sum(*terms)
     return format_decimal(coefficient, scale)
 
 
