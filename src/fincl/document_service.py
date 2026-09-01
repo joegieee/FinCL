@@ -5,10 +5,13 @@ import json
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import date
 from math import gcd
 from pathlib import Path
 
+from .common import canonical_json as _json
+from .common import stable_id as _stable_id
+from .common import utc_now as _now
 from .db import ConnectionFactory, connect_sqlite, initialize_schema
 from .decisions import replay_journal, resolve_anchor
 from .documents import (
@@ -1126,15 +1129,3 @@ def _money_coefficient(value: ExactMoney | None) -> int | None:
 
 def _money_scale(value: ExactMoney | None) -> int | None:
     return value.scale if value is not None else None
-
-
-def _stable_id(prefix: str, *parts: str) -> str:
-    return f"{prefix}_" + hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()
-
-
-def _json(value: object) -> str:
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="microseconds")

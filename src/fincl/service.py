@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
+from .common import canonical_json
+from .common import stable_id as _stable_id
+from .common import utc_now as _now
 from .db import ConnectionFactory, connect_sqlite, initialize_schema
 from .decisions import replay_journal
 from .errors import EvidenceError, FinCLError
@@ -804,15 +805,10 @@ def _insert_issue(
             severity,
             code,
             message,
-            json.dumps(context, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+            canonical_json(context),
             _now(),
         ),
     )
-
-
-def _stable_id(prefix: str, *parts: str) -> str:
-    digest = hashlib.sha256("\0".join(parts).encode("utf-8")).hexdigest()
-    return f"{prefix}_{digest}"
 
 
 def _coefficient(value: ExactMoney | None) -> int | None:
@@ -830,7 +826,3 @@ def _null_if_blank(value: str | None) -> str | None:
 def _effective_source_timestamp(row: RevolutRow) -> str:
     assert row.started_at_raw is not None
     return row.completed_at_raw or row.started_at_raw
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="microseconds")
