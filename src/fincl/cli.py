@@ -10,6 +10,7 @@ from rich.table import Table
 from .db import connect_sqlite, initialize_schema
 from .document_service import DocumentImportService, link_narrow_transfers
 from .errors import FinCLError
+from .rebuild import rebuild_database
 from .recovery import recover_extraction
 from .report import (
     build_coverage_report,
@@ -148,23 +149,42 @@ def link_transfers(database: Path = typer.Option(..., "--database")) -> None:
     console.print(f"Created {created} confirmed transfer link(s).")
 
 
+@app.command("rebuild")
+def rebuild(
+    database: Path = typer.Option(..., "--database", help="Existing ledger to rebuild from."),
+    evidence_dir: Path = typer.Option(..., "--evidence-dir", help="Verified local evidence vault."),
+    output: Path = typer.Option(..., "--output", help="New database path; must not exist."),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Recreate a new ledger database from verified evidence."""
+    try:
+        result = rebuild_database(database, evidence_dir, output)
+        _emit_mapping(
+            {
+                "status": "REBUILT",
+                "database": result.database,
+                "sources_rebuilt": result.sources_rebuilt,
+                "accepted_extractions": result.accepted_extractions,
+                "quarantined_extractions": result.quarantined_extractions,
+            },
+            plain,
+            json_output,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
 @app.command("repair")
 def repair_command(
     extraction_run: str,
     database: Path = typer.Option(..., "--database"),
     reason: str = typer.Option(..., "--reason"),
     allow_running: bool = typer.Option(False, "--allow-running"),
-    journal: Path | None = typer.Option(
-        None,
-        "--journal",
-        help="Decision journal path; defaults beside the database.",
-    ),
 ) -> None:
     """Repair a FAILED or explicitly acknowledged stale RUNNING generation."""
     try:
-        result = recover_extraction(
-            database, extraction_run, reason, allow_running=allow_running, journal_path=journal
-        )
+        result = recover_extraction(database, extraction_run, reason, allow_running=allow_running)
         _emit_recovery_result(result, "REPAIRED")
     except (FinCLError, OSError) as exc:
         _fail(exc)
@@ -176,13 +196,10 @@ def recover_extraction_command(
     database: Path = typer.Option(..., "--database"),
     reason: str = typer.Option(..., "--reason"),
     allow_running: bool = typer.Option(False, "--allow-running"),
-    journal: Path | None = typer.Option(None, "--journal"),
 ) -> None:
     """Compatibility alias for ``repair``."""
     try:
-        result = recover_extraction(
-            database, extraction_run, reason, allow_running=allow_running, journal_path=journal
-        )
+        result = recover_extraction(database, extraction_run, reason, allow_running=allow_running)
         _emit_recovery_result(result, "RECOVERED")
     except (FinCLError, OSError) as exc:
         _fail(exc)
@@ -196,8 +213,6 @@ def _emit_recovery_result(result: Any, status: str) -> None:
             "extraction_run": result.extraction_run_id,
             "evidence_sha256": result.evidence_sha256,
             "prior_status": result.prior_status,
-            "journal_seq": result.journal_seq,
-            "journal_path": result.journal_path,
         },
         plain=True,
         json_output=False,

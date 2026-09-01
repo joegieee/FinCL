@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .db import connect_sqlite, initialize_schema
-from .decision_journal import JournalRecord, append_decision, default_journal_path
 from .errors import FinCLError
 
 
@@ -17,9 +16,6 @@ class RecoveryResult:
     extraction_run_id: str
     evidence_sha256: str
     prior_status: str
-    journal_seq: int
-    journal_record_hash: str
-    journal_path: Path
 
 
 def recover_extraction(
@@ -28,9 +24,8 @@ def recover_extraction(
     reason: str,
     *,
     allow_running: bool = False,
-    journal_path: Path | None = None,
 ) -> RecoveryResult:
-    """Repair an incomplete generation after durably recording the decision."""
+    """Repair an incomplete generation and retain its local recovery event."""
     if not reason.strip():
         raise FinCLError("a non-empty recovery reason is required")
     connection = connect_sqlite(database_path)
@@ -50,15 +45,6 @@ def recover_extraction(
             )
 
         event_id = "rec_" + uuid.uuid4().hex
-        resolved_journal_path = journal_path or default_journal_path(database_path)
-        journal_record = _journal_repair(
-            resolved_journal_path,
-            event_id=event_id,
-            extraction_run_id=extraction["id"],
-            evidence_sha256=extraction["evidence_sha256"],
-            prior_status=extraction["status"],
-            reason=reason.strip(),
-        )
         with connection:
             _delete_transfer_links(connection, extraction_run_id)
             connection.execute(
@@ -120,9 +106,6 @@ def recover_extraction(
             extraction_run_id,
             extraction["evidence_sha256"],
             extraction["status"],
-            journal_record.seq,
-            journal_record.record_hash,
-            resolved_journal_path,
         )
     finally:
         connection.close()
@@ -142,33 +125,4 @@ def _delete_transfer_links(connection: sqlite3.Connection, extraction_run_id: st
                   (SELECT id FROM document_entries WHERE extraction_run_id = ?))
         """,
         (extraction_run_id,) * 4,
-    )
-
-
-def _journal_repair(
-    journal_path: Path,
-    *,
-    event_id: str,
-    extraction_run_id: str,
-    evidence_sha256: str,
-    prior_status: str,
-    reason: str,
-) -> JournalRecord:
-    return append_decision(
-        journal_path,
-        decision_kind="EXTRACTION_REPAIR",
-        anchors={
-            "evidence_sha256": evidence_sha256,
-            "extraction_identity": extraction_run_id,
-        },
-        payload={
-            "event_id": event_id,
-            "prior_status": prior_status,
-            "reason": reason,
-        },
-        policy_version="repair-v1",
-        snapshot=(
-            f"Cleared incomplete extraction {extraction_run_id} "
-            f"for evidence {evidence_sha256} after status {prior_status}."
-        ),
     )
