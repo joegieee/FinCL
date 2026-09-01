@@ -26,6 +26,8 @@ from .revolut import (
     parse_revolut_csv,
 )
 
+REVOLUT_ACCOUNT_ID = "acct_revolut_current"
+
 
 @dataclass(frozen=True, slots=True)
 class ImportResult:
@@ -255,6 +257,14 @@ class FinCLService:
         evidence_sha256: str,
         export: RevolutExport,
     ) -> None:
+        connection.execute(
+            """
+            INSERT INTO accounts(id, institution, source_type, display_name, masked_identifier)
+            VALUES (?, 'Revolut', 'REVOLUT_CSV', 'Revolut Current', 'Current')
+            ON CONFLICT(id) DO NOTHING
+            """,
+            (REVOLUT_ACCOUNT_ID,),
+        )
         connection.execute(
             """
             UPDATE extraction_runs
@@ -678,12 +688,13 @@ def _insert_canonical(
             amount_coefficient, amount_scale, fee_text, fee_coefficient,
             fee_scale, balance_text, balance_coefficient, balance_scale,
             lifecycle_state, event_kind, economic_direction, analytics_eligible
-        ) VALUES (?, ?, ?, 'revolut-current', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
         """,
         (
             canonical_id,
             extraction_run_id,
             raw_record_id,
+            REVOLUT_ACCOUNT_ID,
             row.currency_raw,
             row.started_at_raw,
             row.completed_at_raw or None,

@@ -148,31 +148,60 @@ def link_transfers(database: Path = typer.Option(..., "--database")) -> None:
     console.print(f"Created {created} confirmed transfer link(s).")
 
 
-@app.command("recover-extraction")
+@app.command("repair")
+def repair_command(
+    extraction_run: str,
+    database: Path = typer.Option(..., "--database"),
+    reason: str = typer.Option(..., "--reason"),
+    allow_running: bool = typer.Option(False, "--allow-running"),
+    journal: Path | None = typer.Option(
+        None,
+        "--journal",
+        help="Decision journal path; defaults beside the database.",
+    ),
+) -> None:
+    """Repair a FAILED or explicitly acknowledged stale RUNNING generation."""
+    try:
+        result = recover_extraction(
+            database, extraction_run, reason, allow_running=allow_running, journal_path=journal
+        )
+        _emit_recovery_result(result, "REPAIRED")
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@app.command("recover-extraction", hidden=True)
 def recover_extraction_command(
     extraction_run: str,
     database: Path = typer.Option(..., "--database"),
     reason: str = typer.Option(..., "--reason"),
     allow_running: bool = typer.Option(False, "--allow-running"),
+    journal: Path | None = typer.Option(None, "--journal"),
 ) -> None:
-    """Recover a FAILED or explicitly acknowledged RUNNING generation."""
+    """Compatibility alias for ``repair``."""
     try:
         result = recover_extraction(
-            database, extraction_run, reason, allow_running=allow_running
+            database, extraction_run, reason, allow_running=allow_running, journal_path=journal
         )
-        _emit_mapping(
-            {
-                "status": "RECOVERED",
-                "recovery_event": result.event_id,
-                "extraction_run": result.extraction_run_id,
-                "evidence_sha256": result.evidence_sha256,
-                "prior_status": result.prior_status,
-            },
-            plain=True,
-            json_output=False,
-        )
+        _emit_recovery_result(result, "RECOVERED")
     except (FinCLError, OSError) as exc:
         _fail(exc)
+
+
+def _emit_recovery_result(result: Any, status: str) -> None:
+    _emit_mapping(
+        {
+            "status": status,
+            "recovery_event": result.event_id,
+            "extraction_run": result.extraction_run_id,
+            "evidence_sha256": result.evidence_sha256,
+            "prior_status": result.prior_status,
+            "journal_seq": result.journal_seq,
+            "journal_path": result.journal_path,
+        },
+        plain=True,
+        json_output=False,
+    )
 
 
 def _import_document(

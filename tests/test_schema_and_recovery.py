@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import sqlite3
+import stat
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,6 +14,7 @@ from fincl.db import (
     connect_sqlite,
     initialize_schema,
 )
+from fincl.decision_journal import append_decision, default_journal_path, read_records
 from fincl.errors import FinCLError, SchemaVersionError
 from fincl.recovery import recover_extraction
 from fincl.revolut import EXPECTED_HEADER
@@ -153,6 +155,64 @@ class RunningExtractionGuardTests(unittest.TestCase):
 
         replayed = self.service.import_revolut(self.source)
         self.assertEqual(replayed.status, "ACCEPTED")
+
+    def test_repair_is_durable_in_the_external_hash_chained_journal(self):
+        self.service.import_revolut(self.source)
+        extraction_id = self._stall_extraction()
+
+        result = recover_extraction(
+            self.database,
+            extraction_id,
+            "confirmed no importer active",
+            allow_running=True,
+        )
+
+        journal_path = default_journal_path(self.database)
+        records = read_records(journal_path)
+        self.assertEqual(result.journal_path, journal_path)
+        self.assertEqual(result.journal_seq, 1)
+        self.assertEqual(stat.S_IMODE(journal_path.stat().st_mode), 0o600)
+        self.assertEqual(len(records), 1)
+        record = records[0]
+        self.assertEqual(record.seq, result.journal_seq)
+        self.assertEqual(record.decision_kind, "EXTRACTION_REPAIR")
+        self.assertEqual(record.anchors["extraction_identity"], extraction_id)
+        self.assertEqual(record.payload["event_id"], result.event_id)
+        self.assertEqual(record.payload["reason"], "confirmed no importer active")
+        self.assertEqual(record.record_hash, result.journal_record_hash)
+
+
+class DecisionJournalTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.journal = Path(self.temporary.name) / "decision-journal.jsonl"
+
+    def test_chain_is_verified_and_tampering_is_refused(self):
+        first = append_decision(
+            self.journal,
+            decision_kind="TEST",
+            anchors={"natural_key": "one"},
+            payload={"value": "one"},
+            policy_version="test-v1",
+            snapshot="first synthetic decision",
+        )
+        second = append_decision(
+            self.journal,
+            decision_kind="TEST",
+            anchors={"natural_key": "two"},
+            payload={"value": "two"},
+            policy_version="test-v1",
+            snapshot="second synthetic decision",
+        )
+        records = read_records(self.journal)
+        self.assertEqual([record.seq for record in records], [1, 2])
+        self.assertEqual(records[1].prev_hash, first.record_hash)
+        self.assertEqual(records[1].record_hash, second.record_hash)
+
+        self.journal.write_bytes(self.journal.read_bytes().replace(b"second", b"tamper", 1))
+        with self.assertRaises(FinCLError):
+            read_records(self.journal)
 
 
 if __name__ == "__main__":

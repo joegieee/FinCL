@@ -124,6 +124,20 @@ class RevolutImportTests(unittest.TestCase):
             self.assertTrue(all(row["passed"] for row in checks))
             self.assertTrue(all(row["equation_version"] == BALANCE_EQUATION_VERSION for row in checks))
             self.assertEqual({row["currency_pocket"] for row in checks}, {"SGD", "USD"})
+            account = connection.execute(
+                "SELECT institution, source_type, display_name, masked_identifier FROM accounts"
+            ).fetchone()
+            self.assertEqual(
+                tuple(account),
+                ("Revolut", "REVOLUT_CSV", "Revolut Current", "Current"),
+            )
+            self.assertEqual(
+                connection.execute(
+                    "SELECT count(*) FROM canonical_entries "
+                    "WHERE account_id NOT IN (SELECT id FROM accounts)"
+                ).fetchone()[0],
+                0,
+            )
 
     def test_exact_reimport_reuses_evidence_and_extraction_without_domain_duplicates(self):
         self.source.write_bytes(csv_bytes())
