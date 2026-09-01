@@ -108,7 +108,7 @@ def _build_report(connection: sqlite3.Connection) -> str:
             "coverage: "
             f"physical_rows={extraction['physical_data_row_count'] or 0} "
             f"raw_records={extraction['raw_record_count'] or 0} "
-            f"canonical_entries={extraction['canonical_entry_count'] or 0}"
+            f"ledger_entries={extraction['canonical_entry_count'] or 0}"
         ),
         (
             "issues: "
@@ -190,7 +190,7 @@ def _latest_report_data(connection: sqlite3.Connection) -> dict[str, Any]:
             "profile": extraction["source_profile_version"],
             "physical_rows": extraction["physical_data_row_count"] or 0,
             "raw_records": extraction["raw_record_count"] or 0,
-            "canonical_entries": extraction["canonical_entry_count"] or 0,
+            "ledger_entries": extraction["canonical_entry_count"] or 0,
         }
     else:
         pages = connection.execute(
@@ -534,7 +534,7 @@ def profile_report_data(database_path: Path) -> dict[str, Any]:
                 SELECT source_profile_version, parser_version, extraction_policy_version,
                        status, count(*) AS extractions,
                        coalesce(sum(raw_record_count), 0) AS raw_records,
-                       coalesce(sum(canonical_entry_count), 0) AS canonical_entries,
+                       coalesce(sum(canonical_entry_count), 0) AS ledger_entries,
                        min(started_at) AS first_started_at, max(completed_at) AS last_completed_at
                 FROM extraction_runs
                 GROUP BY source_profile_version, parser_version, extraction_policy_version, status
@@ -562,12 +562,12 @@ def build_profile_report(database_path: Path) -> str:
     if not data["profiles"]:
         return "No extraction profiles."
     lines = [
-        "profile parser policy status extractions raw_records canonical_entries first_started last_completed"
+        "profile parser policy status extractions raw_records ledger_entries first_started last_completed"
     ]
     for profile in data["profiles"]:
         lines.append(
             "{source_profile_version} {parser_version} {extraction_policy_version} {status} "
-            "{extractions} {raw_records} {canonical_entries} {first_started_at} {last_completed_at}".format(
+            "{extractions} {raw_records} {ledger_entries} {first_started_at} {last_completed_at}".format(
                 **profile
             )
         )
@@ -642,7 +642,7 @@ def _build_document_report(
             f"period: {statement['period_start']} to {statement['period_end']}",
             f"selection: {statement['selection_state']} conflict={statement['conflict_state']}",
             f"coverage: pages={pages['accounted'] or 0}/{pages['total'] or 0} transaction_rows={pages['rows'] or 0} rotated_ignored={pages['rotated'] or 0}",
-            f"records: raw={extraction['raw_record_count'] or 0} canonical={extraction['canonical_entry_count'] or 0}",
+            f"records: raw={extraction['raw_record_count'] or 0} ledger={extraction['canonical_entry_count'] or 0}",
             f"issues: blocking={issue_counts['BLOCKING']} warning={issue_counts['WARNING']} info={issue_counts['INFO']}",
             f"reconciliation: passed={checks['passed'] or 0} total={checks['total'] or 0}",
             f"sections: {', '.join(sections)}",

@@ -67,7 +67,7 @@ class RevolutImportTests(unittest.TestCase):
 
         self.assertEqual(result.status, "ACCEPTED")
         self.assertEqual(result.raw_record_count, 6)
-        self.assertEqual(result.canonical_entry_count, 6)
+        self.assertEqual(result.ledger_entry_count, 6)
         self.assertEqual(result.warning_issue_count, 1)
         self.assertEqual(result.blocking_issue_count, 0)
         self.assertEqual(self.source.read_bytes(), source_bytes)
@@ -281,7 +281,7 @@ class RevolutImportTests(unittest.TestCase):
 
         self.assertEqual(result.status, "QUARANTINED")
         self.assertEqual(result.raw_record_count, 6)
-        self.assertEqual(result.canonical_entry_count, 5)
+        self.assertEqual(result.ledger_entry_count, 5)
         with self.connect() as connection:
             raw = connection.execute(
                 "SELECT * FROM raw_records WHERE extraction_ordinal = 3"
@@ -415,7 +415,7 @@ class RevolutImportTests(unittest.TestCase):
         report = build_report(self.database)
 
         self.assertIn("status: ACCEPTED", report)
-        self.assertIn("physical_rows=6 raw_records=6 canonical_entries=6", report)
+        self.assertIn("physical_rows=6 raw_records=6 ledger_entries=6", report)
         self.assertIn("balance_checks: passed=2 total=2", report)
         self.assertIn("pocket USD: COMPLETED=2 PENDING=1 REVERTED=1", report)
         self.assertIn("pocket SGD: COMPLETED=2 PENDING=0 REVERTED=0", report)

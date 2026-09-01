@@ -228,7 +228,7 @@ class RebuildTests(unittest.TestCase):
                 connection.execute(
                     "SELECT count(*) FROM ledger_entries WHERE source_family = 'CSV'"
                 ).fetchone()[0],
-                imported.canonical_entry_count,
+                imported.ledger_entry_count,
             )
             self.assertEqual(
                 connection.execute("SELECT original_path FROM source_content").fetchone()[0],

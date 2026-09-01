@@ -73,7 +73,7 @@ def import_revolut(
             "evidence_reused": result.evidence_reused,
             "extraction_reused": result.extraction_reused,
             "raw_records": result.raw_record_count,
-            "canonical_entries": result.canonical_entry_count,
+            "ledger_entries": result.ledger_entry_count,
             "blocking_issues": result.blocking_issue_count,
             "warning_issues": result.warning_issue_count,
         }
@@ -246,7 +246,7 @@ def profile(
         typer.echo(build_profile_report(database))
     else:
         table = Table(title="Extraction profiles")
-        for heading in ("Profile", "Parser", "Policy", "Status", "Runs", "Raw", "Canonical"):
+        for heading in ("Profile", "Parser", "Policy", "Status", "Runs", "Raw", "Ledger"):
             table.add_column(heading)
         for item in data["profiles"]:
             table.add_row(
@@ -256,7 +256,7 @@ def profile(
                 str(item["status"]),
                 str(item["extractions"]),
                 str(item["raw_records"]),
-                str(item["canonical_entries"]),
+                str(item["ledger_entries"]),
             )
         console.print(table)
 

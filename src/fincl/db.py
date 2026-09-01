@@ -193,7 +193,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             header_sha256 TEXT,
             physical_data_row_count INTEGER CHECK (physical_data_row_count >= 0),
             raw_record_count INTEGER CHECK (raw_record_count >= 0),
-            canonical_entry_count INTEGER CHECK (canonical_entry_count >= 0),
+            canonical_entry_count INTEGER CHECK (canonical_entry_count >= 0),  -- legacy name; = ledger_entries for this run
             UNIQUE (evidence_sha256, source_profile_version, parser_version, extraction_policy_version)
         ) STRICT;
 

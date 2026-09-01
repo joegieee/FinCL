@@ -40,7 +40,7 @@ class ImportResult:
     extraction_reused: bool
     status: str
     raw_record_count: int
-    canonical_entry_count: int
+    ledger_entry_count: int
     blocking_issue_count: int
     warning_issue_count: int
 
@@ -713,7 +713,7 @@ class FinCLService:
             extraction_reused=extraction_reused,
             status=extraction["status"],
             raw_record_count=extraction["raw_record_count"] or 0,
-            canonical_entry_count=extraction["canonical_entry_count"] or 0,
+            ledger_entry_count=extraction["canonical_entry_count"] or 0,
             blocking_issue_count=counts.get("BLOCKING", 0),
             warning_issue_count=counts.get("WARNING", 0),
         )
