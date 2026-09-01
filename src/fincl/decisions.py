@@ -37,6 +37,39 @@ def resolve_anchor(connection: sqlite3.Connection, anchor: str) -> str | None:
     return None if row is None else str(row[0])
 
 
+def invariant_violation_is_live(
+    connection: sqlite3.Connection, code: str, entry_ids: list[str]
+) -> bool:
+    """True when ``code`` is a currently-raised BLOCKING issue on one of these entries.
+
+    An ``INVARIANT_ESCAPE`` may only downgrade a check that is failing right now
+    (ARCHITECTURE.md §17.1). A violation is anchored through the offending raw
+    record, so the escape's entry anchors must map back to a raw record that
+    carries a live ``BLOCKING`` ``extraction_issues`` row for that exact code.
+    """
+    if not entry_ids:
+        return False
+    entry_placeholders = ",".join("?" for _ in entry_ids)
+    record_ids = [
+        row[0]
+        for row in connection.execute(
+            f"SELECT raw_record_id FROM ledger_entries "
+            f"WHERE id IN ({entry_placeholders}) AND raw_record_id IS NOT NULL",
+            tuple(entry_ids),
+        )
+    ]
+    if not record_ids:
+        return False
+    record_placeholders = ",".join("?" for _ in record_ids)
+    hit = connection.execute(
+        f"SELECT 1 FROM extraction_issues "
+        f"WHERE code = ? AND severity = 'BLOCKING' "
+        f"AND raw_record_id IN ({record_placeholders}) LIMIT 1",
+        (code, *record_ids),
+    ).fetchone()
+    return hit is not None
+
+
 def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = None) -> tuple[int, int]:
     """Verify and project the complete journal; return bound and dangling counts."""
     records = read_records(journal_path or journal_path_for(connection))

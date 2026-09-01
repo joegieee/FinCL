@@ -9,7 +9,7 @@ from rich.table import Table
 
 from .db import connect_sqlite, initialize_schema
 from .decision_journal import append_decision, default_journal_path
-from .decisions import entry_anchor, resolve_anchor
+from .decisions import entry_anchor, invariant_violation_is_live, resolve_anchor
 from .document_service import DocumentImportService, link_narrow_transfers
 from .errors import FinCLError
 from .rebuild import rebuild_database
@@ -310,20 +310,28 @@ def review_list(
         _fail(exc)
 
 
+_LINK_KIND_HELP = (
+    "SAME_CURRENCY_TRANSFER or CURRENCY_EXCHANGE. Required to confirm a pair "
+    "automation never proposed; must match the proposal otherwise."
+)
+
+
 @review_app.command("confirm-link")
 def review_confirm_link(
     left: str = typer.Option(..., "--left"), right: str = typer.Option(..., "--right"),
     reason: str = typer.Option(..., "--reason"), database: Path = typer.Option(..., "--database"),
+    link_kind: str | None = typer.Option(None, "--link-kind", help=_LINK_KIND_HELP),
 ) -> None:
-    _record_link_decision(database, "LINK_CONFIRM", left, right, reason)
+    _record_link_decision(database, "LINK_CONFIRM", left, right, reason, link_kind)
 
 
 @review_app.command("reject-link")
 def review_reject_link(
     left: str = typer.Option(..., "--left"), right: str = typer.Option(..., "--right"),
     reason: str = typer.Option(..., "--reason"), database: Path = typer.Option(..., "--database"),
+    link_kind: str | None = typer.Option(None, "--link-kind", help=_LINK_KIND_HELP),
 ) -> None:
-    _record_link_decision(database, "LINK_REJECT", left, right, reason)
+    _record_link_decision(database, "LINK_REJECT", left, right, reason, link_kind)
 
 
 @review_app.command("escape-invariant")
@@ -337,8 +345,16 @@ def review_escape_invariant(
         values = [value.strip() for value in anchors.split(",") if value.strip()]
         connection = connect_sqlite(database)
         initialize_schema(connection)
-        if not values or any(resolve_anchor(connection, value) is None for value in values):
+        resolved = [resolve_anchor(connection, value) for value in values]
+        if not values or any(entry_id is None for entry_id in resolved):
             raise FinCLError("all invariant escape anchors must currently resolve")
+        if not invariant_violation_is_live(
+            connection, code, [entry_id for entry_id in resolved if entry_id is not None]
+        ):
+            raise FinCLError(
+                f"no live BLOCKING violation of {code} is raised at those anchors; "
+                "an escape may only downgrade a currently-failing check"
+            )
         record = append_decision(
             default_journal_path(database), decision_kind="INVARIANT_ESCAPE",
             anchors={f"anchor_{index}": value for index, value in enumerate(values)},
@@ -377,10 +393,18 @@ def review_classify_inbound(
         _fail(exc)
 
 
-def _record_link_decision(database: Path, kind: str, left: str, right: str, reason: str) -> None:
+_LINK_KINDS = {"SAME_CURRENCY_TRANSFER", "CURRENCY_EXCHANGE"}
+
+
+def _record_link_decision(
+    database: Path, kind: str, left: str, right: str, reason: str,
+    link_kind_option: str | None = None,
+) -> None:
     try:
         if not reason.strip():
             raise FinCLError("a non-empty reason is required")
+        if link_kind_option is not None and link_kind_option not in _LINK_KINDS:
+            raise FinCLError("link kind must be SAME_CURRENCY_TRANSFER or CURRENCY_EXCHANGE")
         connection = connect_sqlite(database)
         initialize_schema(connection)
         resolved_left, resolved_right = resolve_anchor(connection, left), resolve_anchor(connection, right)
@@ -391,8 +415,23 @@ def _record_link_decision(database: Path, kind: str, left: str, right: str, reas
                WHERE left_entry_id=? AND right_entry_id=?""",
             (resolved_left, resolved_right),
         ).fetchone()
-        policy = row["method_version"] if row is not None else "manual-v1"
-        link_kind = row["link_kind"] if row is not None else "SAME_CURRENCY_TRANSFER"
+        if row is not None:
+            policy = row["method_version"]
+            link_kind = row["link_kind"]
+            if link_kind_option is not None and link_kind_option != link_kind:
+                raise FinCLError(
+                    f"automation proposed this pair as {link_kind}; "
+                    f"--link-kind {link_kind_option} conflicts"
+                )
+        else:
+            if kind == "LINK_CONFIRM" and link_kind_option is None:
+                raise FinCLError(
+                    "no automatic proposal exists for this pair; pass "
+                    "--link-kind SAME_CURRENCY_TRANSFER or --link-kind CURRENCY_EXCHANGE "
+                    "to record a manual link"
+                )
+            policy = "manual-v1"
+            link_kind = link_kind_option or "SAME_CURRENCY_TRANSFER"
         record = append_decision(
             default_journal_path(database), decision_kind=kind, anchors={"left": left, "right": right},
             payload={"reason": reason.strip(), "link_kind": link_kind}, policy_version=policy,

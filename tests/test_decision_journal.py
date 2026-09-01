@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import io
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,12 +36,16 @@ _ROWS = [
     ["Card Payment", "Current", "2026-01-02 11:00:00", "2026-01-02 11:00:01", "Shop", "-10.00", "0.00", "SGD", "COMPLETED", "90.00"],
 ]
 
+_EXCHANGE_INCOMPLETE_ROWS = [
+    ["Exchange", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "SGD leg only", "-100.00", "0.00", "SGD", "COMPLETED", "900.00"],
+]
 
-def _csv_bytes() -> bytes:
+
+def _csv_bytes(rows: list[list[str]] | None = None) -> bytes:
     buffer = io.StringIO(newline="")
     writer = csv.writer(buffer, lineterminator="\r\n")
     writer.writerow(EXPECTED_HEADER)
-    writer.writerows(_ROWS)
+    writer.writerows(rows or _ROWS)
     return buffer.getvalue().encode("utf-8")
 
 
@@ -287,6 +292,128 @@ class ReviewCliErrorPathTests(unittest.TestCase):
             ],
         )
         self.assertNotEqual(result.exit_code, 0)
+
+    def _entry_anchors(self) -> list[str]:
+        connection = sqlite3.connect(self.database)
+        try:
+            return [
+                row[0]
+                for row in connection.execute(
+                    "SELECT natural_anchor FROM ledger_entries ORDER BY effective_at"
+                )
+            ]
+        finally:
+            connection.close()
+
+    def test_confirm_link_without_a_proposal_requires_link_kind(self) -> None:
+        left, right = self._entry_anchors()
+        result = self.runner.invoke(
+            app,
+            [
+                "review", "confirm-link", "--left", left, "--right", right,
+                "--reason", "manual pairing", "--database", str(self.database),
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(read_records(default_journal_path(self.database)), [])
+
+    def test_confirm_link_manual_records_the_given_link_kind(self) -> None:
+        left, right = self._entry_anchors()
+        result = self.runner.invoke(
+            app,
+            [
+                "review", "confirm-link", "--left", left, "--right", right,
+                "--reason", "manual exchange", "--link-kind", "CURRENCY_EXCHANGE",
+                "--database", str(self.database),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        records = read_records(default_journal_path(self.database))
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].decision_kind, "LINK_CONFIRM")
+        self.assertEqual(records[0].payload["link_kind"], "CURRENCY_EXCHANGE")
+
+    def test_confirm_link_rejects_an_unknown_link_kind(self) -> None:
+        left, right = self._entry_anchors()
+        result = self.runner.invoke(
+            app,
+            [
+                "review", "confirm-link", "--left", left, "--right", right,
+                "--reason", "x", "--link-kind", "TELEPORT", "--database", str(self.database),
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+
+
+class InvariantEscapeLivenessTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.database = self.root / "fincl.sqlite3"
+        self.runner = CliRunner()
+
+    def _import(self, rows: list[list[str]] | None = None) -> str:
+        source = self.root / "revolut.csv"
+        source.write_bytes(_csv_bytes(rows))
+        return FinCLService.plaintext_phase1(
+            self.database, self.root / "evidence"
+        ).import_revolut(source).status
+
+    def _anchor_of(self, event_kind: str) -> str:
+        connection = sqlite3.connect(self.database)
+        try:
+            return connection.execute(
+                "SELECT natural_anchor FROM ledger_entries WHERE event_kind = ? LIMIT 1",
+                (event_kind,),
+            ).fetchone()[0]
+        finally:
+            connection.close()
+
+    def test_escape_refused_when_no_live_violation_exists(self) -> None:
+        self.assertEqual(self._import(), "ACCEPTED")
+        anchor = self._anchor_of("TOPUP")
+        result = self.runner.invoke(
+            app,
+            [
+                "review", "escape-invariant", "--code", "EXCHANGE_PAIRING_INCOMPLETE",
+                "--anchors", anchor, "--reason", "there is no violation here",
+                "--database", str(self.database),
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(read_records(default_journal_path(self.database)), [])
+
+    def test_escape_accepted_for_a_live_violation(self) -> None:
+        self.assertEqual(self._import(_EXCHANGE_INCOMPLETE_ROWS), "QUARANTINED")
+        anchor = self._anchor_of("EXCHANGE")
+        result = self.runner.invoke(
+            app,
+            [
+                "review", "escape-invariant", "--code", "EXCHANGE_PAIRING_INCOMPLETE",
+                "--anchors", anchor, "--reason", "single-leg export, second leg is in the next file",
+                "--database", str(self.database),
+            ],
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        records = read_records(default_journal_path(self.database))
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].decision_kind, "INVARIANT_ESCAPE")
+        self.assertEqual(records[0].payload["code"], "EXCHANGE_PAIRING_INCOMPLETE")
+
+    def test_escape_refused_for_the_wrong_code_on_a_live_violation(self) -> None:
+        self.assertEqual(self._import(_EXCHANGE_INCOMPLETE_ROWS), "QUARANTINED")
+        anchor = self._anchor_of("EXCHANGE")
+        result = self.runner.invoke(
+            app,
+            [
+                "review", "escape-invariant", "--code", "BALANCE_CONTINUITY_MISMATCH",
+                "--anchors", anchor, "--reason", "wrong code for this row",
+                "--database", str(self.database),
+            ],
+        )
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(read_records(default_journal_path(self.database)), [])
 
 
 if __name__ == "__main__":
