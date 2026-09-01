@@ -97,21 +97,23 @@ class RevolutImportTests(unittest.TestCase):
 
             states = dict(
                 connection.execute(
-                    "SELECT lifecycle_state, count(*) FROM canonical_entries GROUP BY lifecycle_state"
+                    "SELECT lifecycle_state, count(*) FROM ledger_entries "
+                    "WHERE source_family = 'CSV' GROUP BY lifecycle_state"
                 ).fetchall()
             )
             self.assertEqual(states, {"COMPLETED": 4, "PENDING": 1, "REVERTED": 1})
             eligibility = dict(
                 connection.execute(
-                    "SELECT lifecycle_state, sum(analytics_eligible) FROM canonical_entries GROUP BY lifecycle_state"
+                    "SELECT lifecycle_state, sum(analytics_eligible) FROM ledger_entries "
+                    "WHERE source_family = 'CSV' GROUP BY lifecycle_state"
                 ).fetchall()
             )
             self.assertEqual(eligibility, {"COMPLETED": 4, "PENDING": 0, "REVERTED": 0})
             pending = connection.execute(
-                "SELECT * FROM canonical_entries WHERE lifecycle_state = 'PENDING'"
+                "SELECT * FROM ledger_entries WHERE lifecycle_state = 'PENDING'"
             ).fetchone()
-            self.assertEqual(pending["started_at"], "2026-01-04 14:00:00")
-            self.assertIsNone(pending["completed_at"])
+            self.assertEqual(pending["effective_at"], "2026-01-04 14:00:00")
+            self.assertIsNone(pending["alt_date_role"])
             pending_raw = connection.execute(
                 "SELECT * FROM raw_records WHERE state_raw = 'PENDING'"
             ).fetchone()
@@ -134,7 +136,7 @@ class RevolutImportTests(unittest.TestCase):
             )
             self.assertEqual(
                 connection.execute(
-                    "SELECT count(*) FROM canonical_entries "
+                    "SELECT count(*) FROM ledger_entries "
                     "WHERE account_id NOT IN (SELECT id FROM accounts)"
                 ).fetchone()[0],
                 0,
@@ -156,7 +158,12 @@ class RevolutImportTests(unittest.TestCase):
             self.assertEqual(connection.execute("SELECT count(*) FROM source_content").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT count(*) FROM extraction_runs").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT count(*) FROM raw_records").fetchone()[0], 6)
-            self.assertEqual(connection.execute("SELECT count(*) FROM canonical_entries").fetchone()[0], 6)
+            self.assertEqual(
+                connection.execute(
+                    "SELECT count(*) FROM ledger_entries WHERE source_family = 'CSV'"
+                ).fetchone()[0],
+                6,
+            )
             self.assertEqual(connection.execute("SELECT count(*) FROM import_runs").fetchone()[0], 2)
             reuse_flags = [
                 row[0]
@@ -184,7 +191,7 @@ class RevolutImportTests(unittest.TestCase):
             self.assertEqual(failed["actual_text"], "88.99")
             self.assertEqual(failed["difference_text"], "-0.01")
             self.assertEqual(
-                connection.execute("SELECT sum(analytics_eligible) FROM canonical_entries").fetchone()[0],
+                connection.execute("SELECT sum(analytics_eligible) FROM ledger_entries").fetchone()[0],
                 0,
             )
 
@@ -360,7 +367,7 @@ class RevolutImportTests(unittest.TestCase):
             states = [
                 row[0]
                 for row in connection.execute(
-                    "SELECT lifecycle_state FROM canonical_entries ORDER BY lifecycle_state"
+                    "SELECT lifecycle_state FROM ledger_entries ORDER BY lifecycle_state"
                 )
             ]
             self.assertEqual(states, ["COMPLETED", "PENDING"])
@@ -418,7 +425,7 @@ class RevolutImportTests(unittest.TestCase):
         initialize_schema(connection)
         for table in (
             "raw_records",
-            "canonical_entries",
+            "ledger_entries",
             "reconciliation_checks",
         ):
             declared_types = {row[2].upper() for row in connection.execute(f"PRAGMA table_info({table})")}

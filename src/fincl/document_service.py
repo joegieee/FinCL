@@ -342,7 +342,8 @@ class DocumentImportService:
                     SELECTION_LOST,
                 )
                 connection.execute(
-                    "UPDATE document_entries SET analytics_eligible = 0 WHERE extraction_run_id = ?",
+                    "UPDATE ledger_entries SET analytics_eligible = 0 "
+                    "WHERE extraction_run_id = ? AND source_family = 'DOCUMENT'",
                     (conflict["extraction_run_id"],),
                 )
             _insert_document_issue(
@@ -417,6 +418,7 @@ class DocumentImportService:
                 _insert_document_entry(
                     connection,
                     extraction_run_id,
+                    evidence_sha256,
                     statement_id,
                     parsed,
                     record_id,
@@ -488,7 +490,8 @@ class DocumentImportService:
         )
         if status == "ACCEPTED":
             connection.execute(
-                "UPDATE document_entries SET analytics_eligible = 1 WHERE extraction_run_id = ?",
+                "UPDATE ledger_entries SET analytics_eligible = 1 "
+                "WHERE extraction_run_id = ? AND source_family = 'DOCUMENT'",
                 (extraction_run_id,),
             )
         connection.commit()
@@ -593,13 +596,14 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
     created = link_revolut_exchanges(connection)
     dbs_rows = connection.execute(
         """
-        SELECT e.id, e.posted_date, e.currency_pocket, e.amount_coefficient,
-               e.amount_scale, e.amount_text, e.event_kind, e.economic_direction,
-               s.source_type, r.description_raw
-        FROM document_entries e
+        SELECT e.id, e.effective_at AS posted_date, e.currency_pocket,
+               e.amount_coefficient, e.amount_scale, e.amount_text, e.event_kind,
+               e.economic_direction, s.source_type, r.description_raw
+        FROM ledger_entries e
         JOIN document_records r ON r.id = e.document_record_id
         JOIN statements s ON s.id = e.statement_id
-        WHERE s.source_type = 'DBS_CONSOLIDATED'
+        WHERE e.source_family = 'DOCUMENT'
+          AND s.source_type = 'DBS_CONSOLIDATED'
           AND s.selection_state = 'SELECTED'
           AND e.analytics_eligible = 1
           AND e.economic_direction = 'OUT'
@@ -607,13 +611,14 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
     ).fetchall()
     paylah_rows = connection.execute(
         """
-        SELECT e.id, e.posted_date, e.currency_pocket, e.amount_coefficient,
-               e.amount_scale, e.amount_text, e.event_kind, e.economic_direction,
-               s.source_type, r.description_raw
-        FROM document_entries e
+        SELECT e.id, e.effective_at AS posted_date, e.currency_pocket,
+               e.amount_coefficient, e.amount_scale, e.amount_text, e.event_kind,
+               e.economic_direction, s.source_type, r.description_raw
+        FROM ledger_entries e
         JOIN document_records r ON r.id = e.document_record_id
         JOIN statements s ON s.id = e.statement_id
-        WHERE s.source_type = 'DBS_PAYLAH'
+        WHERE e.source_family = 'DOCUMENT'
+          AND s.source_type = 'DBS_PAYLAH'
           AND s.selection_state = 'SELECTED'
           AND e.analytics_eligible = 1
           AND e.economic_direction = 'IN'
@@ -621,14 +626,15 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
     ).fetchall()
     revolut_rows = connection.execute(
         """
-        SELECT e.id, substr(coalesce(e.completed_at, e.started_at), 1, 10) AS posted_date,
+        SELECT e.id, substr(e.effective_at, 1, 10) AS posted_date,
                e.currency_pocket, e.amount_coefficient, e.amount_scale,
                e.amount_text, e.event_kind, e.economic_direction,
                'REVOLUT_CSV' AS source_type, r.description_raw
-        FROM canonical_entries e
+        FROM ledger_entries e
         JOIN raw_records r ON r.id = e.raw_record_id
         JOIN extraction_runs x ON x.id = e.extraction_run_id
-        WHERE x.status = 'ACCEPTED' AND e.analytics_eligible = 1
+        WHERE e.source_family = 'CSV'
+          AND x.status = 'ACCEPTED' AND e.analytics_eligible = 1
           AND e.economic_direction = 'IN'
           AND e.event_kind IN ('TOPUP', 'TRANSFER')
         """
@@ -667,24 +673,18 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
         *_candidate_pairs(
             dbs_topups,
             paylah_topups,
-            "DOCUMENT",
-            "DOCUMENT",
             DBS_PAYLAH_LINKER.method_version,
             max_days=DBS_PAYLAH_LINKER.max_days,
         ),
         *_candidate_pairs(
             card_topups,
             card_revolut_rows,
-            "DOCUMENT",
-            "CSV",
             DBS_REVOLUT_CARD_TOPUP_LINKER.method_version,
             max_days=DBS_REVOLUT_CARD_TOPUP_LINKER.max_days,
         ),
         *_candidate_pairs(
             paynow_topups,
             paynow_revolut_rows,
-            "DOCUMENT",
-            "CSV",
             DBS_REVOLUT_PAYNOW_TOPUP_LINKER.method_version,
             max_days=DBS_REVOLUT_PAYNOW_TOPUP_LINKER.max_days,
         ),
@@ -715,8 +715,8 @@ def _apply_link_decisions(connection: sqlite3.Connection) -> None:
             continue
         row = connection.execute(
             """SELECT id, method_version, evidence_json FROM transfer_links
-               WHERE left_entry_kind=? AND left_entry_id=? AND right_entry_kind=? AND right_entry_id=?""",
-            (left[0], left[1], right[0], right[1]),
+               WHERE left_entry_id=? AND right_entry_id=?""",
+            (left, right),
         ).fetchone()
         if row is None:
             continue  # Confirmation without a candidate is deliberately not guessed.
@@ -736,9 +736,8 @@ def _apply_link_decisions(connection: sqlite3.Connection) -> None:
             continue
         occupied = connection.execute(
             """SELECT 1 FROM transfer_links WHERE status='CONFIRMED' AND id <> ?
-               AND ((left_entry_kind=? AND left_entry_id=?) OR (right_entry_kind=? AND right_entry_id=?)
-                 OR (left_entry_kind=? AND left_entry_id=?) OR (right_entry_kind=? AND right_entry_id=?))""",
-            (row["id"], left[0], left[1], left[0], left[1], right[0], right[1], right[0], right[1]),
+               AND (left_entry_id IN (?, ?) OR right_entry_id IN (?, ?))""",
+            (row["id"], left, right, left, right),
         ).fetchone()
         if occupied is None:
             connection.execute(
@@ -761,15 +760,17 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
     """Link complete Revolut exchange pairs and retain their exact implied rate."""
     rows = connection.execute(
         """
-        SELECT e.id, e.extraction_run_id, e.started_at, e.currency_pocket,
-               e.amount_text, e.amount_coefficient, e.amount_scale, e.economic_direction,
-               e.event_kind, a.source_type
-        FROM canonical_entries e
+        SELECT e.id, e.extraction_run_id,
+               COALESCE(e.alt_date_value, e.effective_at) AS started_at,
+               e.currency_pocket, e.amount_text, e.amount_coefficient, e.amount_scale,
+               e.economic_direction, e.event_kind, a.source_type
+        FROM ledger_entries e
         JOIN extraction_runs x ON x.id = e.extraction_run_id
         JOIN accounts a ON a.id = e.account_id
-        WHERE x.status = 'ACCEPTED' AND e.analytics_eligible = 1
+        WHERE e.source_family = 'CSV'
+          AND x.status = 'ACCEPTED' AND e.analytics_eligible = 1
           AND e.lifecycle_state = 'COMPLETED'
-        ORDER BY e.extraction_run_id, e.started_at, e.id
+        ORDER BY e.extraction_run_id, started_at, e.id
         """
     ).fetchall()
     rows = [
@@ -797,17 +798,17 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
         denominator = abs(left["amount_coefficient"]) * 10**right["amount_scale"]
         divisor = gcd(numerator, denominator)
         link_id = _stable_id(
-            "link", "CSV", left["id"], "CSV", right["id"], REVOLUT_EXCHANGE_LINKER.method_version
+            "link", left["id"], right["id"], REVOLUT_EXCHANGE_LINKER.method_version
         )
         cursor = connection.execute(
             """
             INSERT OR IGNORE INTO transfer_links(
-                id, left_entry_kind, left_entry_id, right_entry_kind, right_entry_id,
+                id, left_entry_id, right_entry_id,
                 link_kind, left_currency, left_amount_text, left_amount_coefficient,
                 left_amount_scale, right_currency, right_amount_text, right_amount_coefficient,
                 right_amount_scale, implied_rate_numerator, implied_rate_denominator,
                 method_version, status, evidence_json, created_at
-            ) VALUES (?, 'CSV', ?, 'CSV', ?, 'CURRENCY_EXCHANGE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ) VALUES (?, ?, ?, 'CURRENCY_EXCHANGE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                       'CONFIRMED', ?, ?)
             """,
             (
@@ -836,13 +837,11 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
 def _candidate_pairs(
     left_rows: list[sqlite3.Row],
     right_rows: list[sqlite3.Row],
-    left_kind: str,
-    right_kind: str,
     method_version: str,
     *,
     max_days: int,
-) -> list[tuple[sqlite3.Row, sqlite3.Row, str, str, str]]:
-    candidates: list[tuple[sqlite3.Row, sqlite3.Row, str, str, str]] = []
+) -> list[tuple[sqlite3.Row, sqlite3.Row, str]]:
+    candidates: list[tuple[sqlite3.Row, sqlite3.Row, str]] = []
     for left in left_rows:
         for right in right_rows:
             if left["currency_pocket"] != right["currency_pocket"]:
@@ -854,27 +853,25 @@ def _candidate_pairs(
             )
             if day_difference > max_days:
                 continue
-            candidates.append((left, right, left_kind, right_kind, method_version))
+            candidates.append((left, right, method_version))
     return candidates
 
 
 def _store_candidates(
     connection: sqlite3.Connection,
-    candidates: list[tuple[sqlite3.Row, sqlite3.Row, str, str, str]],
+    candidates: list[tuple[sqlite3.Row, sqlite3.Row, str]],
 ) -> int:
-    left_counts: dict[tuple[str, str], int] = {}
-    right_counts: dict[tuple[str, str], int] = {}
-    for left, right, left_kind, right_kind, _ in candidates:
-        left_key = (left_kind, left["id"])
-        right_key = (right_kind, right["id"])
-        left_counts[left_key] = left_counts.get(left_key, 0) + 1
-        right_counts[right_key] = right_counts.get(right_key, 0) + 1
+    left_counts: dict[str, int] = {}
+    right_counts: dict[str, int] = {}
+    for left, right, _ in candidates:
+        left_counts[left["id"]] = left_counts.get(left["id"], 0) + 1
+        right_counts[right["id"]] = right_counts.get(right["id"], 0) + 1
     created = 0
-    for left, right, left_kind, right_kind, method_version in candidates:
-        left_count = left_counts[(left_kind, left["id"])]
-        right_count = right_counts[(right_kind, right["id"])]
+    for left, right, method_version in candidates:
+        left_count = left_counts[left["id"]]
+        right_count = right_counts[right["id"]]
         confirmed = left_count == 1 and right_count == 1
-        link_id = _stable_id("link", left_kind, left["id"], right_kind, right["id"], method_version)
+        link_id = _stable_id("link", left["id"], right["id"], method_version)
         evidence: dict[str, object] = {
             "date_left": left["posted_date"],
             "date_right": right["posted_date"],
@@ -890,18 +887,15 @@ def _store_candidates(
         cursor = connection.execute(
             """
             INSERT OR IGNORE INTO transfer_links(
-                id, left_entry_kind, left_entry_id, right_entry_kind,
-                right_entry_id, link_kind,
+                id, left_entry_id, right_entry_id, link_kind,
                 left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
                 right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
                 method_version, status, evidence_json, created_at
-            ) VALUES (?, ?, ?, ?, ?, 'SAME_CURRENCY_TRANSFER', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, 'SAME_CURRENCY_TRANSFER', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 link_id,
-                left_kind,
                 left["id"],
-                right_kind,
                 right["id"],
                 left["currency_pocket"],
                 left["amount_text"].lstrip("-"),
@@ -935,7 +929,8 @@ def _revoke_links_for_extraction(
     entry_ids = {
         row[0]
         for row in connection.execute(
-            "SELECT id FROM document_entries WHERE extraction_run_id = ?",
+            "SELECT id FROM ledger_entries "
+            "WHERE extraction_run_id = ? AND source_family = 'DOCUMENT'",
             (extraction_run_id,),
         )
     }
@@ -1028,6 +1023,7 @@ def _insert_document_record(
 def _insert_document_entry(
     connection: sqlite3.Connection,
     extraction_run_id: str,
+    evidence_sha256: str,
     statement_id: str,
     parsed: ParsedDocument,
     record_id: str,
@@ -1045,19 +1041,34 @@ def _insert_document_entry(
     amount_text = format_decimal(coefficient, source_amount.scale)
     direction = "IN" if coefficient > 0 else "OUT" if coefficient < 0 else "ZERO"
     event_kind = _event_kind(parsed.source_type, record.description_raw or "")
+    natural_anchor = f"{evidence_sha256}:{record.source_anchor}:{record.ordinal}"
     connection.execute(
         """
-        INSERT INTO document_entries(
-            id, extraction_run_id, statement_id, document_record_id, account_id,
-            currency_pocket, posted_date, amount_text, amount_coefficient,
-            amount_scale, event_kind, economic_direction, analytics_eligible
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        INSERT INTO ledger_entries(
+            id, source_family, extraction_run_id, evidence_sha256, raw_record_id,
+            document_record_id, statement_id, natural_anchor, account_id,
+            currency_pocket, effective_at, effective_precision, amount_text,
+            amount_coefficient, amount_scale, event_kind, economic_direction,
+            lifecycle_state, analytics_eligible,
+            alt_date_role, alt_date_value, alt_date_raw, alt_date_precision,
+            fee_text, fee_coefficient, fee_scale,
+            balance_text, balance_coefficient, balance_scale,
+            source_currency, source_amount_text, source_amount_coefficient,
+            source_amount_scale
+        ) VALUES (
+            ?, 'DOCUMENT', ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'DAY', ?, ?, ?, ?, ?,
+            'COMPLETED', 0,
+            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+            NULL, NULL, NULL, NULL
+        )
         """,
         (
             _stable_id("entry", extraction_run_id, record.source_anchor),
             extraction_run_id,
-            statement_id,
+            evidence_sha256,
             record_id,
+            statement_id,
+            natural_anchor,
             parsed.account_id,
             record.currency_raw,
             record.date_value,

@@ -206,9 +206,10 @@ class FinCLService:
             if status == "ACCEPTED":
                 connection.execute(
                     """
-                    UPDATE canonical_entries
+                    UPDATE ledger_entries
                     SET analytics_eligible = 1
-                    WHERE extraction_run_id = ? AND lifecycle_state = 'COMPLETED'
+                    WHERE extraction_run_id = ? AND source_family = 'CSV'
+                      AND lifecycle_state = 'COMPLETED'
                     """,
                     (extraction_run_id,),
                 )
@@ -217,7 +218,8 @@ class FinCLService:
                 (extraction_run_id,),
             ).fetchone()[0]
             canonical_count = connection.execute(
-                "SELECT count(*) FROM canonical_entries WHERE extraction_run_id = ?",
+                "SELECT count(*) FROM ledger_entries "
+                "WHERE extraction_run_id = ? AND source_family = 'CSV'",
                 (extraction_run_id,),
             ).fetchone()[0]
             connection.execute(
@@ -264,11 +266,14 @@ class FinCLService:
         """Fail closed unless each completed Revolut exchange has one opposing leg."""
         rows = connection.execute(
             """
-            SELECT e.raw_record_id, e.started_at, e.currency_pocket, e.economic_direction
-            FROM canonical_entries e
-            WHERE e.extraction_run_id = ? AND e.event_kind = 'EXCHANGE'
+            SELECT e.raw_record_id,
+                   COALESCE(e.alt_date_value, e.effective_at) AS started_at,
+                   e.currency_pocket, e.economic_direction
+            FROM ledger_entries e
+            WHERE e.extraction_run_id = ? AND e.source_family = 'CSV'
+              AND e.event_kind = 'EXCHANGE'
               AND e.lifecycle_state = 'COMPLETED'
-            ORDER BY e.started_at, e.raw_record_id
+            ORDER BY started_at, e.raw_record_id
             """,
             (extraction_run_id,),
         ).fetchall()
@@ -400,7 +405,9 @@ class FinCLService:
                     problem.context,
                 )
             if row.required_fields_complete:
-                _insert_canonical(connection, extraction_run_id, raw_record_id, row)
+                _insert_canonical(
+                    connection, extraction_run_id, evidence_sha256, raw_record_id, row
+                )
 
     @staticmethod
     def _reconcile(
@@ -716,6 +723,7 @@ class FinCLService:
 def _insert_canonical(
     connection: sqlite3.Connection,
     extraction_run_id: str,
+    evidence_sha256: str,
     raw_record_id: str,
     row: RevolutRow,
 ) -> None:
@@ -725,39 +733,53 @@ def _insert_canonical(
     assert row.currency_raw is not None
     assert row.state_raw is not None
     canonical_id = _stable_id("entry", extraction_run_id, row.source_anchor)
+    natural_anchor = f"{evidence_sha256}:{row.source_anchor}:{row.ordinal}"
     event_kind = re.sub(r"[^A-Z0-9]+", "_", (row.type_raw or "UNKNOWN").upper()).strip("_")
     direction = "IN" if row.amount.coefficient > 0 else "OUT" if row.amount.coefficient < 0 else "ZERO"
+    has_alt = bool(row.completed_at_raw) and row.completed_at_raw != row.started_at_raw
     connection.execute(
         """
-        INSERT INTO canonical_entries(
-            id, extraction_run_id, raw_record_id, account_id, currency_pocket,
-            started_at, completed_at, effective_at, amount_text,
-            amount_coefficient, amount_scale, fee_text, fee_coefficient,
-            fee_scale, balance_text, balance_coefficient, balance_scale,
-            lifecycle_state, event_kind, economic_direction, analytics_eligible
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+        INSERT INTO ledger_entries(
+            id, source_family, extraction_run_id, evidence_sha256, raw_record_id,
+            document_record_id, statement_id, natural_anchor, account_id,
+            currency_pocket, effective_at, effective_precision, amount_text,
+            amount_coefficient, amount_scale, event_kind, economic_direction,
+            lifecycle_state, analytics_eligible,
+            alt_date_role, alt_date_value, alt_date_raw, alt_date_precision,
+            fee_text, fee_coefficient, fee_scale,
+            balance_text, balance_coefficient, balance_scale,
+            source_currency, source_amount_text, source_amount_coefficient,
+            source_amount_scale
+        ) VALUES (
+            ?, 'CSV', ?, ?, ?, NULL, NULL, ?, ?, ?, ?, 'DAY', ?, ?, ?, ?, ?, ?, 0,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL
+        )
         """,
         (
             canonical_id,
             extraction_run_id,
+            evidence_sha256,
             raw_record_id,
+            natural_anchor,
             REVOLUT_ACCOUNT_ID,
             row.currency_raw,
-            row.started_at_raw,
-            row.completed_at_raw or None,
             row.completed_at_raw or row.started_at_raw,
             row.amount.text,
             row.amount.coefficient,
             row.amount.scale,
+            event_kind or "UNKNOWN",
+            direction,
+            row.state_raw,
+            "STARTED" if has_alt else None,
+            row.started_at_raw if has_alt else None,
+            row.started_at_raw if has_alt else None,
+            "DAY" if has_alt else None,
             row.fee.text,
             row.fee.coefficient,
             row.fee.scale,
             row.balance.text if row.balance else None,
             _coefficient(row.balance),
             _scale(row.balance),
-            row.state_raw,
-            event_kind or "UNKNOWN",
-            direction,
         ),
     )
 

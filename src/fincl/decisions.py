@@ -19,53 +19,22 @@ def journal_path_for(connection: sqlite3.Connection) -> Path:
     return default_journal_path(Path(row[2]))
 
 
-def entry_anchor(connection: sqlite3.Connection, entry_kind: str, entry_id: str) -> str:
-    if entry_kind == "DOCUMENT":
-        row = connection.execute(
-            """
-            SELECT r.evidence_sha256, r.source_anchor, r.extraction_ordinal
-            FROM document_entries e JOIN document_records r ON r.id = e.document_record_id
-            WHERE e.id = ?
-            """,
-            (entry_id,),
-        ).fetchone()
-    else:
-        row = connection.execute(
-            """
-            SELECT r.evidence_sha256, r.source_anchor, r.extraction_ordinal
-            FROM canonical_entries e JOIN raw_records r ON r.id = e.raw_record_id
-            WHERE e.id = ?
-            """,
-            (entry_id,),
-        ).fetchone()
+def entry_anchor(connection: sqlite3.Connection, entry_id: str) -> str:
+    row = connection.execute(
+        "SELECT natural_anchor FROM ledger_entries WHERE id = ?",
+        (entry_id,),
+    ).fetchone()
     if row is None:
         raise FinCLError("entry does not resolve to a natural anchor")
-    return f"{row[0]}:{row[1]}:{row[2]}"
+    return str(row[0])
 
 
-def resolve_anchor(connection: sqlite3.Connection, anchor: str) -> tuple[str, str] | None:
-    try:
-        evidence_sha256, rest = anchor.split(":", 1)
-        source_anchor, ordinal_text = rest.rsplit(":", 1)
-        ordinal = int(ordinal_text)
-    except ValueError:
-        return None
-    for kind, sql in (
-        (
-            "DOCUMENT",
-            """SELECT e.id FROM document_entries e JOIN document_records r ON r.id=e.document_record_id
-               WHERE r.evidence_sha256=? AND r.source_anchor=? AND r.extraction_ordinal=?""",
-        ),
-        (
-            "CSV",
-            """SELECT e.id FROM canonical_entries e JOIN raw_records r ON r.id=e.raw_record_id
-               WHERE r.evidence_sha256=? AND r.source_anchor=? AND r.extraction_ordinal=?""",
-        ),
-    ):
-        row = connection.execute(sql, (evidence_sha256, source_anchor, ordinal)).fetchone()
-        if row is not None:
-            return kind, row[0]
-    return None
+def resolve_anchor(connection: sqlite3.Connection, anchor: str) -> str | None:
+    row = connection.execute(
+        "SELECT id FROM ledger_entries WHERE natural_anchor = ? ORDER BY id LIMIT 1",
+        (anchor,),
+    ).fetchone()
+    return None if row is None else str(row[0])
 
 
 def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = None) -> tuple[int, int]:

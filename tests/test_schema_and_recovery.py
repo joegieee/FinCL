@@ -91,64 +91,19 @@ class SchemaVersionGateTests(unittest.TestCase):
         with self.assertRaises(SchemaVersionError):
             initialize_schema(connection)
 
-    def test_v3_transfer_links_migrate_to_per_leg_facts(self):
+    def test_superseded_schema_versions_are_refused_not_migrated(self):
+        """No in-place migration path exists; a stale database is rebuilt instead."""
         connection = connect_sqlite(self.database)
         self.addCleanup(connection.close)
         initialize_schema(connection)
-        connection.execute(
-            "UPDATE schema_metadata SET value = '3' WHERE key = 'schema_version'"
-        )
-        connection.commit()
-
-        initialize_schema(connection)
-
-        columns = {row[1] for row in connection.execute("PRAGMA table_info(transfer_links)")}
-        self.assertTrue(
-            {
-                "link_kind",
-                "left_currency",
-                "left_amount_coefficient",
-                "right_currency",
-                "right_amount_coefficient",
-                "implied_rate_numerator",
-                "implied_rate_denominator",
-            }.issubset(columns)
-        )
-
-    def test_v4_to_v5_migration_discards_legacy_broad_revolut_links(self):
-        connection = connect_sqlite(self.database)
-        self.addCleanup(connection.close)
-        initialize_schema(connection)
-        legacy = "dbs-revolut-exact-amount-currency-window-description-v1"
-        for method, link_id in ((legacy, "legacy-1"), ("dbs-paylah-exact-date-amount-description-v1", "keep-1")):
+        for stale in ("3", "4", "5", "6"):
             connection.execute(
-                """
-                INSERT INTO transfer_links(
-                    id, left_entry_kind, left_entry_id, right_entry_kind, right_entry_id,
-                    link_kind, left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
-                    right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
-                    method_version, status, evidence_json, created_at
-                ) VALUES (?, 'DOCUMENT', ?, 'CSV', ?, 'SAME_CURRENCY_TRANSFER', 'SGD', '1.00', 100, 2,
-                          'SGD', '1.00', 100, 2, ?, 'CONFIRMED', '{}', '2026-01-01T00:00:00Z')
-                """,
-                (link_id, f"l-{link_id}", f"r-{link_id}", method),
+                "UPDATE schema_metadata SET value = ? WHERE key = 'schema_version'",
+                (stale,),
             )
-        connection.execute("UPDATE schema_metadata SET value = '4' WHERE key = 'schema_version'")
-        connection.commit()
-
-        initialize_schema(connection)
-
-        rows = {
-            row[0]
-            for row in connection.execute("SELECT method_version FROM transfer_links")
-        }
-        self.assertEqual(rows, {"dbs-paylah-exact-date-amount-description-v1"})
-        self.assertEqual(
-            connection.execute(
-                "SELECT value FROM schema_metadata WHERE key = 'schema_version'"
-            ).fetchone()[0],
-            str(SCHEMA_VERSION),
-        )
+            connection.commit()
+            with self.assertRaises(SchemaVersionError):
+                initialize_schema(connection)
 
 
 class RunningExtractionGuardTests(unittest.TestCase):
@@ -252,7 +207,9 @@ class RebuildTests(unittest.TestCase):
         self.assertEqual(result.accepted_extractions, 1)
         with sqlite3.connect(output) as connection:
             self.assertEqual(
-                connection.execute("SELECT count(*) FROM canonical_entries").fetchone()[0],
+                connection.execute(
+                    "SELECT count(*) FROM ledger_entries WHERE source_family = 'CSV'"
+                ).fetchone()[0],
                 imported.canonical_entry_count,
             )
             self.assertEqual(
@@ -332,16 +289,17 @@ class EconomicFlowReportTests(unittest.TestCase):
         self.assertEqual(before_link[0]["unclassified_inbound"], "100.00")
         with sqlite3.connect(self.database) as connection:
             entries = connection.execute(
-                "SELECT id, amount_text, amount_coefficient, amount_scale, currency_pocket FROM canonical_entries ORDER BY started_at"
+                "SELECT id, amount_text, amount_coefficient, amount_scale, currency_pocket "
+                "FROM ledger_entries ORDER BY effective_at"
             ).fetchall()
             connection.execute(
                 """
                 INSERT INTO transfer_links(
-                    id, left_entry_kind, left_entry_id, right_entry_kind, right_entry_id,
+                    id, left_entry_id, right_entry_id,
                     link_kind, left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
                     right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
                     method_version, status, evidence_json, created_at
-                ) VALUES (?, 'CSV', ?, 'CSV', ?, 'SAME_CURRENCY_TRANSFER', 'USD', '100.00', 10000, 2,
+                ) VALUES (?, ?, ?, 'SAME_CURRENCY_TRANSFER', 'USD', '100.00', 10000, 2,
                           'USD', '10.00', 1000, 2, 'test-v1', 'CONFIRMED', '{}', '2026-01-02T00:00:00Z')
                 """,
                 ("test-link", entries[0][0], entries[1][0]),

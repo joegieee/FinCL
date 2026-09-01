@@ -86,8 +86,9 @@ def build_report(database_path: Path) -> str:
         row[0]
         for row in connection.execute(
             """
-            SELECT DISTINCT currency_pocket FROM canonical_entries
-            WHERE extraction_run_id = ? ORDER BY currency_pocket
+            SELECT DISTINCT currency_pocket FROM ledger_entries
+            WHERE extraction_run_id = ? AND source_family = 'CSV'
+            ORDER BY currency_pocket
             """,
             (extraction["id"],),
         )
@@ -96,9 +97,10 @@ def build_report(database_path: Path) -> str:
         rows = connection.execute(
             """
             SELECT c.*, r.extraction_ordinal
-            FROM canonical_entries c
+            FROM ledger_entries c
             JOIN raw_records r ON r.id = c.raw_record_id
-            WHERE c.extraction_run_id = ? AND c.currency_pocket = ?
+            WHERE c.extraction_run_id = ? AND c.source_family = 'CSV'
+              AND c.currency_pocket = ?
             ORDER BY r.extraction_ordinal
             """,
             (extraction["id"], currency),
@@ -205,39 +207,29 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
     rows = connection.execute(
         """
         WITH entries AS (
-            SELECT 'CSV' AS entry_kind, e.id, e.currency_pocket AS currency,
+            SELECT e.source_family AS entry_kind, e.id, e.currency_pocket AS currency,
                    substr(e.effective_at, 1, 10) AS posted_date,
                    e.amount_text, e.amount_coefficient, e.amount_scale,
-                   e.fee_text, e.fee_coefficient, e.fee_scale,
+                   COALESCE(e.fee_text, '0') AS fee_text,
+                   COALESCE(e.fee_coefficient, 0) AS fee_coefficient,
+                   COALESCE(e.fee_scale, 0) AS fee_scale,
                    e.economic_direction, e.event_kind,
-                   r.evidence_sha256 || ':' || r.source_anchor || ':' || r.extraction_ordinal AS entry_anchor
-            FROM canonical_entries e JOIN raw_records r ON r.id = e.raw_record_id
+                   e.natural_anchor AS entry_anchor
+            FROM ledger_entries e
             JOIN extraction_runs x ON x.id = e.extraction_run_id
+            LEFT JOIN statements s ON s.id = e.statement_id
             WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'
               AND x.status = 'ACCEPTED'
-            UNION ALL
-            SELECT 'DOCUMENT' AS entry_kind, e.id, e.currency_pocket AS currency,
-                   e.posted_date,
-                   e.amount_text, e.amount_coefficient, e.amount_scale,
-                   '0' AS fee_text, 0 AS fee_coefficient, 0 AS fee_scale,
-                   e.economic_direction, e.event_kind,
-                   r.evidence_sha256 || ':' || r.source_anchor || ':' || r.extraction_ordinal AS entry_anchor
-            FROM document_entries e JOIN document_records r ON r.id = e.document_record_id
-            JOIN extraction_runs x ON x.id = e.extraction_run_id
-            JOIN statements s ON s.id = e.statement_id
-            WHERE e.analytics_eligible = 1 AND x.status = 'ACCEPTED'
-              AND s.selection_state = 'SELECTED'
+              AND (e.source_family = 'CSV' OR s.selection_state = 'SELECTED')
         ), linked AS (
-            SELECT left_entry_kind AS entry_kind, left_entry_id AS id
-            FROM transfer_links WHERE status = 'CONFIRMED'
+            SELECT left_entry_id AS id FROM transfer_links WHERE status = 'CONFIRMED'
             UNION
-            SELECT right_entry_kind AS entry_kind, right_entry_id AS id
-            FROM transfer_links WHERE status = 'CONFIRMED'
+            SELECT right_entry_id AS id FROM transfer_links WHERE status = 'CONFIRMED'
         )
         SELECT e.*, CASE WHEN l.id IS NULL THEN 0 ELSE 1 END AS is_linked,
                i.classification AS inbound_classification
         FROM entries e
-        LEFT JOIN linked l ON l.entry_kind = e.entry_kind AND l.id = e.id
+        LEFT JOIN linked l ON l.id = e.id
         LEFT JOIN inbound_classifications i ON i.bound = 1 AND i.anchor = e.entry_anchor
         ORDER BY e.currency, e.posted_date, e.entry_kind, e.id
         """
@@ -539,8 +531,9 @@ def _economic_flow_coverage(connection: sqlite3.Connection) -> list[dict[str, An
         """
         SELECT min(substr(e.effective_at, 1, 10)) AS period_start,
                max(substr(e.effective_at, 1, 10)) AS period_end, x.status
-        FROM extraction_runs x JOIN canonical_entries e ON e.extraction_run_id = x.id
-        WHERE x.source_profile_version LIKE 'revolut-csv-%'
+        FROM extraction_runs x JOIN ledger_entries e ON e.extraction_run_id = x.id
+        WHERE e.source_family = 'CSV'
+          AND x.source_profile_version LIKE 'revolut-csv-%'
         GROUP BY x.id, x.status
         ORDER BY period_start
         """

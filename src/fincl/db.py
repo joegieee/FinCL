@@ -9,66 +9,19 @@ from typing import Protocol
 from .errors import SchemaVersionError
 from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
 # locked".
 BUSY_TIMEOUT_MS = 5000
 
-# In-place upgrade steps keyed by the schema version they upgrade *from*. Each
-# callable runs inside its own transaction and must leave the database at
-# `from_version + 1`. There is no deployed database older than SCHEMA_VERSION, so
-# the registry is intentionally empty; add an entry here whenever SCHEMA_VERSION
-# is bumped in a way that existing databases cannot satisfy through the
-# idempotent CREATE TABLE IF NOT EXISTS statements below.
+# In-place upgrade steps keyed by the schema version they upgrade *from*. There
+# is no deployed database older than SCHEMA_VERSION and processed entries are
+# fully derived from the evidence vault, so the registry is intentionally empty:
+# a database that predates SCHEMA_VERSION is refused with a SchemaVersionError
+# that points at `fincl rebuild` rather than being migrated in place.
 _MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
-
-
-def _migrate_3_to_4(connection: sqlite3.Connection) -> None:
-    """Add per-leg transfer facts without discarding existing links."""
-    existing = {row[1] for row in connection.execute("PRAGMA table_info(transfer_links)")}
-    additions = (
-        ("link_kind", "TEXT NOT NULL DEFAULT 'SAME_CURRENCY_TRANSFER'"),
-        ("left_currency", "TEXT"),
-        ("left_amount_text", "TEXT"),
-        ("left_amount_coefficient", "INTEGER"),
-        ("left_amount_scale", "INTEGER"),
-        ("right_currency", "TEXT"),
-        ("right_amount_text", "TEXT"),
-        ("right_amount_coefficient", "INTEGER"),
-        ("right_amount_scale", "INTEGER"),
-        ("implied_rate_numerator", "INTEGER"),
-        ("implied_rate_denominator", "INTEGER"),
-    )
-    for name, declaration in additions:
-        if name not in existing:
-            connection.execute(f"ALTER TABLE transfer_links ADD COLUMN {name} {declaration}")
-    if "currency" in existing:
-        connection.execute(
-            """
-            UPDATE transfer_links
-            SET left_currency = currency, left_amount_text = amount_text,
-                left_amount_coefficient = amount_coefficient, left_amount_scale = amount_scale,
-                right_currency = currency, right_amount_text = amount_text,
-                right_amount_coefficient = amount_coefficient, right_amount_scale = amount_scale
-            WHERE left_currency IS NULL
-            """
-        )
-
-
-_MIGRATIONS[3] = _migrate_3_to_4
-
-
-def _migrate_4_to_5(connection: sqlite3.Connection) -> None:
-    """Discard derived links made by the superseded broad Revolut matcher."""
-    connection.execute(
-        "DELETE FROM transfer_links WHERE method_version = ?",
-        ("dbs-revolut-exact-amount-currency-window-description-v1",),
-    )
-
-
-_MIGRATIONS[4] = _migrate_4_to_5
 
 
 def _create_decision_projection(connection: sqlite3.Connection) -> None:
@@ -121,15 +74,6 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
     )
 
 
-def _migrate_5_to_6(connection: sqlite3.Connection) -> None:
-    """Add rebuildable projections for the external decision journal."""
-    _create_decision_projection(connection)
-    connection.execute("DROP TABLE IF EXISTS extraction_recovery_events")
-
-
-_MIGRATIONS[5] = _migrate_5_to_6
-
-
 class ConnectionFactory(Protocol):
     def __call__(self, path: Path) -> sqlite3.Connection: ...
 
@@ -178,7 +122,9 @@ def _run_migrations(connection: sqlite3.Connection, from_version: int) -> None:
         if migration is None:
             raise SchemaVersionError(
                 f"no migration path from schema version {version} to {SCHEMA_VERSION}; "
-                "back up var/fincl.sqlite3 and re-import into a fresh database"
+                "processed entries are fully derived from the evidence vault, so run "
+                "`fincl rebuild` to regenerate this database, or back up "
+                "var/fincl.sqlite3 and re-import into a fresh database"
             )
         with connection:
             migration(connection)
@@ -284,28 +230,48 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             UNIQUE (extraction_run_id, extraction_ordinal)
         ) STRICT;
 
-        CREATE TABLE IF NOT EXISTS canonical_entries (
+        CREATE TABLE IF NOT EXISTS ledger_entries (
             id TEXT PRIMARY KEY,
+            source_family TEXT NOT NULL CHECK (source_family IN ('CSV', 'DOCUMENT')),
             extraction_run_id TEXT NOT NULL REFERENCES extraction_runs(id),
-            raw_record_id TEXT NOT NULL UNIQUE REFERENCES raw_records(id),
-            account_id TEXT NOT NULL,
+
+            evidence_sha256 TEXT NOT NULL REFERENCES source_content(sha256),
+            raw_record_id TEXT UNIQUE REFERENCES raw_records(id),
+            document_record_id TEXT UNIQUE REFERENCES document_records(id),
+            statement_id TEXT REFERENCES statements(id),
+            natural_anchor TEXT NOT NULL,
+
+            account_id TEXT NOT NULL REFERENCES accounts(id),
             currency_pocket TEXT NOT NULL,
-            started_at TEXT NOT NULL,
-            completed_at TEXT,
             effective_at TEXT NOT NULL,
+            effective_precision TEXT NOT NULL DEFAULT 'DAY' CHECK (effective_precision IN ('DAY', 'MONTH', 'UNKNOWN')),
             amount_text TEXT NOT NULL,
             amount_coefficient INTEGER NOT NULL CHECK (amount_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
             amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
-            fee_text TEXT NOT NULL,
-            fee_coefficient INTEGER NOT NULL CHECK (fee_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
-            fee_scale INTEGER NOT NULL CHECK (fee_scale BETWEEN 0 AND {MAX_SCALE}),
+            event_kind TEXT NOT NULL,
+            economic_direction TEXT NOT NULL CHECK (economic_direction IN ('IN', 'OUT', 'ZERO')),
+            lifecycle_state TEXT NOT NULL CHECK (lifecycle_state IN ('COMPLETED', 'PENDING', 'REVERTED')),
+            analytics_eligible INTEGER NOT NULL DEFAULT 0 CHECK (analytics_eligible IN (0, 1)),
+
+            alt_date_role TEXT CHECK (alt_date_role IN ('STARTED', 'TRANSACTION')),
+            alt_date_value TEXT,
+            alt_date_raw TEXT,
+            alt_date_precision TEXT CHECK (alt_date_precision IN ('DAY', 'MONTH', 'UNKNOWN')),
+
+            fee_text TEXT,
+            fee_coefficient INTEGER CHECK (fee_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+            fee_scale INTEGER CHECK (fee_scale BETWEEN 0 AND {MAX_SCALE}),
             balance_text TEXT,
             balance_coefficient INTEGER CHECK (balance_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
             balance_scale INTEGER CHECK (balance_scale BETWEEN 0 AND {MAX_SCALE}),
-            lifecycle_state TEXT NOT NULL CHECK (lifecycle_state IN ('COMPLETED', 'PENDING', 'REVERTED')),
-            event_kind TEXT NOT NULL,
-            economic_direction TEXT NOT NULL CHECK (economic_direction IN ('IN', 'OUT', 'ZERO')),
-            analytics_eligible INTEGER NOT NULL CHECK (analytics_eligible IN (0, 1))
+            source_currency TEXT,
+            source_amount_text TEXT,
+            source_amount_coefficient INTEGER CHECK (source_amount_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+            source_amount_scale INTEGER CHECK (source_amount_scale BETWEEN 0 AND {MAX_SCALE}),
+
+            CHECK ((raw_record_id IS NOT NULL) + (document_record_id IS NOT NULL) = 1),
+            CHECK ((source_family = 'DOCUMENT') = (document_record_id IS NOT NULL)),
+            CHECK ((alt_date_role IS NULL) = (alt_date_value IS NULL AND alt_date_raw IS NULL))
         ) STRICT;
 
         CREATE TABLE IF NOT EXISTS extraction_issues (
@@ -342,8 +308,12 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS raw_records_by_extraction
             ON raw_records(extraction_run_id, extraction_ordinal);
-        CREATE INDEX IF NOT EXISTS canonical_entries_by_pocket_state
-            ON canonical_entries(extraction_run_id, currency_pocket, lifecycle_state);
+        CREATE INDEX IF NOT EXISTS ledger_entries_by_account_date
+            ON ledger_entries(account_id, effective_at, currency_pocket);
+        CREATE INDEX IF NOT EXISTS ledger_entries_by_pocket_state
+            ON ledger_entries(extraction_run_id, currency_pocket, lifecycle_state);
+        CREATE INDEX IF NOT EXISTS ledger_entries_by_anchor
+            ON ledger_entries(natural_anchor);
         CREATE INDEX IF NOT EXISTS issues_by_extraction
             ON extraction_issues(extraction_run_id, severity);
 
@@ -442,22 +412,6 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             UNIQUE (extraction_run_id, extraction_ordinal)
         ) STRICT;
 
-        CREATE TABLE IF NOT EXISTS document_entries (
-            id TEXT PRIMARY KEY,
-            extraction_run_id TEXT NOT NULL REFERENCES extraction_runs(id),
-            statement_id TEXT NOT NULL REFERENCES statements(id),
-            document_record_id TEXT NOT NULL UNIQUE REFERENCES document_records(id),
-            account_id TEXT NOT NULL REFERENCES accounts(id),
-            currency_pocket TEXT NOT NULL,
-            posted_date TEXT NOT NULL,
-            amount_text TEXT NOT NULL,
-            amount_coefficient INTEGER NOT NULL CHECK (amount_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
-            amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
-            event_kind TEXT NOT NULL,
-            economic_direction TEXT NOT NULL CHECK (economic_direction IN ('IN', 'OUT', 'ZERO')),
-            analytics_eligible INTEGER NOT NULL CHECK (analytics_eligible IN (0, 1))
-        ) STRICT;
-
         CREATE TABLE IF NOT EXISTS document_reconciliation_checks (
             id INTEGER PRIMARY KEY,
             extraction_run_id TEXT NOT NULL REFERENCES extraction_runs(id),
@@ -481,10 +435,8 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
 
         CREATE TABLE IF NOT EXISTS transfer_links (
             id TEXT PRIMARY KEY,
-            left_entry_kind TEXT NOT NULL CHECK (left_entry_kind IN ('CSV', 'DOCUMENT')),
-            left_entry_id TEXT NOT NULL,
-            right_entry_kind TEXT NOT NULL CHECK (right_entry_kind IN ('CSV', 'DOCUMENT')),
-            right_entry_id TEXT NOT NULL,
+            left_entry_id TEXT NOT NULL REFERENCES ledger_entries(id),
+            right_entry_id TEXT NOT NULL REFERENCES ledger_entries(id),
             link_kind TEXT NOT NULL CHECK (link_kind IN ('SAME_CURRENCY_TRANSFER', 'CURRENCY_EXCHANGE')),
             left_currency TEXT NOT NULL,
             left_amount_text TEXT NOT NULL,
@@ -500,22 +452,20 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             status TEXT NOT NULL CHECK (status IN ('CONFIRMED', 'PROPOSED', 'REJECTED')),
             evidence_json TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            UNIQUE (left_entry_kind, left_entry_id, right_entry_kind, right_entry_id, method_version)
+            UNIQUE (left_entry_id, right_entry_id, method_version)
         ) STRICT;
 
         CREATE INDEX IF NOT EXISTS statements_by_identity
             ON statements(statement_identity, selection_state);
         CREATE INDEX IF NOT EXISTS document_records_by_extraction
             ON document_records(extraction_run_id, extraction_ordinal);
-        CREATE INDEX IF NOT EXISTS document_entries_by_account_date
-            ON document_entries(account_id, posted_date, currency_pocket);
         CREATE INDEX IF NOT EXISTS page_coverage_by_extraction
             ON page_coverage(extraction_run_id, page_number);
         CREATE UNIQUE INDEX IF NOT EXISTS confirmed_transfer_link_left
-            ON transfer_links(left_entry_kind, left_entry_id)
+            ON transfer_links(left_entry_id)
             WHERE status = 'CONFIRMED';
         CREATE UNIQUE INDEX IF NOT EXISTS confirmed_transfer_link_right
-            ON transfer_links(right_entry_kind, right_entry_id)
+            ON transfer_links(right_entry_id)
             WHERE status = 'CONFIRMED';
 
         """

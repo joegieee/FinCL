@@ -299,10 +299,10 @@ def review_list(
             )]
             for proposal in proposals:
                 proposal["left_anchor"] = entry_anchor(
-                    connection, str(proposal["left_entry_kind"]), str(proposal["left_entry_id"])
+                    connection, str(proposal["left_entry_id"])
                 )
                 proposal["right_anchor"] = entry_anchor(
-                    connection, str(proposal["right_entry_kind"]), str(proposal["right_entry_id"])
+                    connection, str(proposal["right_entry_id"])
                 )
         connection.close()
         _emit_mapping({"kind": kind, "proposals": proposals, "decisions": decisions}, plain, json_output)
@@ -388,8 +388,8 @@ def _record_link_decision(database: Path, kind: str, left: str, right: str, reas
             raise FinCLError("both anchors must currently resolve")
         row = connection.execute(
             """SELECT method_version, link_kind FROM transfer_links
-               WHERE left_entry_kind=? AND left_entry_id=? AND right_entry_kind=? AND right_entry_id=?""",
-            (resolved_left[0], resolved_left[1], resolved_right[0], resolved_right[1]),
+               WHERE left_entry_id=? AND right_entry_id=?""",
+            (resolved_left, resolved_right),
         ).fetchone()
         policy = row["method_version"] if row is not None else "manual-v1"
         link_kind = row["link_kind"] if row is not None else "SAME_CURRENCY_TRANSFER"

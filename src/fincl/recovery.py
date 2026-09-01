@@ -65,7 +65,9 @@ def recover_extraction(
                 "DELETE FROM page_coverage WHERE extraction_run_id = ?", (extraction_run_id,)
             )
             connection.execute(
-                "DELETE FROM document_entries WHERE extraction_run_id = ?", (extraction_run_id,)
+                "DELETE FROM ledger_entries WHERE extraction_run_id = ? "
+                "AND source_family = 'DOCUMENT'",
+                (extraction_run_id,),
             )
             connection.execute(
                 "DELETE FROM document_records WHERE extraction_run_id = ?", (extraction_run_id,)
@@ -86,7 +88,9 @@ def recover_extraction(
                 "DELETE FROM extraction_issues WHERE extraction_run_id = ?", (extraction_run_id,)
             )
             connection.execute(
-                "DELETE FROM canonical_entries WHERE extraction_run_id = ?", (extraction_run_id,)
+                "DELETE FROM ledger_entries WHERE extraction_run_id = ? "
+                "AND source_family = 'CSV'",
+                (extraction_run_id,),
             )
             connection.execute(
                 "DELETE FROM raw_records WHERE extraction_run_id = ?", (extraction_run_id,)
@@ -112,14 +116,10 @@ def _delete_transfer_links(connection: sqlite3.Connection, extraction_run_id: st
     connection.execute(
         """
         DELETE FROM transfer_links
-        WHERE (left_entry_kind = 'CSV' AND left_entry_id IN
-                  (SELECT id FROM canonical_entries WHERE extraction_run_id = ?))
-           OR (right_entry_kind = 'CSV' AND right_entry_id IN
-                  (SELECT id FROM canonical_entries WHERE extraction_run_id = ?))
-           OR (left_entry_kind = 'DOCUMENT' AND left_entry_id IN
-                  (SELECT id FROM document_entries WHERE extraction_run_id = ?))
-           OR (right_entry_kind = 'DOCUMENT' AND right_entry_id IN
-                  (SELECT id FROM document_entries WHERE extraction_run_id = ?))
+        WHERE left_entry_id IN
+                  (SELECT id FROM ledger_entries WHERE extraction_run_id = ?)
+           OR right_entry_id IN
+                  (SELECT id FROM ledger_entries WHERE extraction_run_id = ?)
         """,
-        (extraction_run_id,) * 4,
+        (extraction_run_id,) * 2,
     )
