@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from fincl.cli import app
 from fincl.db import connect_sqlite, initialize_schema
+from fincl.decision_journal import default_journal_path, read_records
 from fincl.errors import FinCLError
 from fincl.report import build_report
 from fincl.revolut import (
@@ -259,10 +260,10 @@ class RevolutImportTests(unittest.TestCase):
         self.assertEqual(result.status, "ACCEPTED")
         self.assertEqual(result.extraction_run_id, failed_id)
         with self.connect() as connection:
-            event = connection.execute("SELECT * FROM extraction_recovery_events").fetchone()
-            self.assertEqual(event["extraction_run_id"], failed_id)
-            self.assertEqual(event["reason"], "retry synthetic failure")
             self.assertEqual(connection.execute("PRAGMA foreign_key_check").fetchall(), [])
+        event = read_records(default_journal_path(self.database))[-1]
+        self.assertEqual(event.anchors["extraction_identity"], failed_id)
+        self.assertEqual(event.payload["reason"], "retry synthetic failure")
 
     def test_invalid_money_is_retained_as_unresolved_raw_and_quarantined(self):
         rows = [list(row) for row in GOOD_ROWS]

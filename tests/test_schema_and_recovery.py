@@ -13,10 +13,11 @@ from fincl.db import (
     connect_sqlite,
     initialize_schema,
 )
+from fincl.decision_journal import default_journal_path, read_records
 from fincl.errors import FinCLError, SchemaVersionError
 from fincl.rebuild import rebuild_database
 from fincl.recovery import recover_extraction
-from fincl.report import build_profile_report, profile_report_data
+from fincl.report import build_profile_report, economic_flow_report_data, profile_report_data
 from fincl.revolut import EXPECTED_HEADER
 from fincl.service import FinCLService
 
@@ -206,11 +207,9 @@ class RunningExtractionGuardTests(unittest.TestCase):
                     "SELECT id FROM extraction_runs WHERE id = ?", (extraction_id,)
                 ).fetchone()
             )
-            event = connection.execute(
-                "SELECT prior_status, reason FROM extraction_recovery_events"
-            ).fetchone()
-        self.assertEqual(event["prior_status"], "RUNNING")
-        self.assertEqual(event["reason"], "confirmed no importer active")
+        event = read_records(default_journal_path(self.database))[-1]
+        self.assertEqual(event.payload["prior_status"], "RUNNING")
+        self.assertEqual(event.payload["reason"], "confirmed no importer active")
 
         replayed = self.service.import_revolut(self.source)
         self.assertEqual(replayed.status, "ACCEPTED")
@@ -226,13 +225,10 @@ class RunningExtractionGuardTests(unittest.TestCase):
             allow_running=True,
         )
 
-        with self._connect() as connection:
-            event = connection.execute(
-                "SELECT id, extraction_run_id, reason FROM extraction_recovery_events"
-            ).fetchone()
-        self.assertEqual(event["id"], result.event_id)
-        self.assertEqual(event["extraction_run_id"], extraction_id)
-        self.assertEqual(event["reason"], "confirmed no importer active")
+        event = read_records(default_journal_path(self.database))[-1]
+        self.assertEqual(event.payload["event_id"], result.event_id)
+        self.assertEqual(event.anchors["extraction_identity"], extraction_id)
+        self.assertEqual(event.payload["reason"], "confirmed no importer active")
 
 
 class RebuildTests(unittest.TestCase):
@@ -317,6 +313,50 @@ class RebuildTests(unittest.TestCase):
                 1,
             )
             self.assertEqual(connection.execute("SELECT count(*) FROM transfer_links").fetchone()[0], 0)
+
+
+class EconomicFlowReportTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        root = Path(self.temporary.name)
+        self.source = root / "revolut.csv"
+        self.source.write_bytes(_csv_bytes())
+        self.database = root / "fincl.sqlite3"
+        FinCLService.plaintext_phase1(self.database, root / "evidence").import_revolut(self.source)
+
+    def test_confirmed_internal_legs_are_excluded_but_fees_and_unclassified_inbound_remain_visible(self):
+        before_link = economic_flow_report_data(self.database)["currencies"]
+        self.assertEqual(before_link[0]["spending"], "10.00")
+        self.assertEqual(before_link[0]["income"], "0")
+        self.assertEqual(before_link[0]["unclassified_inbound"], "100.00")
+        with sqlite3.connect(self.database) as connection:
+            entries = connection.execute(
+                "SELECT id, amount_text, amount_coefficient, amount_scale, currency_pocket FROM canonical_entries ORDER BY started_at"
+            ).fetchall()
+            connection.execute(
+                """
+                INSERT INTO transfer_links(
+                    id, left_entry_kind, left_entry_id, right_entry_kind, right_entry_id,
+                    link_kind, left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
+                    right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
+                    method_version, status, evidence_json, created_at
+                ) VALUES (?, 'CSV', ?, 'CSV', ?, 'SAME_CURRENCY_TRANSFER', 'USD', '100.00', 10000, 2,
+                          'USD', '10.00', 1000, 2, 'test-v1', 'CONFIRMED', '{}', '2026-01-02T00:00:00Z')
+                """,
+                ("test-link", entries[0][0], entries[1][0]),
+            )
+
+        data = economic_flow_report_data(self.database)
+
+        self.assertEqual(data["consolidated_sgd_total"], None)
+        self.assertEqual(data["consolidated_sgd_total_status"], "UNAVAILABLE_FX_RATES_NOT_IMPORTED")
+        self.assertEqual(data["currencies"], [{
+            "currency": "USD", "entries": 2, "spending": "0", "income": "0",
+            "unclassified_inbound": "0", "fees": "1.00", "net_economic_flow": "-1.00",
+            "excluded_confirmed_internal_entries": 2,
+        }])
+        self.assertEqual(data["coverage"][0]["source_type"], "REVOLUT_CSV")
 
 
 if __name__ == "__main__":

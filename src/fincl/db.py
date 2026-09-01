@@ -9,7 +9,7 @@ from typing import Protocol
 from .errors import SchemaVersionError
 from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -69,6 +69,65 @@ def _migrate_4_to_5(connection: sqlite3.Connection) -> None:
 
 
 _MIGRATIONS[4] = _migrate_4_to_5
+
+
+def _create_decision_projection(connection: sqlite3.Connection) -> None:
+    connection.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS decision_watermark (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            applied_seq INTEGER NOT NULL CHECK (applied_seq >= 0)
+        ) STRICT;
+        INSERT OR IGNORE INTO decision_watermark(id, applied_seq) VALUES (1, 0);
+
+        CREATE TABLE IF NOT EXISTS link_decisions (
+            left_anchor TEXT NOT NULL,
+            right_anchor TEXT NOT NULL,
+            anchor_version TEXT NOT NULL,
+            link_kind TEXT NOT NULL,
+            decision TEXT NOT NULL CHECK (decision IN ('CONFIRM', 'REJECT')),
+            policy_version TEXT NOT NULL,
+            journal_seq INTEGER NOT NULL UNIQUE,
+            snapshot TEXT NOT NULL,
+            bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+            dangling_reason TEXT,
+            PRIMARY KEY(left_anchor, right_anchor, anchor_version, link_kind)
+        ) STRICT;
+
+        CREATE TABLE IF NOT EXISTS invariant_escapes (
+            invariant_code TEXT NOT NULL,
+            anchors_json TEXT NOT NULL,
+            anchor_version TEXT NOT NULL,
+            policy_version TEXT NOT NULL,
+            journal_seq INTEGER NOT NULL UNIQUE,
+            snapshot TEXT NOT NULL,
+            bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+            dangling_reason TEXT,
+            PRIMARY KEY(invariant_code, anchors_json, anchor_version)
+        ) STRICT;
+
+        CREATE TABLE IF NOT EXISTS inbound_classifications (
+            anchor TEXT NOT NULL,
+            anchor_version TEXT NOT NULL,
+            classification TEXT NOT NULL,
+            policy_version TEXT NOT NULL,
+            journal_seq INTEGER NOT NULL UNIQUE,
+            snapshot TEXT NOT NULL,
+            bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+            dangling_reason TEXT,
+            PRIMARY KEY(anchor, anchor_version)
+        ) STRICT;
+        """
+    )
+
+
+def _migrate_5_to_6(connection: sqlite3.Connection) -> None:
+    """Add rebuildable projections for the external decision journal."""
+    _create_decision_projection(connection)
+    connection.execute("DROP TABLE IF EXISTS extraction_recovery_events")
+
+
+_MIGRATIONS[5] = _migrate_5_to_6
 
 
 class ConnectionFactory(Protocol):
@@ -459,16 +518,9 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             ON transfer_links(right_entry_kind, right_entry_id)
             WHERE status = 'CONFIRMED';
 
-        CREATE TABLE IF NOT EXISTS extraction_recovery_events (
-            id TEXT PRIMARY KEY,
-            extraction_run_id TEXT NOT NULL,
-            evidence_sha256 TEXT NOT NULL CHECK (length(evidence_sha256) = 64),
-            prior_status TEXT NOT NULL CHECK (prior_status IN ('RUNNING', 'FAILED')),
-            reason TEXT NOT NULL,
-            recovered_at TEXT NOT NULL
-        ) STRICT;
         """
     )
+    _create_decision_projection(connection)
     connection.execute(
         "INSERT INTO schema_metadata(key, value) VALUES ('schema_version', ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",

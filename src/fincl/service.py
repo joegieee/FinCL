@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .db import ConnectionFactory, connect_sqlite, initialize_schema
+from .decisions import replay_journal
 from .errors import EvidenceError, FinCLError
 from .evidence import EvidenceCapture, EvidenceStore, PlaintextEvidenceStore
 from .money import MAX_ABS_COEFFICIENT, ExactMoney, exact_sum, format_decimal
@@ -63,6 +64,7 @@ class FinCLService:
     def import_revolut(self, source_path: Path) -> ImportResult:
         connection = self.connection_factory(self.database_path)
         initialize_schema(connection)
+        replay_journal(connection)
         import_run_id = "imp_" + uuid.uuid4().hex
         started_at = _now()
         connection.execute(

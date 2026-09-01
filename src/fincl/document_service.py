@@ -10,6 +10,7 @@ from math import gcd
 from pathlib import Path
 
 from .db import ConnectionFactory, connect_sqlite, initialize_schema
+from .decisions import replay_journal, resolve_anchor
 from .documents import (
     PDF_EXTRACTION_POLICY_VERSION,
     PDF_PARSER_VERSION,
@@ -147,6 +148,7 @@ class DocumentImportService:
     def _import(self, source_path: Path, source_type: str) -> DocumentImportResult:
         connection = self.connection_factory(self.database_path)
         initialize_schema(connection)
+        replay_journal(connection)
         import_run_id = "imp_" + uuid.uuid4().hex
         connection.execute(
             "INSERT INTO import_runs(id, started_at, status, source_path) VALUES (?, ?, 'RUNNING', ?)",
@@ -559,8 +561,11 @@ class DocumentImportService:
         )
 
 
-def link_narrow_transfers(connection: sqlite3.Connection) -> int:
+def link_narrow_transfers(
+    connection: sqlite3.Connection, *, journal_path: Path | None = None
+) -> int:
     """Refresh all derived same-currency links, then retain exchange links."""
+    replay_journal(connection, journal_path)
     return refresh_automatic_transfer_links(connection)
 
 
@@ -685,6 +690,7 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
         ),
     ]
     _store_candidates(connection, candidates)
+    _apply_link_decisions(connection)
     after = {
         row[0]
         for row in connection.execute(
@@ -695,6 +701,50 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
     }
     connection.commit()
     return created + len(after - before)
+
+
+def _apply_link_decisions(connection: sqlite3.Connection) -> None:
+    """Overlay bound journal decisions on this freshly-derived link projection."""
+    decisions = connection.execute(
+        "SELECT * FROM link_decisions WHERE bound = 1 ORDER BY journal_seq"
+    ).fetchall()
+    for decision in decisions:
+        left = resolve_anchor(connection, decision["left_anchor"])
+        right = resolve_anchor(connection, decision["right_anchor"])
+        if left is None or right is None:
+            continue
+        row = connection.execute(
+            """SELECT id, method_version, evidence_json FROM transfer_links
+               WHERE left_entry_kind=? AND left_entry_id=? AND right_entry_kind=? AND right_entry_id=?""",
+            (left[0], left[1], right[0], right[1]),
+        ).fetchone()
+        if row is None:
+            continue  # Confirmation without a candidate is deliberately not guessed.
+        evidence = json.loads(row["evidence_json"])
+        evidence["decision"] = {
+            "seq": decision["journal_seq"],
+            "policy_version": decision["policy_version"],
+        }
+        if decision["decision"] == "REJECT":
+            if decision["policy_version"] == row["method_version"]:
+                connection.execute("DELETE FROM transfer_links WHERE id = ?", (row["id"],))
+            else:
+                connection.execute(
+                    "UPDATE transfer_links SET status='REJECTED', evidence_json=? WHERE id=?",
+                    (_json(evidence), row["id"]),
+                )
+            continue
+        occupied = connection.execute(
+            """SELECT 1 FROM transfer_links WHERE status='CONFIRMED' AND id <> ?
+               AND ((left_entry_kind=? AND left_entry_id=?) OR (right_entry_kind=? AND right_entry_id=?)
+                 OR (left_entry_kind=? AND left_entry_id=?) OR (right_entry_kind=? AND right_entry_id=?))""",
+            (row["id"], left[0], left[1], left[0], left[1], right[0], right[1], right[0], right[1]),
+        ).fetchone()
+        if occupied is None:
+            connection.execute(
+                "UPDATE transfer_links SET status='CONFIRMED', evidence_json=? WHERE id=?",
+                (_json(evidence), row["id"]),
+            )
 
 
 def _is_revolut_card_topup(description: str | None) -> bool:
@@ -862,7 +912,7 @@ def _store_candidates(
                 abs(right["amount_coefficient"]),
                 right["amount_scale"],
                 method_version,
-                "CONFIRMED" if confirmed else "REJECTED",
+                "CONFIRMED" if confirmed else "PROPOSED",
                 _json(evidence),
                 _now(),
             ),

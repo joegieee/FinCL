@@ -4,10 +4,19 @@ import json
 import sqlite3
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from .db import connect_sqlite, initialize_schema
 from .money import ExactMoney, exact_sum, format_decimal
+
+
+class _EconomicFlowBucket(TypedDict):
+    spending: list[ExactMoney]
+    income: list[ExactMoney]
+    unclassified_inbound: list[ExactMoney]
+    fees: list[ExactMoney]
+    excluded_linked: int
+    entries: int
 
 
 def build_report(database_path: Path) -> str:
@@ -181,6 +190,128 @@ def latest_report_data(database_path: Path) -> dict[str, Any]:
     ).fetchone()[0]
     connection.close()
     return data
+
+
+def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
+    """Build the first safe consolidated view without converting currencies.
+
+    This deliberately returns a separate exact total for each currency pocket.
+    The frozen MAS rate table required for a single SGD total is not present yet,
+    so combining these values would manufacture a number the ledger cannot
+    explain.
+    """
+    connection = connect_sqlite(database_path)
+    initialize_schema(connection)
+    rows = connection.execute(
+        """
+        WITH entries AS (
+            SELECT 'CSV' AS entry_kind, e.id, e.currency_pocket AS currency,
+                   substr(e.effective_at, 1, 10) AS posted_date,
+                   e.amount_text, e.amount_coefficient, e.amount_scale,
+                   e.fee_text, e.fee_coefficient, e.fee_scale,
+                   e.economic_direction, e.event_kind,
+                   r.evidence_sha256 || ':' || r.source_anchor || ':' || r.extraction_ordinal AS entry_anchor
+            FROM canonical_entries e JOIN raw_records r ON r.id = e.raw_record_id
+            JOIN extraction_runs x ON x.id = e.extraction_run_id
+            WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'
+              AND x.status = 'ACCEPTED'
+            UNION ALL
+            SELECT 'DOCUMENT' AS entry_kind, e.id, e.currency_pocket AS currency,
+                   e.posted_date,
+                   e.amount_text, e.amount_coefficient, e.amount_scale,
+                   '0' AS fee_text, 0 AS fee_coefficient, 0 AS fee_scale,
+                   e.economic_direction, e.event_kind,
+                   r.evidence_sha256 || ':' || r.source_anchor || ':' || r.extraction_ordinal AS entry_anchor
+            FROM document_entries e JOIN document_records r ON r.id = e.document_record_id
+            JOIN extraction_runs x ON x.id = e.extraction_run_id
+            JOIN statements s ON s.id = e.statement_id
+            WHERE e.analytics_eligible = 1 AND x.status = 'ACCEPTED'
+              AND s.selection_state = 'SELECTED'
+        ), linked AS (
+            SELECT left_entry_kind AS entry_kind, left_entry_id AS id
+            FROM transfer_links WHERE status = 'CONFIRMED'
+            UNION
+            SELECT right_entry_kind AS entry_kind, right_entry_id AS id
+            FROM transfer_links WHERE status = 'CONFIRMED'
+        )
+        SELECT e.*, CASE WHEN l.id IS NULL THEN 0 ELSE 1 END AS is_linked,
+               i.classification AS inbound_classification
+        FROM entries e
+        LEFT JOIN linked l ON l.entry_kind = e.entry_kind AND l.id = e.id
+        LEFT JOIN inbound_classifications i ON i.bound = 1 AND i.anchor = e.entry_anchor
+        ORDER BY e.currency, e.posted_date, e.entry_kind, e.id
+        """
+    ).fetchall()
+    coverage = _economic_flow_coverage(connection)
+    connection.close()
+
+    by_currency: dict[str, _EconomicFlowBucket] = {}
+    for row in rows:
+        bucket = by_currency.setdefault(
+            row["currency"],
+            {
+                "spending": [], "income": [], "unclassified_inbound": [], "fees": [],
+                "excluded_linked": 0, "entries": 0,
+            },
+        )
+        bucket["entries"] += 1
+        if row["is_linked"]:
+            bucket["excluded_linked"] += 1
+        elif row["economic_direction"] == "OUT":
+            bucket["spending"].append(_magnitude(row, "amount"))
+        elif row["economic_direction"] == "IN":
+            if row["inbound_classification"] == "income":
+                bucket["income"].append(_magnitude(row, "amount"))
+            else:
+                bucket["unclassified_inbound"].append(_magnitude(row, "amount"))
+        if row["fee_coefficient"]:
+            bucket["fees"].append(_magnitude(row, "fee"))
+
+    currencies = []
+    for currency, values in sorted(by_currency.items()):
+        spending = _format_money_list(values["spending"])
+        income = _format_money_list(values["income"])
+        fees = _format_money_list(values["fees"])
+        currencies.append(
+            {
+                "currency": currency,
+                "entries": values["entries"],
+                "spending": spending,
+                "income": income,
+                "unclassified_inbound": _format_money_list(values["unclassified_inbound"]),
+                "fees": fees,
+                "net_economic_flow": _subtract_money_texts(income, spending, fees),
+                "excluded_confirmed_internal_entries": values["excluded_linked"],
+            }
+        )
+    return {
+        "kind": "ECONOMIC_FLOW",
+        "reporting_currency": "SGD",
+        "consolidated_sgd_total": None,
+        "consolidated_sgd_total_status": "UNAVAILABLE_FX_RATES_NOT_IMPORTED",
+        "currencies": currencies,
+        "coverage": coverage,
+    }
+
+
+def build_economic_flow_report(database_path: Path) -> str:
+    data = economic_flow_report_data(database_path)
+    lines = [
+        "economic_flow: per-currency exact totals",
+        "consolidated_sgd_total: unavailable (FX rates not imported)",
+    ]
+    for currency in data["currencies"]:
+        lines.append(
+            "{currency}: spending={spending} income={income} "
+            "unclassified_inbound={unclassified_inbound} fees={fees} net={net_economic_flow} "
+            "excluded_confirmed_internal_entries={excluded_confirmed_internal_entries}".format(**currency)
+        )
+    for source in data["coverage"]:
+        lines.append(
+            "coverage: {source_type} {period_start}..{period_end} "
+            "status={status} selection={selection_state}".format(**source)
+        )
+    return "\n".join(lines)
 
 
 def coverage_report_data(database_path: Path) -> dict[str, Any]:
@@ -362,3 +493,65 @@ def _sum_rows(rows: list[sqlite3.Row], prefix: str) -> str:
     ]
     coefficient, scale = exact_sum(*values)
     return format_decimal(coefficient, scale)
+
+
+def _magnitude(row: sqlite3.Row, prefix: str) -> ExactMoney:
+    return ExactMoney(
+        abs(int(row[f"{prefix}_coefficient"])),
+        int(row[f"{prefix}_scale"]),
+        str(row[f"{prefix}_text"]),
+    )
+
+
+def _format_money_list(values: list[ExactMoney]) -> str:
+    coefficient, scale = exact_sum(*values)
+    return format_decimal(coefficient, scale)
+
+
+def _subtract_money_texts(income: str, spending: str, fees: str) -> str:
+    income_value = ExactMoney.parse(income)
+    spending_value = ExactMoney.parse(spending)
+    fee_value = ExactMoney.parse(fees)
+    coefficient, scale = exact_sum(
+        income_value,
+        ExactMoney(-spending_value.coefficient, spending_value.scale, spending),
+        ExactMoney(-fee_value.coefficient, fee_value.scale, fees),
+    )
+    return format_decimal(coefficient, scale)
+
+
+def _economic_flow_coverage(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Expose source periods individually; statement cycles are not unionable."""
+    coverage = [
+        dict(row)
+        for row in connection.execute(
+            """
+            SELECT s.source_type, s.period_start, s.period_end, x.status,
+                   s.selection_state
+            FROM statements s JOIN extraction_runs x ON x.id = s.extraction_run_id
+            ORDER BY s.source_type, s.period_start, s.period_end, s.id
+            """
+        )
+    ]
+    # CSV does not have a statement-period table. Its accepted transaction dates
+    # are its coverage fact, so retrieve them through the entry table instead.
+    for row in connection.execute(
+        """
+        SELECT min(substr(e.effective_at, 1, 10)) AS period_start,
+               max(substr(e.effective_at, 1, 10)) AS period_end, x.status
+        FROM extraction_runs x JOIN canonical_entries e ON e.extraction_run_id = x.id
+        WHERE x.source_profile_version LIKE 'revolut-csv-%'
+        GROUP BY x.id, x.status
+        ORDER BY period_start
+        """
+    ):
+        coverage.append(
+            {
+                "source_type": "REVOLUT_CSV",
+                "period_start": row["period_start"],
+                "period_end": row["period_end"],
+                "status": row["status"],
+                "selection_state": "SELECTED" if row["status"] == "ACCEPTED" else "QUARANTINED",
+            }
+        )
+    return coverage

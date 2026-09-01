@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .db import connect_sqlite
+from .decision_journal import default_journal_path
 from .document_service import DocumentImportService, link_narrow_transfers
 from .errors import FinCLError
 from .evidence import PlaintextEvidenceStore
@@ -22,6 +23,8 @@ class RebuildResult:
     sources_rebuilt: int
     accepted_extractions: int
     quarantined_extractions: int
+    decisions_bound: int
+    decisions_dangling: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,11 +88,24 @@ def rebuild_database(database: Path, evidence_directory: Path, output: Path) -> 
             else:
                 quarantined += 1
         _recompute_narrow_links(staging)
+        projection = connect_sqlite(staging)
+        try:
+            link_narrow_transfers(projection, journal_path=default_journal_path(database))
+            decisions_bound, decisions_dangling = projection.execute(
+                "SELECT (SELECT count(*) FROM link_decisions WHERE bound=1) + "
+                "(SELECT count(*) FROM invariant_escapes WHERE bound=1) + "
+                "(SELECT count(*) FROM inbound_classifications WHERE bound=1), "
+                "(SELECT count(*) FROM link_decisions WHERE bound=0) + "
+                "(SELECT count(*) FROM invariant_escapes WHERE bound=0) + "
+                "(SELECT count(*) FROM inbound_classifications WHERE bound=0)"
+            ).fetchone()
+        finally:
+            projection.close()
         os.replace(staging, output)
     except Exception:
         staging.unlink(missing_ok=True)
         raise
-    return RebuildResult(output, len(sources), accepted, quarantined)
+    return RebuildResult(output, len(sources), accepted, quarantined, decisions_bound, decisions_dangling)
 
 
 def _sources_to_rebuild(database: Path) -> list[_Source]:

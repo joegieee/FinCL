@@ -3,10 +3,10 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 from .db import connect_sqlite, initialize_schema
+from .decision_journal import append_decision, default_journal_path
 from .errors import FinCLError
 
 
@@ -16,6 +16,8 @@ class RecoveryResult:
     extraction_run_id: str
     evidence_sha256: str
     prior_status: str
+    journal_seq: int
+    journal_record_hash: str
 
 
 def recover_extraction(
@@ -25,7 +27,7 @@ def recover_extraction(
     *,
     allow_running: bool = False,
 ) -> RecoveryResult:
-    """Repair an incomplete generation and retain its local recovery event."""
+    """Repair an incomplete generation after recording an originating decision."""
     if not reason.strip():
         raise FinCLError("a non-empty recovery reason is required")
     connection = connect_sqlite(database_path)
@@ -45,6 +47,14 @@ def recover_extraction(
             )
 
         event_id = "rec_" + uuid.uuid4().hex
+        journal_record = append_decision(
+            default_journal_path(database_path),
+            decision_kind="EXTRACTION_REPAIR",
+            anchors={"evidence_sha256": extraction["evidence_sha256"], "extraction_identity": extraction["id"]},
+            payload={"event_id": event_id, "prior_status": extraction["status"], "reason": reason.strip()},
+            policy_version="repair-v1",
+            snapshot=f"Cleared incomplete extraction {extraction_run_id}: {reason.strip()}",
+        )
         with connection:
             _delete_transfer_links(connection, extraction_run_id)
             connection.execute(
@@ -86,26 +96,13 @@ def recover_extraction(
                 (extraction_run_id,),
             )
             connection.execute("DELETE FROM extraction_runs WHERE id = ?", (extraction_run_id,))
-            connection.execute(
-                """
-                INSERT INTO extraction_recovery_events(
-                    id, extraction_run_id, evidence_sha256, prior_status, reason, recovered_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event_id,
-                    extraction_run_id,
-                    extraction["evidence_sha256"],
-                    extraction["status"],
-                    reason.strip(),
-                    datetime.now(UTC).isoformat(timespec="microseconds"),
-                ),
-            )
         return RecoveryResult(
             event_id,
             extraction_run_id,
             extraction["evidence_sha256"],
             extraction["status"],
+            journal_record.seq,
+            journal_record.record_hash,
         )
     finally:
         connection.close()
