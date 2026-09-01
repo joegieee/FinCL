@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -414,6 +415,52 @@ class InvariantEscapeLivenessTests(unittest.TestCase):
         )
         self.assertNotEqual(result.exit_code, 0)
         self.assertEqual(read_records(default_journal_path(self.database)), [])
+
+
+class DanglingDecisionSurfacingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.source = self.root / "revolut.csv"
+        self.source.write_bytes(_csv_bytes())
+        self.database = self.root / "fincl.sqlite3"
+        self.evidence = self.root / "evidence"
+        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(self.source)
+        append_decision(
+            default_journal_path(self.database),
+            decision_kind="INBOUND_CLASSIFICATION",
+            anchors={"entry": "missing-evidence:csv:404"},
+            payload={"classification": "income", "reason": "x"},
+            policy_version="review-v1",
+            snapshot="dangling inbound",
+        )
+        self.runner = CliRunner()
+
+    def test_report_json_surfaces_the_dangling_count(self) -> None:
+        result = self.runner.invoke(
+            app, ["report", "--database", str(self.database), "--json"]
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertGreaterEqual(json.loads(result.output)["dangling_decisions"], 1)
+
+    def test_coverage_plain_surfaces_the_dangling_count(self) -> None:
+        result = self.runner.invoke(
+            app, ["coverage", "--database", str(self.database), "--plain"]
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("dangling_decisions=", result.output)
+
+    def test_rebuild_exits_nonzero_when_a_decision_dangles(self) -> None:
+        result = self.runner.invoke(
+            app,
+            [
+                "rebuild", "--database", str(self.database),
+                "--evidence-dir", str(self.evidence),
+                "--output", str(self.root / "rebuilt.sqlite3"), "--plain",
+            ],
+        )
+        self.assertEqual(result.exit_code, 3, result.output)
 
 
 if __name__ == "__main__":

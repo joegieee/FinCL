@@ -142,6 +142,7 @@ def coverage(
             )
         console.print(table)
         console.print(f"Confirmed transfer links: {data['confirmed_transfer_links']}")
+        console.print(f"Dangling journal decisions: {data['dangling_decisions']}")
 
 
 @app.command("economic-flow")
@@ -244,6 +245,12 @@ def rebuild(
         )
     except (FinCLError, OSError) as exc:
         _fail(exc)
+    if result.decisions_dangling > 0:
+        error_console.print(
+            f"[yellow]fincl:[/yellow] {result.decisions_dangling} journaled decision(s) "
+            "no longer bind to a live anchor"
+        )
+        raise typer.Exit(3)
 
 
 @app.command("repair")

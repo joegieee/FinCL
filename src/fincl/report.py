@@ -7,7 +7,19 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from .db import connect_sqlite, initialize_schema
+from .decisions import replay_journal
 from .money import ExactMoney, exact_sum, format_decimal
+
+
+def _dangling_decisions(connection: sqlite3.Connection) -> int:
+    """Count journal decisions that no longer bind to a live anchor."""
+    return int(
+        connection.execute(
+            "SELECT (SELECT count(*) FROM link_decisions WHERE bound = 0) "
+            "     + (SELECT count(*) FROM invariant_escapes WHERE bound = 0) "
+            "     + (SELECT count(*) FROM inbound_classifications WHERE bound = 0)"
+        ).fetchone()[0]
+    )
 
 
 class _EconomicFlowBucket(TypedDict):
@@ -22,6 +34,7 @@ class _EconomicFlowBucket(TypedDict):
 def build_report(database_path: Path) -> str:
     connection = connect_sqlite(database_path)
     initialize_schema(connection)
+    replay_journal(connection)
     extraction = connection.execute(
         """
         SELECT * FROM extraction_runs
@@ -80,6 +93,7 @@ def build_report(database_path: Path) -> str:
             f"warning={issue_counts['WARNING']} info={issue_counts['INFO']}"
         ),
         f"balance_checks: passed={checks['passed']} total={checks['total']}",
+        f"dangling_decisions: {_dangling_decisions(connection)}",
     ]
 
     currencies = [
@@ -135,6 +149,7 @@ def build_report(database_path: Path) -> str:
 def latest_report_data(database_path: Path) -> dict[str, Any]:
     connection = connect_sqlite(database_path)
     initialize_schema(connection)
+    replay_journal(connection)
     extraction = connection.execute(
         "SELECT * FROM extraction_runs ORDER BY started_at DESC, id DESC LIMIT 1"
     ).fetchone()
@@ -190,6 +205,7 @@ def latest_report_data(database_path: Path) -> dict[str, Any]:
     data["confirmed_transfer_links"] = connection.execute(
         "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
     ).fetchone()[0]
+    data["dangling_decisions"] = _dangling_decisions(connection)
     connection.close()
     return data
 
@@ -309,6 +325,7 @@ def build_economic_flow_report(database_path: Path) -> str:
 def coverage_report_data(database_path: Path) -> dict[str, Any]:
     connection = connect_sqlite(database_path)
     initialize_schema(connection)
+    replay_journal(connection)
     statements = []
     for row in connection.execute(
         """
@@ -341,6 +358,7 @@ def coverage_report_data(database_path: Path) -> dict[str, Any]:
         "confirmed_transfer_links": connection.execute(
             "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
         ).fetchone()[0],
+        "dangling_decisions": _dangling_decisions(connection),
     }
     connection.close()
     return data
@@ -408,7 +426,7 @@ def build_coverage_report(database_path: Path) -> str:
     data = coverage_report_data(database_path)
     statements = data["statements"]
     if not statements:
-        return "No document statements."
+        return f"No document statements.\ndangling_decisions={data['dangling_decisions']}"
     lines = ["source_type statement_date period status selection pages rows unresolved_pages"]
     for statement in statements:
         period = f"{statement['period_start']}..{statement['period_end']}"
@@ -418,6 +436,7 @@ def build_coverage_report(database_path: Path) -> str:
             f"{statement['transaction_rows']} {statement['unresolved_pages']}"
         )
     lines.append(f"confirmed_transfer_links={data['confirmed_transfer_links']}")
+    lines.append(f"dangling_decisions={data['dangling_decisions']}")
     return "\n".join(lines)
 
 
@@ -470,6 +489,7 @@ def _build_document_report(
             f"reconciliation: passed={checks['passed'] or 0} total={checks['total'] or 0}",
             f"sections: {', '.join(sections)}",
             f"confirmed_transfer_links: {links}",
+            f"dangling_decisions: {_dangling_decisions(connection)}",
         )
     )
 
