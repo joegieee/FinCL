@@ -9,7 +9,7 @@ from typing import Protocol
 from .errors import SchemaVersionError
 from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -23,6 +23,52 @@ BUSY_TIMEOUT_MS = 5000
 # is bumped in a way that existing databases cannot satisfy through the
 # idempotent CREATE TABLE IF NOT EXISTS statements below.
 _MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
+
+
+def _migrate_3_to_4(connection: sqlite3.Connection) -> None:
+    """Add per-leg transfer facts without discarding existing links."""
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(transfer_links)")}
+    additions = (
+        ("link_kind", "TEXT NOT NULL DEFAULT 'SAME_CURRENCY_TRANSFER'"),
+        ("left_currency", "TEXT"),
+        ("left_amount_text", "TEXT"),
+        ("left_amount_coefficient", "INTEGER"),
+        ("left_amount_scale", "INTEGER"),
+        ("right_currency", "TEXT"),
+        ("right_amount_text", "TEXT"),
+        ("right_amount_coefficient", "INTEGER"),
+        ("right_amount_scale", "INTEGER"),
+        ("implied_rate_numerator", "INTEGER"),
+        ("implied_rate_denominator", "INTEGER"),
+    )
+    for name, declaration in additions:
+        if name not in existing:
+            connection.execute(f"ALTER TABLE transfer_links ADD COLUMN {name} {declaration}")
+    if "currency" in existing:
+        connection.execute(
+            """
+            UPDATE transfer_links
+            SET left_currency = currency, left_amount_text = amount_text,
+                left_amount_coefficient = amount_coefficient, left_amount_scale = amount_scale,
+                right_currency = currency, right_amount_text = amount_text,
+                right_amount_coefficient = amount_coefficient, right_amount_scale = amount_scale
+            WHERE left_currency IS NULL
+            """
+        )
+
+
+_MIGRATIONS[3] = _migrate_3_to_4
+
+
+def _migrate_4_to_5(connection: sqlite3.Connection) -> None:
+    """Discard derived links made by the superseded broad Revolut matcher."""
+    connection.execute(
+        "DELETE FROM transfer_links WHERE method_version = ?",
+        ("dbs-revolut-exact-amount-currency-window-description-v1",),
+    )
+
+
+_MIGRATIONS[4] = _migrate_4_to_5
 
 
 class ConnectionFactory(Protocol):
@@ -380,10 +426,17 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             left_entry_id TEXT NOT NULL,
             right_entry_kind TEXT NOT NULL CHECK (right_entry_kind IN ('CSV', 'DOCUMENT')),
             right_entry_id TEXT NOT NULL,
-            currency TEXT NOT NULL,
-            amount_text TEXT NOT NULL,
-            amount_coefficient INTEGER NOT NULL CHECK (amount_coefficient BETWEEN 0 AND {MAX_ABS_COEFFICIENT}),
-            amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
+            link_kind TEXT NOT NULL CHECK (link_kind IN ('SAME_CURRENCY_TRANSFER', 'CURRENCY_EXCHANGE')),
+            left_currency TEXT NOT NULL,
+            left_amount_text TEXT NOT NULL,
+            left_amount_coefficient INTEGER NOT NULL CHECK (left_amount_coefficient BETWEEN 0 AND {MAX_ABS_COEFFICIENT}),
+            left_amount_scale INTEGER NOT NULL CHECK (left_amount_scale BETWEEN 0 AND {MAX_SCALE}),
+            right_currency TEXT NOT NULL,
+            right_amount_text TEXT NOT NULL,
+            right_amount_coefficient INTEGER NOT NULL CHECK (right_amount_coefficient BETWEEN 0 AND {MAX_ABS_COEFFICIENT}),
+            right_amount_scale INTEGER NOT NULL CHECK (right_amount_scale BETWEEN 0 AND {MAX_SCALE}),
+            implied_rate_numerator INTEGER CHECK (implied_rate_numerator > 0),
+            implied_rate_denominator INTEGER CHECK (implied_rate_denominator > 0),
             method_version TEXT NOT NULL,
             status TEXT NOT NULL CHECK (status IN ('CONFIRMED', 'PROPOSED', 'REJECTED')),
             evidence_json TEXT NOT NULL,

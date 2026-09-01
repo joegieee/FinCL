@@ -191,6 +191,7 @@ class FinCLService:
 
         try:
             self._persist_export(connection, extraction_run_id, capture.sha256, export)
+            self._validate_exchange_pairs(connection, extraction_run_id)
             self._reconcile(connection, extraction_run_id, export)
             blocking = connection.execute(
                 """
@@ -234,6 +235,12 @@ class FinCLService:
                 reused=False,
             )
             connection.commit()
+            if status == "ACCEPTED":
+                # Kept in the document service for now because the same command
+                # also links DBS and PayLah transfers.
+                from .document_service import link_narrow_transfers
+
+                link_narrow_transfers(connection)
         except Exception:
             connection.rollback()
             connection.execute(
@@ -249,6 +256,44 @@ class FinCLService:
             capture,
             extraction_reused=False,
         )
+
+    @staticmethod
+    def _validate_exchange_pairs(connection: sqlite3.Connection, extraction_run_id: str) -> None:
+        """Fail closed unless each completed Revolut exchange has one opposing leg."""
+        rows = connection.execute(
+            """
+            SELECT e.raw_record_id, e.started_at, e.currency_pocket, e.economic_direction
+            FROM canonical_entries e
+            WHERE e.extraction_run_id = ? AND e.event_kind = 'EXCHANGE'
+              AND e.lifecycle_state = 'COMPLETED'
+            ORDER BY e.started_at, e.raw_record_id
+            """,
+            (extraction_run_id,),
+        ).fetchall()
+        groups: dict[str, list[sqlite3.Row]] = {}
+        for row in rows:
+            groups.setdefault(row["started_at"], []).append(row)
+        for started_at, group in groups.items():
+            outgoing = [row for row in group if row["economic_direction"] == "OUT"]
+            incoming = [row for row in group if row["economic_direction"] == "IN"]
+            valid = (
+                len(group) == 2
+                and len(outgoing) == 1
+                and len(incoming) == 1
+                and outgoing[0]["currency_pocket"] != incoming[0]["currency_pocket"]
+            )
+            if valid:
+                continue
+            for row in group:
+                _insert_issue(
+                    connection,
+                    extraction_run_id,
+                    row["raw_record_id"],
+                    "BLOCKING",
+                    "EXCHANGE_PAIRING_INCOMPLETE",
+                    "completed Revolut exchange does not have exactly one opposing currency leg",
+                    {"started_at": started_at, "legs_at_timestamp": len(group)},
+                )
 
     @staticmethod
     def _persist_export(

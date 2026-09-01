@@ -6,6 +6,7 @@ import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from math import gcd
 from pathlib import Path
 
 from .db import ConnectionFactory, connect_sqlite, initialize_schema
@@ -23,7 +24,18 @@ from .evidence import EvidenceCapture, EvidenceStore, PlaintextEvidenceStore
 from .money import ExactMoney, format_decimal
 
 DBS_PAYLAH_LINK_VERSION = "dbs-paylah-exact-date-amount-description-v1"
-DBS_REVOLUT_LINK_VERSION = "dbs-revolut-exact-amount-currency-window-description-v1"
+DBS_REVOLUT_LEGACY_LINK_VERSION = "dbs-revolut-exact-amount-currency-window-description-v1"
+DBS_REVOLUT_CARD_TOPUP_LINK_VERSION = "dbs-revolut-card-topup-exact-amount-window-v1"
+DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION = "dbs-revolut-paynow-topup-exact-amount-window-v1"
+REVOLUT_EXCHANGE_LINK_VERSION = "revolut-exchange-started-at-pockets-v1"
+AMBIGUOUS_MUTUAL_MATCH = "AMBIGUOUS_MUTUAL_MATCH"
+SELECTION_LOST = "SELECTION_LOST"
+AUTOMATIC_SAME_CURRENCY_LINK_METHODS = (
+    DBS_PAYLAH_LINK_VERSION,
+    DBS_REVOLUT_LEGACY_LINK_VERSION,
+    DBS_REVOLUT_CARD_TOPUP_LINK_VERSION,
+    DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,7 +273,7 @@ class DocumentImportService:
                 _revoke_links_for_extraction(
                     connection,
                     conflict["extraction_run_id"],
-                    "backing statement lost SELECTED state after a content conflict",
+                    SELECTION_LOST,
                 )
                 connection.execute(
                     "UPDATE document_entries SET analytics_eligible = 0 WHERE extraction_run_id = ?",
@@ -484,7 +496,32 @@ class DocumentImportService:
 
 
 def link_narrow_transfers(connection: sqlite3.Connection) -> int:
-    created = 0
+    """Refresh all derived same-currency links, then retain exchange links."""
+    return refresh_automatic_transfer_links(connection)
+
+
+def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
+    """Recompute automatic transfer links from currently selected evidence.
+
+    Automatic links are a projection, not decision history: every row for the
+    automatic same-currency methods is discarded and rebuilt from the evidence
+    currently selected.  The return value is the number of confirmed links that
+    are new relative to the prior projection, so an unchanged refresh reports 0.
+    """
+    placeholders = ", ".join("?" for _ in AUTOMATIC_SAME_CURRENCY_LINK_METHODS)
+    before = {
+        row[0]
+        for row in connection.execute(
+            f"SELECT id FROM transfer_links WHERE status = 'CONFIRMED' "
+            f"AND method_version IN ({placeholders})",
+            AUTOMATIC_SAME_CURRENCY_LINK_METHODS,
+        )
+    }
+    connection.execute(
+        f"DELETE FROM transfer_links WHERE method_version IN ({placeholders})",
+        AUTOMATIC_SAME_CURRENCY_LINK_METHODS,
+    )
+    created = link_revolut_exchanges(connection)
     dbs_rows = connection.execute(
         """
         SELECT e.id, e.posted_date, e.currency_pocket, e.amount_coefficient,
@@ -513,16 +550,6 @@ def link_narrow_transfers(connection: sqlite3.Connection) -> int:
     ).fetchall()
     dbs_topups = [row for row in dbs_rows if "TOP-UP TO PAYLAH" in (row["description_raw"] or "").upper()]
     paylah_topups = [row for row in paylah_rows if "TOP UP WALLET FROM MY ACCOUNT" in (row["description_raw"] or "").upper()]
-    created += _link_unique_candidates(
-        connection,
-        dbs_topups,
-        paylah_topups,
-        "DOCUMENT",
-        "DOCUMENT",
-        DBS_PAYLAH_LINK_VERSION,
-        max_days=0,
-    )
-
     revolut_rows = connection.execute(
         """
         SELECT e.id, substr(coalesce(e.completed_at, e.started_at), 1, 10) AS posted_date,
@@ -536,22 +563,111 @@ def link_narrow_transfers(connection: sqlite3.Connection) -> int:
           AND e.event_kind IN ('TOPUP', 'TRANSFER')
         """
     ).fetchall()
-    dbs_revolut = [row for row in dbs_rows if "REVOLUT" in (row["description_raw"] or "").upper()]
-    created += _link_unique_candidates(
-        connection,
-        dbs_revolut,
-        revolut_rows,
-        "DOCUMENT",
-        "CSV",
-        DBS_REVOLUT_LINK_VERSION,
-        max_days=2,
-    )
+    card_topups = [row for row in dbs_rows if _is_revolut_card_topup(row["description_raw"])]
+    paynow_topups = [row for row in dbs_rows if _is_revolut_paynow_topup(row["description_raw"])]
+    candidates = [
+        *_candidate_pairs(
+            dbs_topups, paylah_topups, "DOCUMENT", "DOCUMENT", DBS_PAYLAH_LINK_VERSION, max_days=0
+        ),
+        *_candidate_pairs(
+            card_topups, revolut_rows, "DOCUMENT", "CSV", DBS_REVOLUT_CARD_TOPUP_LINK_VERSION, max_days=2
+        ),
+        *_candidate_pairs(
+            paynow_topups, revolut_rows, "DOCUMENT", "CSV", DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION, max_days=2
+        ),
+    ]
+    _store_candidates(connection, candidates)
+    after = {
+        row[0]
+        for row in connection.execute(
+            f"SELECT id FROM transfer_links WHERE status = 'CONFIRMED' "
+            f"AND method_version IN ({placeholders})",
+            AUTOMATIC_SAME_CURRENCY_LINK_METHODS,
+        )
+    }
     connection.commit()
+    return created + len(after - before)
+
+
+def _is_revolut_card_topup(description: str | None) -> bool:
+    text = (description or "").upper()
+    return text.startswith("DEBIT CARD TRANSACTION") and "REVOLUT**" in text and "SINGAPORE SGP" in text
+
+
+def _is_revolut_paynow_topup(description: str | None) -> bool:
+    text = (description or "").upper()
+    return "PAYNOW TRANSFER" in text and "TO: REVOLUT TECHNOLOGIES SINGAPORE" in text
+
+
+def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
+    """Link complete Revolut exchange pairs and retain their exact implied rate."""
+    rows = connection.execute(
+        """
+        SELECT e.id, e.extraction_run_id, e.started_at, e.currency_pocket,
+               e.amount_text, e.amount_coefficient, e.amount_scale, e.economic_direction
+        FROM canonical_entries e
+        JOIN extraction_runs x ON x.id = e.extraction_run_id
+        WHERE x.status = 'ACCEPTED' AND e.analytics_eligible = 1
+          AND e.lifecycle_state = 'COMPLETED' AND e.event_kind = 'EXCHANGE'
+        ORDER BY e.extraction_run_id, e.started_at, e.id
+        """
+    ).fetchall()
+    groups: dict[tuple[str, str], list[sqlite3.Row]] = {}
+    for row in rows:
+        groups.setdefault((row["extraction_run_id"], row["started_at"]), []).append(row)
+
+    created = 0
+    for group in groups.values():
+        if len(group) != 2:
+            continue
+        outgoing = [row for row in group if row["economic_direction"] == "OUT"]
+        incoming = [row for row in group if row["economic_direction"] == "IN"]
+        if len(outgoing) != 1 or len(incoming) != 1:
+            continue
+        left, right = outgoing[0], incoming[0]
+        if left["currency_pocket"] == right["currency_pocket"]:
+            continue
+        numerator = abs(right["amount_coefficient"]) * 10**left["amount_scale"]
+        denominator = abs(left["amount_coefficient"]) * 10**right["amount_scale"]
+        divisor = gcd(numerator, denominator)
+        link_id = _stable_id(
+            "link", "CSV", left["id"], "CSV", right["id"], REVOLUT_EXCHANGE_LINK_VERSION
+        )
+        cursor = connection.execute(
+            """
+            INSERT OR IGNORE INTO transfer_links(
+                id, left_entry_kind, left_entry_id, right_entry_kind, right_entry_id,
+                link_kind, left_currency, left_amount_text, left_amount_coefficient,
+                left_amount_scale, right_currency, right_amount_text, right_amount_coefficient,
+                right_amount_scale, implied_rate_numerator, implied_rate_denominator,
+                method_version, status, evidence_json, created_at
+            ) VALUES (?, 'CSV', ?, 'CSV', ?, 'CURRENCY_EXCHANGE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                      'CONFIRMED', ?, ?)
+            """,
+            (
+                link_id,
+                left["id"],
+                right["id"],
+                left["currency_pocket"],
+                left["amount_text"].lstrip("-"),
+                abs(left["amount_coefficient"]),
+                left["amount_scale"],
+                right["currency_pocket"],
+                right["amount_text"].lstrip("-"),
+                abs(right["amount_coefficient"]),
+                right["amount_scale"],
+                numerator // divisor,
+                denominator // divisor,
+                REVOLUT_EXCHANGE_LINK_VERSION,
+                _json({"started_at": left["started_at"], "unique_pair": True}),
+                _now(),
+            ),
+        )
+        created += cursor.rowcount
     return created
 
 
-def _link_unique_candidates(
-    connection: sqlite3.Connection,
+def _candidate_pairs(
     left_rows: list[sqlite3.Row],
     right_rows: list[sqlite3.Row],
     left_kind: str,
@@ -559,9 +675,8 @@ def _link_unique_candidates(
     method_version: str,
     *,
     max_days: int,
-) -> int:
-    candidates: dict[str, list[sqlite3.Row]] = {}
-    reverse: dict[str, list[sqlite3.Row]] = {}
+) -> list[tuple[sqlite3.Row, sqlite3.Row, str, str, str]]:
+    candidates: list[tuple[sqlite3.Row, sqlite3.Row, str, str, str]] = []
     for left in left_rows:
         for right in right_rows:
             if left["currency_pocket"] != right["currency_pocket"]:
@@ -573,25 +688,48 @@ def _link_unique_candidates(
             )
             if day_difference > max_days:
                 continue
-            candidates.setdefault(left["id"], []).append(right)
-            reverse.setdefault(right["id"], []).append(left)
+            candidates.append((left, right, left_kind, right_kind, method_version))
+    return candidates
+
+
+def _store_candidates(
+    connection: sqlite3.Connection,
+    candidates: list[tuple[sqlite3.Row, sqlite3.Row, str, str, str]],
+) -> int:
+    left_counts: dict[tuple[str, str], int] = {}
+    right_counts: dict[tuple[str, str], int] = {}
+    for left, right, left_kind, right_kind, _ in candidates:
+        left_key = (left_kind, left["id"])
+        right_key = (right_kind, right["id"])
+        left_counts[left_key] = left_counts.get(left_key, 0) + 1
+        right_counts[right_key] = right_counts.get(right_key, 0) + 1
     created = 0
-    for left in left_rows:
-        matches = candidates.get(left["id"], [])
-        if len(matches) != 1 or len(reverse.get(matches[0]["id"], [])) != 1:
-            continue
-        right = matches[0]
-        amount = ExactMoney(
-            abs(left["amount_coefficient"]), left["amount_scale"], left["amount_text"].lstrip("-")
-        )
+    for left, right, left_kind, right_kind, method_version in candidates:
+        left_count = left_counts[(left_kind, left["id"])]
+        right_count = right_counts[(right_kind, right["id"])]
+        confirmed = left_count == 1 and right_count == 1
         link_id = _stable_id("link", left_kind, left["id"], right_kind, right["id"], method_version)
+        evidence: dict[str, object] = {
+            "date_left": left["posted_date"],
+            "date_right": right["posted_date"],
+            "description_evidence": True,
+            "unique_candidate": confirmed,
+        }
+        if not confirmed:
+            evidence["rejection"] = {
+                "code": AMBIGUOUS_MUTUAL_MATCH,
+                "left_candidates": left_count,
+                "right_candidates": right_count,
+            }
         cursor = connection.execute(
             """
             INSERT OR IGNORE INTO transfer_links(
                 id, left_entry_kind, left_entry_id, right_entry_kind,
-                right_entry_id, currency, amount_text, amount_coefficient,
-                amount_scale, method_version, status, evidence_json, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?)
+                right_entry_id, link_kind,
+                left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
+                right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
+                method_version, status, evidence_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, 'SAME_CURRENCY_TRANSFER', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 link_id,
@@ -600,22 +738,20 @@ def _link_unique_candidates(
                 right_kind,
                 right["id"],
                 left["currency_pocket"],
-                amount.text,
-                amount.coefficient,
-                amount.scale,
+                left["amount_text"].lstrip("-"),
+                abs(left["amount_coefficient"]),
+                left["amount_scale"],
+                right["currency_pocket"],
+                right["amount_text"].lstrip("-"),
+                abs(right["amount_coefficient"]),
+                right["amount_scale"],
                 method_version,
-                _json(
-                    {
-                        "date_left": left["posted_date"],
-                        "date_right": right["posted_date"],
-                        "description_evidence": True,
-                        "unique_candidate": True,
-                    }
-                ),
+                "CONFIRMED" if confirmed else "REJECTED",
+                _json(evidence),
                 _now(),
             ),
         )
-        created += cursor.rowcount
+        created += cursor.rowcount if confirmed else 0
     return created
 
 
@@ -627,8 +763,9 @@ def _opposite_exact_amount(left: sqlite3.Row, right: sqlite3.Row) -> bool:
 
 
 def _revoke_links_for_extraction(
-    connection: sqlite3.Connection, extraction_run_id: str, reason: str
+    connection: sqlite3.Connection, extraction_run_id: str, code: str
 ) -> int:
+    """Reject links whose legs lost eligibility; ``code`` is a centralized reason."""
     entry_ids = {
         row[0]
         for row in connection.execute(
@@ -646,7 +783,7 @@ def _revoke_links_for_extraction(
         if row["left_entry_id"] not in entry_ids and row["right_entry_id"] not in entry_ids:
             continue
         evidence = json.loads(row["evidence_json"])
-        evidence["revocation"] = {"reason": reason, "recorded_at": _now()}
+        evidence["revocation"] = {"code": code, "recorded_at": _now()}
         connection.execute(
             "UPDATE transfer_links SET status = 'REJECTED', evidence_json = ? WHERE id = ?",
             (_json(evidence), row["id"]),

@@ -14,10 +14,12 @@ from .rebuild import rebuild_database
 from .recovery import recover_extraction
 from .report import (
     build_coverage_report,
+    build_profile_report,
     build_report,
     coverage_report_data,
     json_report,
     latest_report_data,
+    profile_report_data,
 )
 from .service import FinCLService
 
@@ -147,6 +149,38 @@ def link_transfers(database: Path = typer.Option(..., "--database")) -> None:
     except (FinCLError, OSError) as exc:
         _fail(exc)
     console.print(f"Created {created} confirmed transfer link(s).")
+
+
+@app.command("profile")
+def profile(
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Show repeatable observations about imported source profiles."""
+    try:
+        data = profile_report_data(database)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+    elif plain:
+        typer.echo(build_profile_report(database))
+    else:
+        table = Table(title="Extraction profiles")
+        for heading in ("Profile", "Parser", "Policy", "Status", "Runs", "Raw", "Canonical"):
+            table.add_column(heading)
+        for item in data["profiles"]:
+            table.add_row(
+                str(item["source_profile_version"]),
+                str(item["parser_version"]),
+                str(item["extraction_policy_version"]),
+                str(item["status"]),
+                str(item["extractions"]),
+                str(item["raw_records"]),
+                str(item["canonical_entries"]),
+            )
+        console.print(table)
 
 
 @app.command("rebuild")

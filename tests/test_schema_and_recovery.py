@@ -16,6 +16,7 @@ from fincl.db import (
 from fincl.errors import FinCLError, SchemaVersionError
 from fincl.rebuild import rebuild_database
 from fincl.recovery import recover_extraction
+from fincl.report import build_profile_report, profile_report_data
 from fincl.revolut import EXPECTED_HEADER
 from fincl.service import FinCLService
 
@@ -25,11 +26,11 @@ GOOD_ROWS = [
 ]
 
 
-def _csv_bytes() -> bytes:
+def _csv_bytes(rows: list[list[str]] | None = None) -> bytes:
     output = io.StringIO(newline="")
     writer = csv.writer(output, lineterminator="\r\n")
     writer.writerow(EXPECTED_HEADER)
-    writer.writerows(GOOD_ROWS)
+    writer.writerows(rows or GOOD_ROWS)
     return output.getvalue().encode("utf-8")
 
 
@@ -88,6 +89,65 @@ class SchemaVersionGateTests(unittest.TestCase):
         connection.commit()
         with self.assertRaises(SchemaVersionError):
             initialize_schema(connection)
+
+    def test_v3_transfer_links_migrate_to_per_leg_facts(self):
+        connection = connect_sqlite(self.database)
+        self.addCleanup(connection.close)
+        initialize_schema(connection)
+        connection.execute(
+            "UPDATE schema_metadata SET value = '3' WHERE key = 'schema_version'"
+        )
+        connection.commit()
+
+        initialize_schema(connection)
+
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(transfer_links)")}
+        self.assertTrue(
+            {
+                "link_kind",
+                "left_currency",
+                "left_amount_coefficient",
+                "right_currency",
+                "right_amount_coefficient",
+                "implied_rate_numerator",
+                "implied_rate_denominator",
+            }.issubset(columns)
+        )
+
+    def test_v4_to_v5_migration_discards_legacy_broad_revolut_links(self):
+        connection = connect_sqlite(self.database)
+        self.addCleanup(connection.close)
+        initialize_schema(connection)
+        legacy = "dbs-revolut-exact-amount-currency-window-description-v1"
+        for method, link_id in ((legacy, "legacy-1"), ("dbs-paylah-exact-date-amount-description-v1", "keep-1")):
+            connection.execute(
+                """
+                INSERT INTO transfer_links(
+                    id, left_entry_kind, left_entry_id, right_entry_kind, right_entry_id,
+                    link_kind, left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
+                    right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
+                    method_version, status, evidence_json, created_at
+                ) VALUES (?, 'DOCUMENT', ?, 'CSV', ?, 'SAME_CURRENCY_TRANSFER', 'SGD', '1.00', 100, 2,
+                          'SGD', '1.00', 100, 2, ?, 'CONFIRMED', '{}', '2026-01-01T00:00:00Z')
+                """,
+                (link_id, f"l-{link_id}", f"r-{link_id}", method),
+            )
+        connection.execute("UPDATE schema_metadata SET value = '4' WHERE key = 'schema_version'")
+        connection.commit()
+
+        initialize_schema(connection)
+
+        rows = {
+            row[0]
+            for row in connection.execute("SELECT method_version FROM transfer_links")
+        }
+        self.assertEqual(rows, {"dbs-paylah-exact-date-amount-description-v1"})
+        self.assertEqual(
+            connection.execute(
+                "SELECT value FROM schema_metadata WHERE key = 'schema_version'"
+            ).fetchone()[0],
+            str(SCHEMA_VERSION),
+        )
 
 
 class RunningExtractionGuardTests(unittest.TestCase):
@@ -208,6 +268,55 @@ class RebuildTests(unittest.TestCase):
         self.service.import_revolut(self.source)
         with self.assertRaises(FinCLError):
             rebuild_database(self.database, self.evidence, self.database)
+
+    def test_profile_reports_observations_without_corpus_assertions(self):
+        self.service.import_revolut(self.source)
+
+        data = profile_report_data(self.database)
+
+        self.assertEqual(len(data["profiles"]), 1)
+        self.assertEqual(data["profiles"][0]["source_profile_version"], "revolut-csv-en-sg-2026-v1")
+        self.assertIn("revolut-csv-en-sg-2026-v1", build_profile_report(self.database))
+
+    def test_revolut_exchange_is_linked_with_reduced_implied_rate(self):
+        self.source.write_bytes(
+            _csv_bytes(
+                [
+                    ["Exchange", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "SGD to USD", "-100.00", "1.00", "SGD", "COMPLETED", "899.00"],
+                    ["Exchange", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "SGD to USD", "75.00", "0.00", "USD", "COMPLETED", "75.00"],
+                ]
+            )
+        )
+        self.service.import_revolut(self.source)
+
+        with sqlite3.connect(self.database) as connection:
+            link = connection.execute(
+                """
+                SELECT link_kind, left_currency, left_amount_text, right_currency,
+                       right_amount_text, implied_rate_numerator, implied_rate_denominator
+                FROM transfer_links
+                """
+            ).fetchone()
+        self.assertEqual(link, ("CURRENCY_EXCHANGE", "SGD", "100.00", "USD", "75.00", 3, 4))
+
+    def test_incomplete_revolut_exchange_is_quarantined(self):
+        self.source.write_bytes(
+            _csv_bytes(
+                [["Exchange", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "SGD to USD", "-100.00", "0.00", "SGD", "COMPLETED", "900.00"]]
+            )
+        )
+
+        result = self.service.import_revolut(self.source)
+
+        self.assertEqual(result.status, "QUARANTINED")
+        with sqlite3.connect(self.database) as connection:
+            self.assertEqual(
+                connection.execute(
+                    "SELECT count(*) FROM extraction_issues WHERE code = 'EXCHANGE_PAIRING_INCOMPLETE'"
+                ).fetchone()[0],
+                1,
+            )
+            self.assertEqual(connection.execute("SELECT count(*) FROM transfer_links").fetchone()[0], 0)
 
 
 if __name__ == "__main__":

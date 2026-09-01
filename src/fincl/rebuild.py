@@ -10,12 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .db import connect_sqlite
-from .document_service import (
-    DBS_PAYLAH_LINK_VERSION,
-    DBS_REVOLUT_LINK_VERSION,
-    DocumentImportService,
-    link_narrow_transfers,
-)
+from .document_service import DocumentImportService, link_narrow_transfers
 from .errors import FinCLError
 from .evidence import PlaintextEvidenceStore
 from .service import FinCLService
@@ -151,14 +146,14 @@ def _restore_source_path(database: Path, sha256: str, original_path: str) -> Non
 
 
 def _recompute_narrow_links(database: Path) -> None:
-    """Make derived narrow links independent of the evidence import order."""
+    """Make derived links independent of the evidence import order.
+
+    ``link_narrow_transfers`` fully deletes and rebuilds every automatic link
+    method from the evidence currently selected, so a single call after all
+    sources are re-imported converges the staging database with an in-place one.
+    """
     connection = connect_sqlite(database)
     try:
-        connection.execute(
-            "DELETE FROM transfer_links WHERE status = 'CONFIRMED' "
-            "AND method_version IN (?, ?)",
-            (DBS_PAYLAH_LINK_VERSION, DBS_REVOLUT_LINK_VERSION),
-        )
         link_narrow_transfers(connection)
     finally:
         connection.close()

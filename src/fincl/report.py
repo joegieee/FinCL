@@ -223,6 +223,64 @@ def coverage_report_data(database_path: Path) -> dict[str, Any]:
     return data
 
 
+def profile_report_data(database_path: Path) -> dict[str, Any]:
+    """Return repeatable corpus observations without asserting their values."""
+    connection = connect_sqlite(database_path)
+    initialize_schema(connection)
+    profiles = [
+        dict(row)
+        for row in connection.execute(
+            """
+            SELECT source_profile_version, parser_version, extraction_policy_version,
+                   status, count(*) AS extractions,
+                   coalesce(sum(raw_record_count), 0) AS raw_records,
+                   coalesce(sum(canonical_entry_count), 0) AS canonical_entries,
+                   min(started_at) AS first_started_at, max(completed_at) AS last_completed_at
+            FROM extraction_runs
+            GROUP BY source_profile_version, parser_version, extraction_policy_version, status
+            ORDER BY source_profile_version, parser_version, extraction_policy_version, status
+            """
+        )
+    ]
+    source_types = [
+        dict(row)
+        for row in connection.execute(
+            """
+            SELECT source_type, count(*) AS statements,
+                   min(period_start) AS first_period_start, max(period_end) AS last_period_end
+            FROM statements
+            GROUP BY source_type
+            ORDER BY source_type
+            """
+        )
+    ]
+    connection.close()
+    return {"profiles": profiles, "source_types": source_types}
+
+
+def build_profile_report(database_path: Path) -> str:
+    data = profile_report_data(database_path)
+    if not data["profiles"]:
+        return "No extraction profiles."
+    lines = [
+        "profile parser policy status extractions raw_records canonical_entries first_started last_completed"
+    ]
+    for profile in data["profiles"]:
+        lines.append(
+            "{source_profile_version} {parser_version} {extraction_policy_version} {status} "
+            "{extractions} {raw_records} {canonical_entries} {first_started_at} {last_completed_at}".format(
+                **profile
+            )
+        )
+    for source_type in data["source_types"]:
+        lines.append(
+            "source_type={source_type} statements={statements} period={first_period_start}..{last_period_end}".format(
+                **source_type
+            )
+        )
+    return "\n".join(lines)
+
+
 def build_coverage_report(database_path: Path) -> str:
     data = coverage_report_data(database_path)
     statements = data["statements"]
