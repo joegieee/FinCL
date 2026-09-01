@@ -63,69 +63,67 @@ class FinCLService:
 
     def import_revolut(self, source_path: Path) -> ImportResult:
         connection = self.connection_factory(self.database_path)
-        initialize_schema(connection)
-        replay_journal(connection)
-        import_run_id = "imp_" + uuid.uuid4().hex
-        started_at = _now()
-        connection.execute(
-            "INSERT INTO import_runs(id, started_at, status, source_path) VALUES (?, ?, 'RUNNING', ?)",
-            (import_run_id, started_at, str(Path(source_path).resolve())),
-        )
-        connection.commit()
         try:
-            capture = self.evidence_store.capture(Path(source_path))
-            self._record_source(connection, capture, started_at)
-            extraction_run_id = extraction_identity(capture.sha256)
-            existing = connection.execute(
-                "SELECT * FROM extraction_runs WHERE id = ?", (extraction_run_id,)
-            ).fetchone()
-            if existing is not None:
-                if existing["status"] == "RUNNING":
-                    raise FinCLError(
-                        "the same extraction identity is already marked RUNNING; "
-                        "inspect the prior run before retrying"
+            initialize_schema(connection)
+            replay_journal(connection)
+            import_run_id = "imp_" + uuid.uuid4().hex
+            started_at = _now()
+            connection.execute(
+                "INSERT INTO import_runs(id, started_at, status, source_path) VALUES (?, ?, 'RUNNING', ?)",
+                (import_run_id, started_at, str(Path(source_path).resolve())),
+            )
+            connection.commit()
+            try:
+                capture = self.evidence_store.capture(Path(source_path))
+                self._record_source(connection, capture, started_at)
+                extraction_run_id = extraction_identity(capture.sha256)
+                existing = connection.execute(
+                    "SELECT * FROM extraction_runs WHERE id = ?", (extraction_run_id,)
+                ).fetchone()
+                if existing is not None:
+                    if existing["status"] == "RUNNING":
+                        raise FinCLError(
+                            "the same extraction identity is already marked RUNNING; "
+                            "inspect the prior run before retrying"
+                        )
+                    return self._result_from_existing(
+                        connection, import_run_id, capture, existing
                     )
-                result = self._result_from_existing(
-                    connection, import_run_id, capture, existing
-                )
-                connection.close()
-                return result
 
-            connection.execute(
-                """
-                INSERT INTO extraction_runs(
-                    id, evidence_sha256, source_profile_version, parser_version,
-                    extraction_policy_version, started_at, status
-                ) VALUES (?, ?, ?, ?, ?, ?, 'RUNNING')
-                """,
-                (
-                    extraction_run_id,
-                    capture.sha256,
-                    SOURCE_PROFILE_VERSION,
-                    PARSER_VERSION,
-                    EXTRACTION_POLICY_VERSION,
-                    _now(),
-                ),
-            )
-            connection.commit()
-            result = self._extract_new(
-                connection, import_run_id, extraction_run_id, capture
-            )
+                connection.execute(
+                    """
+                    INSERT INTO extraction_runs(
+                        id, evidence_sha256, source_profile_version, parser_version,
+                        extraction_policy_version, started_at, status
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'RUNNING')
+                    """,
+                    (
+                        extraction_run_id,
+                        capture.sha256,
+                        SOURCE_PROFILE_VERSION,
+                        PARSER_VERSION,
+                        EXTRACTION_POLICY_VERSION,
+                        _now(),
+                    ),
+                )
+                connection.commit()
+                return self._extract_new(
+                    connection, import_run_id, extraction_run_id, capture
+                )
+            except Exception as exc:
+                connection.rollback()
+                connection.execute(
+                    """
+                    UPDATE import_runs
+                    SET completed_at = ?, status = 'FAILED', error_message = ?
+                    WHERE id = ?
+                    """,
+                    (_now(), str(exc), import_run_id),
+                )
+                connection.commit()
+                raise
+        finally:
             connection.close()
-            return result
-        except Exception as exc:
-            connection.rollback()
-            connection.execute(
-                """
-                UPDATE import_runs
-                SET completed_at = ?, status = 'FAILED', error_message = ?
-                WHERE id = ?
-                """,
-                (_now(), str(exc), import_run_id),
-            )
-            connection.commit()
-            connection.close()
-            raise
 
     @staticmethod
     def _record_source(

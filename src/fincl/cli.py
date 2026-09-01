@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -34,6 +37,17 @@ app = typer.Typer(
     no_args_is_help=True,
     pretty_exceptions_show_locals=False,
 )
+
+
+@contextmanager
+def _ledger(database: Path) -> Iterator[sqlite3.Connection]:
+    """Open an initialized ledger connection that always closes."""
+    connection = connect_sqlite(database)
+    try:
+        initialize_schema(connection)
+        yield connection
+    finally:
+        connection.close()
 review_app = typer.Typer(help="Review and record durable transfer decisions.")
 app.add_typer(review_app, name="review")
 console = Console()
@@ -192,10 +206,8 @@ def economic_flow(
 def link_transfers(database: Path = typer.Option(..., "--database")) -> None:
     """Run only the narrow deterministic Phase 2 transfer linkers."""
     try:
-        connection = connect_sqlite(database)
-        initialize_schema(connection)
-        created = link_narrow_transfers(connection)
-        connection.close()
+        with _ledger(database) as connection:
+            created = link_narrow_transfers(connection)
     except (FinCLError, OSError) as exc:
         _fail(exc)
     console.print(f"Created {created} confirmed transfer link(s).")
@@ -210,10 +222,8 @@ def import_fx_rates(
 ) -> None:
     """Load reference FX rates used to value cross-currency flow into SGD."""
     try:
-        connection = connect_sqlite(database)
-        initialize_schema(connection)
-        written = load_fx_rates_file(connection, file)
-        connection.close()
+        with _ledger(database) as connection:
+            written = load_fx_rates_file(connection, file)
     except (FinCLError, OSError) as exc:
         _fail(exc)
     _emit_mapping({"status": "LOADED", "rates_written": written}, plain, json_output)
@@ -324,26 +334,24 @@ def review_list(
 ) -> None:
     """List proposed links and the current durable decision projection."""
     try:
-        connection = connect_sqlite(database)
-        initialize_schema(connection)
-        link_narrow_transfers(connection)
         if kind not in {"link", "escape", "inbound"}:
             raise FinCLError("review kind must be link, escape, or inbound")
         table = {"link": "link_decisions", "escape": "invariant_escapes", "inbound": "inbound_classifications"}[kind]
-        decisions = [dict(row) for row in connection.execute(f"SELECT * FROM {table} ORDER BY journal_seq")]
-        proposals = []
-        if kind == "link":
-            proposals = [dict(row) for row in connection.execute(
-                "SELECT * FROM transfer_links WHERE status='PROPOSED' ORDER BY created_at"
-            )]
-            for proposal in proposals:
-                proposal["left_anchor"] = entry_anchor(
-                    connection, str(proposal["left_entry_id"])
-                )
-                proposal["right_anchor"] = entry_anchor(
-                    connection, str(proposal["right_entry_id"])
-                )
-        connection.close()
+        with _ledger(database) as connection:
+            link_narrow_transfers(connection)
+            decisions = [dict(row) for row in connection.execute(f"SELECT * FROM {table} ORDER BY journal_seq")]
+            proposals = []
+            if kind == "link":
+                proposals = [dict(row) for row in connection.execute(
+                    "SELECT * FROM transfer_links WHERE status='PROPOSED' ORDER BY created_at"
+                )]
+                for proposal in proposals:
+                    proposal["left_anchor"] = entry_anchor(
+                        connection, str(proposal["left_entry_id"])
+                    )
+                    proposal["right_anchor"] = entry_anchor(
+                        connection, str(proposal["right_entry_id"])
+                    )
         _emit_mapping({"kind": kind, "proposals": proposals, "decisions": decisions}, plain, json_output)
     except (FinCLError, OSError) as exc:
         _fail(exc)
@@ -382,26 +390,24 @@ def review_escape_invariant(
         if not reason.strip():
             raise FinCLError("a non-empty reason is required")
         values = [value.strip() for value in anchors.split(",") if value.strip()]
-        connection = connect_sqlite(database)
-        initialize_schema(connection)
-        resolved = [resolve_anchor(connection, value) for value in values]
-        if not values or any(entry_id is None for entry_id in resolved):
-            raise FinCLError("all invariant escape anchors must currently resolve")
-        if not invariant_violation_is_live(
-            connection, code, [entry_id for entry_id in resolved if entry_id is not None]
-        ):
-            raise FinCLError(
-                f"no live BLOCKING violation of {code} is raised at those anchors; "
-                "an escape may only downgrade a currently-failing check"
+        with _ledger(database) as connection:
+            resolved = [resolve_anchor(connection, value) for value in values]
+            if not values or any(entry_id is None for entry_id in resolved):
+                raise FinCLError("all invariant escape anchors must currently resolve")
+            if not invariant_violation_is_live(
+                connection, code, [entry_id for entry_id in resolved if entry_id is not None]
+            ):
+                raise FinCLError(
+                    f"no live BLOCKING violation of {code} is raised at those anchors; "
+                    "an escape may only downgrade a currently-failing check"
+                )
+            record = append_decision(
+                default_journal_path(database), decision_kind="INVARIANT_ESCAPE",
+                anchors={f"anchor_{index}": value for index, value in enumerate(values)},
+                payload={"code": code, "reason": reason.strip()}, policy_version="review-v1",
+                snapshot=f"Invariant escape {code}: {reason.strip()}",
             )
-        record = append_decision(
-            default_journal_path(database), decision_kind="INVARIANT_ESCAPE",
-            anchors={f"anchor_{index}": value for index, value in enumerate(values)},
-            payload={"code": code, "reason": reason.strip()}, policy_version="review-v1",
-            snapshot=f"Invariant escape {code}: {reason.strip()}",
-        )
-        link_narrow_transfers(connection)
-        connection.close()
+            link_narrow_transfers(connection)
         _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError) as exc:
         _fail(exc)
@@ -416,17 +422,15 @@ def review_classify_inbound(
     try:
         if classification not in allowed or not reason.strip():
             raise FinCLError("classification must be supported and reason must be non-empty")
-        connection = connect_sqlite(database)
-        initialize_schema(connection)
-        if resolve_anchor(connection, anchor) is None:
-            raise FinCLError("the inbound anchor must currently resolve")
-        record = append_decision(
-            default_journal_path(database), decision_kind="INBOUND_CLASSIFICATION", anchors={"entry": anchor},
-            payload={"classification": classification, "reason": reason.strip()}, policy_version="review-v1",
-            snapshot=f"Inbound classification {classification}: {reason.strip()}",
-        )
-        link_narrow_transfers(connection)
-        connection.close()
+        with _ledger(database) as connection:
+            if resolve_anchor(connection, anchor) is None:
+                raise FinCLError("the inbound anchor must currently resolve")
+            record = append_decision(
+                default_journal_path(database), decision_kind="INBOUND_CLASSIFICATION", anchors={"entry": anchor},
+                payload={"classification": classification, "reason": reason.strip()}, policy_version="review-v1",
+                snapshot=f"Inbound classification {classification}: {reason.strip()}",
+            )
+            link_narrow_transfers(connection)
         _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError) as exc:
         _fail(exc)
@@ -444,40 +448,39 @@ def _record_link_decision(
             raise FinCLError("a non-empty reason is required")
         if link_kind_option is not None and link_kind_option not in _LINK_KINDS:
             raise FinCLError("link kind must be SAME_CURRENCY_TRANSFER or CURRENCY_EXCHANGE")
-        connection = connect_sqlite(database)
-        initialize_schema(connection)
-        resolved_left, resolved_right = resolve_anchor(connection, left), resolve_anchor(connection, right)
-        if resolved_left is None or resolved_right is None:
-            raise FinCLError("both anchors must currently resolve")
-        row = connection.execute(
-            """SELECT method_version, link_kind FROM transfer_links
-               WHERE left_entry_id=? AND right_entry_id=?""",
-            (resolved_left, resolved_right),
-        ).fetchone()
-        if row is not None:
-            policy = row["method_version"]
-            link_kind = row["link_kind"]
-            if link_kind_option is not None and link_kind_option != link_kind:
-                raise FinCLError(
-                    f"automation proposed this pair as {link_kind}; "
-                    f"--link-kind {link_kind_option} conflicts"
-                )
-        else:
-            if kind == "LINK_CONFIRM" and link_kind_option is None:
-                raise FinCLError(
-                    "no automatic proposal exists for this pair; pass "
-                    "--link-kind SAME_CURRENCY_TRANSFER or --link-kind CURRENCY_EXCHANGE "
-                    "to record a manual link"
-                )
-            policy = "manual-v1"
-            link_kind = link_kind_option or "SAME_CURRENCY_TRANSFER"
-        record = append_decision(
-            default_journal_path(database), decision_kind=kind, anchors={"left": left, "right": right},
-            payload={"reason": reason.strip(), "link_kind": link_kind}, policy_version=policy,
-            snapshot=f"{kind} for {left} and {right}: {reason.strip()}",
-        )
-        link_narrow_transfers(connection)
-        connection.close()
+        with _ledger(database) as connection:
+            resolved_left = resolve_anchor(connection, left)
+            resolved_right = resolve_anchor(connection, right)
+            if resolved_left is None or resolved_right is None:
+                raise FinCLError("both anchors must currently resolve")
+            row = connection.execute(
+                """SELECT method_version, link_kind FROM transfer_links
+                   WHERE left_entry_id=? AND right_entry_id=?""",
+                (resolved_left, resolved_right),
+            ).fetchone()
+            if row is not None:
+                policy = row["method_version"]
+                link_kind = row["link_kind"]
+                if link_kind_option is not None and link_kind_option != link_kind:
+                    raise FinCLError(
+                        f"automation proposed this pair as {link_kind}; "
+                        f"--link-kind {link_kind_option} conflicts"
+                    )
+            else:
+                if kind == "LINK_CONFIRM" and link_kind_option is None:
+                    raise FinCLError(
+                        "no automatic proposal exists for this pair; pass "
+                        "--link-kind SAME_CURRENCY_TRANSFER or --link-kind CURRENCY_EXCHANGE "
+                        "to record a manual link"
+                    )
+                policy = "manual-v1"
+                link_kind = link_kind_option or "SAME_CURRENCY_TRANSFER"
+            record = append_decision(
+                default_journal_path(database), decision_kind=kind, anchors={"left": left, "right": right},
+                payload={"reason": reason.strip(), "link_kind": link_kind}, policy_version=policy,
+                snapshot=f"{kind} for {left} and {right}: {reason.strip()}",
+            )
+            link_narrow_transfers(connection)
         _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError) as exc:
         _fail(exc)

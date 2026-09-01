@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import Counter
+from collections.abc import Iterator
+from contextlib import contextmanager
 from fractions import Fraction
 from pathlib import Path
 from typing import Any, TypedDict
@@ -13,6 +15,19 @@ from .decisions import replay_journal
 from .money import ExactMoney, exact_sum, format_decimal
 
 _REPORTING_CURRENCY = "SGD"
+
+
+@contextmanager
+def _reading(database_path: Path, *, replay: bool = True) -> Iterator[sqlite3.Connection]:
+    """Open an initialized connection for a report that always closes."""
+    connection = connect_sqlite(database_path)
+    try:
+        initialize_schema(connection)
+        if replay:
+            replay_journal(connection)
+        yield connection
+    finally:
+        connection.close()
 
 
 def _dangling_decisions(connection: sqlite3.Connection) -> int:
@@ -41,9 +56,11 @@ class _EconomicFlowBucket(TypedDict):
 
 
 def build_report(database_path: Path) -> str:
-    connection = connect_sqlite(database_path)
-    initialize_schema(connection)
-    replay_journal(connection)
+    with _reading(database_path) as connection:
+        return _build_report(connection)
+
+
+def _build_report(connection: sqlite3.Connection) -> str:
     extraction = connection.execute(
         """
         SELECT * FROM extraction_runs
@@ -52,7 +69,6 @@ def build_report(database_path: Path) -> str:
         """
     ).fetchone()
     if extraction is None:
-        connection.close()
         return "No extraction runs."
 
     document_statement = connection.execute(
@@ -60,9 +76,7 @@ def build_report(database_path: Path) -> str:
         (extraction["id"],),
     ).fetchone()
     if document_statement is not None:
-        report = _build_document_report(connection, extraction, document_statement)
-        connection.close()
-        return report
+        return _build_document_report(connection, extraction, document_statement)
 
     issue_counts = Counter(
         {
@@ -151,19 +165,19 @@ def build_report(database_path: Path) -> str:
                 f"checks={pocket_checks['passed']}/{pocket_checks['total']}"
 
         )
-    connection.close()
     return "\n".join(lines)
 
 
 def latest_report_data(database_path: Path) -> dict[str, Any]:
-    connection = connect_sqlite(database_path)
-    initialize_schema(connection)
-    replay_journal(connection)
+    with _reading(database_path) as connection:
+        return _latest_report_data(connection)
+
+
+def _latest_report_data(connection: sqlite3.Connection) -> dict[str, Any]:
     extraction = connection.execute(
         "SELECT * FROM extraction_runs ORDER BY started_at DESC, id DESC LIMIT 1"
     ).fetchone()
     if extraction is None:
-        connection.close()
         return {"status": "NO_DATA"}
     statement = connection.execute(
         "SELECT * FROM statements WHERE extraction_run_id = ?", (extraction["id"],)
@@ -215,7 +229,6 @@ def latest_report_data(database_path: Path) -> dict[str, Any]:
         "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
     ).fetchone()[0]
     data["dangling_decisions"] = _dangling_decisions(connection)
-    connection.close()
     return data
 
 
@@ -227,9 +240,11 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
     so combining these values would manufacture a number the ledger cannot
     explain.
     """
-    connection = connect_sqlite(database_path)
-    initialize_schema(connection)
-    replay_journal(connection)
+    with _reading(database_path) as connection:
+        return _economic_flow(connection)
+
+
+def _economic_flow(connection: sqlite3.Connection) -> dict[str, Any]:
     rows = connection.execute(
         """
         WITH entries AS (
@@ -331,7 +346,6 @@ def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
         consolidated_total, consolidated_status = None, "UNAVAILABLE_COVERAGE_INCOMPLETE"
     else:
         consolidated_total, consolidated_status = _consolidate_sgd(connection, netting)
-    connection.close()
 
     return {
         "kind": "ECONOMIC_FLOW",
@@ -472,79 +486,74 @@ def build_economic_flow_report(database_path: Path) -> str:
 
 
 def coverage_report_data(database_path: Path) -> dict[str, Any]:
-    connection = connect_sqlite(database_path)
-    initialize_schema(connection)
-    replay_journal(connection)
-    statements = []
-    for row in connection.execute(
-        """
-        SELECT s.*, x.status AS extraction_status,
-               count(p.id) AS pages,
-               coalesce(sum(p.transaction_rows), 0) AS transaction_rows,
-               coalesce(sum(p.status = 'UNRESOLVED'), 0) AS unresolved_pages
-        FROM statements s
-        JOIN extraction_runs x ON x.id = s.extraction_run_id
-        LEFT JOIN page_coverage p ON p.statement_id = s.id
-        GROUP BY s.id
-        ORDER BY s.statement_date, s.source_type
-        """
-    ):
-        statements.append(
-            {
-                "source_type": row["source_type"],
-                "statement_date": row["statement_date"],
-                "period_start": row["period_start"],
-                "period_end": row["period_end"],
-                "status": row["extraction_status"],
-                "selection_state": row["selection_state"],
-                "pages": row["pages"],
-                "transaction_rows": row["transaction_rows"],
-                "unresolved_pages": row["unresolved_pages"],
-            }
-        )
-    data = {
-        "statements": statements,
-        "confirmed_transfer_links": connection.execute(
-            "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
-        ).fetchone()[0],
-        "dangling_decisions": _dangling_decisions(connection),
-    }
-    connection.close()
+    with _reading(database_path) as connection:
+        statements = []
+        for row in connection.execute(
+            """
+            SELECT s.*, x.status AS extraction_status,
+                   count(p.id) AS pages,
+                   coalesce(sum(p.transaction_rows), 0) AS transaction_rows,
+                   coalesce(sum(p.status = 'UNRESOLVED'), 0) AS unresolved_pages
+            FROM statements s
+            JOIN extraction_runs x ON x.id = s.extraction_run_id
+            LEFT JOIN page_coverage p ON p.statement_id = s.id
+            GROUP BY s.id
+            ORDER BY s.statement_date, s.source_type
+            """
+        ):
+            statements.append(
+                {
+                    "source_type": row["source_type"],
+                    "statement_date": row["statement_date"],
+                    "period_start": row["period_start"],
+                    "period_end": row["period_end"],
+                    "status": row["extraction_status"],
+                    "selection_state": row["selection_state"],
+                    "pages": row["pages"],
+                    "transaction_rows": row["transaction_rows"],
+                    "unresolved_pages": row["unresolved_pages"],
+                }
+            )
+        data = {
+            "statements": statements,
+            "confirmed_transfer_links": connection.execute(
+                "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
+            ).fetchone()[0],
+            "dangling_decisions": _dangling_decisions(connection),
+        }
     return data
 
 
 def profile_report_data(database_path: Path) -> dict[str, Any]:
     """Return repeatable corpus observations without asserting their values."""
-    connection = connect_sqlite(database_path)
-    initialize_schema(connection)
-    profiles = [
-        dict(row)
-        for row in connection.execute(
-            """
-            SELECT source_profile_version, parser_version, extraction_policy_version,
-                   status, count(*) AS extractions,
-                   coalesce(sum(raw_record_count), 0) AS raw_records,
-                   coalesce(sum(canonical_entry_count), 0) AS canonical_entries,
-                   min(started_at) AS first_started_at, max(completed_at) AS last_completed_at
-            FROM extraction_runs
-            GROUP BY source_profile_version, parser_version, extraction_policy_version, status
-            ORDER BY source_profile_version, parser_version, extraction_policy_version, status
-            """
-        )
-    ]
-    source_types = [
-        dict(row)
-        for row in connection.execute(
-            """
-            SELECT source_type, count(*) AS statements,
-                   min(period_start) AS first_period_start, max(period_end) AS last_period_end
-            FROM statements
-            GROUP BY source_type
-            ORDER BY source_type
-            """
-        )
-    ]
-    connection.close()
+    with _reading(database_path, replay=False) as connection:
+        profiles = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT source_profile_version, parser_version, extraction_policy_version,
+                       status, count(*) AS extractions,
+                       coalesce(sum(raw_record_count), 0) AS raw_records,
+                       coalesce(sum(canonical_entry_count), 0) AS canonical_entries,
+                       min(started_at) AS first_started_at, max(completed_at) AS last_completed_at
+                FROM extraction_runs
+                GROUP BY source_profile_version, parser_version, extraction_policy_version, status
+                ORDER BY source_profile_version, parser_version, extraction_policy_version, status
+                """
+            )
+        ]
+        source_types = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT source_type, count(*) AS statements,
+                       min(period_start) AS first_period_start, max(period_end) AS last_period_end
+                FROM statements
+                GROUP BY source_type
+                ORDER BY source_type
+                """
+            )
+        ]
     return {"profiles": profiles, "source_types": source_types}
 
 

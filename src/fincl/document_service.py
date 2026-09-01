@@ -147,6 +147,14 @@ class DocumentImportService:
 
     def _import(self, source_path: Path, source_type: str) -> DocumentImportResult:
         connection = self.connection_factory(self.database_path)
+        try:
+            return self._run_import(connection, source_path, source_type)
+        finally:
+            connection.close()
+
+    def _run_import(
+        self, connection: sqlite3.Connection, source_path: Path, source_type: str
+    ) -> DocumentImportResult:
         initialize_schema(connection)
         replay_journal(connection)
         import_run_id = "imp_" + uuid.uuid4().hex
@@ -184,7 +192,7 @@ class DocumentImportService:
                     reused=True,
                 )
                 connection.commit()
-                result = self._load_result(
+                return self._load_result(
                     connection,
                     import_run_id,
                     extraction_run_id,
@@ -193,8 +201,6 @@ class DocumentImportService:
                     extraction_reused=True,
                     links_created=0,
                 )
-                connection.close()
-                return result
 
             connection.execute(
                 """
@@ -225,7 +231,7 @@ class DocumentImportService:
                 reused=False,
             )
             connection.commit()
-            result = self._load_result(
+            return self._load_result(
                 connection,
                 import_run_id,
                 extraction_run_id,
@@ -234,8 +240,6 @@ class DocumentImportService:
                 extraction_reused=False,
                 links_created=links_created,
             )
-            connection.close()
-            return result
         except Exception as exc:
             connection.rollback()
             connection.execute(
@@ -246,7 +250,6 @@ class DocumentImportService:
                 (_now(), str(exc), import_run_id),
             )
             connection.commit()
-            connection.close()
             raise
 
     @staticmethod
