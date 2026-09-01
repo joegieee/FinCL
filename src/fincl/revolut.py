@@ -9,8 +9,30 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
+from .common import LEDGER_EVENT_KINDS
 from .errors import ExtractionError
 from .money import ExactMoney
+
+# Revolut's ``Type`` column normalized (uppercased, non-alphanumerics to ``_``)
+# mapped onto the canonical ledger vocabulary. An unlisted type is OTHER, never
+# a passed-through raw label.
+_REVOLUT_TYPE_TO_EVENT_KIND = {
+    "CARD_PAYMENT": "CARD_PAYMENT",
+    "TOPUP": "TOPUP",
+    "TOP_UP": "TOPUP",
+    "EXCHANGE": "EXCHANGE",
+    "TRANSFER": "TRANSFER",
+    "CARD_REFUND": "REFUND",
+    "REFUND": "REFUND",
+}
+assert set(_REVOLUT_TYPE_TO_EVENT_KIND.values()) <= LEDGER_EVENT_KINDS
+
+
+def revolut_event_kind(type_raw: str | None) -> str:
+    """Map a raw Revolut ``Type`` value onto the canonical event kind."""
+    key = re.sub(r"[^A-Z0-9]+", "_", (type_raw or "").upper()).strip("_")
+    return _REVOLUT_TYPE_TO_EVENT_KIND.get(key, "OTHER")
+
 
 SOURCE_PROFILE_VERSION = "revolut-csv-en-sg-2026-v1"
 PARSER_VERSION = "revolut-parser-v1"

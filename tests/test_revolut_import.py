@@ -420,6 +420,27 @@ class RevolutImportTests(unittest.TestCase):
         self.assertIn("pocket USD: COMPLETED=2 PENDING=1 REVERTED=1", report)
         self.assertIn("pocket SGD: COMPLETED=2 PENDING=0 REVERTED=0", report)
 
+    def test_event_kind_is_normalized_to_the_canonical_vocabulary(self):
+        rows = [
+            ["Card Payment", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Buy", "-10.00", "0.00", "SGD", "COMPLETED", "90.00"],
+            ["Card Refund", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01", "Back", "5.00", "0.00", "SGD", "COMPLETED", "95.00"],
+            ["Interest", "Current", "2026-01-03 10:00:00", "2026-01-03 10:00:01", "Odd", "1.00", "0.00", "SGD", "COMPLETED", "96.00"],
+        ]
+        self.source.write_bytes(csv_bytes(rows))
+
+        result = self.service.import_revolut(self.source)
+
+        self.assertEqual(result.status, "ACCEPTED")
+        with self.connect() as connection:
+            kinds = dict(
+                connection.execute(
+                    "SELECT amount_text, event_kind FROM ledger_entries ORDER BY effective_at"
+                ).fetchall()
+            )
+        self.assertEqual(kinds["-10.00"], "CARD_PAYMENT")
+        self.assertEqual(kinds["5.00"], "REFUND")
+        self.assertEqual(kinds["1.00"], "OTHER")  # unmapped Revolut type
+
     def test_schema_has_no_real_money_storage(self):
         connection = connect_sqlite(self.database)
         initialize_schema(connection)

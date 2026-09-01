@@ -6,8 +6,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
+from .common import LEDGER_EVENT_KINDS
 from .errors import SchemaVersionError
 from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
+
+_EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
 SCHEMA_VERSION = 7
 
@@ -248,7 +251,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             amount_text TEXT NOT NULL,
             amount_coefficient INTEGER NOT NULL CHECK (amount_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
             amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
-            event_kind TEXT NOT NULL,
+            event_kind TEXT NOT NULL CHECK (event_kind IN ({_EVENT_KIND_IN})),
             economic_direction TEXT NOT NULL CHECK (economic_direction IN ('IN', 'OUT', 'ZERO')),
             lifecycle_state TEXT NOT NULL CHECK (lifecycle_state IN ('COMPLETED', 'PENDING', 'REVERTED')),
             analytics_eligible INTEGER NOT NULL DEFAULT 0 CHECK (analytics_eligible IN (0, 1)),

@@ -10,6 +10,13 @@ import hashlib
 import json
 from datetime import UTC, datetime
 
+# The closed canonical vocabulary for ``ledger_entries.event_kind``. Both import
+# paths normalize into this set; anything unrecognized becomes ``OTHER`` rather
+# than leaking a raw source label. ``db.py`` enforces it as a CHECK.
+LEDGER_EVENT_KINDS = frozenset(
+    {"CARD_PAYMENT", "REFUND", "TOPUP", "TRANSFER", "EXCHANGE", "PAYMENT", "OTHER"}
+)
+
 
 def stable_id(prefix: str, *parts: str) -> str:
     """A rebuild-stable id: ``<prefix>_<sha256 of NUL-joined parts>``."""

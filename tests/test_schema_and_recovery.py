@@ -91,6 +91,24 @@ class SchemaVersionGateTests(unittest.TestCase):
         with self.assertRaises(SchemaVersionError):
             initialize_schema(connection)
 
+    def test_event_kind_check_rejects_a_value_outside_the_vocabulary(self):
+        connection = connect_sqlite(self.database)
+        self.addCleanup(connection.close)
+        initialize_schema(connection)
+        with self.assertRaises(sqlite3.IntegrityError):
+            connection.execute(
+                """
+                INSERT INTO ledger_entries(
+                    id, source_family, extraction_run_id, evidence_sha256,
+                    raw_record_id, natural_anchor, account_id, currency_pocket,
+                    effective_at, amount_text, amount_coefficient, amount_scale,
+                    event_kind, economic_direction, lifecycle_state, analytics_eligible
+                ) VALUES ('e1', 'CSV', 'x', 'y', 'r', 'a', 'acct', 'SGD',
+                          '2026-01-01', '1.00', 100, 2, 'WHATEVER', 'IN',
+                          'COMPLETED', 0)
+                """
+            )
+
     def test_superseded_schema_versions_are_refused_not_migrated(self):
         """No in-place migration path exists; a stale database is rebuilt instead."""
         connection = connect_sqlite(self.database)

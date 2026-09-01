@@ -9,6 +9,7 @@ from datetime import date
 from math import gcd
 from pathlib import Path
 
+from .common import LEDGER_EVENT_KINDS
 from .common import canonical_json as _json
 from .common import stable_id as _stable_id
 from .common import utc_now as _now
@@ -1088,16 +1089,20 @@ def _insert_document_entry(
 
 
 def _event_kind(source_type: str, description: str) -> str:
+    """Classify a document line into the canonical ledger vocabulary."""
     upper = description.upper()
     if "TOP-UP TO PAYLAH" in upper or "TOP UP WALLET" in upper:
-        return "TOPUP"
-    if "REFUND" in upper or "CASHBACK" in upper:
-        return "REFUND"
-    if "DEBIT CARD TRANSACTION" in upper:
-        return "CARD_PAYMENT"
-    if "PAYNOW" in upper or "FUNDS TRANSFER" in upper or "TRANSFER" in upper or "SEND MONEY" in upper:
-        return "TRANSFER"
-    return "PAYMENT" if source_type == "DBS_PAYLAH" else "OTHER"
+        kind = "TOPUP"
+    elif "REFUND" in upper or "CASHBACK" in upper:
+        kind = "REFUND"
+    elif "DEBIT CARD TRANSACTION" in upper:
+        kind = "CARD_PAYMENT"
+    elif "PAYNOW" in upper or "FUNDS TRANSFER" in upper or "TRANSFER" in upper or "SEND MONEY" in upper:
+        kind = "TRANSFER"
+    else:
+        kind = "PAYMENT" if source_type == "DBS_PAYLAH" else "OTHER"
+    assert kind in LEDGER_EVENT_KINDS
+    return kind
 
 
 def _insert_document_issue(

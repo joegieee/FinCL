@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import re
 import sqlite3
 import uuid
 from dataclasses import dataclass
@@ -26,6 +25,7 @@ from .revolut import (
     cells_json,
     extraction_identity,
     parse_revolut_csv,
+    revolut_event_kind,
 )
 
 REVOLUT_ACCOUNT_ID = "acct_revolut_current"
@@ -733,7 +733,7 @@ def _insert_canonical(
     assert row.state_raw is not None
     canonical_id = _stable_id("entry", extraction_run_id, row.source_anchor)
     natural_anchor = f"{evidence_sha256}:{row.source_anchor}:{row.ordinal}"
-    event_kind = re.sub(r"[^A-Z0-9]+", "_", (row.type_raw or "UNKNOWN").upper()).strip("_")
+    event_kind = revolut_event_kind(row.type_raw)
     direction = "IN" if row.amount.coefficient > 0 else "OUT" if row.amount.coefficient < 0 else "ZERO"
     has_alt = bool(row.completed_at_raw) and row.completed_at_raw != row.started_at_raw
     connection.execute(
@@ -766,7 +766,7 @@ def _insert_canonical(
             row.amount.text,
             row.amount.coefficient,
             row.amount.scale,
-            event_kind or "UNKNOWN",
+            event_kind,
             direction,
             row.state_raw,
             "STARTED" if has_alt else None,
