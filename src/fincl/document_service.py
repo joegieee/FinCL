@@ -30,11 +30,75 @@ DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION = "dbs-revolut-paynow-topup-exact-amount-w
 REVOLUT_EXCHANGE_LINK_VERSION = "revolut-exchange-started-at-pockets-v1"
 AMBIGUOUS_MUTUAL_MATCH = "AMBIGUOUS_MUTUAL_MATCH"
 SELECTION_LOST = "SELECTION_LOST"
-AUTOMATIC_SAME_CURRENCY_LINK_METHODS = (
+
+
+@dataclass(frozen=True, slots=True)
+class EligibleLinkLeg:
+    """The source account/pocket and canonical shape a linker may consume."""
+
+    source_type: str
+    currency_pocket: str | None
+    economic_direction: str
+    event_kinds: frozenset[str]
+
+    def matches(self, row: sqlite3.Row) -> bool:
+        return (
+            row["source_type"] == self.source_type
+            and (self.currency_pocket is None or row["currency_pocket"] == self.currency_pocket)
+            and row["economic_direction"] == self.economic_direction
+            and row["event_kind"] in self.event_kinds
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SameCurrencyLinker:
+    """A declared automatic linker, including its complete eligible leg pair."""
+
+    method_version: str
+    left: EligibleLinkLeg
+    right: EligibleLinkLeg
+    max_days: int
+
+
+@dataclass(frozen=True, slots=True)
+class ExchangeLinker:
+    """A declared cross-currency linker with its complete eligible leg pair."""
+
+    method_version: str
+    left: EligibleLinkLeg
+    right: EligibleLinkLeg
+
+
+# These declarations are the eligible-pair table for automatic same-currency
+# links. A leg is never matched unless it satisfies one of these narrow scopes.
+DBS_PAYLAH_LINKER = SameCurrencyLinker(
     DBS_PAYLAH_LINK_VERSION,
-    DBS_REVOLUT_LEGACY_LINK_VERSION,
+    EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "OUT", frozenset({"TOPUP"})),
+    EligibleLinkLeg("DBS_PAYLAH", "SGD", "IN", frozenset({"TOPUP"})),
+    max_days=0,
+)
+DBS_REVOLUT_CARD_TOPUP_LINKER = SameCurrencyLinker(
     DBS_REVOLUT_CARD_TOPUP_LINK_VERSION,
+    EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "OUT", frozenset({"CARD_PAYMENT"})),
+    EligibleLinkLeg("REVOLUT_CSV", "SGD", "IN", frozenset({"TOPUP", "TRANSFER"})),
+    max_days=2,
+)
+DBS_REVOLUT_PAYNOW_TOPUP_LINKER = SameCurrencyLinker(
     DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION,
+    EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "OUT", frozenset({"TRANSFER"})),
+    EligibleLinkLeg("REVOLUT_CSV", "SGD", "IN", frozenset({"TOPUP", "TRANSFER"})),
+    max_days=2,
+)
+REVOLUT_EXCHANGE_LINKER = ExchangeLinker(
+    REVOLUT_EXCHANGE_LINK_VERSION,
+    EligibleLinkLeg("REVOLUT_CSV", None, "OUT", frozenset({"EXCHANGE"})),
+    EligibleLinkLeg("REVOLUT_CSV", None, "IN", frozenset({"EXCHANGE"})),
+)
+AUTOMATIC_SAME_CURRENCY_LINK_METHODS = (
+    DBS_PAYLAH_LINKER.method_version,
+    DBS_REVOLUT_LEGACY_LINK_VERSION,
+    DBS_REVOLUT_CARD_TOPUP_LINKER.method_version,
+    DBS_REVOLUT_PAYNOW_TOPUP_LINKER.method_version,
 )
 
 
@@ -525,7 +589,8 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
     dbs_rows = connection.execute(
         """
         SELECT e.id, e.posted_date, e.currency_pocket, e.amount_coefficient,
-               e.amount_scale, e.amount_text, r.description_raw
+               e.amount_scale, e.amount_text, e.event_kind, e.economic_direction,
+               s.source_type, r.description_raw
         FROM document_entries e
         JOIN document_records r ON r.id = e.document_record_id
         JOIN statements s ON s.id = e.statement_id
@@ -538,7 +603,8 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
     paylah_rows = connection.execute(
         """
         SELECT e.id, e.posted_date, e.currency_pocket, e.amount_coefficient,
-               e.amount_scale, e.amount_text, r.description_raw
+               e.amount_scale, e.amount_text, e.event_kind, e.economic_direction,
+               s.source_type, r.description_raw
         FROM document_entries e
         JOIN document_records r ON r.id = e.document_record_id
         JOIN statements s ON s.id = e.statement_id
@@ -548,13 +614,12 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
           AND e.economic_direction = 'IN'
         """
     ).fetchall()
-    dbs_topups = [row for row in dbs_rows if "TOP-UP TO PAYLAH" in (row["description_raw"] or "").upper()]
-    paylah_topups = [row for row in paylah_rows if "TOP UP WALLET FROM MY ACCOUNT" in (row["description_raw"] or "").upper()]
     revolut_rows = connection.execute(
         """
         SELECT e.id, substr(coalesce(e.completed_at, e.started_at), 1, 10) AS posted_date,
                e.currency_pocket, e.amount_coefficient, e.amount_scale,
-               e.amount_text, r.description_raw
+               e.amount_text, e.event_kind, e.economic_direction,
+               'REVOLUT_CSV' AS source_type, r.description_raw
         FROM canonical_entries e
         JOIN raw_records r ON r.id = e.raw_record_id
         JOIN extraction_runs x ON x.id = e.extraction_run_id
@@ -563,17 +628,60 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
           AND e.event_kind IN ('TOPUP', 'TRANSFER')
         """
     ).fetchall()
-    card_topups = [row for row in dbs_rows if _is_revolut_card_topup(row["description_raw"])]
-    paynow_topups = [row for row in dbs_rows if _is_revolut_paynow_topup(row["description_raw"])]
+    dbs_topups = [
+        row
+        for row in dbs_rows
+        if DBS_PAYLAH_LINKER.left.matches(row)
+        and "TOP-UP TO PAYLAH" in (row["description_raw"] or "").upper()
+    ]
+    paylah_topups = [
+        row
+        for row in paylah_rows
+        if DBS_PAYLAH_LINKER.right.matches(row)
+        and "TOP UP WALLET FROM MY ACCOUNT" in (row["description_raw"] or "").upper()
+    ]
+    card_topups = [
+        row
+        for row in dbs_rows
+        if DBS_REVOLUT_CARD_TOPUP_LINKER.left.matches(row)
+        and _is_revolut_card_topup(row["description_raw"])
+    ]
+    paynow_topups = [
+        row
+        for row in dbs_rows
+        if DBS_REVOLUT_PAYNOW_TOPUP_LINKER.left.matches(row)
+        and _is_revolut_paynow_topup(row["description_raw"])
+    ]
+    card_revolut_rows = [
+        row for row in revolut_rows if DBS_REVOLUT_CARD_TOPUP_LINKER.right.matches(row)
+    ]
+    paynow_revolut_rows = [
+        row for row in revolut_rows if DBS_REVOLUT_PAYNOW_TOPUP_LINKER.right.matches(row)
+    ]
     candidates = [
         *_candidate_pairs(
-            dbs_topups, paylah_topups, "DOCUMENT", "DOCUMENT", DBS_PAYLAH_LINK_VERSION, max_days=0
+            dbs_topups,
+            paylah_topups,
+            "DOCUMENT",
+            "DOCUMENT",
+            DBS_PAYLAH_LINKER.method_version,
+            max_days=DBS_PAYLAH_LINKER.max_days,
         ),
         *_candidate_pairs(
-            card_topups, revolut_rows, "DOCUMENT", "CSV", DBS_REVOLUT_CARD_TOPUP_LINK_VERSION, max_days=2
+            card_topups,
+            card_revolut_rows,
+            "DOCUMENT",
+            "CSV",
+            DBS_REVOLUT_CARD_TOPUP_LINKER.method_version,
+            max_days=DBS_REVOLUT_CARD_TOPUP_LINKER.max_days,
         ),
         *_candidate_pairs(
-            paynow_topups, revolut_rows, "DOCUMENT", "CSV", DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION, max_days=2
+            paynow_topups,
+            paynow_revolut_rows,
+            "DOCUMENT",
+            "CSV",
+            DBS_REVOLUT_PAYNOW_TOPUP_LINKER.method_version,
+            max_days=DBS_REVOLUT_PAYNOW_TOPUP_LINKER.max_days,
         ),
     ]
     _store_candidates(connection, candidates)
@@ -604,14 +712,22 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
     rows = connection.execute(
         """
         SELECT e.id, e.extraction_run_id, e.started_at, e.currency_pocket,
-               e.amount_text, e.amount_coefficient, e.amount_scale, e.economic_direction
+               e.amount_text, e.amount_coefficient, e.amount_scale, e.economic_direction,
+               e.event_kind, a.source_type
         FROM canonical_entries e
         JOIN extraction_runs x ON x.id = e.extraction_run_id
+        JOIN accounts a ON a.id = e.account_id
         WHERE x.status = 'ACCEPTED' AND e.analytics_eligible = 1
-          AND e.lifecycle_state = 'COMPLETED' AND e.event_kind = 'EXCHANGE'
+          AND e.lifecycle_state = 'COMPLETED'
         ORDER BY e.extraction_run_id, e.started_at, e.id
         """
     ).fetchall()
+    rows = [
+        row
+        for row in rows
+        if REVOLUT_EXCHANGE_LINKER.left.matches(row)
+        or REVOLUT_EXCHANGE_LINKER.right.matches(row)
+    ]
     groups: dict[tuple[str, str], list[sqlite3.Row]] = {}
     for row in rows:
         groups.setdefault((row["extraction_run_id"], row["started_at"]), []).append(row)
@@ -631,7 +747,7 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
         denominator = abs(left["amount_coefficient"]) * 10**right["amount_scale"]
         divisor = gcd(numerator, denominator)
         link_id = _stable_id(
-            "link", "CSV", left["id"], "CSV", right["id"], REVOLUT_EXCHANGE_LINK_VERSION
+            "link", "CSV", left["id"], "CSV", right["id"], REVOLUT_EXCHANGE_LINKER.method_version
         )
         cursor = connection.execute(
             """
@@ -658,7 +774,7 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
                 right["amount_scale"],
                 numerator // divisor,
                 denominator // divisor,
-                REVOLUT_EXCHANGE_LINK_VERSION,
+                REVOLUT_EXCHANGE_LINKER.method_version,
                 _json({"started_at": left["started_at"], "unique_pair": True}),
                 _now(),
             ),
