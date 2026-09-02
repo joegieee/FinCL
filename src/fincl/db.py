@@ -111,6 +111,23 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
             dangling_reason TEXT
         ) STRICT;
+
+        -- The raw -> canonical merchant trail, one row per eligible ledger
+        -- entry. Derived, recomputed on categorize / rebuild, never migrated
+        -- (§4.4). NULLs propagate: a description-less row has NULL
+        -- description_text / merchant_raw, not "".
+        CREATE TABLE IF NOT EXISTS merchant_observations (
+            entry_id TEXT PRIMARY KEY REFERENCES ledger_entries(id),
+            description_text TEXT,
+            paynow_to TEXT,
+            merchant_raw TEXT,
+            merchant_normalized TEXT,
+            merchant_canonical TEXT,
+            alias_applied INTEGER NOT NULL CHECK (alias_applied IN (0, 1)),
+            alias_ambiguous INTEGER NOT NULL CHECK (alias_ambiguous IN (0, 1)),
+            norm_version TEXT NOT NULL,
+            projection_version TEXT NOT NULL
+        ) STRICT;
         """
     )
 
