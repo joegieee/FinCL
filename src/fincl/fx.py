@@ -23,6 +23,32 @@ _PERIOD = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 _CURRENCY = re.compile(r"^[A-Z]{3}$")
 _DECIMAL = re.compile(r"^\d+(\.\d+)?$")
 
+# MAS weekly exchange-rate CSV: "S$ Per Unit of US Dollar" column headers, month
+# names abbreviated, one currency per column block. Extend the name map as new
+# currencies appear in a real export.
+_MAS_CURRENCY_NAMES = {
+    "US DOLLAR": "USD",
+    "EURO": "EUR",
+    "POUND STERLING": "GBP",
+    "AUSTRALIAN DOLLAR": "AUD",
+    "CANADIAN DOLLAR": "CAD",
+    "SWISS FRANC": "CHF",
+    "NEW ZEALAND DOLLAR": "NZD",
+    "MALAYSIAN RINGGIT": "MYR",
+    "HONG KONG DOLLAR": "HKD",
+    "CHINESE RENMINBI": "CNY",
+}
+_MAS_HEADER_RE = re.compile(
+    r"S\$\s+Per\s+(?:(\d+)\s+)?(?:Units?\s+of\s+)?(.+?)\s*$", re.IGNORECASE
+)
+_MAS_MONTHS = {
+    name: index
+    for index, name in enumerate(
+        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        start=1,
+    )
+}
+
 
 def load_fx_rates(connection: Connection, payload: dict[str, object]) -> int:
     """Validate and upsert a rate document; return the number of rates written.
@@ -97,6 +123,91 @@ def load_fx_rates_file(connection: Connection, path: Path) -> int:
     if not isinstance(payload, dict):
         raise FinCLError("fx rate document must be a JSON object")
     return load_fx_rates(connection, payload)
+
+
+def parse_mas_weekly_csv(text: str, *, source_version: str) -> dict[str, object]:
+    """Reduce a MAS *weekly end of period* exchange-rate CSV to a month keyed
+    rate document.
+
+    MAS publishes weekly figures as end-of-period (Friday) values. The rate for
+    a calendar month is taken as the **last weekly value printed within that
+    month** — a month-end reading, which the design permits over the monthly
+    average (Default 8). The output has exactly the shape ``load_fx_rates``
+    expects, so it flows through the same validation and exact-ratio storage.
+    """
+    base_currency: str | None = None
+    year: int | None = None
+    month: int | None = None
+    latest: dict[tuple[str, int, int], tuple[int, str]] = {}
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if (
+            not line
+            or line.startswith('"')
+            or line.startswith("MAS:")
+            or line.startswith("Exchange Rates")
+        ):
+            continue
+        cells = [cell.strip() for cell in line.split(",")]
+        if cells[0].lower().startswith("end of period"):
+            match = _MAS_HEADER_RE.search(cells[-1])
+            if not match:
+                raise FinCLError(f"unrecognized MAS column header: {cells[-1]!r}")
+            multiplier, name = match.group(1), match.group(2).strip().upper()
+            if multiplier and multiplier != "1":
+                raise FinCLError(
+                    f"MAS column {name!r} is quoted per {multiplier} units; "
+                    "per-N currencies are not supported by this loader yet"
+                )
+            base_currency = _MAS_CURRENCY_NAMES.get(name)
+            if base_currency is None:
+                raise FinCLError(f"unmapped MAS currency name: {name!r}")
+            year = month = None
+            continue
+        if base_currency is None or len(cells) < 4:
+            continue
+        year_cell, month_cell, day_cell, rate_cell = cells[0], cells[1], cells[2], cells[3]
+        if year_cell:
+            if not year_cell.isdigit():
+                continue
+            year = int(year_cell)
+        if month_cell:
+            key = month_cell[:3].title()
+            if key not in _MAS_MONTHS:
+                raise FinCLError(f"unrecognized MAS month: {month_cell!r}")
+            month = _MAS_MONTHS[key]
+        if year is None or month is None or not day_cell.isdigit():
+            continue
+        if not _DECIMAL.match(rate_cell) or Fraction(rate_cell) <= 0:
+            raise FinCLError(f"MAS rate cell is not a positive decimal: {rate_cell!r}")
+        day = int(day_cell)
+        group = (base_currency, year, month)
+        if group not in latest or day > latest[group][0]:
+            latest[group] = (day, rate_cell)
+
+    if not latest:
+        raise FinCLError("no MAS weekly rate rows were parsed")
+    rates = [
+        {"base_currency": base, "period": f"{yr:04d}-{mo:02d}", "rate": rate_text}
+        for (base, yr, mo), (_day, rate_text) in sorted(latest.items())
+    ]
+    return {
+        "source": "Monetary Authority of Singapore (weekly end of period)",
+        "source_version": source_version,
+        "quote_currency": "SGD",
+        "rates": rates,
+    }
+
+
+def load_mas_weekly_csv_file(
+    connection: Connection, path: Path, *, source_version: str
+) -> int:
+    try:
+        text = Path(path).read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise FinCLError(f"cannot read MAS rate CSV: {exc}") from exc
+    return load_fx_rates(connection, parse_mas_weekly_csv(text, source_version=source_version))
 
 
 def rate_fraction(

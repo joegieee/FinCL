@@ -15,7 +15,7 @@ from .decision_journal import append_decision, default_journal_path
 from .decisions import entry_anchor, invariant_violation_is_live, resolve_anchor
 from .document_service import DocumentImportService, link_narrow_transfers
 from .errors import FinCLError
-from .fx import load_fx_rates_file
+from .fx import load_fx_rates_file, load_mas_weekly_csv_file
 from .rebuild import rebuild_database
 from .recovery import recover_extraction
 from .report import (
@@ -239,15 +239,32 @@ def link_transfers(database: Path = typer.Option(..., "--database")) -> None:
 
 @app.command("import-fx-rates")
 def import_fx_rates(
-    file: Path = typer.Option(..., "--file", help="JSON rate document (see docs)."),
+    file: Path = typer.Option(..., "--file", help="JSON rate document, or a MAS weekly CSV with --mas-weekly-csv."),
     database: Path = typer.Option(..., "--database"),
+    mas_weekly_csv: bool = typer.Option(
+        False,
+        "--mas-weekly-csv",
+        help="Parse a MAS 'Exchange Rates (Weekly)' CSV, reducing each month to its last end-of-period value.",
+    ),
+    source_version: str = typer.Option(
+        "",
+        "--source-version",
+        help="Immutable fx_rates version label; required with --mas-weekly-csv (e.g. mas-weekly-2026-09).",
+    ),
     plain: bool = typer.Option(False, "--plain"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Load reference FX rates used to value cross-currency flow into SGD."""
     try:
         with _ledger(database) as connection:
-            written = load_fx_rates_file(connection, file)
+            if mas_weekly_csv:
+                if not source_version.strip():
+                    raise FinCLError("--source-version is required with --mas-weekly-csv")
+                written = load_mas_weekly_csv_file(
+                    connection, file, source_version=source_version.strip()
+                )
+            else:
+                written = load_fx_rates_file(connection, file)
     except (FinCLError, OSError) as exc:
         _fail(exc)
     _emit_mapping({"status": "LOADED", "rates_written": written}, plain, json_output)
