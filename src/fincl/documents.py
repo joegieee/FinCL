@@ -19,6 +19,13 @@ PAYLAH_OLD_PROFILE_VERSION = "dbs-paylah-legacy-2025-v1"
 PAYLAH_NEW_PROFILE_VERSION = "dbs-paylah-account-summary-2026-v1"
 DBS_BALANCE_EQUATION_VERSION = "dbs-next-equals-prior-minus-debit-plus-credit-v1"
 PAYLAH_BALANCE_EQUATION_VERSION = "paylah-closing-equals-opening-plus-cr-minus-db-v1"
+MARI_SAVINGS_3COL_PROFILE = "mari-savings-3col-interest-2025-v1"
+MARI_SAVINGS_4COL_PROFILE = "mari-savings-4col-rate-2026-v1"
+MARI_SAVINGS_BALANCE_EQUATION_VERSION = (
+    "mari-savings-ending-equals-starting-minus-outgoing-plus-incoming-v1"
+)
+MARI_SAVINGS_INTEREST_EQUATION_VERSION = "mari-savings-total-interest-equals-daily-sum-v1"
+MARI_SAVINGS_PROFILE_LABEL = "mari-savings"
 
 # Geometry constants, in PDF points unless noted, calibrated against the frozen
 # source profiles above. If any of these change, the extracted layout changes
@@ -46,6 +53,10 @@ _DBS_DATE_RE = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 _PAYLAH_DAY_RE = re.compile(r"^\d{2}$")
 _PAYLAH_MONTH_RE = re.compile(r"^[A-Z][a-z]{2}$")
 _MONEY_RE = re.compile(r"^(?:-?\d[\d,]*\.\d{2}|\d[\d,]*\.\d{2}-)$")
+_MARI_DAY_RE = re.compile(r"^\d{2}$")
+_MARI_MONTH_RE = re.compile(r"^[A-Z]{3}$")
+_MARI_FULL_DATE_RE = re.compile(r"\b(\d{2} [A-Z]{3} \d{4})\b")
+_MARI_RATE_RE = re.compile(r"^\d+(?:\.\d+)?%$")
 _CURRENCY_NAMES = {
     "SINGAPORE DOLLAR": "SGD",
     "THAILAND BAHT": "THB",
@@ -94,6 +105,8 @@ class DocumentRecord:
     balance: ExactMoney | None = None
     confidence: str = "HIGH"
     required_fields_complete: bool = True
+    date_precision: str = "DAY"
+    """Effective-date precision for the canonical entry: DAY, MONTH, or UNKNOWN."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -568,6 +581,754 @@ def parse_paylah(data: bytes) -> ParsedDocument:
         checks=checks,
         problems=problems,
     )
+
+
+MARI_SAVINGS_OUTGOING_INCOMING_SPLIT_PT = 470
+"""Money right-edge below this is the OUTGOING column; above it is INCOMING."""
+
+MARI_COLUMN_MATCH_TOLERANCE_PT = 30
+"""Max gap between a money right-edge and a printed column right-edge."""
+
+
+@dataclass(slots=True)
+class _MariSummary:
+    starting: ExactMoney | None = None
+    total_outgoing: ExactMoney | None = None
+    total_incoming: ExactMoney | None = None
+    ending: ExactMoney | None = None
+    total_restated: ExactMoney | None = None
+
+
+def parse_maribank_savings(data: bytes) -> ParsedDocument:
+    """Extract one MariBank deposit-and-investment savings statement.
+
+    Savings activity and the daily-interest schedule are separate tables: the
+    daily rows are supporting records and only the single credited-interest line
+    (printed with month precision) is a ledger candidate.  Investment sections
+    are preserved as separate content and never folded into savings activity.
+    """
+    problems: list[DocumentProblem] = []
+    records: list[DocumentRecord] = []
+    ordinal = 0
+    statement_date: date | None = None
+    period_start: date | None = None
+    period_end: date | None = None
+    account_number: str | None = None
+    summary = _MariSummary()
+
+    with pdfplumber.open(io.BytesIO(data), password="") as pdf:
+        page_lines: list[tuple[int, list[_Line], dict[str, int]]] = []
+        for page_number, page in enumerate(pdf.pages, start=1):
+            all_words = page.extract_words(x_tolerance=2, y_tolerance=2, extra_attrs=["upright"])
+            upright = [word for word in all_words if word.get("upright", True)]
+            lines = _group_lines(upright)
+            counts = {
+                "all": len(all_words),
+                "upright": len(upright),
+                "rotated": len(all_words) - len(upright),
+            }
+            page_lines.append((page_number, lines, counts))
+            page_text = "\n".join(line.text for line in lines)
+            if statement_date is None:
+                for line in lines:
+                    if _MARI_FULL_DATE_RE.fullmatch(line.text.strip()):
+                        statement_date = datetime.strptime(line.text.strip(), "%d %b %Y").date()
+                        break
+            period_match = re.search(
+                r"STATEMENT PERIOD:\s*(\d{2} [A-Z]{3} \d{4})\s+to\s+(\d{2} [A-Z]{3} \d{4})",
+                page_text,
+            )
+            if period_match and period_start is None:
+                period_start = datetime.strptime(period_match.group(1), "%d %b %Y").date()
+                period_end = datetime.strptime(period_match.group(2), "%d %b %Y").date()
+            if account_number is None:
+                account_match = re.search(
+                    r"SAVINGS - ACCOUNT SUMMARY.*?ACCOUNT:\s*([0-9 ]+)", page_text, re.DOTALL
+                )
+                if account_match:
+                    account_number = account_match.group(1).strip()
+
+        flat: list[tuple[int, _Line]] = [
+            (page_number, line) for page_number, lines, _ in page_lines for line in lines
+        ]
+        _parse_mari_account_summary(flat, summary, problems)
+        profile, unknown_interest_profile = _mari_interest_profile(flat)
+        if unknown_interest_profile:
+            problems.append(
+                DocumentProblem(
+                    "BLOCKING",
+                    "MARI_SAVINGS_UNKNOWN_INTEREST_PROFILE",
+                    "MariBank savings interest table uses an unrecognized column arrangement",
+                )
+            )
+        ordinal = _parse_mari_savings_transactions(
+            flat, records, ordinal, period_start, period_end, problems
+        )
+        ordinal, total_interest_credited = _parse_mari_interest_schedule(
+            flat, records, ordinal, profile, problems
+        )
+        ordinal = _parse_mari_investment_sections(flat, records, ordinal, problems)
+
+    if statement_date is None:
+        problems.append(
+            DocumentProblem("BLOCKING", "STATEMENT_DATE_MISSING", "MariBank statement date was not found")
+        )
+        statement_date = date.min
+    if period_start is None or period_end is None:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING", "MARI_STATEMENT_PERIOD_MISSING", "MariBank statement period was not found"
+            )
+        )
+
+    transactions = [record for record in records if record.record_kind == "TRANSACTION"]
+    checks = _reconcile_mari_savings(
+        transactions, records, summary, total_interest_credited, problems
+    )
+
+    coverage = _mari_page_coverage(page_lines, records, MARI_SAVINGS_PROFILE_LABEL)
+    for page_cov in coverage:
+        if page_cov.status == "UNRESOLVED":
+            problems.append(
+                DocumentProblem(
+                    "BLOCKING",
+                    "UNCLASSIFIED_PDF_PAGE",
+                    "MariBank savings page could not be classified structurally",
+                    {"page_number": page_cov.page_number},
+                )
+            )
+
+    statement_date_text = statement_date.isoformat()
+    return ParsedDocument(
+        institution="MariBank",
+        source_type="MARI_SAVINGS",
+        account_id="maribank-savings",
+        account_display_name="MariBank Savings Account",
+        masked_identifier=f"MariBank savings {account_number}" if account_number else "MariBank savings",
+        source_profile_version=profile,
+        statement_date=statement_date_text,
+        period_start=(period_start.isoformat() if period_start else None),
+        period_end=(period_end.isoformat() if period_end else None),
+        statement_identity=f"mari-savings:maribank-savings:{statement_date_text}",
+        sections=[
+            DocumentSection(1, "SAVINGS_LEDGER", "SGD", "SAVINGS - TRANSACTION DETAILS", 1, len(coverage)),
+            DocumentSection(2, "INTEREST_SCHEDULE", "SGD", "SAVINGS - INTEREST DETAILS", 1, len(coverage)),
+            DocumentSection(3, "INVESTMENT", None, "INVESTMENTS", 1, len(coverage)),
+        ],
+        records=records,
+        pages=coverage,
+        checks=checks,
+        problems=problems,
+    )
+
+
+_MARI_INTEREST_HEADER_3COL = "DATE PREVIOUS DAY BALANCE (SGD) INTEREST (SGD)"
+_MARI_INTEREST_HEADER_4COL = "DATE PREVIOUS DAY BALANCE (SGD) INTEREST RATE* INTEREST (SGD)"
+
+
+def _mari_interest_profile(flat: list[tuple[int, _Line]]) -> tuple[str, bool]:
+    """Return (profile version, unknown-arrangement seen).
+
+    A printed interest header that matches neither frozen arrangement is a
+    profile refusal per the MariBank savings contract, not a best-effort shift.
+    """
+    header_seen = False
+    for _, line in flat:
+        norm = " ".join(line.text.split())
+        if norm == _MARI_INTEREST_HEADER_3COL:
+            return MARI_SAVINGS_3COL_PROFILE, False
+        if norm == _MARI_INTEREST_HEADER_4COL:
+            return MARI_SAVINGS_4COL_PROFILE, False
+        if norm.startswith("DATE") and "BALANCE" in norm and "INTEREST" in norm:
+            header_seen = True
+    return MARI_SAVINGS_3COL_PROFILE, header_seen
+
+
+def _parse_mari_account_summary(
+    flat: list[tuple[int, _Line]],
+    summary: _MariSummary,
+    problems: list[DocumentProblem],
+) -> None:
+    in_summary = False
+    for _, line in flat:
+        text = line.text.strip()
+        if "SAVINGS - ACCOUNT SUMMARY" in text:
+            in_summary = True
+            continue
+        if not in_summary:
+            continue
+        if text.startswith("INVESTMENTS -"):
+            break
+        monies = [word for word in line.words if _MONEY_RE.fullmatch(word["text"])]
+        if text.startswith("SAVINGS") and len(monies) == 4:
+            summary.starting = _parse_printed_money(monies[0]["text"])
+            summary.total_outgoing = _parse_printed_money(monies[1]["text"])
+            summary.total_incoming = _parse_printed_money(monies[2]["text"])
+            summary.ending = _parse_printed_money(monies[3]["text"])
+        elif text.startswith("TOTAL:") and monies:
+            summary.total_restated = _parse_printed_money(monies[-1]["text"])
+    if summary.ending is None:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_SAVINGS_SUMMARY_MISSING",
+                "MariBank savings account-summary figures were not found",
+            )
+        )
+
+
+def _is_mari_transaction_anchor(line: _Line) -> tuple[str, str, str] | None:
+    """Return (day, month, precision) if this line opens a savings transaction."""
+    words = line.words
+    if not words:
+        return None
+    if (
+        len(words) >= 2
+        and _MARI_DAY_RE.fullmatch(words[0]["text"])
+        and _MARI_MONTH_RE.fullmatch(words[1]["text"])
+        and _mari_row_money(line)
+    ):
+        return words[0]["text"], words[1]["text"], "DAY"
+    if (
+        _MARI_MONTH_RE.fullmatch(words[0]["text"])
+        and _mari_row_money(line)
+        and not _MARI_DAY_RE.fullmatch(words[0]["text"])
+    ):
+        return "", words[0]["text"], "MONTH"
+    return None
+
+
+def _mari_row_money(line: _Line) -> list[dict[str, Any]]:
+    return [
+        word
+        for word in line.words
+        if _MONEY_RE.fullmatch(word["text"]) and word["x1"] > 380
+    ]
+
+
+def _parse_mari_savings_transactions(
+    flat: list[tuple[int, _Line]],
+    records: list[DocumentRecord],
+    ordinal: int,
+    period_start: date | None,
+    period_end: date | None,
+    problems: list[DocumentProblem],
+) -> int:
+    region: list[tuple[int, _Line]] = []
+    active = False
+    for page_number, line in flat:
+        text = line.text.strip()
+        if "SAVINGS - TRANSACTION DETAILS" in text:
+            active = True
+            continue
+        if not active:
+            continue
+        if text.startswith("SAVINGS - INTEREST DETAILS") or text.startswith("INVESTMENTS -"):
+            active = False
+            continue
+        if _is_mari_header(text) or _is_mari_page_furniture(text):
+            continue
+        region.append((page_number, line))
+
+    anchor_positions = [
+        index for index, (_, line) in enumerate(region) if _is_mari_transaction_anchor(line)
+    ]
+    expected_rows = len(anchor_positions)
+    # A transaction row is a tight visual cluster: its wrapping description sits
+    # both above and below the dated amount baseline.  Assign every non-anchor
+    # line on a page to the vertically nearest anchor on that same page.
+    above: dict[int, list[_Line]] = {position: [] for position in anchor_positions}
+    below: dict[int, list[_Line]] = {position: [] for position in anchor_positions}
+    anchors_by_page: dict[int, list[int]] = {}
+    for position in anchor_positions:
+        anchors_by_page.setdefault(region[position][0], []).append(position)
+    for index, (page_number, line) in enumerate(region):
+        if index in above:
+            continue
+        candidates = anchors_by_page.get(page_number)
+        if not candidates:
+            continue
+        nearest = min(candidates, key=lambda pos: abs(region[pos][1].top - line.top))
+        (above if line.top < region[nearest][1].top else below)[nearest].append(line)
+
+    for position in anchor_positions:
+        page_number, anchor_line = region[position]
+        day, month, precision = _is_mari_transaction_anchor(anchor_line)  # type: ignore[misc]
+        ordinal += 1
+        records.append(
+            _build_mari_savings_record(
+                anchor_line,
+                sorted(above[position], key=lambda line: line.top),
+                sorted(below[position], key=lambda line: line.top),
+                ordinal,
+                page_number,
+                day,
+                month,
+                precision,
+                period_start,
+                period_end,
+                problems,
+            )
+        )
+
+    parsed_rows = sum(
+        record.record_kind == "TRANSACTION" and record.section_ordinal == 1 for record in records
+    )
+    if parsed_rows != expected_rows:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_SAVINGS_ROW_COVERAGE_MISMATCH",
+                "dated savings-row accounting does not match extracted transaction records",
+                {"anchor_rows": expected_rows, "parsed_rows": parsed_rows},
+            )
+        )
+    return ordinal
+
+
+def _build_mari_savings_record(
+    anchor_line: _Line,
+    above_lines: list[_Line],
+    below_lines: list[_Line],
+    ordinal: int,
+    page_number: int,
+    day: str,
+    month: str,
+    precision: str,
+    period_start: date | None,
+    period_end: date | None,
+    problems: list[DocumentProblem],
+) -> DocumentRecord:
+    monies = _mari_row_money(anchor_line)
+    amount_word = monies[-1]
+    debit = credit = None
+    value = _parse_printed_money(amount_word["text"])
+    if amount_word["x1"] < MARI_SAVINGS_OUTGOING_INCOMING_SPLIT_PT:
+        debit = value
+    else:
+        credit = value
+    money_ids = {id(word) for word in monies}
+    first = anchor_line.words[0]["text"]
+    inline_words = [
+        word["text"]
+        for index, word in enumerate(anchor_line.words)
+        if id(word) not in money_ids
+        and not (index == 0 and (word["text"] == day or _MARI_MONTH_RE.fullmatch(word["text"])))
+        and not (index == 1 and precision == "DAY" and _MARI_MONTH_RE.fullmatch(word["text"]))
+        and not (index == 1 and first == day and _MARI_MONTH_RE.fullmatch(word["text"]))
+    ]
+    description = " ".join(
+        [
+            *(" ".join(word["text"] for word in line.words) for line in above_lines),
+            *inline_words,
+            *(" ".join(word["text"] for word in line.words) for line in below_lines),
+        ]
+    ).strip()
+
+    date_raw = f"{day} {month}".strip()
+    if precision == "MONTH":
+        date_value = period_end.isoformat() if period_end else None
+    else:
+        date_value = _infer_mari_date(int(day), month, period_start, period_end)
+    complete = bool(date_value and description and (debit is not None) != (credit is not None))
+    if not complete:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_SAVINGS_TRANSACTION_UNRESOLVED",
+                "MariBank savings row is missing an unambiguous amount, description, or date",
+                {"page_number": page_number, "raw_text": anchor_line.text},
+                _document_anchor("mari-savings", page_number, anchor_line.bbox, anchor_line.text),
+            )
+        )
+    bbox = anchor_line.bbox
+    for line in (*above_lines, *below_lines):
+        bbox = _merge_bbox(bbox, line.bbox)
+    return DocumentRecord(
+        source_anchor=_document_anchor("mari-savings", page_number, anchor_line.bbox, anchor_line.text),
+        ordinal=ordinal,
+        page_number=page_number,
+        bbox=bbox,
+        record_kind="TRANSACTION" if complete else "UNRESOLVED",
+        raw_text="\n".join(
+            line.text for line in (*above_lines, anchor_line, *below_lines)
+        ),
+        raw_fields={
+            "source_columns": {
+                "outgoing": debit.text if debit else None,
+                "incoming": credit.text if credit else None,
+            }
+        },
+        section_ordinal=1,
+        date_raw=date_raw,
+        date_value=date_value,
+        description_raw=description or None,
+        reference_raw=_extract_reference(description),
+        debit=debit,
+        credit=credit,
+        currency_raw="SGD",
+        confidence="HIGH" if complete else "UNRESOLVED",
+        required_fields_complete=complete,
+        date_precision=precision,
+    )
+
+
+def _infer_mari_date(
+    day: int, month: str, period_start: date | None, period_end: date | None
+) -> str | None:
+    if period_start is None or period_end is None:
+        return None
+    for year in (period_end.year, period_end.year - 1, period_start.year):
+        try:
+            candidate = datetime.strptime(f"{day:02d} {month} {year}", "%d %b %Y").date()
+        except ValueError:
+            continue
+        if period_start - timedelta(days=5) <= candidate <= period_end + timedelta(days=2):
+            return candidate.isoformat()
+    return None
+
+
+def _parse_mari_interest_schedule(
+    flat: list[tuple[int, _Line]],
+    records: list[DocumentRecord],
+    ordinal: int,
+    profile: str,
+    problems: list[DocumentProblem],
+) -> tuple[int, ExactMoney | None]:
+    active = False
+    total_interest_credited: ExactMoney | None = None
+    for page_number, line in flat:
+        text = line.text.strip()
+        if text.startswith("SAVINGS - INTEREST DETAILS"):
+            active = True
+            continue
+        if not active:
+            continue
+        if text.startswith("INVESTMENTS -"):
+            active = False
+            continue
+        if text.startswith("TOTAL INTEREST CREDITED"):
+            monies = [word for word in line.words if _MONEY_RE.fullmatch(word["text"])]
+            if monies:
+                total_interest_credited = _parse_printed_money(monies[-1]["text"])
+                ordinal += 1
+                records.append(
+                    DocumentRecord(
+                        source_anchor=_document_anchor(
+                            "mari-savings", page_number, line.bbox, line.text
+                        ),
+                        ordinal=ordinal,
+                        page_number=page_number,
+                        bbox=line.bbox,
+                        record_kind="SUMMARY",
+                        raw_text=line.text,
+                        raw_fields={"supporting_kind": "TOTAL_INTEREST_CREDITED"},
+                        section_ordinal=2,
+                        currency_raw="SGD",
+                        credit=total_interest_credited,
+                    )
+                )
+            active = False
+            continue
+        if _is_mari_header(text) or _is_mari_page_furniture(text):
+            continue
+        words = line.words
+        if not (
+            len(words) >= 3
+            and _MARI_DAY_RE.fullmatch(words[0]["text"])
+            and _MARI_MONTH_RE.fullmatch(words[1]["text"])
+        ):
+            continue
+        monies = [word for word in words if _MONEY_RE.fullmatch(word["text"])]
+        rates = [word for word in words if _MARI_RATE_RE.fullmatch(word["text"])]
+        if len(monies) < 2:
+            continue
+        ordinal += 1
+        records.append(
+            DocumentRecord(
+                source_anchor=_document_anchor("mari-savings", page_number, line.bbox, line.text),
+                ordinal=ordinal,
+                page_number=page_number,
+                bbox=line.bbox,
+                record_kind="SUPPORTING_BALANCE",
+                raw_text=line.text,
+                raw_fields={
+                    "supporting_kind": "DAILY_INTEREST",
+                    "previous_day_balance": monies[0]["text"],
+                    "interest": monies[-1]["text"],
+                    "interest_rate": rates[0]["text"] if rates else None,
+                    "profile": profile,
+                },
+                section_ordinal=2,
+                date_raw=f"{words[0]['text']} {words[1]['text']}",
+                currency_raw="SGD",
+                debit=_parse_printed_money(monies[0]["text"]),
+                credit=_parse_printed_money(monies[-1]["text"]),
+            )
+        )
+    return ordinal, total_interest_credited
+
+
+def _parse_mari_investment_sections(
+    flat: list[tuple[int, _Line]],
+    records: list[DocumentRecord],
+    ordinal: int,
+    problems: list[DocumentProblem],
+) -> int:
+    regions = {
+        "INVESTMENTS - ACCOUNT SUMMARY": ("INVESTMENTS_HOLDINGS", "NO HOLDINGS"),
+        "INVESTMENTS - TRANSACTION DETAILS": ("INVESTMENTS_TRANSACTIONS", "NO RECENT TRANSACTION"),
+    }
+    for heading, (region_name, empty_marker) in regions.items():
+        collecting = False
+        body: list[tuple[int, _Line]] = []
+        for page_number, line in flat:
+            text = line.text.strip()
+            if text.startswith(heading):
+                collecting = True
+                anchor_page = page_number
+                anchor_line = line
+                continue
+            if not collecting:
+                continue
+            if text.startswith("INVESTMENTS -") or text.startswith("SAVINGS -") or text.startswith("General"):
+                break
+            body.append((page_number, line))
+        if not collecting:
+            continue
+        body_text = " ".join(line.text for _, line in body)
+        empty = empty_marker in body_text
+        ordinal += 1
+        records.append(
+            DocumentRecord(
+                source_anchor=_document_anchor(
+                    "mari-savings", anchor_page, anchor_line.bbox, anchor_line.text
+                ),
+                ordinal=ordinal,
+                page_number=anchor_page,
+                bbox=anchor_line.bbox,
+                record_kind="RECOGNIZED_REGION" if empty else "UNRESOLVED",
+                raw_text=anchor_line.text + ("\n" + body_text if body_text else ""),
+                raw_fields={"region": region_name, "empty": empty},
+                section_ordinal=3,
+                confidence="HIGH" if empty else "UNRESOLVED",
+                required_fields_complete=empty,
+            )
+        )
+        if not empty:
+            problems.append(
+                DocumentProblem(
+                    "WARNING",
+                    "MARI_INVESTMENT_ACTIVITY_UNRESOLVED",
+                    "MariBank investment section shows activity that is not folded into savings",
+                    {"region": region_name},
+                    _document_anchor("mari-savings", anchor_page, anchor_line.bbox, anchor_line.text),
+                )
+            )
+    return ordinal
+
+
+def _reconcile_mari_savings(
+    transactions: list[DocumentRecord],
+    all_records: list[DocumentRecord],
+    summary: _MariSummary,
+    total_interest_credited: ExactMoney | None,
+    problems: list[DocumentProblem],
+) -> list[DocumentCheck]:
+    checks: list[DocumentCheck] = []
+    outgoing = [record.debit for record in transactions if record.debit is not None]
+    incoming = [record.credit for record in transactions if record.credit is not None]
+    schedule_check = _mari_interest_schedule_check(all_records, total_interest_credited)
+    if schedule_check is not None:
+        checks.append(schedule_check)
+    if summary.starting and summary.total_incoming and summary.total_outgoing and summary.ending:
+        expected = _money_expression(summary.starting, summary.total_incoming, summary.total_outgoing)
+        checks.append(
+            _make_check(
+                "SGD",
+                "STATEMENT_BALANCE",
+                MARI_SAVINGS_BALANCE_EQUATION_VERSION,
+                expected,
+                summary.ending,
+                True,
+                {"outgoing_rows": len(outgoing), "incoming_rows": len(incoming)},
+            )
+        )
+    if summary.total_outgoing is not None:
+        checks.append(
+            _make_check(
+                "SGD",
+                "SUMMARY_OUTGOING_TOTAL",
+                MARI_SAVINGS_BALANCE_EQUATION_VERSION,
+                _money_total(outgoing),
+                summary.total_outgoing,
+                True,
+                {"rows": len(outgoing)},
+            )
+        )
+    if summary.total_incoming is not None:
+        checks.append(
+            _make_check(
+                "SGD",
+                "SUMMARY_INCOMING_TOTAL",
+                MARI_SAVINGS_BALANCE_EQUATION_VERSION,
+                _money_total(incoming),
+                summary.total_incoming,
+                True,
+                {"rows": len(incoming)},
+            )
+        )
+    if summary.ending is not None and summary.total_restated is not None:
+        checks.append(
+            _make_check(
+                "SGD",
+                "ENDING_BALANCE_RESTATED",
+                MARI_SAVINGS_BALANCE_EQUATION_VERSION,
+                summary.ending,
+                summary.total_restated,
+                True,
+                {},
+            )
+        )
+    credited_rows = [
+        record
+        for record in transactions
+        if record.date_precision == "MONTH" and record.credit is not None
+    ]
+    if total_interest_credited is not None:
+        if total_interest_credited.coefficient != 0:
+            if len(credited_rows) == 1:
+                checks.append(
+                    _make_check(
+                        "SGD",
+                        "CREDITED_INTEREST_MATCHES_TOTAL",
+                        MARI_SAVINGS_INTEREST_EQUATION_VERSION,
+                        total_interest_credited,
+                        credited_rows[0].credit,  # type: ignore[arg-type]
+                        True,
+                        {},
+                    )
+                )
+            else:
+                problems.append(
+                    DocumentProblem(
+                        "BLOCKING",
+                        "MARI_SAVINGS_INTEREST_ROW_AMBIGUOUS",
+                        "printed total interest is non-zero but a single credited-interest ledger row was not found",
+                        {"credited_interest_rows": len(credited_rows)},
+                    )
+                )
+        elif credited_rows:
+            problems.append(
+                DocumentProblem(
+                    "BLOCKING",
+                    "MARI_SAVINGS_INTEREST_ROW_AMBIGUOUS",
+                    "printed total interest is zero but a credited-interest ledger row is present",
+                    {"credited_interest_rows": len(credited_rows)},
+                )
+            )
+    if any(check.blocking and check.passed is not True for check in checks):
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_SAVINGS_RECONCILIATION_FAILED",
+                "one or more MariBank savings exact equations failed",
+            )
+        )
+    return checks
+
+
+def _mari_interest_schedule_check(
+    records: list[DocumentRecord], total_interest_credited: ExactMoney | None
+) -> DocumentCheck | None:
+    daily = [
+        _parse_printed_money(str(record.raw_fields["interest"]))
+        for record in records
+        if record.raw_fields.get("supporting_kind") == "DAILY_INTEREST"
+    ]
+    if total_interest_credited is None or not daily:
+        return None
+    return _make_check(
+        "SGD",
+        "INTEREST_SCHEDULE_TOTAL",
+        MARI_SAVINGS_INTEREST_EQUATION_VERSION,
+        _money_total(daily),
+        total_interest_credited,
+        True,
+        {"daily_rows": len(daily)},
+    )
+
+
+def _is_mari_header(text: str) -> bool:
+    upper = text.upper()
+    if upper.startswith("DATE") and ("TRANSACTION" in upper or "PREVIOUS" in upper):
+        return True
+    if "ACCOUNT STARTING BALANCE" in upper:
+        return True
+    return upper.startswith("ACCOUNT:") or upper in {"DATE"}
+
+
+def _is_mari_page_furniture(text: str) -> bool:
+    upper = text.upper()
+    if upper.startswith("DEPOSIT AND INVESTMENT STATEMENT") or upper.startswith("S/N "):
+        return True
+    if _MARI_FULL_DATE_RE.fullmatch(text.strip()):
+        return True
+    if re.match(r"^page \d+ of \d+$", text.strip(), re.IGNORECASE):
+        return True
+    return upper.startswith("*INTEREST RATES DISPLAYED")
+
+
+def _mari_page_coverage(
+    page_lines: list[tuple[int, list[_Line], dict[str, int]]],
+    records: list[DocumentRecord],
+    profile_label: str,
+) -> list[PageCoverage]:
+    rows_by_page: dict[int, int] = {}
+    supporting_by_page: dict[int, int] = {}
+    for record in records:
+        if record.record_kind == "TRANSACTION":
+            rows_by_page[record.page_number] = rows_by_page.get(record.page_number, 0) + 1
+        else:
+            supporting_by_page[record.page_number] = supporting_by_page.get(record.page_number, 0) + 1
+    coverage: list[PageCoverage] = []
+    for page_number, lines, counts in page_lines:
+        page_text = "\n".join(line.text for line in lines)
+        has_summary = "ACCOUNT SUMMARY" in page_text
+        has_transactions = "TRANSACTION DETAILS" in page_text or any(
+            _is_mari_transaction_anchor(line) for line in lines
+        )
+        has_interest = "INTEREST DETAILS" in page_text or "PREVIOUS DAY BALANCE" in page_text
+        has_information = "Deposit Insurance Scheme" in page_text or page_text.strip().startswith(
+            "DEPOSIT AND INVESTMENT STATEMENT\nS/N"
+        ) and "General" in page_text
+        present = sum((has_summary, has_transactions, has_interest, has_information))
+        if present > 1:
+            classification = "MIXED"
+        elif has_transactions:
+            classification = "TRANSACTION"
+        elif has_interest:
+            classification = "INTEREST"
+        elif has_summary:
+            classification = "SUMMARY"
+        elif has_information:
+            classification = "INFORMATION"
+        else:
+            classification = "UNKNOWN"
+        coverage.append(
+            PageCoverage(
+                page_number,
+                classification,
+                counts["all"],
+                counts["upright"],
+                counts["rotated"],
+                rows_by_page.get(page_number, 0),
+                supporting_by_page.get(page_number, 0),
+                "ACCOUNTED" if classification != "UNKNOWN" else "UNRESOLVED",
+                {"profile": profile_label},
+            )
+        )
+    return coverage
 
 
 def _group_lines(

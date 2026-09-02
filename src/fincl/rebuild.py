@@ -143,6 +143,8 @@ def _import_source(database: Path, evidence_directory: Path, source: Path, profi
         return service.import_dbs(source).status
     if profile.startswith("dbs-paylah-"):
         return service.import_paylah(source).status
+    if profile.startswith("mari-savings-"):
+        return service.import_maribank(source).status
     raise FinCLError(f"unsupported source profile for rebuild: {profile}")
 
 

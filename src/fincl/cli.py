@@ -108,6 +108,18 @@ def import_paylah(
     _import_document(source, database, evidence_dir, "PAYLAH", plain, json_output)
 
 
+@app.command("import-maribank")
+def import_maribank(
+    source: Path,
+    database: Path = typer.Option(..., "--database"),
+    evidence_dir: Path = typer.Option(..., "--evidence-dir"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Capture and extract one MariBank deposit-and-investment savings statement."""
+    _import_document(source, database, evidence_dir, "MARI_SAVINGS", plain, json_output)
+
+
 @app.command("report")
 def report(
     database: Path = typer.Option(..., "--database"),
@@ -510,7 +522,12 @@ def _import_document(
 ) -> None:
     try:
         service = DocumentImportService.plaintext_phase2(database, evidence_dir)
-        result = service.import_dbs(source) if kind == "DBS" else service.import_paylah(source)
+        importer = {
+            "DBS": service.import_dbs,
+            "PAYLAH": service.import_paylah,
+            "MARI_SAVINGS": service.import_maribank,
+        }[kind]
+        result = importer(source)
         data = {
             "status": result.status,
             "source_type": result.source_type,

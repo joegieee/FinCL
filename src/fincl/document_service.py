@@ -22,11 +22,18 @@ from .documents import (
     ParsedDocument,
     generic_extraction_identity,
     parse_dbs_consolidated,
+    parse_maribank_savings,
     parse_paylah,
 )
 from .errors import EvidenceError, FinCLError
 from .evidence import EvidenceCapture, EvidenceStore, PlaintextEvidenceStore
 from .money import ExactMoney, format_decimal
+
+_DOCUMENT_PARSERS = {
+    "DBS_CONSOLIDATED": parse_dbs_consolidated,
+    "DBS_PAYLAH": parse_paylah,
+    "MARI_SAVINGS": parse_maribank_savings,
+}
 
 DBS_PAYLAH_LINK_VERSION = "dbs-paylah-exact-date-amount-description-v1"
 DBS_REVOLUT_LEGACY_LINK_VERSION = "dbs-revolut-exact-amount-currency-window-description-v1"
@@ -149,6 +156,9 @@ class DocumentImportService:
     def import_paylah(self, source_path: Path) -> DocumentImportResult:
         return self._import(source_path, "DBS_PAYLAH")
 
+    def import_maribank(self, source_path: Path) -> DocumentImportResult:
+        return self._import(source_path, "MARI_SAVINGS")
+
     def _import(self, source_path: Path, source_type: str) -> DocumentImportResult:
         connection = self.connection_factory(self.database_path)
         try:
@@ -174,11 +184,7 @@ class DocumentImportService:
                 data = evidence.read()
             if hashlib.sha256(data).hexdigest() != capture.sha256:
                 raise EvidenceError("bytes supplied to the PDF parser failed evidence verification")
-            parsed = (
-                parse_dbs_consolidated(data)
-                if source_type == "DBS_CONSOLIDATED"
-                else parse_paylah(data)
-            )
+            parsed = _DOCUMENT_PARSERS[source_type](data)
             extraction_run_id = generic_extraction_identity(
                 capture.sha256, parsed.source_profile_version
             )
@@ -1036,7 +1042,7 @@ def _insert_document_entry(
     record_id: str,
     record: DocumentRecord,
 ) -> None:
-    if parsed.source_type == "DBS_CONSOLIDATED":
+    if parsed.source_type in ("DBS_CONSOLIDATED", "MARI_SAVINGS"):
         source_amount = record.credit if record.credit is not None else record.debit
         assert source_amount is not None
         coefficient = source_amount.coefficient if record.credit is not None else -source_amount.coefficient
@@ -1063,7 +1069,7 @@ def _insert_document_entry(
             source_currency, source_amount_text, source_amount_coefficient,
             source_amount_scale
         ) VALUES (
-            ?, 'DOCUMENT', ?, ?, NULL, ?, ?, ?, ?, ?, ?, 'DAY', ?, ?, ?, ?, ?,
+            ?, 'DOCUMENT', ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             'COMPLETED', 0,
             NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
             NULL, NULL, NULL, NULL
@@ -1079,6 +1085,7 @@ def _insert_document_entry(
             parsed.account_id,
             record.currency_raw,
             record.date_value,
+            record.date_precision,
             amount_text,
             coefficient,
             source_amount.scale,
@@ -1095,9 +1102,16 @@ def _event_kind(source_type: str, description: str) -> str:
         kind = "TOPUP"
     elif "REFUND" in upper or "CASHBACK" in upper:
         kind = "REFUND"
-    elif "DEBIT CARD TRANSACTION" in upper:
+    elif "DEBIT CARD TRANSACTION" in upper or "CARD PAYMENT" in upper:
         kind = "CARD_PAYMENT"
-    elif "PAYNOW" in upper or "FUNDS TRANSFER" in upper or "TRANSFER" in upper or "SEND MONEY" in upper:
+    elif (
+        "PAYNOW" in upper
+        or "FUNDS TRANSFER" in upper
+        or "TRANSFER" in upper
+        or "SEND MONEY" in upper
+        or "REPAYMENT" in upper
+        or "MONEYSEND" in upper
+    ):
         kind = "TRANSFER"
     else:
         kind = "PAYMENT" if source_type == "DBS_PAYLAH" else "OTHER"
