@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -10,12 +11,22 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from .categorization import (
+    canonical_amount_band,
+    canonical_match,
+    rule_id_for,
+    validate_alias_patterns,
+)
+from .common import resolve_category
 from .db import connect_sqlite, initialize_schema
 from .decision_journal import append_decision, default_journal_path
 from .decisions import entry_anchor, invariant_violation_is_live, resolve_anchor
 from .document_service import DocumentImportService, link_narrow_transfers
+from .engine import categorize as run_categorize
+from .engine import summarize_run
 from .errors import FinCLError
 from .fx import load_fx_rates_file, load_mas_weekly_csv_file
+from .money import ExactMoney
 from .rebuild import rebuild_database
 from .recovery import recover_extraction
 from .report import (
@@ -50,6 +61,8 @@ def _ledger(database: Path) -> Iterator[sqlite3.Connection]:
         connection.close()
 review_app = typer.Typer(help="Review and record durable transfer decisions.")
 app.add_typer(review_app, name="review")
+rules_app = typer.Typer(help="Author and inspect categorization rules and merchant aliases.")
+app.add_typer(rules_app, name="rules")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -388,8 +401,11 @@ def review_list(
 ) -> None:
     """List proposed links and the current durable decision projection."""
     try:
+        if kind == "uncategorized":
+            _review_list_uncategorized(database, plain, json_output)
+            return
         if kind not in {"link", "escape", "inbound"}:
-            raise FinCLError("review kind must be link, escape, or inbound")
+            raise FinCLError("review kind must be link, escape, inbound, or uncategorized")
         table = {"link": "link_decisions", "escape": "invariant_escapes", "inbound": "inbound_classifications"}[kind]
         with _ledger(database) as connection:
             link_narrow_transfers(connection)
@@ -409,6 +425,29 @@ def review_list(
         _emit_mapping({"kind": kind, "proposals": proposals, "decisions": decisions}, plain, json_output)
     except (FinCLError, OSError) as exc:
         _fail(exc)
+
+
+def _review_list_uncategorized(database: Path, plain: bool, json_output: bool) -> None:
+    with _ledger(database) as connection:
+        run_categorize(connection)
+        rows = [
+            dict(row)
+            for row in connection.execute(
+                """
+                SELECT e.natural_anchor AS anchor, ec.precedence_tier, ec.basis,
+                       ec.ambiguous, ec.direction_conflict,
+                       o.merchant_normalized, o.merchant_canonical, o.alias_ambiguous,
+                       o.description_text, o.paynow_to
+                FROM entry_categories ec
+                JOIN ledger_entries e ON e.id = ec.entry_id
+                LEFT JOIN merchant_observations o ON o.entry_id = ec.entry_id
+                WHERE ec.precedence_tier = 6 OR ec.ambiguous = 1
+                   OR ec.direction_conflict = 1 OR o.alias_ambiguous = 1
+                ORDER BY e.natural_anchor
+                """
+            )
+        ]
+    _emit_mapping({"kind": "uncategorized", "entries": rows}, plain, json_output)
 
 
 _LINK_KIND_HELP = (
@@ -485,6 +524,287 @@ def review_classify_inbound(
                 snapshot=f"Inbound classification {classification}: {reason.strip()}",
             )
             link_narrow_transfers(connection)
+        _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+_CATEGORY_POLICY = "category-engine-2026-v1"
+
+
+@app.command("categorize")
+def categorize_command(
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Recompute every entry's category and record a reproducible run manifest."""
+    try:
+        with _ledger(database) as connection:
+            run_id = run_categorize(connection)
+            summary = summarize_run(connection, run_id)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    _emit_mapping(summary, plain, json_output)
+
+
+def _append_rule(database: Path, match: dict[str, Any], category: str, reason: str, dry_run: bool) -> None:
+    canonical = canonical_match(match)
+    resolve_category(category)  # refuse an unknown category before writing
+    rule_id = rule_id_for(canonical)
+    if dry_run:
+        with _ledger(database) as connection:
+            affected = _preview_rule(connection, canonical)
+        _emit_mapping({"dry_run": True, "rule_id": rule_id, "would_match_entries": affected}, True, False)
+        return
+    record = append_decision(
+        default_journal_path(database), decision_kind="CATEGORY_RULE_SET",
+        anchors={"rule_id": rule_id},
+        payload={"match": canonical, "category": category, "reason": reason.strip()},
+        policy_version=_CATEGORY_POLICY,
+        snapshot=f"Category rule {rule_id} -> {category}: {reason.strip()}",
+    )
+    with _ledger(database) as connection:
+        run_categorize(connection)
+    _emit_mapping({"seq": record.seq, "rule_id": rule_id, "record_hash": record.record_hash}, True, False)
+
+
+def _preview_rule(connection: sqlite3.Connection, match: dict[str, Any]) -> int:
+    """A conservative count of selected entries whose text the predicate matches."""
+    key = next(k for k in ("merchant_canonical", "paynow_to", "description_prefix", "description_contains") if k in match)
+    literal = match[key]
+    if key == "merchant_canonical":
+        sql = ("SELECT count(*) FROM merchant_observations "
+               "WHERE merchant_normalized = ? OR merchant_canonical = ?")
+        args: tuple[Any, ...] = (literal, literal)
+    elif key == "paynow_to":
+        sql, args = "SELECT count(*) FROM merchant_observations WHERE paynow_to = ?", (literal,)
+    elif key == "description_prefix":
+        sql, args = "SELECT count(*) FROM merchant_observations WHERE description_text LIKE ?", (literal.replace("%", r"\%") + "%",)
+    else:
+        sql, args = "SELECT count(*) FROM merchant_observations WHERE instr(description_text, ?) > 0", (literal,)
+    row = connection.execute(sql, args).fetchone()
+    return int(row[0]) if row else 0
+
+
+@rules_app.command("add")
+def rules_add(
+    category: str = typer.Option(..., "--category"),
+    merchant: str | None = typer.Option(None, "--merchant"),
+    paynow_to: str | None = typer.Option(None, "--paynow-to"),
+    description_prefix: str | None = typer.Option(None, "--description-prefix"),
+    description_contains: str | None = typer.Option(None, "--description-contains"),
+    account: str | None = typer.Option(None, "--account"),
+    min_amount: str | None = typer.Option(None, "--min-amount"),
+    max_amount: str | None = typer.Option(None, "--max-amount"),
+    currency: str | None = typer.Option(None, "--currency"),
+    reason: str = typer.Option("", "--reason"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a CATEGORY_RULE_SET and restate matching history."""
+    try:
+        predicates = {
+            "merchant_canonical": merchant,
+            "paynow_to": paynow_to,
+            "description_prefix": description_prefix,
+            "description_contains": description_contains,
+        }
+        chosen = {k: v for k, v in predicates.items() if v is not None}
+        if len(chosen) != 1:
+            raise FinCLError("pass exactly one of --merchant / --paynow-to / --description-prefix / --description-contains")
+        match: dict[str, Any] = dict(chosen)
+        if account is not None:
+            match["account"] = account
+        if min_amount is not None or max_amount is not None:
+            if currency is None:
+                raise FinCLError("--currency is required with --min-amount / --max-amount")
+            band: dict[str, Any] = {"currency": currency.upper()}
+            if min_amount is not None:
+                parsed = ExactMoney.parse(min_amount)
+                band["min"] = {"coefficient": parsed.coefficient, "scale": parsed.scale}
+            if max_amount is not None:
+                parsed = ExactMoney.parse(max_amount)
+                band["max"] = {"coefficient": parsed.coefficient, "scale": parsed.scale}
+            match["amount_band"] = canonical_amount_band(band)
+        _append_rule(database, match, category, reason, dry_run)
+    except (FinCLError, OSError, ValueError) as exc:
+        _fail(exc)
+
+
+@rules_app.command("alias")
+def rules_alias(
+    canonical: str = typer.Argument(...),
+    pattern: list[str] = typer.Option(..., "--pattern", help="exact:LIT / prefix:LIT / regex:LIT, repeatable"),
+    display: str | None = typer.Option(None, "--display"),
+    reason: str = typer.Option("", "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a MERCHANT_ALIAS_SET carrying the full pattern list."""
+    try:
+        patterns: list[dict[str, str]] = []
+        for spec in pattern:
+            kind, _, literal = spec.partition(":")
+            if kind not in {"exact", "prefix", "regex"} or not literal:
+                raise FinCLError(f"pattern {spec!r} must be exact:LIT / prefix:LIT / regex:LIT")
+            patterns.append({kind: literal})
+        validate_alias_patterns(patterns)
+        payload: dict[str, Any] = {"patterns": patterns, "reason": (reason or "alias").strip()}
+        if display is not None:
+            payload["display_name"] = display
+        record = append_decision(
+            default_journal_path(database), decision_kind="MERCHANT_ALIAS_SET",
+            anchors={"canonical": canonical}, payload=payload, policy_version=_CATEGORY_POLICY,
+            snapshot=f"Merchant alias {canonical}: {len(patterns)} pattern(s)",
+        )
+        with _ledger(database) as connection:
+            run_categorize(connection)
+        _emit_mapping({"seq": record.seq, "canonical": canonical, "record_hash": record.record_hash}, True, False)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@rules_app.command("alias-retire")
+def rules_alias_retire(
+    canonical: str = typer.Argument(...),
+    reason: str = typer.Option("retired", "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    _append_retire(database, "MERCHANT_ALIAS_RETIRE", {"canonical": canonical}, reason)
+
+
+@rules_app.command("retire")
+def rules_retire(
+    rule_id: str = typer.Argument(...),
+    reason: str = typer.Option("retired", "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    _append_retire(database, "CATEGORY_RULE_RETIRE", {"rule_id": rule_id}, reason)
+
+
+def _append_retire(database: Path, kind: str, anchors: dict[str, str], reason: str) -> None:
+    try:
+        if not reason.strip():
+            raise FinCLError("a non-empty reason is required")
+        record = append_decision(
+            default_journal_path(database), decision_kind=kind, anchors=anchors,
+            payload={"reason": reason.strip()}, policy_version=_CATEGORY_POLICY,
+            snapshot=f"{kind} {anchors}: {reason.strip()}",
+        )
+        with _ledger(database) as connection:
+            run_categorize(connection)
+        _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@rules_app.command("list")
+def rules_list(
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    try:
+        with _ledger(database) as connection:
+            run_categorize(connection)
+            rules = [
+                {
+                    "rule_id": row["rule_id"],
+                    "match": row["match_json"],
+                    "category": f"{row['group_name']} / {row['category']}",
+                    "migrated_from": row["migrated_from"],
+                    "match_count": connection.execute(
+                        "SELECT count(*) FROM entry_categories WHERE basis = ? OR basis LIKE ?",
+                        (f"rule:{row['rule_id']}", f"alias:%:{row['rule_id']}"),
+                    ).fetchone()[0],
+                }
+                for row in connection.execute(
+                    "SELECT * FROM category_rules ORDER BY group_name, category, rule_id"
+                )
+            ]
+            aliases = [
+                {"canonical": row["canonical"], "patterns": row["patterns_json"],
+                 "display_name": row["display_name"]}
+                for row in connection.execute("SELECT * FROM merchant_aliases ORDER BY canonical")
+            ]
+        _emit_mapping({"rules": rules, "aliases": aliases}, plain, json_output)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@rules_app.command("rewrite-category")
+def rules_rewrite_category(
+    from_category: str = typer.Option(..., "--from"),
+    to_category: str = typer.Option(..., "--to"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Re-issue every active rule / override that resolves through a migrated category."""
+    try:
+        resolve_category(to_category)
+        with _ledger(database) as connection:
+            run_categorize(connection)
+            rules = connection.execute(
+                "SELECT rule_id, match_json FROM category_rules WHERE migrated_from = ?",
+                (from_category,),
+            ).fetchall()
+            overrides = connection.execute(
+                "SELECT entry_anchor FROM category_overrides WHERE migrated_from = ?",
+                (from_category,),
+            ).fetchall()
+        if dry_run:
+            _emit_mapping(
+                {"dry_run": True, "rules": len(rules), "overrides": len(overrides)}, True, False
+            )
+            return
+        for row in rules:
+            append_decision(
+                default_journal_path(database), decision_kind="CATEGORY_RULE_SET",
+                anchors={"rule_id": row["rule_id"]},
+                payload={"match": canonical_match(json.loads(row["match_json"])),
+                         "category": to_category, "reason": f"rewrite from {from_category}"},
+                policy_version=_CATEGORY_POLICY,
+                snapshot=f"Rewrite rule {row['rule_id']} -> {to_category}",
+            )
+        for row in overrides:
+            append_decision(
+                default_journal_path(database), decision_kind="CATEGORY_OVERRIDE",
+                anchors={"entry": row["entry_anchor"]},
+                payload={"category": to_category, "reason": f"rewrite from {from_category}"},
+                policy_version=_CATEGORY_POLICY,
+                snapshot=f"Rewrite override {row['entry_anchor']} -> {to_category}",
+            )
+        with _ledger(database) as connection:
+            run_categorize(connection)
+        _emit_mapping({"rewritten_rules": len(rules), "rewritten_overrides": len(overrides)}, True, False)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@review_app.command("categorize")
+def review_categorize(
+    anchor: str = typer.Argument(...),
+    category: str = typer.Option(..., "--as"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a CATEGORY_OVERRIDE — precedence tier 1, beats every rule."""
+    try:
+        if not reason.strip():
+            raise FinCLError("a non-empty reason is required")
+        resolve_category(category)
+        with _ledger(database) as connection:
+            if resolve_anchor(connection, anchor) is None:
+                raise FinCLError("the entry anchor must currently resolve")
+        record = append_decision(
+            default_journal_path(database), decision_kind="CATEGORY_OVERRIDE",
+            anchors={"entry": anchor},
+            payload={"category": category, "reason": reason.strip()},
+            policy_version=_CATEGORY_POLICY,
+            snapshot=f"Category override {anchor} -> {category}: {reason.strip()}",
+        )
+        with _ledger(database) as connection:
+            run_categorize(connection)
         _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError) as exc:
         _fail(exc)

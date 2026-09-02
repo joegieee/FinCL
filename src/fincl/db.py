@@ -47,6 +47,12 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             snapshot TEXT NOT NULL,
             bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
             dangling_reason TEXT,
+            -- Optional operator-stated Internal purpose for a confirmed
+            -- SAME_CURRENCY_TRANSFER (§6.2): transfer / card_repayment /
+            -- wallet_topup. NULL falls back to the versioned account-kind
+            -- derivation.
+            link_purpose TEXT CHECK (link_purpose IN
+                ('transfer', 'card_repayment', 'wallet_topup')),
             PRIMARY KEY(left_anchor, right_anchor, anchor_version, link_kind)
         ) STRICT;
 
@@ -110,6 +116,43 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             record_hash TEXT NOT NULL,
             bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
             dangling_reason TEXT
+        ) STRICT;
+
+        -- One reproducible categorization run: every version / hash / cutoff
+        -- that shaped `entry_categories` (§5.2). `id` is a hash of every other
+        -- column, so two runs with the same id produced the same categories.
+        CREATE TABLE IF NOT EXISTS categorization_runs (
+            id TEXT PRIMARY KEY,
+            engine_version TEXT NOT NULL,
+            precedence_policy TEXT NOT NULL,
+            rule_set_hash TEXT NOT NULL,
+            override_set_hash TEXT NOT NULL,
+            link_purpose_version TEXT NOT NULL,
+            direction_policy_version TEXT NOT NULL,
+            taxonomy_version TEXT NOT NULL,
+            merchant_norm_version TEXT NOT NULL,
+            projection_version TEXT NOT NULL,
+            journal_seq INTEGER NOT NULL,
+            eligible_cutoff TEXT NOT NULL,
+            eligible_entry_count INTEGER NOT NULL,
+            eligible_set_hash TEXT NOT NULL,
+            profile_set_json TEXT NOT NULL,
+            started_at TEXT NOT NULL,
+            completed_at TEXT NOT NULL
+        ) STRICT;
+
+        -- One (group, category) per eligible entry, with an inspectable basis
+        -- (§5.1). Recomputed on categorize / rebuild, never migrated.
+        CREATE TABLE IF NOT EXISTS entry_categories (
+            entry_id TEXT PRIMARY KEY REFERENCES ledger_entries(id),
+            group_name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            precedence_tier INTEGER NOT NULL CHECK (precedence_tier BETWEEN 1 AND 6),
+            basis TEXT NOT NULL,
+            ambiguous INTEGER NOT NULL DEFAULT 0 CHECK (ambiguous IN (0, 1)),
+            direction_conflict INTEGER NOT NULL DEFAULT 0 CHECK (direction_conflict IN (0, 1)),
+            run_id TEXT NOT NULL REFERENCES categorization_runs(id),
+            categorized_at TEXT NOT NULL
         ) STRICT;
 
         -- The raw -> canonical merchant trail, one row per eligible ledger

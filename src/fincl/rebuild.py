@@ -12,6 +12,7 @@ from pathlib import Path
 from .db import connect_sqlite
 from .decision_journal import default_journal_path
 from .document_service import DocumentImportService, link_narrow_transfers
+from .engine import categorize
 from .errors import FinCLError
 from .evidence import PlaintextEvidenceStore
 from .selection import recompute_selection
@@ -92,14 +93,18 @@ def rebuild_database(database: Path, evidence_directory: Path, output: Path) -> 
         _carry_forward_fx_rates(database, staging)
         projection = connect_sqlite(staging)
         try:
-            link_narrow_transfers(projection, journal_path=default_journal_path(database))
+            journal = default_journal_path(database)
+            link_narrow_transfers(projection, journal_path=journal)
+            categorize(projection, journal_path=journal)
             decisions_bound, decisions_dangling = projection.execute(
                 "SELECT (SELECT count(*) FROM link_decisions WHERE bound=1) + "
                 "(SELECT count(*) FROM invariant_escapes WHERE bound=1) + "
-                "(SELECT count(*) FROM inbound_classifications WHERE bound=1), "
+                "(SELECT count(*) FROM inbound_classifications WHERE bound=1) + "
+                "(SELECT count(*) FROM category_overrides WHERE bound=1), "
                 "(SELECT count(*) FROM link_decisions WHERE bound=0) + "
                 "(SELECT count(*) FROM invariant_escapes WHERE bound=0) + "
-                "(SELECT count(*) FROM inbound_classifications WHERE bound=0)"
+                "(SELECT count(*) FROM inbound_classifications WHERE bound=0) + "
+                "(SELECT count(*) FROM category_overrides WHERE bound=0)"
             ).fetchone()
         finally:
             projection.close()

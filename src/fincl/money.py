@@ -49,6 +49,18 @@ class ExactMoney:
         return self.coefficient == 0
 
 
+def compare(left: ExactMoney, right: ExactMoney) -> int:
+    """Sign of ``left - right`` (-1 / 0 / 1) by exact integer arithmetic.
+
+    Rescales both to the greater scale so a scale-2 amount is never normalized
+    down to a scale-0 band bound (``rescaled_coefficient`` refuses lossy
+    rescaling). Used by the categorization amount bands (§2.3).
+    """
+    scale = max(left.scale, right.scale)
+    a, b = left.rescaled_coefficient(scale), right.rescaled_coefficient(scale)
+    return (a > b) - (a < b)
+
+
 def exact_sum(*values: ExactMoney) -> tuple[int, int]:
     if not values:
         return (0, 0)

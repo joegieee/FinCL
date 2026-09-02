@@ -239,15 +239,26 @@ def _apply_link(connection: sqlite3.Connection, record: JournalRecord, override:
     left_res, right_res = _resolve(connection, left), _resolve(connection, right)
     reason = left_res.dangling_reason or right_res.dangling_reason
     bound, dangling_reason = _binding(reason, override)
+    link_purpose = record.payload.get("link_purpose")
+    if link_purpose is not None and link_purpose not in {
+        "transfer", "card_repayment", "wallet_topup"
+    }:
+        raise FinCLError(
+            f"decision journal record {record.seq}: unknown link_purpose {link_purpose!r}"
+        )
     connection.execute(
-        """INSERT INTO link_decisions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO link_decisions
+               (left_anchor, right_anchor, anchor_version, link_kind, decision,
+                policy_version, journal_seq, snapshot, bound, dangling_reason, link_purpose)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(left_anchor,right_anchor,anchor_version,link_kind) DO UPDATE SET
            decision=excluded.decision, policy_version=excluded.policy_version, journal_seq=excluded.journal_seq,
-           snapshot=excluded.snapshot, bound=excluded.bound, dangling_reason=excluded.dangling_reason""",
+           snapshot=excluded.snapshot, bound=excluded.bound, dangling_reason=excluded.dangling_reason,
+           link_purpose=excluded.link_purpose""",
         (left or "", right or "", record.anchor_version,
          record.payload.get("link_kind", "SAME_CURRENCY_TRANSFER"),
          "CONFIRM" if record.decision_kind == "LINK_CONFIRM" else "REJECT", record.policy_version,
-         record.seq, record.snapshot, bound, dangling_reason),
+         record.seq, record.snapshot, bound, dangling_reason, link_purpose),
     )
 
 
