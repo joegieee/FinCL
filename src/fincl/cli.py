@@ -594,7 +594,8 @@ def _preview_rule(connection: sqlite3.Connection, match: dict[str, Any]) -> int:
     elif key == "paynow_to":
         sql, args = "SELECT count(*) FROM merchant_observations WHERE paynow_to = ?", (literal,)
     elif key == "description_prefix":
-        sql, args = "SELECT count(*) FROM merchant_observations WHERE description_text LIKE ?", (literal.replace("%", r"\%") + "%",)
+        sql = "SELECT count(*) FROM merchant_observations WHERE substr(description_text, 1, ?) = ?"
+        args = (len(literal), literal)
     else:
         sql, args = "SELECT count(*) FROM merchant_observations WHERE instr(description_text, ?) > 0", (literal,)
     row = connection.execute(sql, args).fetchone()
