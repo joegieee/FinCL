@@ -14,10 +14,12 @@ import json
 import sqlite3
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from typer.testing import CliRunner
 
+from fincl import decisions
 from fincl.cli import app
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.decision_journal import (
@@ -249,6 +251,80 @@ class JournalReplayTests(unittest.TestCase):
         ).fetchone()
         self.assertIsNotNone(row)
         self.assertEqual(row["bound"], 1)
+
+
+class JournalKindClosureTests(unittest.TestCase):
+    """Confirmed 32 — replay refuses an unknown kind or anchor_version, and a
+    known-older anchor_version is projected as dangling rather than refused."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.source = self.root / "revolut.csv"
+        self.source.write_bytes(_csv_bytes())
+        self.database = self.root / "fincl.sqlite3"
+        self.evidence = self.root / "evidence"
+        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(self.source)
+        self.connection = connect_sqlite(self.database)
+        self.addCleanup(self.connection.close)
+        initialize_schema(self.connection)
+        self.journal = default_journal_path(self.database)
+
+    def _first_anchor(self) -> str:
+        entry_id = self.connection.execute(
+            "SELECT id FROM ledger_entries ORDER BY effective_at LIMIT 1"
+        ).fetchone()[0]
+        return entry_anchor(self.connection, entry_id)
+
+    def test_unknown_decision_kind_refuses_replay_and_names_the_seq(self) -> None:
+        append_decision(
+            self.journal,
+            decision_kind="CATEGORY_RULE_SET",
+            anchors={"rule_id": "deadbeefdeadbeef"},
+            payload={"match": {"paynow_to": "X"}, "category": "Education / Education Services"},
+            policy_version="category-engine-2026-v1",
+            snapshot="a kind this build does not know",
+        )
+        with self.assertRaises(FinCLError) as caught:
+            replay_journal(self.connection)
+        self.assertIn("CATEGORY_RULE_SET", str(caught.exception))
+        self.assertIn("record 1", str(caught.exception))
+
+    def test_unknown_anchor_version_refuses_replay(self) -> None:
+        append_decision(
+            self.journal,
+            decision_kind="INBOUND_CLASSIFICATION",
+            anchors={"entry": self._first_anchor()},
+            payload={"classification": "income", "reason": "x"},
+            policy_version="review-v1",
+            snapshot="future anchor recipe",
+            anchor_version="natural-anchor-v99",
+        )
+        with self.assertRaises(FinCLError) as caught:
+            replay_journal(self.connection)
+        self.assertIn("natural-anchor-v99", str(caught.exception))
+
+    def test_known_older_anchor_version_projects_as_dangling(self) -> None:
+        append_decision(
+            self.journal,
+            decision_kind="INBOUND_CLASSIFICATION",
+            anchors={"entry": self._first_anchor()},
+            payload={"classification": "income", "reason": "x"},
+            policy_version="review-v1",
+            snapshot="written under a since-superseded recipe",
+            anchor_version="natural-anchor-v0",
+        )
+        with unittest.mock.patch.object(
+            decisions, "SUPERSEDED_ANCHOR_VERSIONS", frozenset({"natural-anchor-v0"})
+        ):
+            bound, dangling = replay_journal(self.connection)
+        self.assertEqual((bound, dangling), (0, 1))
+        row = self.connection.execute(
+            "SELECT bound, dangling_reason FROM inbound_classifications"
+        ).fetchone()
+        self.assertEqual(row["bound"], 0)
+        self.assertIn("superseded", row["dangling_reason"])
 
 
 class ReviewCliErrorPathTests(unittest.TestCase):

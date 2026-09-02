@@ -11,6 +11,32 @@ from .errors import FinCLError
 
 NATURAL_ANCHOR_VERSION = "natural-anchor-v1"
 
+# The decision-journal kind vocabulary is closed (Confirmed 32, ARCHITECTURE.md
+# §14.2). Replay refuses an ``decision_kind`` it does not recognize rather than
+# skipping it: a silent skip would let this build read a journal written by a
+# newer FinCL, drop every record of a kind it has not learned yet, and report a
+# confident but different projection — the §3.4 silent-wrong-number failure. Add
+# a kind here in the same change that teaches ``_apply_record`` to project it.
+# ``EXTRACTION_REPAIR`` is recognized but deliberately has no projection: its
+# effect is applied directly by ``recovery.py`` and it stays in the journal only
+# as an audit record, so replay skips it rather than refusing it.
+KNOWN_DECISION_KINDS = frozenset(
+    {
+        "LINK_CONFIRM",
+        "LINK_REJECT",
+        "INVARIANT_ESCAPE",
+        "INBOUND_CLASSIFICATION",
+        "EXTRACTION_REPAIR",
+    }
+)
+
+# Anchor recipes that this build once wrote but has since superseded. A record
+# written under one of these is legitimately stale: it is projected as dangling
+# with a reason so the §14.3 rebind migration can find and re-adjudicate it,
+# never refused. Only ``natural-anchor-v1`` has ever existed, so this is empty;
+# the first anchor-recipe change moves the old version string in here.
+SUPERSEDED_ANCHOR_VERSIONS: frozenset[str] = frozenset()
+
 
 def journal_path_for(connection: sqlite3.Connection) -> Path:
     row = connection.execute("PRAGMA database_list").fetchone()
@@ -94,38 +120,77 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
 
 
 def _apply_record(connection: sqlite3.Connection, record: JournalRecord) -> None:
+    if record.decision_kind not in KNOWN_DECISION_KINDS:
+        raise FinCLError(
+            f"decision journal record {record.seq} has an unrecognized "
+            f"decision_kind {record.decision_kind!r}; this build cannot replay it "
+            "without silently dropping the decision — upgrade fincl"
+        )
+    override: str | None = None
     if record.anchor_version != NATURAL_ANCHOR_VERSION:
-        return
+        if record.anchor_version not in SUPERSEDED_ANCHOR_VERSIONS:
+            raise FinCLError(
+                f"decision journal record {record.seq} was written under unknown "
+                f"anchor_version {record.anchor_version!r}; this build cannot "
+                "resolve its anchors — upgrade fincl"
+            )
+        # A known-older recipe: project the decision as dangling, carrying its
+        # snapshot, so the §14.3 rebind migration can re-adjudicate it.
+        override = f"anchor recipe {record.anchor_version} superseded; awaiting rebind"
     if record.decision_kind in {"LINK_CONFIRM", "LINK_REJECT"}:
-        left, right = record.anchors.get("left"), record.anchors.get("right")
-        bound = bool(left and right and resolve_anchor(connection, left) and resolve_anchor(connection, right))
-        connection.execute(
-            """INSERT INTO link_decisions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(left_anchor,right_anchor,anchor_version,link_kind) DO UPDATE SET
-               decision=excluded.decision, policy_version=excluded.policy_version, journal_seq=excluded.journal_seq,
-               snapshot=excluded.snapshot, bound=excluded.bound, dangling_reason=excluded.dangling_reason""",
-            (left or "", right or "", record.anchor_version, record.payload.get("link_kind", "SAME_CURRENCY_TRANSFER"),
-             "CONFIRM" if record.decision_kind == "LINK_CONFIRM" else "REJECT", record.policy_version,
-             record.seq, record.snapshot, int(bound), None if bound else "anchor no longer resolves"),
-        )
+        _apply_link(connection, record, override)
     elif record.decision_kind == "INVARIANT_ESCAPE":
-        anchors_json = json.dumps(record.anchors, sort_keys=True, separators=(",", ":"))
-        bound = all(resolve_anchor(connection, anchor) for anchor in record.anchors.values())
-        connection.execute(
-            """INSERT INTO invariant_escapes VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(invariant_code,anchors_json,anchor_version) DO UPDATE SET policy_version=excluded.policy_version,
-               journal_seq=excluded.journal_seq, snapshot=excluded.snapshot, bound=excluded.bound, dangling_reason=excluded.dangling_reason""",
-            (record.payload.get("code", ""), anchors_json, record.anchor_version, record.policy_version,
-             record.seq, record.snapshot, int(bound), None if bound else "anchor no longer resolves"),
-        )
+        _apply_escape(connection, record, override)
     elif record.decision_kind == "INBOUND_CLASSIFICATION":
-        anchor = record.anchors.get("entry", "")
-        bound = resolve_anchor(connection, anchor) is not None
-        connection.execute(
-            """INSERT INTO inbound_classifications VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(anchor,anchor_version) DO UPDATE SET classification=excluded.classification,
-               policy_version=excluded.policy_version, journal_seq=excluded.journal_seq, snapshot=excluded.snapshot,
-               bound=excluded.bound, dangling_reason=excluded.dangling_reason""",
-            (anchor, record.anchor_version, record.payload.get("classification", "other"), record.policy_version,
-             record.seq, record.snapshot, int(bound), None if bound else "anchor no longer resolves"),
-        )
+        _apply_inbound(connection, record, override)
+
+
+def _binding(resolved: bool, override: str | None) -> tuple[int, str | None]:
+    if override is not None:
+        return 0, override
+    return (1, None) if resolved else (0, "anchor no longer resolves")
+
+
+def _apply_link(connection: sqlite3.Connection, record: JournalRecord, override: str | None) -> None:
+    left, right = record.anchors.get("left"), record.anchors.get("right")
+    resolved = bool(
+        left and right and resolve_anchor(connection, left) and resolve_anchor(connection, right)
+    )
+    bound, dangling_reason = _binding(resolved, override)
+    connection.execute(
+        """INSERT INTO link_decisions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(left_anchor,right_anchor,anchor_version,link_kind) DO UPDATE SET
+           decision=excluded.decision, policy_version=excluded.policy_version, journal_seq=excluded.journal_seq,
+           snapshot=excluded.snapshot, bound=excluded.bound, dangling_reason=excluded.dangling_reason""",
+        (left or "", right or "", record.anchor_version,
+         record.payload.get("link_kind", "SAME_CURRENCY_TRANSFER"),
+         "CONFIRM" if record.decision_kind == "LINK_CONFIRM" else "REJECT", record.policy_version,
+         record.seq, record.snapshot, bound, dangling_reason),
+    )
+
+
+def _apply_escape(connection: sqlite3.Connection, record: JournalRecord, override: str | None) -> None:
+    anchors_json = json.dumps(record.anchors, sort_keys=True, separators=(",", ":"))
+    resolved = all(resolve_anchor(connection, anchor) for anchor in record.anchors.values())
+    bound, dangling_reason = _binding(resolved, override)
+    connection.execute(
+        """INSERT INTO invariant_escapes VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(invariant_code,anchors_json,anchor_version) DO UPDATE SET policy_version=excluded.policy_version,
+           journal_seq=excluded.journal_seq, snapshot=excluded.snapshot, bound=excluded.bound, dangling_reason=excluded.dangling_reason""",
+        (record.payload.get("code", ""), anchors_json, record.anchor_version, record.policy_version,
+         record.seq, record.snapshot, bound, dangling_reason),
+    )
+
+
+def _apply_inbound(connection: sqlite3.Connection, record: JournalRecord, override: str | None) -> None:
+    anchor = record.anchors.get("entry", "")
+    resolved = resolve_anchor(connection, anchor) is not None
+    bound, dangling_reason = _binding(resolved, override)
+    connection.execute(
+        """INSERT INTO inbound_classifications VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(anchor,anchor_version) DO UPDATE SET classification=excluded.classification,
+           policy_version=excluded.policy_version, journal_seq=excluded.journal_seq, snapshot=excluded.snapshot,
+           bound=excluded.bound, dangling_reason=excluded.dangling_reason""",
+        (anchor, record.anchor_version, record.payload.get("classification", "other"), record.policy_version,
+         record.seq, record.snapshot, bound, dangling_reason),
+    )
