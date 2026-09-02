@@ -120,6 +120,18 @@ def import_maribank(
     _import_document(source, database, evidence_dir, "MARI_SAVINGS", plain, json_output)
 
 
+@app.command("import-mari-card")
+def import_mari_card(
+    source: Path,
+    database: Path = typer.Option(..., "--database"),
+    evidence_dir: Path = typer.Option(..., "--evidence-dir"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Capture and extract one Mari credit-card e-Statement."""
+    _import_document(source, database, evidence_dir, "MARI_CARD", plain, json_output)
+
+
 @app.command("report")
 def report(
     database: Path = typer.Option(..., "--database"),
@@ -526,6 +538,7 @@ def _import_document(
             "DBS": service.import_dbs,
             "PAYLAH": service.import_paylah,
             "MARI_SAVINGS": service.import_maribank,
+            "MARI_CARD": service.import_mari_card,
         }[kind]
         result = importer(source)
         data = {

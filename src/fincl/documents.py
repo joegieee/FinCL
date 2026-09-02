@@ -107,6 +107,12 @@ class DocumentRecord:
     required_fields_complete: bool = True
     date_precision: str = "DAY"
     """Effective-date precision for the canonical entry: DAY, MONTH, or UNKNOWN."""
+    alt_date_role: str | None = None
+    """A typed second source date: STARTED or TRANSACTION."""
+    alt_date_value: str | None = None
+    alt_date_raw: str | None = None
+    foreign_currency: str | None = None
+    foreign_amount: ExactMoney | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1270,7 +1276,11 @@ def _is_mari_header(text: str) -> bool:
 
 def _is_mari_page_furniture(text: str) -> bool:
     upper = text.upper()
-    if upper.startswith("DEPOSIT AND INVESTMENT STATEMENT") or upper.startswith("S/N "):
+    if (
+        upper.startswith("DEPOSIT AND INVESTMENT STATEMENT")
+        or upper.startswith("MARI CREDIT CARD STATEMENT")
+        or upper.startswith("S/N ")
+    ):
         return True
     if _MARI_FULL_DATE_RE.fullmatch(text.strip()):
         return True
@@ -1326,6 +1336,614 @@ def _mari_page_coverage(
                 supporting_by_page.get(page_number, 0),
                 "ACCOUNTED" if classification != "UNKNOWN" else "UNRESOLVED",
                 {"profile": profile_label},
+            )
+        )
+    return coverage
+
+
+MARI_CARD_PROFILE_MINUS_I = "mari-card-summary-A-B-C+D+E-F+G+H-I-v1"
+MARI_CARD_PROFILE_PLUS_I = "mari-card-summary-A-B-C+D+E-F+G+H+I-v1"
+MARI_CARD_RECONCILIATION_VERSION = "mari-card-printed-equation-and-section-totals-v1"
+MARI_CARD_PROFILE_LABEL = "mari-card"
+
+_MARI_CARD_MONEY_RE = re.compile(r"^[+-]?\d[\d,]*\.\d{2}$")
+_MARI_CARD_INSTALMENT_RE = re.compile(r"^(.*?)\s+(\d+)/(\d+)\s+Instalment$")
+_MARI_CARD_PLAN_TERM_RE = re.compile(r"^(.*?)\s+(\d+)M$")
+_MARI_CARD_FOREIGN_RE = re.compile(r"^([A-Z]{3})\s+([\d,]+\.\d{2})$")
+_MARI_CARD_EQUATION_MINUS_I = "A-B-C+D+E-F+G+H-I"
+_MARI_CARD_EQUATION_PLUS_I = "A-B-C+D+E-F+G+H+I"
+
+# Each printed transaction section reproduces exactly one summary bucket.
+_MARI_CARD_SECTION_BUCKET = {
+    "REPAYMENT/CONVERSION": "B",
+    "WAIVER/REFUND": "C",
+    "WAIVER": "C",
+    "REFUND": "C",
+    "PURCHASE": "D",
+    "CASH/LOANS": "E",
+    "CASH": "E",
+    "LOANS": "E",
+    "CASHBACK": "F",
+    "BANK CHARGE": "G",
+    "SPLIT PAYMENT": "H",
+    "SPLIT BILL/SPLIT PAYMENT": "H",
+    "OTHERS": "I",
+}
+_MARI_CARD_BUCKET_SIGNS_MINUS_I = {
+    "A": 1, "B": -1, "C": -1, "D": 1, "E": 1, "F": -1, "G": 1, "H": 1, "I": -1
+}
+_MARI_CARD_BUCKET_SIGNS_PLUS_I = {**_MARI_CARD_BUCKET_SIGNS_MINUS_I, "I": 1}
+
+
+@dataclass(slots=True)
+class _MariCardSummary:
+    statement_date: str | None = None
+    payment_due_date: str | None = None
+    credit_limit: ExactMoney | None = None
+    statement_due: ExactMoney | None = None
+    minimum_payment: ExactMoney | None = None
+    buckets: dict[str, ExactMoney] = field(default_factory=dict)
+    equation_raw: str | None = None
+    current_outstanding: ExactMoney | None = None
+
+
+def parse_mari_card(data: bytes) -> ParsedDocument:
+    """Extract one Mari credit-card e-Statement.
+
+    Posted and printed transaction dates are captured separately; each source
+    section reproduces one printed summary bucket, and applying the statement's
+    own printed equation over the buckets reproduces current outstanding.  A
+    summary equation that matches neither observed formula blocks generation.
+    Installment occurrences are preserved as facts; chaining them into plans is
+    an interpretation step handled elsewhere.
+    """
+    problems: list[DocumentProblem] = []
+    records: list[DocumentRecord] = []
+    summary = _MariCardSummary()
+    period_start: date | None = None
+    period_end: date | None = None
+    account_masked: str | None = None
+
+    with pdfplumber.open(io.BytesIO(data), password="") as pdf:
+        page_lines: list[tuple[int, list[_Line], dict[str, int]]] = []
+        for page_number, page in enumerate(pdf.pages, start=1):
+            all_words = page.extract_words(x_tolerance=2, y_tolerance=2, extra_attrs=["upright"])
+            upright = [word for word in all_words if word.get("upright", True)]
+            lines = _group_lines(upright)
+            page_lines.append(
+                (
+                    page_number,
+                    lines,
+                    {
+                        "all": len(all_words),
+                        "upright": len(upright),
+                        "rotated": len(all_words) - len(upright),
+                    },
+                )
+            )
+            page_text = "\n".join(line.text for line in lines)
+            period_match = re.search(
+                r"STATEMENT PERIOD:\s*(\d{2} [A-Z]{3} \d{4})\s+to\s+(\d{2} [A-Z]{3} \d{4})",
+                page_text,
+            )
+            if period_match and period_start is None:
+                period_start = datetime.strptime(period_match.group(1), "%d %b %Y").date()
+                period_end = datetime.strptime(period_match.group(2), "%d %b %Y").date()
+            if account_masked is None:
+                account_match = re.search(r"ACCOUNT:\s*([0-9*]{6,})", page_text)
+                if account_match:
+                    account_masked = account_match.group(1)
+
+        flat: list[tuple[int, _Line]] = [
+            (page_number, line) for page_number, lines, _ in page_lines for line in lines
+        ]
+        _parse_mari_card_account_summary(flat, summary)
+        _parse_mari_card_statement_summary(flat, summary, problems)
+        _parse_mari_card_transactions(flat, records, period_start, period_end, problems)
+
+    if summary.statement_date is None:
+        problems.append(
+            DocumentProblem("BLOCKING", "STATEMENT_DATE_MISSING", "Mari card statement date was not found")
+        )
+    if period_start is None or period_end is None:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING", "MARI_CARD_STATEMENT_PERIOD_MISSING", "Mari card statement period was not found"
+            )
+        )
+
+    profile, checks = _reconcile_mari_card(records, summary, problems)
+
+    headings: list[str] = []
+    for record in records:
+        heading = str(record.raw_fields.get("section_heading", ""))
+        if heading and heading not in headings:
+            headings.append(heading)
+    sections = [
+        DocumentSection(index + 1, "CARD_LEDGER", "SGD", heading, 1, len(page_lines))
+        for index, heading in enumerate(headings)
+    ]
+
+    coverage = _mari_card_page_coverage(page_lines, records)
+    for page_cov in coverage:
+        if page_cov.status == "UNRESOLVED":
+            problems.append(
+                DocumentProblem(
+                    "BLOCKING",
+                    "UNCLASSIFIED_PDF_PAGE",
+                    "Mari card page could not be classified structurally",
+                    {"page_number": page_cov.page_number},
+                )
+            )
+
+    statement_date_text = summary.statement_date or date.min.isoformat()
+    return ParsedDocument(
+        institution="MariBank",
+        source_type="MARI_CARD",
+        account_id="mari-credit-card",
+        account_display_name="Mari Credit Card",
+        masked_identifier=f"Mari Credit Card {account_masked}" if account_masked else "Mari Credit Card",
+        source_profile_version=profile,
+        statement_date=statement_date_text,
+        period_start=(period_start.isoformat() if period_start else None),
+        period_end=(period_end.isoformat() if period_end else None),
+        statement_identity=f"mari-card:mari-credit-card:{statement_date_text}",
+        sections=sections,
+        records=records,
+        pages=coverage,
+        checks=checks,
+        problems=problems,
+    )
+
+
+def _parse_mari_card_account_summary(
+    flat: list[tuple[int, _Line]], summary: _MariCardSummary
+) -> None:
+    for _, line in flat:
+        text = line.text.strip()
+        if not (text.startswith("MARI CREDIT") and "20" in text):
+            continue
+        dates = re.findall(r"\d{2} [A-Z]{3} \d{4}", text)
+        monies = [
+            _parse_printed_money(word["text"])
+            for word in line.words
+            if _MONEY_RE.fullmatch(word["text"])
+        ]
+        if len(dates) >= 2 and len(monies) >= 3:
+            summary.statement_date = datetime.strptime(dates[0], "%d %b %Y").date().isoformat()
+            summary.payment_due_date = datetime.strptime(dates[1], "%d %b %Y").date().isoformat()
+            summary.credit_limit, summary.statement_due, summary.minimum_payment = monies[:3]
+            return
+
+
+def _parse_mari_card_statement_summary(
+    flat: list[tuple[int, _Line]],
+    summary: _MariCardSummary,
+    problems: list[DocumentProblem],
+) -> None:
+    letters_line: _Line | None = None
+    for index, (_, line) in enumerate(flat):
+        if re.fullmatch(r"\(A\)( \([B-I]\))+", line.text.strip()):
+            letters_line = line
+            values_line = flat[index + 1][1] if index + 1 < len(flat) else None
+            if values_line is not None:
+                centers = [
+                    (word["text"].strip("()"), (word["x0"] + word["x1"]) / 2)
+                    for word in letters_line.words
+                ]
+                values = [
+                    word for word in values_line.words if _MONEY_RE.fullmatch(word["text"])
+                ]
+                for letter, center in centers:
+                    nearest = min(
+                        values, key=lambda word: abs((word["x0"] + word["x1"]) / 2 - center)
+                    )
+                    summary.buckets[letter] = _parse_printed_money(nearest["text"])
+        if "CURRENT OUTSTANDING" in line.text:
+            equation_match = re.search(r"\(([A-Z0-9()+\-]+)\)", line.text)
+            if equation_match:
+                summary.equation_raw = equation_match.group(1)
+            monies = [word for word in line.words if _MONEY_RE.fullmatch(word["text"])]
+            if monies:
+                summary.current_outstanding = _parse_printed_money(monies[-1]["text"])
+    if letters_line is None or summary.current_outstanding is None:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_CARD_SUMMARY_MISSING",
+                "Mari card statement-summary bucket table or current outstanding was not found",
+            )
+        )
+
+
+def _is_mari_card_anchor(line: _Line) -> tuple[str, str | None] | None:
+    """Return (posted 'DD MON', txn 'DD MON' or None) if this line is a row."""
+    words = line.words
+    if len(words) < 3:
+        return None
+    if not (_MARI_DAY_RE.fullmatch(words[0]["text"]) and _MARI_MONTH_RE.fullmatch(words[1]["text"])):
+        return None
+    if not any(
+        _MARI_CARD_MONEY_RE.fullmatch(word["text"]) and word["x1"] > 470 for word in words
+    ):
+        return None
+    posted = f"{words[0]['text']} {words[1]['text']}"
+    txn = None
+    if (
+        len(words) >= 4
+        and _MARI_DAY_RE.fullmatch(words[2]["text"])
+        and _MARI_MONTH_RE.fullmatch(words[3]["text"])
+        and words[2]["x0"] > 150
+    ):
+        txn = f"{words[2]['text']} {words[3]['text']}"
+    return posted, txn
+
+
+def _parse_mari_card_transactions(
+    flat: list[tuple[int, _Line]],
+    records: list[DocumentRecord],
+    period_start: date | None,
+    period_end: date | None,
+    problems: list[DocumentProblem],
+) -> None:
+    region: list[tuple[int, _Line]] = []
+    active = False
+    for page_number, line in flat:
+        text = line.text.strip()
+        if "TRANSACTION DETAILS" in text and "POSTED" not in text:
+            active = True
+            continue
+        if not active:
+            continue
+        if text.startswith(("General", "DISCLOSURE TABLE", "Important Information")):
+            active = False
+            continue
+        if text.startswith("POSTED DATE") or _is_mari_page_furniture(text):
+            continue
+        region.append((page_number, line))
+
+    anchor_positions = [
+        index for index, (_, line) in enumerate(region) if _is_mari_card_anchor(line)
+    ]
+    header_positions = {
+        index
+        for index, (_, line) in enumerate(region)
+        if _mari_card_section_heading(line) is not None
+    }
+    above: dict[int, list[_Line]] = {position: [] for position in anchor_positions}
+    below: dict[int, list[_Line]] = {position: [] for position in anchor_positions}
+    anchors_by_page: dict[int, list[int]] = {}
+    for position in anchor_positions:
+        anchors_by_page.setdefault(region[position][0], []).append(position)
+    for index, (page_number, line) in enumerate(region):
+        if index in above or index in header_positions:
+            continue
+        candidates = anchors_by_page.get(page_number)
+        if not candidates:
+            continue
+        nearest = min(candidates, key=lambda pos: abs(region[pos][1].top - line.top))
+        (above if line.top < region[nearest][1].top else below)[nearest].append(line)
+
+    current_section = "UNSECTIONED"
+    anchor_order = {position: order for order, position in enumerate(anchor_positions)}
+    for index, (page_number, line) in enumerate(region):
+        heading = _mari_card_section_heading(line)
+        if heading is not None:
+            current_section = heading
+            if heading not in _MARI_CARD_SECTION_BUCKET:
+                problems.append(
+                    DocumentProblem(
+                        "BLOCKING",
+                        "MARI_CARD_UNKNOWN_SECTION",
+                        "Mari card transaction section heading is not a known summary bucket",
+                        {"heading": heading},
+                    )
+                )
+            continue
+        if index not in anchor_order:
+            continue
+        records.append(
+            _build_mari_card_record(
+                line,
+                sorted(above[index], key=lambda item: item.top),
+                sorted(below[index], key=lambda item: item.top),
+                len(records) + 1,
+                page_number,
+                current_section,
+                period_start,
+                period_end,
+                problems,
+            )
+        )
+
+
+def _mari_card_section_heading(line: _Line) -> str | None:
+    if not line.words:
+        return None
+    if any(_MARI_CARD_MONEY_RE.fullmatch(word["text"]) for word in line.words):
+        return None
+    if min(word["x0"] for word in line.words) >= 300:
+        return None
+    normalized = " ".join(line.text.split()).upper()
+    return normalized if normalized in _MARI_CARD_SECTION_BUCKET else None
+
+
+def _build_mari_card_record(
+    anchor_line: _Line,
+    above_lines: list[_Line],
+    below_lines: list[_Line],
+    ordinal: int,
+    page_number: int,
+    section_heading: str,
+    period_start: date | None,
+    period_end: date | None,
+    problems: list[DocumentProblem],
+) -> DocumentRecord:
+    posted, txn = _is_mari_card_anchor(anchor_line)  # type: ignore[misc]
+    amount_word = next(
+        word
+        for word in reversed(anchor_line.words)
+        if _MARI_CARD_MONEY_RE.fullmatch(word["text"]) and word["x1"] > 470
+    )
+    signed = _parse_printed_money(amount_word["text"].lstrip("+"))
+    marker = "CR" if not amount_word["text"].startswith("-") else "DB"
+    amount = ExactMoney(abs(signed.coefficient), signed.scale, amount_word["text"].lstrip("+-"))
+
+    date_token_count = 4 if txn is not None else 2
+    frag = [
+        word["text"]
+        for word in anchor_line.words[date_token_count:]
+        if id(word) != id(amount_word) and not _MARI_CARD_MONEY_RE.fullmatch(word["text"])
+    ]
+
+    foreign_currency: str | None = None
+    foreign_amount: ExactMoney | None = None
+    installment: dict[str, object] | None = None
+    label_parts: list[str] = []
+    plan_term_printed: int | None = None
+    for line in (*above_lines, *below_lines):
+        text = " ".join(line.text.split())
+        foreign_match = _MARI_CARD_FOREIGN_RE.fullmatch(text)
+        instalment_match = _MARI_CARD_INSTALMENT_RE.fullmatch(text)
+        plan_match = _MARI_CARD_PLAN_TERM_RE.fullmatch(text)
+        if foreign_match:
+            foreign_currency = foreign_match.group(1)
+            foreign_amount = _parse_printed_money(foreign_match.group(2))
+        elif instalment_match:
+            installment = {
+                "family": instalment_match.group(1),
+                "ordinal": int(instalment_match.group(2)),
+                "term": int(instalment_match.group(3)),
+            }
+        elif plan_match and plan_match.group(1):
+            plan_term_printed = int(plan_match.group(2))
+        else:
+            label_parts.append(text)
+    description = " ".join([*label_parts, *frag]).strip()
+    if installment is not None:
+        if plan_term_printed is not None:
+            installment["plan_term_printed"] = plan_term_printed
+        if not description:
+            description = (
+                f"{installment['family']} {installment['ordinal']}/{installment['term']} Instalment"
+            )
+
+    posted_value = _infer_mari_date(int(posted[:2]), posted[3:], period_start, period_end)
+    alt_role = alt_value = alt_raw = None
+    if txn is not None:
+        alt_role = "TRANSACTION"
+        alt_raw = txn
+        alt_value = _infer_mari_date(int(txn[:2]), txn[3:], period_start, period_end)
+        if alt_value is None:
+            problems.append(
+                DocumentProblem(
+                    "WARNING",
+                    "MARI_CARD_PARTIAL_TRANSACTION_DATE",
+                    "Mari card printed transaction date could not be resolved to an unambiguous year",
+                    {"raw_text": anchor_line.text},
+                    _document_anchor("mari-card", page_number, anchor_line.bbox, anchor_line.text),
+                )
+            )
+    else:
+        problems.append(
+            DocumentProblem(
+                "WARNING",
+                "MARI_CARD_BLANK_TRANSACTION_DATE",
+                "Mari card row has a blank printed transaction date; posted date is retained",
+                {"raw_text": anchor_line.text},
+                _document_anchor("mari-card", page_number, anchor_line.bbox, anchor_line.text),
+            )
+        )
+
+    complete = bool(posted_value and description and section_heading != "UNSECTIONED")
+    if not complete:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_CARD_TRANSACTION_UNRESOLVED",
+                "Mari card row is missing a posted date, description, or section",
+                {"page_number": page_number, "raw_text": anchor_line.text},
+                _document_anchor("mari-card", page_number, anchor_line.bbox, anchor_line.text),
+            )
+        )
+    raw_fields: dict[str, object] = {
+        "section_heading": section_heading,
+        "summary_bucket": _MARI_CARD_SECTION_BUCKET.get(section_heading),
+        "signed_amount": amount_word["text"],
+    }
+    if installment is not None:
+        raw_fields["installment"] = installment
+    bbox = anchor_line.bbox
+    for line in (*above_lines, *below_lines):
+        bbox = _merge_bbox(bbox, line.bbox)
+    return DocumentRecord(
+        source_anchor=_document_anchor("mari-card", page_number, anchor_line.bbox, anchor_line.text),
+        ordinal=ordinal,
+        page_number=page_number,
+        bbox=bbox,
+        record_kind="TRANSACTION" if complete else "UNRESOLVED",
+        raw_text="\n".join(line.text for line in (*above_lines, anchor_line, *below_lines)),
+        raw_fields=raw_fields,
+        section_ordinal=1,
+        date_raw=posted,
+        date_value=posted_value,
+        description_raw=description or None,
+        reference_raw=None,
+        amount=amount,
+        direction_marker=marker,
+        currency_raw="SGD",
+        confidence="HIGH" if complete else "UNRESOLVED",
+        required_fields_complete=complete,
+        alt_date_role=alt_role,
+        alt_date_value=alt_value,
+        alt_date_raw=alt_raw,
+        foreign_currency=foreign_currency,
+        foreign_amount=foreign_amount,
+    )
+
+
+def _reconcile_mari_card(
+    records: list[DocumentRecord],
+    summary: _MariCardSummary,
+    problems: list[DocumentProblem],
+) -> tuple[str, list[DocumentCheck]]:
+    if summary.equation_raw == _MARI_CARD_EQUATION_MINUS_I:
+        profile, signs = MARI_CARD_PROFILE_MINUS_I, _MARI_CARD_BUCKET_SIGNS_MINUS_I
+    elif summary.equation_raw == _MARI_CARD_EQUATION_PLUS_I:
+        profile, signs = MARI_CARD_PROFILE_PLUS_I, _MARI_CARD_BUCKET_SIGNS_PLUS_I
+    else:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_CARD_UNKNOWN_SUMMARY_EQUATION",
+                "Mari card statement-summary equation matches neither observed formula",
+                {"equation": summary.equation_raw},
+            )
+        )
+        return MARI_CARD_PROFILE_MINUS_I, []
+
+    checks: list[DocumentCheck] = []
+    transactions = [record for record in records if record.record_kind == "TRANSACTION"]
+    if len(summary.buckets) == 9 and summary.current_outstanding is not None:
+        scale = max(value.scale for value in summary.buckets.values())
+        coefficient = sum(
+            signs[letter] * summary.buckets[letter].rescaled_coefficient(scale)
+            for letter in "ABCDEFGHI"
+        )
+        expected = ExactMoney(coefficient, scale, format_decimal(coefficient, scale))
+        checks.append(
+            _make_check(
+                "SGD",
+                "SUMMARY_EQUATION",
+                MARI_CARD_RECONCILIATION_VERSION,
+                expected,
+                summary.current_outstanding,
+                True,
+                {"equation": summary.equation_raw},
+            )
+        )
+
+    by_bucket: dict[str, list[DocumentRecord]] = {}
+    for record in transactions:
+        letter = record.raw_fields.get("summary_bucket")
+        if isinstance(letter, str):
+            by_bucket.setdefault(letter, []).append(record)
+    for letter, bucket_records in sorted(by_bucket.items()):
+        if letter not in summary.buckets:
+            continue
+        scale = max(
+            [record.amount.scale for record in bucket_records if record.amount]
+            + [summary.buckets[letter].scale]
+        )
+        total = 0
+        for record in bucket_records:
+            assert record.amount is not None
+            sign = 1 if record.direction_marker == "CR" else -1
+            total += sign * record.amount.rescaled_coefficient(scale)
+        observed = ExactMoney(abs(total), scale, format_decimal(abs(total), scale))
+        checks.append(
+            _make_check(
+                "SGD",
+                "SECTION_BUCKET_TOTAL",
+                MARI_CARD_RECONCILIATION_VERSION,
+                summary.buckets[letter],
+                observed,
+                True,
+                {"bucket": letter, "rows": len(bucket_records)},
+            )
+        )
+
+    if summary.statement_due is not None and summary.current_outstanding is not None:
+        checks.append(
+            _make_check(
+                "SGD",
+                "STATEMENT_DUE_EQUALS_OUTSTANDING",
+                MARI_CARD_RECONCILIATION_VERSION,
+                summary.current_outstanding,
+                summary.statement_due,
+                True,
+                {},
+            )
+        )
+
+    if any(check.blocking and check.passed is not True for check in checks):
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_CARD_RECONCILIATION_FAILED",
+                "one or more Mari card exact equations failed",
+            )
+        )
+    return profile, checks
+
+
+def _mari_card_page_coverage(
+    page_lines: list[tuple[int, list[_Line], dict[str, int]]],
+    records: list[DocumentRecord],
+) -> list[PageCoverage]:
+    rows_by_page: dict[int, int] = {}
+    for record in records:
+        rows_by_page[record.page_number] = rows_by_page.get(record.page_number, 0) + 1
+    coverage: list[PageCoverage] = []
+    for page_number, lines, counts in page_lines:
+        page_text = "\n".join(line.text for line in lines)
+        has_summary = "ACCOUNT SUMMARY" in page_text or "STATEMENT SUMMARY" in page_text
+        has_transactions = "TRANSACTION DETAILS" in page_text or any(
+            _is_mari_card_anchor(line) for line in lines
+        )
+        has_information = any(
+            marker in page_text
+            for marker in (
+                "DISCLOSURE TABLE",
+                "General",
+                "Important Information",
+                "Deposit Insurance Scheme",
+                "Apple Wallet",
+                "Google Wallet",
+            )
+        )
+        present = sum((has_summary, has_transactions, has_information))
+        if present > 1:
+            classification = "MIXED"
+        elif has_transactions:
+            classification = "TRANSACTION"
+        elif has_summary:
+            classification = "SUMMARY"
+        elif has_information:
+            classification = "INFORMATION"
+        else:
+            classification = "UNKNOWN"
+        coverage.append(
+            PageCoverage(
+                page_number,
+                classification,
+                counts["all"],
+                counts["upright"],
+                counts["rotated"],
+                rows_by_page.get(page_number, 0),
+                0,
+                "ACCOUNTED" if classification != "UNKNOWN" else "UNRESOLVED",
+                {"profile": MARI_CARD_PROFILE_LABEL},
             )
         )
     return coverage

@@ -145,6 +145,8 @@ def _import_source(database: Path, evidence_directory: Path, source: Path, profi
         return service.import_paylah(source).status
     if profile.startswith("mari-savings-"):
         return service.import_maribank(source).status
+    if profile.startswith("mari-card-"):
+        return service.import_mari_card(source).status
     raise FinCLError(f"unsupported source profile for rebuild: {profile}")
 
 

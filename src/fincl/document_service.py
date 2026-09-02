@@ -22,6 +22,7 @@ from .documents import (
     ParsedDocument,
     generic_extraction_identity,
     parse_dbs_consolidated,
+    parse_mari_card,
     parse_maribank_savings,
     parse_paylah,
 )
@@ -33,6 +34,7 @@ _DOCUMENT_PARSERS = {
     "DBS_CONSOLIDATED": parse_dbs_consolidated,
     "DBS_PAYLAH": parse_paylah,
     "MARI_SAVINGS": parse_maribank_savings,
+    "MARI_CARD": parse_mari_card,
 }
 
 DBS_PAYLAH_LINK_VERSION = "dbs-paylah-exact-date-amount-description-v1"
@@ -158,6 +160,9 @@ class DocumentImportService:
 
     def import_maribank(self, source_path: Path) -> DocumentImportResult:
         return self._import(source_path, "MARI_SAVINGS")
+
+    def import_mari_card(self, source_path: Path) -> DocumentImportResult:
+        return self._import(source_path, "MARI_CARD")
 
     def _import(self, source_path: Path, source_type: str) -> DocumentImportResult:
         connection = self.connection_factory(self.database_path)
@@ -1055,6 +1060,9 @@ def _insert_document_entry(
     direction = "IN" if coefficient > 0 else "OUT" if coefficient < 0 else "ZERO"
     event_kind = _event_kind(parsed.source_type, record.description_raw or "")
     natural_anchor = f"{evidence_sha256}:{record.source_anchor}:{record.ordinal}"
+    alt_role = record.alt_date_role
+    alt_precision = "DAY" if alt_role is not None else None
+    foreign = record.foreign_amount
     connection.execute(
         """
         INSERT INTO ledger_entries(
@@ -1071,8 +1079,8 @@ def _insert_document_entry(
         ) VALUES (
             ?, 'DOCUMENT', ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             'COMPLETED', 0,
-            NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-            NULL, NULL, NULL, NULL
+            ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL,
+            ?, ?, ?, ?
         )
         """,
         (
@@ -1091,6 +1099,14 @@ def _insert_document_entry(
             source_amount.scale,
             event_kind,
             direction,
+            alt_role,
+            record.alt_date_value if alt_role is not None else None,
+            record.alt_date_raw if alt_role is not None else None,
+            alt_precision,
+            record.foreign_currency,
+            foreign.text if foreign is not None else None,
+            foreign.coefficient if foreign is not None else None,
+            foreign.scale if foreign is not None else None,
         ),
     )
 
