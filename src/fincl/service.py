@@ -27,6 +27,7 @@ from .revolut import (
     parse_revolut_csv,
     revolut_event_kind,
 )
+from .selection import recompute_selection
 
 REVOLUT_ACCOUNT_ID = "acct_revolut_current"
 
@@ -243,6 +244,7 @@ class FinCLService:
                 # also links DBS and PayLah transfers.
                 from .document_service import link_narrow_transfers
 
+                recompute_selection(connection)
                 link_narrow_transfers(connection)
         except Exception:
             connection.rollback()

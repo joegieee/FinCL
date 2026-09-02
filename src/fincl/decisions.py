@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from typing import NamedTuple
 
 from .decision_journal import JournalRecord, default_journal_path, read_records
 from .errors import FinCLError
@@ -55,12 +56,51 @@ def entry_anchor(connection: sqlite3.Connection, entry_id: str) -> str:
     return str(row[0])
 
 
-def resolve_anchor(connection: sqlite3.Connection, anchor: str) -> str | None:
-    row = connection.execute(
-        "SELECT id FROM ledger_entries WHERE natural_anchor = ? ORDER BY id LIMIT 1",
+class _AnchorResolution(NamedTuple):
+    entry_id: str | None
+    dangling_reason: str | None  # set only when entry_id is None
+
+
+def _resolve(connection: sqlite3.Connection, anchor: str | None) -> _AnchorResolution:
+    """Resolve a ``natural_anchor`` to the one entry a decision binds to.
+
+    A ``natural_anchor`` is unique only within an extraction run (Confirmed 30),
+    so a blob with a ``SELECTED`` run and a retained ``SUPERSEDED`` run carries
+    the anchor twice. The ``SELECTED`` entry wins — it is the analytically real
+    one an override must bind to. Only when no ``SELECTED`` entry exists (a run
+    still ``QUARANTINED`` awaiting an invariant escape, or ``FAILED``) does the
+    lookup fall back to the other runs. More than one candidate at the winning
+    level dangles with a distinct reason rather than an arbitrary
+    ``ORDER BY id LIMIT 1`` pick, which would let an override bind to one of two
+    identical twins.
+    """
+    if not anchor:
+        return _AnchorResolution(None, "decision carries no anchor")
+    rows = connection.execute(
+        """
+        SELECT e.id, x.selection_state FROM ledger_entries e
+        JOIN extraction_runs x ON x.id = e.extraction_run_id
+        WHERE e.natural_anchor = ?
+        ORDER BY e.id
+        """,
         (anchor,),
-    ).fetchone()
-    return None if row is None else str(row[0])
+    ).fetchall()
+    if not rows:
+        return _AnchorResolution(None, "anchor no longer resolves")
+    selected = [row for row in rows if row["selection_state"] == "SELECTED"]
+    pool = selected or rows
+    if len(pool) > 1:
+        return _AnchorResolution(None, "anchor resolves to multiple entries")
+    return _AnchorResolution(str(pool[0][0]), None)
+
+
+def resolve_anchor(connection: sqlite3.Connection, anchor: str) -> str | None:
+    """The selected entry an anchor binds to, or ``None`` when it does not bind.
+
+    An anchor that resolves to more than one selected entry returns ``None``
+    here too — a caller that needs the distinct reason uses ``_resolve``.
+    """
+    return _resolve(connection, anchor).entry_id
 
 
 def invariant_violation_is_live(
@@ -145,18 +185,18 @@ def _apply_record(connection: sqlite3.Connection, record: JournalRecord) -> None
         _apply_inbound(connection, record, override)
 
 
-def _binding(resolved: bool, override: str | None) -> tuple[int, str | None]:
+def _binding(reason: str | None, override: str | None) -> tuple[int, str | None]:
+    """``(bound, dangling_reason)`` — ``reason`` is ``None`` when every anchor resolved."""
     if override is not None:
         return 0, override
-    return (1, None) if resolved else (0, "anchor no longer resolves")
+    return (1, None) if reason is None else (0, reason)
 
 
 def _apply_link(connection: sqlite3.Connection, record: JournalRecord, override: str | None) -> None:
     left, right = record.anchors.get("left"), record.anchors.get("right")
-    resolved = bool(
-        left and right and resolve_anchor(connection, left) and resolve_anchor(connection, right)
-    )
-    bound, dangling_reason = _binding(resolved, override)
+    left_res, right_res = _resolve(connection, left), _resolve(connection, right)
+    reason = left_res.dangling_reason or right_res.dangling_reason
+    bound, dangling_reason = _binding(reason, override)
     connection.execute(
         """INSERT INTO link_decisions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(left_anchor,right_anchor,anchor_version,link_kind) DO UPDATE SET
@@ -171,8 +211,9 @@ def _apply_link(connection: sqlite3.Connection, record: JournalRecord, override:
 
 def _apply_escape(connection: sqlite3.Connection, record: JournalRecord, override: str | None) -> None:
     anchors_json = json.dumps(record.anchors, sort_keys=True, separators=(",", ":"))
-    resolved = all(resolve_anchor(connection, anchor) for anchor in record.anchors.values())
-    bound, dangling_reason = _binding(resolved, override)
+    resolutions = [_resolve(connection, anchor) for anchor in record.anchors.values()]
+    reason = next((r.dangling_reason for r in resolutions if r.dangling_reason), None)
+    bound, dangling_reason = _binding(reason, override)
     connection.execute(
         """INSERT INTO invariant_escapes VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(invariant_code,anchors_json,anchor_version) DO UPDATE SET policy_version=excluded.policy_version,
@@ -184,8 +225,8 @@ def _apply_escape(connection: sqlite3.Connection, record: JournalRecord, overrid
 
 def _apply_inbound(connection: sqlite3.Connection, record: JournalRecord, override: str | None) -> None:
     anchor = record.anchors.get("entry", "")
-    resolved = resolve_anchor(connection, anchor) is not None
-    bound, dangling_reason = _binding(resolved, override)
+    reason = _resolve(connection, anchor).dangling_reason
+    bound, dangling_reason = _binding(reason, override)
     connection.execute(
         """INSERT INTO inbound_classifications VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(anchor,anchor_version) DO UPDATE SET classification=excluded.classification,

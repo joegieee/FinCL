@@ -182,6 +182,14 @@ def coverage(
         console.print(table)
         console.print(f"Confirmed transfer links: {data['confirmed_transfer_links']}")
         console.print(f"Dangling journal decisions: {data['dangling_decisions']}")
+        stale = data["needs_reextraction"]
+        if stale:
+            console.print(
+                f"[yellow]Evidence needing re-extraction:[/yellow] {len(stale)} "
+                "(only stale-version extraction runs; not in analytics)"
+            )
+            for blob in stale:
+                console.print(f"  {blob['original_path']} ({blob['profiles']})")
 
 
 @app.command("economic-flow")

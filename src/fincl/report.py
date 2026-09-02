@@ -15,6 +15,7 @@ from .db import connect_sqlite, initialize_schema
 from .decisions import replay_journal
 from .errors import FinCLError
 from .money import ExactMoney, exact_sum, format_decimal
+from .selection import needs_reextraction
 
 _REPORTING_CURRENCY = "SGD"
 
@@ -267,7 +268,7 @@ def _economic_flow(
             JOIN extraction_runs x ON x.id = e.extraction_run_id
             LEFT JOIN statements s ON s.id = e.statement_id
             WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'
-              AND x.status = 'ACCEPTED'
+              AND x.selection_state = 'SELECTED'
               AND (e.source_family = 'CSV' OR s.selection_state = 'SELECTED')
         ), linked AS (
             SELECT left_entry_id AS id FROM transfer_links WHERE status = 'CONFIRMED'
@@ -583,6 +584,7 @@ def coverage_report_data(database_path: Path) -> dict[str, Any]:
                 "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
             ).fetchone()[0],
             "dangling_decisions": _dangling_decisions(connection),
+            "needs_reextraction": needs_reextraction(connection),
         }
     return data
 
@@ -646,8 +648,12 @@ def build_profile_report(database_path: Path) -> str:
 def build_coverage_report(database_path: Path) -> str:
     data = coverage_report_data(database_path)
     statements = data["statements"]
+    stale = data["needs_reextraction"]
     if not statements:
-        return f"No document statements.\ndangling_decisions={data['dangling_decisions']}"
+        return (
+            f"No document statements.\ndangling_decisions={data['dangling_decisions']}\n"
+            f"needs_reextraction={len(stale)}"
+        )
     lines = ["source_type statement_date period status selection pages rows unresolved_pages"]
     for statement in statements:
         period = f"{statement['period_start']}..{statement['period_end']}"
@@ -658,6 +664,12 @@ def build_coverage_report(database_path: Path) -> str:
         )
     lines.append(f"confirmed_transfer_links={data['confirmed_transfer_links']}")
     lines.append(f"dangling_decisions={data['dangling_decisions']}")
+    lines.append(f"needs_reextraction={len(stale)}")
+    for blob in stale:
+        lines.append(
+            f"  stale-version evidence {blob['evidence_sha256'][:12]} "
+            f"({blob['profiles']}) {blob['original_path']}"
+        )
     return "\n".join(lines)
 
 
@@ -768,11 +780,12 @@ def _economic_flow_coverage(connection: sqlite3.Connection) -> list[dict[str, An
     for row in connection.execute(
         """
         SELECT min(substr(e.effective_at, 1, 10)) AS period_start,
-               max(substr(e.effective_at, 1, 10)) AS period_end, x.status
+               max(substr(e.effective_at, 1, 10)) AS period_end,
+               x.status, x.selection_state
         FROM extraction_runs x JOIN ledger_entries e ON e.extraction_run_id = x.id
         WHERE e.source_family = 'CSV'
           AND x.source_profile_version LIKE 'revolut-csv-%'
-        GROUP BY x.id, x.status
+        GROUP BY x.id, x.status, x.selection_state
         ORDER BY period_start
         """
     ):
@@ -782,7 +795,7 @@ def _economic_flow_coverage(connection: sqlite3.Connection) -> list[dict[str, An
                 "period_start": row["period_start"],
                 "period_end": row["period_end"],
                 "status": row["status"],
-                "selection_state": "SELECTED" if row["status"] == "ACCEPTED" else "QUARANTINED",
+                "selection_state": row["selection_state"],
             }
         )
     return coverage

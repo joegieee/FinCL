@@ -14,6 +14,7 @@ from .decision_journal import default_journal_path
 from .document_service import DocumentImportService, link_narrow_transfers
 from .errors import FinCLError
 from .evidence import PlaintextEvidenceStore
+from .selection import recompute_selection
 from .service import FinCLService
 
 
@@ -118,6 +119,7 @@ def _sources_to_rebuild(database: Path) -> list[_Source]:
             FROM extraction_runs x
             JOIN source_content s ON s.sha256 = x.evidence_sha256
             WHERE x.status IN ('ACCEPTED', 'QUARANTINED')
+              AND x.selection_state <> 'SUPERSEDED'
             ORDER BY x.evidence_sha256, x.source_profile_version
             """
         ).fetchall()
@@ -218,6 +220,7 @@ def _recompute_narrow_links(database: Path) -> None:
     """
     connection = connect_sqlite(database)
     try:
+        recompute_selection(connection)
         link_narrow_transfers(connection)
     finally:
         connection.close()

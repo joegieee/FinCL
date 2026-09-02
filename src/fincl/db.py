@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -188,6 +188,12 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             started_at TEXT NOT NULL,
             completed_at TEXT,
             status TEXT NOT NULL CHECK (status IN ('RUNNING', 'ACCEPTED', 'QUARANTINED', 'FAILED')),
+            -- Which one ACCEPTED run per evidence blob analysis reads (Confirmed 30).
+            -- Orthogonal to `status`: `status` is how extraction went, this is
+            -- whether its rows are the selected ones. Recomputed by
+            -- `selection.recompute_selection`; a run starts non-analytical.
+            selection_state TEXT NOT NULL DEFAULT 'QUARANTINED'
+                CHECK (selection_state IN ('SELECTED', 'SUPERSEDED', 'QUARANTINED')),
             header_text TEXT,
             header_cells_json TEXT,
             header_sha256 TEXT,
@@ -477,6 +483,11 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             ON document_records(extraction_run_id, extraction_ordinal);
         CREATE INDEX IF NOT EXISTS page_coverage_by_extraction
             ON page_coverage(extraction_run_id, page_number);
+        CREATE UNIQUE INDEX IF NOT EXISTS one_selected_run_per_evidence
+            ON extraction_runs(evidence_sha256)
+            WHERE selection_state = 'SELECTED';
+        CREATE INDEX IF NOT EXISTS extraction_runs_by_selection
+            ON extraction_runs(selection_state, evidence_sha256);
         CREATE UNIQUE INDEX IF NOT EXISTS confirmed_transfer_link_left
             ON transfer_links(left_entry_id)
             WHERE status = 'CONFIRMED';

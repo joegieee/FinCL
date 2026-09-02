@@ -31,6 +31,7 @@ from .documents import (
 from .errors import EvidenceError, FinCLError
 from .evidence import EvidenceCapture, EvidenceStore, PlaintextEvidenceStore
 from .money import ExactMoney, format_decimal
+from .selection import recompute_selection
 
 _DOCUMENT_PARSERS = {
     "DBS_CONSOLIDATED": parse_dbs_consolidated,
@@ -260,7 +261,11 @@ class DocumentImportService:
             status = self._persist_document(
                 connection, extraction_run_id, capture.sha256, parsed
             )
-            links_created = link_narrow_transfers(connection) if status == "ACCEPTED" else 0
+            if status == "ACCEPTED":
+                recompute_selection(connection)
+                links_created = link_narrow_transfers(connection)
+            else:
+                links_created = 0
             self._complete_import(
                 connection,
                 import_run_id,
@@ -675,7 +680,7 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
         JOIN raw_records r ON r.id = e.raw_record_id
         JOIN extraction_runs x ON x.id = e.extraction_run_id
         WHERE e.source_family = 'CSV'
-          AND x.status = 'ACCEPTED' AND e.analytics_eligible = 1
+          AND x.selection_state = 'SELECTED' AND e.analytics_eligible = 1
           AND e.economic_direction = 'IN'
           AND e.event_kind IN ('TOPUP', 'TRANSFER')
         """
@@ -881,7 +886,7 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
         JOIN extraction_runs x ON x.id = e.extraction_run_id
         JOIN accounts a ON a.id = e.account_id
         WHERE e.source_family = 'CSV'
-          AND x.status = 'ACCEPTED' AND e.analytics_eligible = 1
+          AND x.selection_state = 'SELECTED' AND e.analytics_eligible = 1
           AND e.lifecycle_state = 'COMPLETED'
         ORDER BY e.extraction_run_id, started_at, e.id
         """
