@@ -7,6 +7,18 @@ import sqlite3
 from pathlib import Path
 from typing import NamedTuple
 
+from .categorization import (
+    CATEGORIZATION_DECISION_KINDS,
+    CATEGORY_OVERRIDE,
+    CATEGORY_RULE_RETIRE,
+    CATEGORY_RULE_SET,
+    MERCHANT_ALIAS_RETIRE,
+    MERCHANT_ALIAS_SET,
+    canonical_match,
+    validate_alias_patterns,
+    validate_payload,
+)
+from .common import canonical_json, resolve_category
 from .decision_journal import JournalRecord, default_journal_path, read_records
 from .errors import FinCLError
 
@@ -29,6 +41,7 @@ KNOWN_DECISION_KINDS = frozenset(
         "INBOUND_CLASSIFICATION",
         "EXTRACTION_REPAIR",
     }
+    | CATEGORIZATION_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -140,21 +153,29 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
     """Verify and project the complete journal; return bound and dangling counts."""
     records = read_records(journal_path or journal_path_for(connection))
     with connection:
-        connection.execute("DELETE FROM link_decisions")
-        connection.execute("DELETE FROM invariant_escapes")
-        connection.execute("DELETE FROM inbound_classifications")
+        for table in (
+            "link_decisions",
+            "invariant_escapes",
+            "inbound_classifications",
+            "merchant_aliases",
+            "category_rules",
+            "category_overrides",
+        ):
+            connection.execute(f"DELETE FROM {table}")
         for record in records:
             _apply_record(connection, record)
         connection.execute("UPDATE decision_watermark SET applied_seq = ? WHERE id = 1", (len(records),))
     bound = connection.execute(
         "SELECT (SELECT count(*) FROM link_decisions WHERE bound=1) + "
         "(SELECT count(*) FROM invariant_escapes WHERE bound=1) + "
-        "(SELECT count(*) FROM inbound_classifications WHERE bound=1)"
+        "(SELECT count(*) FROM inbound_classifications WHERE bound=1) + "
+        "(SELECT count(*) FROM category_overrides WHERE bound=1)"
     ).fetchone()[0]
     dangling = connection.execute(
         "SELECT (SELECT count(*) FROM link_decisions WHERE bound=0) + "
         "(SELECT count(*) FROM invariant_escapes WHERE bound=0) + "
-        "(SELECT count(*) FROM inbound_classifications WHERE bound=0)"
+        "(SELECT count(*) FROM inbound_classifications WHERE bound=0) + "
+        "(SELECT count(*) FROM category_overrides WHERE bound=0)"
     ).fetchone()[0]
     return bound, dangling
 
@@ -177,12 +198,33 @@ def _apply_record(connection: sqlite3.Connection, record: JournalRecord) -> None
         # A known-older recipe: project the decision as dangling, carrying its
         # snapshot, so the §14.3 rebind migration can re-adjudicate it.
         override = f"anchor recipe {record.anchor_version} superseded; awaiting rebind"
+    if record.decision_kind in CATEGORIZATION_DECISION_KINDS:
+        try:
+            validate_payload(record.decision_kind, record.anchors, record.payload)
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
     if record.decision_kind in {"LINK_CONFIRM", "LINK_REJECT"}:
         _apply_link(connection, record, override)
     elif record.decision_kind == "INVARIANT_ESCAPE":
         _apply_escape(connection, record, override)
     elif record.decision_kind == "INBOUND_CLASSIFICATION":
         _apply_inbound(connection, record, override)
+    elif record.decision_kind == MERCHANT_ALIAS_SET:
+        _apply_alias_set(connection, record)
+    elif record.decision_kind == MERCHANT_ALIAS_RETIRE:
+        connection.execute(
+            "DELETE FROM merchant_aliases WHERE canonical = ?",
+            (record.anchors["canonical"],),
+        )
+    elif record.decision_kind == CATEGORY_RULE_SET:
+        _apply_rule_set(connection, record)
+    elif record.decision_kind == CATEGORY_RULE_RETIRE:
+        connection.execute(
+            "DELETE FROM category_rules WHERE rule_id = ?",
+            (record.anchors["rule_id"],),
+        )
+    elif record.decision_kind == CATEGORY_OVERRIDE:
+        _apply_override(connection, record, override)
 
 
 def _binding(reason: str | None, override: str | None) -> tuple[int, str | None]:
@@ -234,4 +276,81 @@ def _apply_inbound(connection: sqlite3.Connection, record: JournalRecord, overri
            bound=excluded.bound, dangling_reason=excluded.dangling_reason""",
         (anchor, record.anchor_version, record.payload.get("classification", "other"), record.policy_version,
          record.seq, record.snapshot, bound, dangling_reason),
+    )
+
+
+def _apply_alias_set(connection: sqlite3.Connection, record: JournalRecord) -> None:
+    patterns = validate_alias_patterns(record.payload["patterns"])
+    connection.execute(
+        """INSERT INTO merchant_aliases
+               (canonical, patterns_json, display_name, reason, journal_seq, record_hash)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(canonical) DO UPDATE SET
+               patterns_json=excluded.patterns_json, display_name=excluded.display_name,
+               reason=excluded.reason, journal_seq=excluded.journal_seq,
+               record_hash=excluded.record_hash""",
+        (
+            record.anchors["canonical"],
+            canonical_json(patterns),
+            record.payload.get("display_name"),
+            record.payload["reason"],
+            record.seq,
+            record.record_hash,
+        ),
+    )
+
+
+def _apply_rule_set(connection: sqlite3.Connection, record: JournalRecord) -> None:
+    group, category, migrated_from = resolve_category(str(record.payload["category"]))
+    connection.execute(
+        """INSERT INTO category_rules
+               (rule_id, match_json, group_name, category, migrated_from, reason,
+                journal_seq, record_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(rule_id) DO UPDATE SET
+               match_json=excluded.match_json, group_name=excluded.group_name,
+               category=excluded.category, migrated_from=excluded.migrated_from,
+               reason=excluded.reason, journal_seq=excluded.journal_seq,
+               record_hash=excluded.record_hash""",
+        (
+            record.anchors["rule_id"],
+            canonical_json(canonical_match(record.payload["match"])),
+            group,
+            category,
+            migrated_from,
+            record.payload["reason"],
+            record.seq,
+            record.record_hash,
+        ),
+    )
+
+
+def _apply_override(connection: sqlite3.Connection, record: JournalRecord, override: str | None) -> None:
+    anchor = record.anchors.get("entry", "")
+    reason = _resolve(connection, anchor).dangling_reason
+    bound, dangling_reason = _binding(reason, override)
+    group, category, migrated_from = resolve_category(str(record.payload["category"]))
+    connection.execute(
+        """INSERT INTO category_overrides
+               (entry_anchor, anchor_version, group_name, category, migrated_from,
+                reason, journal_seq, record_hash, bound, dangling_reason)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(entry_anchor) DO UPDATE SET
+               anchor_version=excluded.anchor_version, group_name=excluded.group_name,
+               category=excluded.category, migrated_from=excluded.migrated_from,
+               reason=excluded.reason, journal_seq=excluded.journal_seq,
+               record_hash=excluded.record_hash, bound=excluded.bound,
+               dangling_reason=excluded.dangling_reason""",
+        (
+            anchor,
+            record.anchor_version,
+            group,
+            category,
+            migrated_from,
+            record.payload["reason"],
+            record.seq,
+            record.record_hash,
+            bound,
+            dangling_reason,
+        ),
     )

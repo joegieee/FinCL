@@ -73,6 +73,44 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             dangling_reason TEXT,
             PRIMARY KEY(anchor, anchor_version)
         ) STRICT;
+
+        -- Categorization rules / aliases / overrides are decision-journal kinds
+        -- (Confirmed 28). These are the replayable projection: the latest
+        -- record per anchor wins, and an anchor whose latest record is a
+        -- RETIRE is absent entirely. `record_hash` is carried so §5.3's
+        -- rule_set_hash can be computed from the projection.
+        CREATE TABLE IF NOT EXISTS merchant_aliases (
+            canonical TEXT PRIMARY KEY,
+            patterns_json TEXT NOT NULL,
+            display_name TEXT,
+            reason TEXT NOT NULL,
+            journal_seq INTEGER NOT NULL UNIQUE,
+            record_hash TEXT NOT NULL
+        ) STRICT;
+
+        CREATE TABLE IF NOT EXISTS category_rules (
+            rule_id TEXT PRIMARY KEY,
+            match_json TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            migrated_from TEXT,
+            reason TEXT NOT NULL,
+            journal_seq INTEGER NOT NULL UNIQUE,
+            record_hash TEXT NOT NULL
+        ) STRICT;
+
+        CREATE TABLE IF NOT EXISTS category_overrides (
+            entry_anchor TEXT PRIMARY KEY,
+            anchor_version TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            migrated_from TEXT,
+            reason TEXT NOT NULL,
+            journal_seq INTEGER NOT NULL UNIQUE,
+            record_hash TEXT NOT NULL,
+            bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+            dangling_reason TEXT
+        ) STRICT;
         """
     )
 

@@ -39,7 +39,8 @@ def _dangling_decisions(connection: sqlite3.Connection) -> int:
         connection.execute(
             "SELECT (SELECT count(*) FROM link_decisions WHERE bound = 0) "
             "     + (SELECT count(*) FROM invariant_escapes WHERE bound = 0) "
-            "     + (SELECT count(*) FROM inbound_classifications WHERE bound = 0)"
+            "     + (SELECT count(*) FROM inbound_classifications WHERE bound = 0) "
+            "     + (SELECT count(*) FROM category_overrides WHERE bound = 0)"
         ).fetchone()[0]
     )
 

@@ -280,15 +280,15 @@ class JournalKindClosureTests(unittest.TestCase):
     def test_unknown_decision_kind_refuses_replay_and_names_the_seq(self) -> None:
         append_decision(
             self.journal,
-            decision_kind="CATEGORY_RULE_SET",
-            anchors={"rule_id": "deadbeefdeadbeef"},
-            payload={"match": {"paynow_to": "X"}, "category": "Education / Education Services"},
-            policy_version="category-engine-2026-v1",
+            decision_kind="DUPLICATE_CONFIRM",  # a future kind this build has not learned
+            anchors={"primary": "a", "candidate": "b"},
+            payload={"reason": "x"},
+            policy_version="dedupe-v1",
             snapshot="a kind this build does not know",
         )
         with self.assertRaises(FinCLError) as caught:
             replay_journal(self.connection)
-        self.assertIn("CATEGORY_RULE_SET", str(caught.exception))
+        self.assertIn("DUPLICATE_CONFIRM", str(caught.exception))
         self.assertIn("record 1", str(caught.exception))
 
     def test_unknown_anchor_version_refuses_replay(self) -> None:
