@@ -340,8 +340,10 @@ class EconomicFlowReportTests(unittest.TestCase):
             "excluded_confirmed_internal_entries": 2,
             "excluded_self_transfer_entries": 0,
             "entries_outside_covered_window": 0,
+            "entries_outside_analysis_window": 0,
             "coverage_complete": True,
             "covered_window": {"start": "2026-01-01", "end": "2026-01-02"},
+            "analysis_window": {"start": "2026-01-01", "end": "2026-01-02"},
         }])
         self.assertEqual(data["coverage"][0]["source_type"], "REVOLUT_CSV")
 
@@ -479,6 +481,32 @@ class CoveredWindowTests(unittest.TestCase):
             }
         )
         self.assertEqual(_covered_window(coverage), ("2026-01-01", "2026-01-31"))
+
+    def test_explicit_analysis_window_must_be_inside_coverage(self):
+        from fincl.report import _analysis_window
+
+        self.assertEqual(
+            _analysis_window(
+                "2026-01-10", "2026-01-31", start="2026-01-15", end="2026-01-20"
+            ),
+            ("2026-01-15", "2026-01-20", "EXPLICIT"),
+        )
+        with self.assertRaisesRegex(FinCLError, "inside the covered window"):
+            _analysis_window(
+                "2026-01-10", "2026-01-31", start="2026-01-01", end="2026-01-20"
+            )
+
+    def test_explicit_analysis_window_requires_two_ordered_iso_dates(self):
+        from fincl.report import _analysis_window
+
+        with self.assertRaisesRegex(FinCLError, "--start and --end together"):
+            _analysis_window("2026-01-01", "2026-01-31", start="2026-01-10", end=None)
+        with self.assertRaisesRegex(FinCLError, "YYYY-MM-DD"):
+            _analysis_window("2026-01-01", "2026-01-31", start="Jan 10", end="2026-01-20")
+        with self.assertRaisesRegex(FinCLError, "must not be after"):
+            _analysis_window(
+                "2026-01-01", "2026-01-31", start="2026-01-20", end="2026-01-10"
+            )
 
 
 if __name__ == "__main__":

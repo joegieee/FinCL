@@ -5,6 +5,7 @@ import sqlite3
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import date
 from fractions import Fraction
 from pathlib import Path
 from typing import Any, TypedDict
@@ -12,6 +13,7 @@ from typing import Any, TypedDict
 from . import fx
 from .db import connect_sqlite, initialize_schema
 from .decisions import replay_journal
+from .errors import FinCLError
 from .money import ExactMoney, exact_sum, format_decimal
 
 _REPORTING_CURRENCY = "SGD"
@@ -52,7 +54,8 @@ class _EconomicFlowBucket(TypedDict):
     excluded_linked: int
     excluded_self_transfer: int
     entries: int
-    outside_window: int
+    outside_covered_window: int
+    outside_analysis_window: int
 
 
 def build_report(database_path: Path) -> str:
@@ -232,19 +235,23 @@ def _latest_report_data(connection: sqlite3.Connection) -> dict[str, Any]:
     return data
 
 
-def economic_flow_report_data(database_path: Path) -> dict[str, Any]:
-    """Build the first safe consolidated view without converting currencies.
-
-    This deliberately returns a separate exact total for each currency pocket.
-    The frozen MAS rate table required for a single SGD total is not present yet,
-    so combining these values would manufacture a number the ledger cannot
-    explain.
-    """
+def economic_flow_report_data(
+    database_path: Path,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
+    """Build exact economic flow for the covered or explicit analysis window."""
     with _reading(database_path) as connection:
-        return _economic_flow(connection)
+        return _economic_flow(connection, start=start, end=end)
 
 
-def _economic_flow(connection: sqlite3.Connection) -> dict[str, Any]:
+def _economic_flow(
+    connection: sqlite3.Connection,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> dict[str, Any]:
     rows = connection.execute(
         """
         WITH entries AS (
@@ -282,6 +289,14 @@ def _economic_flow(connection: sqlite3.Connection) -> dict[str, Any]:
     covered_window = (
         None if covered_start is None else {"start": covered_start, "end": covered_end}
     )
+    analysis_start, analysis_end, analysis_window_kind = _analysis_window(
+        covered_start, covered_end, start=start, end=end
+    )
+    analysis_window = (
+        None
+        if analysis_start is None
+        else {"start": analysis_start, "end": analysis_end}
+    )
 
     by_currency: dict[str, _EconomicFlowBucket] = {}
     netting: list[tuple[str, int, int, str]] = []
@@ -291,7 +306,11 @@ def _economic_flow(connection: sqlite3.Connection) -> dict[str, Any]:
         if covered_start is not None and not (
             covered_start <= row["posted_date"] <= covered_end
         ):
-            bucket["outside_window"] += 1
+            bucket["outside_covered_window"] += 1
+        if analysis_start is not None and not (
+            analysis_start <= row["posted_date"] <= analysis_end
+        ):
+            bucket["outside_analysis_window"] += 1
             continue
         period = row["posted_date"][:7]
         if row["is_linked"]:
@@ -336,9 +355,14 @@ def _economic_flow(connection: sqlite3.Connection) -> dict[str, Any]:
                 ),
                 "excluded_confirmed_internal_entries": values["excluded_linked"],
                 "excluded_self_transfer_entries": values["excluded_self_transfer"],
-                "entries_outside_covered_window": values["outside_window"],
-                "coverage_complete": values["outside_window"] == 0,
+                "entries_outside_covered_window": values["outside_covered_window"],
+                "entries_outside_analysis_window": values["outside_analysis_window"],
+                "coverage_complete": (
+                    analysis_window_kind == "EXPLICIT"
+                    or values["outside_covered_window"] == 0
+                ),
                 "covered_window": covered_window,
+                "analysis_window": analysis_window,
             }
         )
     any_incomplete = any(not currency["coverage_complete"] for currency in currencies)
@@ -353,6 +377,8 @@ def _economic_flow(connection: sqlite3.Connection) -> dict[str, Any]:
         "consolidated_sgd_total": consolidated_total,
         "consolidated_sgd_total_status": consolidated_status,
         "coverage_complete": not any_incomplete,
+        "analysis_window": analysis_window,
+        "analysis_window_kind": analysis_window_kind,
         "currencies": currencies,
         "coverage": coverage,
         "dangling_decisions": dangling,
@@ -389,7 +415,7 @@ def _empty_bucket() -> _EconomicFlowBucket:
         "spending": [], "income": [], "reimbursements": [], "non_income_inflow": [],
         "pending_review": [], "other_classified_inbound": [], "fees": [],
         "excluded_linked": 0, "excluded_self_transfer": 0, "entries": 0,
-        "outside_window": 0,
+        "outside_covered_window": 0, "outside_analysis_window": 0,
     }
 
 
@@ -451,8 +477,42 @@ def _covered_window(
     )
 
 
-def build_economic_flow_report(database_path: Path) -> str:
-    data = economic_flow_report_data(database_path)
+def _analysis_window(
+    covered_start: str | None,
+    covered_end: str | None,
+    *,
+    start: str | None,
+    end: str | None,
+) -> tuple[str | None, str | None, str]:
+    """Validate an explicit analysis window against the coverage intersection."""
+    if (start is None) != (end is None):
+        raise FinCLError("economic-flow requires --start and --end together")
+    if start is None:
+        return covered_start, covered_end, "COVERAGE_INTERSECTION"
+    assert end is not None
+    try:
+        parsed_start, parsed_end = date.fromisoformat(start), date.fromisoformat(end)
+    except ValueError as exc:
+        raise FinCLError("economic-flow dates must use YYYY-MM-DD") from exc
+    if parsed_start > parsed_end:
+        raise FinCLError("economic-flow --start must not be after --end")
+    if covered_start is None or covered_end is None or covered_start > covered_end:
+        raise FinCLError("economic-flow has no non-empty cross-source covered window")
+    if start < covered_start or end > covered_end:
+        raise FinCLError(
+            "economic-flow analysis window must be inside the covered window "
+            f"{covered_start}..{covered_end}"
+        )
+    return start, end, "EXPLICIT"
+
+
+def build_economic_flow_report(
+    database_path: Path,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> str:
+    data = economic_flow_report_data(database_path, start=start, end=end)
     if data["consolidated_sgd_total"] is None:
         consolidated_line = (
             f"consolidated_sgd_total: unavailable ({data['consolidated_sgd_total_status']})"
@@ -463,6 +523,8 @@ def build_economic_flow_report(database_path: Path) -> str:
         "economic_flow: per-currency exact totals",
         consolidated_line,
         f"coverage_complete: {data['coverage_complete']}",
+        "analysis_window: "
+        f"{data['analysis_window']} ({data['analysis_window_kind']})",
         f"dangling_decisions: {data['dangling_decisions']}",
     ]
     for currency in data["currencies"]:
@@ -475,7 +537,8 @@ def build_economic_flow_report(database_path: Path) -> str:
             "excluded_confirmed_internal_entries={excluded_confirmed_internal_entries} "
             "excluded_self_transfer_entries={excluded_self_transfer_entries} "
             "coverage_complete={coverage_complete} "
-            "entries_outside_covered_window={entries_outside_covered_window}".format(**currency)
+            "entries_outside_covered_window={entries_outside_covered_window} "
+            "entries_outside_analysis_window={entries_outside_analysis_window}".format(**currency)
         )
     for source in data["coverage"]:
         lines.append(

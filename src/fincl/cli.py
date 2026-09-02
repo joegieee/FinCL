@@ -187,18 +187,20 @@ def coverage(
 @app.command("economic-flow")
 def economic_flow(
     database: Path = typer.Option(..., "--database"),
+    start: str | None = typer.Option(None, "--start", help="Analysis start date (YYYY-MM-DD)."),
+    end: str | None = typer.Option(None, "--end", help="Analysis end date (YYYY-MM-DD)."),
     plain: bool = typer.Option(False, "--plain"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Show exact per-currency external economic flow and source coverage."""
     try:
-        data = economic_flow_report_data(database)
+        data = economic_flow_report_data(database, start=start, end=end)
     except (FinCLError, OSError) as exc:
         _fail(exc)
     if json_output:
         typer.echo(json_report(data))
     elif plain:
-        typer.echo(build_economic_flow_report(database))
+        typer.echo(build_economic_flow_report(database, start=start, end=end))
     else:
         table = Table(title="Economic flow (per currency)")
         for heading in (
@@ -223,6 +225,9 @@ def economic_flow(
         else:
             console.print(f"Consolidated SGD total: {data['consolidated_sgd_total']} SGD.")
         console.print(f"Coverage complete: {data['coverage_complete']}")
+        console.print(
+            f"Analysis window: {data['analysis_window']} ({data['analysis_window_kind']})"
+        )
         console.print(f"Dangling journal decisions: {data['dangling_decisions']}")
 
 
