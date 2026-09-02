@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from math import gcd
@@ -41,6 +43,8 @@ DBS_PAYLAH_LINK_VERSION = "dbs-paylah-exact-date-amount-description-v1"
 DBS_REVOLUT_LEGACY_LINK_VERSION = "dbs-revolut-exact-amount-currency-window-description-v1"
 DBS_REVOLUT_CARD_TOPUP_LINK_VERSION = "dbs-revolut-card-topup-exact-amount-window-v1"
 DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION = "dbs-revolut-paynow-topup-exact-amount-window-v1"
+DBS_MARIBANK_PAYNOW_TOPUP_LINK_VERSION = "dbs-maribank-paynow-topup-reference-token-amount-v1"
+MARI_SAVINGS_CARD_REPAYMENT_LINK_VERSION = "mari-savings-card-repayment-exact-amount-day-v1"
 REVOLUT_EXCHANGE_LINK_VERSION = "revolut-exchange-started-at-pockets-v1"
 AMBIGUOUS_MUTUAL_MATCH = "AMBIGUOUS_MUTUAL_MATCH"
 SELECTION_LOST = "SELECTION_LOST"
@@ -103,6 +107,23 @@ DBS_REVOLUT_PAYNOW_TOPUP_LINKER = SameCurrencyLinker(
     EligibleLinkLeg("REVOLUT_CSV", "SGD", "IN", frozenset({"TOPUP", "TRANSFER"})),
     max_days=2,
 )
+# DBS PayNow that funds a MariBank savings inflow.  Both legs print the same
+# PayNow reference token; matching on the token plus the exact amount survives
+# two same-day, same-counterpart transfers that share one reference.
+DBS_MARIBANK_PAYNOW_TOPUP_LINKER = SameCurrencyLinker(
+    DBS_MARIBANK_PAYNOW_TOPUP_LINK_VERSION,
+    EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "OUT", frozenset({"TRANSFER"})),
+    EligibleLinkLeg("MARI_SAVINGS", "SGD", "IN", frozenset({"TRANSFER"})),
+    max_days=2,
+)
+# MariBank savings debit that repays the Mari credit card.  The savings row
+# names "Mari Credit Card"; the card row is the bucket-B "Repayment" credit.
+MARI_SAVINGS_CARD_REPAYMENT_LINKER = SameCurrencyLinker(
+    MARI_SAVINGS_CARD_REPAYMENT_LINK_VERSION,
+    EligibleLinkLeg("MARI_SAVINGS", "SGD", "OUT", frozenset({"TRANSFER"})),
+    EligibleLinkLeg("MARI_CARD", "SGD", "IN", frozenset({"TRANSFER"})),
+    max_days=0,
+)
 REVOLUT_EXCHANGE_LINKER = ExchangeLinker(
     REVOLUT_EXCHANGE_LINK_VERSION,
     EligibleLinkLeg("REVOLUT_CSV", None, "OUT", frozenset({"EXCHANGE"})),
@@ -113,6 +134,8 @@ AUTOMATIC_SAME_CURRENCY_LINK_METHODS = (
     DBS_REVOLUT_LEGACY_LINK_VERSION,
     DBS_REVOLUT_CARD_TOPUP_LINKER.method_version,
     DBS_REVOLUT_PAYNOW_TOPUP_LINKER.method_version,
+    DBS_MARIBANK_PAYNOW_TOPUP_LINKER.method_version,
+    MARI_SAVINGS_CARD_REPAYMENT_LINKER.method_version,
 )
 
 
@@ -657,6 +680,20 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
           AND e.event_kind IN ('TOPUP', 'TRANSFER')
         """
     ).fetchall()
+    mari_rows = connection.execute(
+        """
+        SELECT e.id, e.effective_at AS posted_date, e.currency_pocket,
+               e.amount_coefficient, e.amount_scale, e.amount_text, e.event_kind,
+               e.economic_direction, s.source_type, r.description_raw
+        FROM ledger_entries e
+        JOIN document_records r ON r.id = e.document_record_id
+        JOIN statements s ON s.id = e.statement_id
+        WHERE e.source_family = 'DOCUMENT'
+          AND s.source_type IN ('MARI_SAVINGS', 'MARI_CARD')
+          AND s.selection_state = 'SELECTED'
+          AND e.analytics_eligible = 1
+        """
+    ).fetchall()
     dbs_topups = [
         row
         for row in dbs_rows
@@ -687,6 +724,32 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
     paynow_revolut_rows = [
         row for row in revolut_rows if DBS_REVOLUT_PAYNOW_TOPUP_LINKER.right.matches(row)
     ]
+    dbs_maribank_topups = [
+        row
+        for row in dbs_rows
+        if DBS_MARIBANK_PAYNOW_TOPUP_LINKER.left.matches(row)
+        and _is_dbs_maribank_paynow(row["description_raw"])
+        and _paynow_reference_token(row["description_raw"]) is not None
+    ]
+    maribank_savings_inflows = [
+        row
+        for row in mari_rows
+        if DBS_MARIBANK_PAYNOW_TOPUP_LINKER.right.matches(row)
+        and _paynow_reference_token(row["description_raw"]) is not None
+    ]
+    savings_card_repayments = [
+        row
+        for row in mari_rows
+        if MARI_SAVINGS_CARD_REPAYMENT_LINKER.left.matches(row)
+        and "MARI CREDIT CARD" in (row["description_raw"] or "").upper()
+    ]
+    card_repayment_credits = [
+        row
+        for row in mari_rows
+        if MARI_SAVINGS_CARD_REPAYMENT_LINKER.right.matches(row)
+        and "REPAYMENT" in (row["description_raw"] or "").upper()
+        and "MONEYSEND" not in (row["description_raw"] or "").upper()
+    ]
     candidates = [
         *_candidate_pairs(
             dbs_topups,
@@ -705,6 +768,19 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
             paynow_revolut_rows,
             DBS_REVOLUT_PAYNOW_TOPUP_LINKER.method_version,
             max_days=DBS_REVOLUT_PAYNOW_TOPUP_LINKER.max_days,
+        ),
+        *_candidate_pairs(
+            dbs_maribank_topups,
+            maribank_savings_inflows,
+            DBS_MARIBANK_PAYNOW_TOPUP_LINKER.method_version,
+            max_days=DBS_MARIBANK_PAYNOW_TOPUP_LINKER.max_days,
+            key=lambda row: _paynow_reference_token(row["description_raw"]),
+        ),
+        *_candidate_pairs(
+            savings_card_repayments,
+            card_repayment_credits,
+            MARI_SAVINGS_CARD_REPAYMENT_LINKER.method_version,
+            max_days=MARI_SAVINGS_CARD_REPAYMENT_LINKER.max_days,
         ),
     ]
     _store_candidates(connection, candidates)
@@ -762,6 +838,25 @@ def _apply_link_decisions(connection: sqlite3.Connection) -> None:
                 "UPDATE transfer_links SET status='CONFIRMED', evidence_json=? WHERE id=?",
                 (_json(evidence), row["id"]),
             )
+
+
+_PAYNOW_REFERENCE_TOKEN_RE = re.compile(r"[A-Za-z0-9]{20,30}")
+
+
+def _paynow_reference_token(description: str | None) -> str | None:
+    """The PayNow end-to-end reference both statement sides print, uppercased."""
+    for match in _PAYNOW_REFERENCE_TOKEN_RE.finditer(description or ""):
+        token = match.group(0)
+        if any(character.isdigit() for character in token) and any(
+            character.isalpha() for character in token
+        ):
+            return token.upper()
+    return None
+
+
+def _is_dbs_maribank_paynow(description: str | None) -> bool:
+    text = (description or "").upper()
+    return "PAYNOW TRANSFER" in text and "TO: MARIBANK SINGAPORE" in text
 
 
 def _is_revolut_card_topup(description: str | None) -> bool:
@@ -858,6 +953,7 @@ def _candidate_pairs(
     method_version: str,
     *,
     max_days: int,
+    key: Callable[[sqlite3.Row], str | None] | None = None,
 ) -> list[tuple[sqlite3.Row, sqlite3.Row, str]]:
     candidates: list[tuple[sqlite3.Row, sqlite3.Row, str]] = []
     for left in left_rows:
@@ -871,8 +967,22 @@ def _candidate_pairs(
             )
             if day_difference > max_days:
                 continue
+            if key is not None:
+                left_key, right_key = key(left), key(right)
+                if left_key is None or right_key is None or not _reference_keys_match(
+                    left_key, right_key
+                ):
+                    continue
             candidates.append((left, right, method_version))
     return candidates
+
+
+def _reference_keys_match(left: str, right: str) -> bool:
+    """Equal, or a shared >=20-char prefix (one statement truncated the token)."""
+    return left == right or (
+        min(len(left), len(right)) >= 20
+        and (left.startswith(right) or right.startswith(left))
+    )
 
 
 def _store_candidates(
