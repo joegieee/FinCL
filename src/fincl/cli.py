@@ -203,6 +203,7 @@ def coverage(
             )
             for blob in stale:
                 console.print(f"  {blob['original_path']} ({blob['profiles']})")
+        _print_category_warnings(data["categories"])
 
 
 @app.command("economic-flow")
@@ -326,6 +327,19 @@ def profile(
                 str(item["ledger_entries"]),
             )
         console.print(table)
+        _print_category_warnings(data["categories"])
+
+
+def _print_category_warnings(categories: dict[str, Any]) -> None:
+    if categories.get("status") == "NOT_RUN":
+        console.print("[dim]Categories: not yet run (fincl categorize).[/dim]")
+        return
+    by_group = ", ".join(f"{g}: {n}" for g, n in sorted(categories["by_group"].items()))
+    console.print(f"Categories — {by_group}")
+    warnings = categories.get("warnings", {})
+    if warnings:
+        detail = ", ".join(f"{k}={v}" for k, v in sorted(warnings.items()))
+        console.print(f"[yellow]Category warnings:[/yellow] {detail}")
 
 
 @app.command("rebuild")

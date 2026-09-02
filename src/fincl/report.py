@@ -13,6 +13,7 @@ from typing import Any, TypedDict
 from . import fx
 from .db import connect_sqlite, initialize_schema
 from .decisions import replay_journal
+from .engine import categorize, summarize_run
 from .errors import FinCLError
 from .money import ExactMoney, exact_sum, format_decimal
 from .selection import needs_reextraction
@@ -43,6 +44,35 @@ def _dangling_decisions(connection: sqlite3.Connection) -> int:
             "     + (SELECT count(*) FROM category_overrides WHERE bound = 0)"
         ).fetchone()[0]
     )
+
+
+def _category_warnings(connection: sqlite3.Connection, *, recompute: bool) -> dict[str, Any]:
+    """Category coverage plus the counts surfaced as warnings (§7, §14.3).
+
+    ``recompute`` runs the engine first so the counts match the journal; a
+    read-only caller (``profile``) reads whatever the last run left.
+    """
+    has_entries = connection.execute(
+        "SELECT 1 FROM ledger_entries e JOIN extraction_runs x "
+        "ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED' LIMIT 1"
+    ).fetchone()
+    if recompute and has_entries is not None:
+        summarize_run(connection, categorize(connection))
+    run = connection.execute(
+        "SELECT id FROM categorization_runs ORDER BY completed_at DESC, id DESC LIMIT 1"
+    ).fetchone()
+    if run is None:
+        return {"status": "NOT_RUN"}
+    summary = summarize_run(connection, run["id"])
+    summary["warnings"] = {
+        key: summary[key]
+        for key in (
+            "unclassified", "ambiguous", "direction_conflict",
+            "migrated", "missing_description", "alias_ambiguous",
+        )
+        if summary[key]
+    }
+    return summary
 
 
 class _EconomicFlowBucket(TypedDict):
@@ -122,6 +152,7 @@ def _build_report(connection: sqlite3.Connection) -> str:
         ),
         f"balance_checks: passed={checks['passed']} total={checks['total']}",
         f"dangling_decisions: {_dangling_decisions(connection)}",
+        *_category_lines(_category_warnings(connection, recompute=True)),
     ]
 
     currencies = [
@@ -234,6 +265,7 @@ def _latest_report_data(connection: sqlite3.Connection) -> dict[str, Any]:
         "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
     ).fetchone()[0]
     data["dangling_decisions"] = _dangling_decisions(connection)
+    data["categories"] = _category_warnings(connection, recompute=True)
     return data
 
 
@@ -586,6 +618,7 @@ def coverage_report_data(database_path: Path) -> dict[str, Any]:
             ).fetchone()[0],
             "dangling_decisions": _dangling_decisions(connection),
             "needs_reextraction": needs_reextraction(connection),
+            "categories": _category_warnings(connection, recompute=True),
         }
     return data
 
@@ -620,7 +653,8 @@ def profile_report_data(database_path: Path) -> dict[str, Any]:
                 """
             )
         ]
-    return {"profiles": profiles, "source_types": source_types}
+        categories = _category_warnings(connection, recompute=False)
+    return {"profiles": profiles, "source_types": source_types, "categories": categories}
 
 
 def build_profile_report(database_path: Path) -> str:
@@ -643,6 +677,7 @@ def build_profile_report(database_path: Path) -> str:
                 **source_type
             )
         )
+    lines.extend(_category_lines(data["categories"]))
     return "\n".join(lines)
 
 
@@ -671,7 +706,24 @@ def build_coverage_report(database_path: Path) -> str:
             f"  stale-version evidence {blob['evidence_sha256'][:12]} "
             f"({blob['profiles']}) {blob['original_path']}"
         )
+    lines.extend(_category_lines(data["categories"]))
     return "\n".join(lines)
+
+
+def _category_lines(categories: dict[str, Any]) -> list[str]:
+    if categories.get("status") == "NOT_RUN":
+        return ["categories: not yet run (fincl categorize)"]
+    warnings = categories.get("warnings", {})
+    line = "categories: " + " ".join(
+        f"{group}={count}" for group, count in sorted(categories["by_group"].items())
+    )
+    out = [line]
+    if warnings:
+        out.append(
+            "category_warnings: "
+            + " ".join(f"{key}={value}" for key, value in sorted(warnings.items()))
+        )
+    return out
 
 
 def json_report(data: dict[str, Any]) -> str:
