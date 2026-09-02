@@ -183,7 +183,11 @@ def categorize(connection: sqlite3.Connection, *, journal_path: Path | None = No
     now = utc_now()
     with connection:
         connection.execute("DELETE FROM entry_categories")
-        connection.execute("DELETE FROM categorization_runs WHERE id = ?", (run_id,))
+        # Keep only the current run. A prior run whose id differs (any input
+        # changed) would otherwise pile up, and its stale manifest could be read
+        # back as "the" run; a prior run with the same id just gets fresh
+        # timestamps. entry_categories is repopulated below to point here.
+        connection.execute("DELETE FROM categorization_runs WHERE id <> ?", (run_id,))
         connection.execute(
             """
             INSERT INTO categorization_runs(
@@ -197,6 +201,8 @@ def categorize(connection: sqlite3.Connection, *, journal_path: Path | None = No
                       :taxonomy_version, :merchant_norm_version, :projection_version,
                       :journal_seq, :eligible_cutoff, :eligible_entry_count,
                       :eligible_set_hash, :profile_set_json, :started_at, :completed_at)
+            ON CONFLICT(id) DO UPDATE SET started_at = excluded.started_at,
+                                         completed_at = excluded.completed_at
             """,
             {**manifest, "id": run_id, "started_at": now, "completed_at": now},
         )
