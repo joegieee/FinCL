@@ -5,6 +5,7 @@ import sqlite3
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import date
 from fractions import Fraction
 from pathlib import Path
@@ -15,6 +16,17 @@ from .db import connect_sqlite, initialize_schema
 from .decisions import replay_journal
 from .engine import categorize, summarize_run
 from .errors import FinCLError
+from .intervals import (
+    COVERAGE_POLICY_VERSION,
+    DateInterval,
+    bounding,
+    contains_range,
+    covers_date,
+    intersect_all,
+    month_span,
+    normalize,
+    uncovered_dates,
+)
 from .money import ExactMoney, exact_sum, format_decimal
 from .selection import needs_reextraction
 
@@ -291,6 +303,7 @@ def _economic_flow(
         WITH entries AS (
             SELECT e.source_family AS entry_kind, e.id, e.currency_pocket AS currency,
                    substr(e.effective_at, 1, 10) AS posted_date,
+                   e.effective_precision,
                    e.amount_text, e.amount_coefficient, e.amount_scale,
                    COALESCE(e.fee_text, '0') AS fee_text,
                    COALESCE(e.fee_coefficient, 0) AS fee_coefficient,
@@ -319,34 +332,40 @@ def _economic_flow(
     coverage = _economic_flow_coverage(connection)
     dangling = _dangling_decisions(connection)
 
-    covered_start, covered_end = _covered_window(coverage)
-    covered_window = (
-        None if covered_start is None else {"start": covered_start, "end": covered_end}
+    contract = _coverage_contract(connection)
+    covered_intervals = contract.covered_intervals
+    covered_bound = bounding(covered_intervals)
+    covered_window = None if covered_bound is None else covered_bound.as_dict()
+    analysis_intervals, analysis_window_kind = _analysis_intervals(
+        covered_intervals, start=start, end=end
     )
-    analysis_start, analysis_end, analysis_window_kind = _analysis_window(
-        covered_start, covered_end, start=start, end=end
-    )
-    analysis_window = (
-        None
-        if analysis_start is None
-        else {"start": analysis_start, "end": analysis_end}
-    )
+    analysis_bound = bounding(analysis_intervals)
+    analysis_window = None if analysis_bound is None else analysis_bound.as_dict()
+    excluded_entry_count = 0
+    period_precision_excluded = 0
 
     by_currency: dict[str, _EconomicFlowBucket] = {}
     netting: list[tuple[str, int, int, str]] = []
     for row in rows:
         bucket = by_currency.setdefault(row["currency"], _empty_bucket())
         bucket["entries"] += 1
-        if covered_start is not None and not (
-            covered_start <= row["posted_date"] <= covered_end
-        ):
+        posted_date = row["posted_date"]
+        if not covers_date(covered_intervals, posted_date):
             bucket["outside_covered_window"] += 1
-        if analysis_start is not None and not (
-            analysis_start <= row["posted_date"] <= analysis_end
-        ):
+        if row["effective_precision"] == "MONTH":
+            in_analysis = any(
+                interval.contains_interval(month_span(posted_date[:7]))
+                for interval in analysis_intervals
+            )
+            if not in_analysis and covers_date(analysis_intervals, posted_date):
+                period_precision_excluded += 1
+        else:
+            in_analysis = covers_date(analysis_intervals, posted_date)
+        if not in_analysis:
             bucket["outside_analysis_window"] += 1
+            excluded_entry_count += 1
             continue
-        period = row["posted_date"][:7]
+        period = posted_date[:7]
         if row["is_linked"]:
             bucket["excluded_linked"] += 1
         elif row["economic_direction"] == "OUT":
@@ -393,14 +412,20 @@ def _economic_flow(
                 "entries_outside_analysis_window": values["outside_analysis_window"],
                 "coverage_complete": (
                     analysis_window_kind == "EXPLICIT"
-                    or values["outside_covered_window"] == 0
+                    or (contract.status == "COVERED" and values["outside_covered_window"] == 0)
                 ),
                 "covered_window": covered_window,
                 "analysis_window": analysis_window,
             }
         )
     any_incomplete = any(not currency["coverage_complete"] for currency in currencies)
-    if any_incomplete:
+    # A GAPPED or UNAVAILABLE intersection withholds the consolidated total even
+    # when no entry happens to fall outside it (e.g. an empty export): a missing
+    # period must read as null, never as a measured zero (§2).
+    coverage_withheld = (
+        analysis_window_kind != "EXPLICIT" and contract.status != "COVERED"
+    )
+    if any_incomplete or coverage_withheld:
         consolidated_total, consolidated_status = None, "UNAVAILABLE_COVERAGE_INCOMPLETE"
     else:
         consolidated_total, consolidated_status = _consolidate_sgd(connection, netting)
@@ -410,9 +435,21 @@ def _economic_flow(
         "reporting_currency": _REPORTING_CURRENCY,
         "consolidated_sgd_total": consolidated_total,
         "consolidated_sgd_total_status": consolidated_status,
-        "coverage_complete": not any_incomplete,
+        "coverage_complete": not any_incomplete and not coverage_withheld,
         "analysis_window": analysis_window,
         "analysis_window_kind": analysis_window_kind,
+        "coverage_policy_version": COVERAGE_POLICY_VERSION,
+        "coverage_status": contract.status,
+        "coverage_status_reasons": contract.reasons,
+        "required_sources": contract.required_sources,
+        "source_intervals": contract.source_intervals,
+        "covered_intervals": [interval.as_dict() for interval in covered_intervals],
+        "requested_window": (
+            {"start": start, "end": end} if start is not None and end is not None else None
+        ),
+        "analysis_intervals": [interval.as_dict() for interval in analysis_intervals],
+        "excluded_entry_count": excluded_entry_count,
+        "period_precision_excluded": period_precision_excluded,
         "currencies": currencies,
         "coverage": coverage,
         "dangling_decisions": dangling,
@@ -479,50 +516,158 @@ def _classify_inbound(bucket: _EconomicFlowBucket, row: sqlite3.Row) -> bool:
     return False
 
 
-def _covered_window(
-    coverage: list[dict[str, Any]],
-) -> tuple[str | None, str | None]:
-    """Intersection of every accepted, selected source's period (§11).
+@dataclass(frozen=True, slots=True)
+class _CoverageContract:
+    """The F23 interval-set coverage contract for one database."""
 
-    An entry outside this window is not fully cross-source observed, so it is
-    excluded from the per-currency baselines. This uses one window for all
-    currencies; per-pocket coverage is a tracked refinement.
+    required_sources: list[str]
+    source_intervals: dict[str, dict[str, Any]]
+    covered_intervals: list[DateInterval]
+    status: str
+    reasons: list[str]
+
+
+def _required_source_families(connection: sqlite3.Connection) -> list[str]:
+    """Every inventoried supported source family, before eligibility filtering.
+
+    Quarantined and stale-only sources still appear here: a family that has been
+    imported at all is required, and a required family with no eligible interval
+    contributes an empty set that collapses the intersection rather than
+    silently dropping out (§2).
     """
-    spans: dict[str, tuple[str, str]] = {}
-    for source in coverage:
-        if source["status"] != "ACCEPTED" or source["selection_state"] != "SELECTED":
-            continue
-        if not source["period_start"] or not source["period_end"]:
-            continue
-        source_type = source["source_type"]
-        start, end = source["period_start"], source["period_end"]
-        if source_type in spans:
-            low, high = spans[source_type]
-            spans[source_type] = (min(low, start), max(high, end))
+    families = {
+        str(row[0])
+        for row in connection.execute("SELECT DISTINCT source_type FROM statements")
+    }
+    if connection.execute(
+        "SELECT 1 FROM extraction_runs "
+        "WHERE source_profile_version LIKE 'revolut-csv-%' LIMIT 1"
+    ).fetchone():
+        families.add("REVOLUT_CSV")
+    return sorted(families)
+
+
+def _family_eligible_intervals(
+    connection: sqlite3.Connection, family: str
+) -> tuple[list[DateInterval], str, bool]:
+    """Accepted, analytically selected intervals for one source family.
+
+    Returns ``(intervals, basis, completeness_established)``. Revolut has no
+    statement-period table, so its first/last posted entry dates are its
+    coverage proxy under the ``observed_entry_span`` basis, and export
+    completeness is not independently established (§2).
+    """
+    if family == "REVOLUT_CSV":
+        rows = connection.execute(
+            """
+            SELECT min(substr(e.effective_at, 1, 10)) AS lo,
+                   max(substr(e.effective_at, 1, 10)) AS hi
+            FROM extraction_runs x
+            JOIN ledger_entries e ON e.extraction_run_id = x.id
+            WHERE e.source_family = 'CSV'
+              AND x.source_profile_version LIKE 'revolut-csv-%'
+              AND x.status = 'ACCEPTED' AND x.selection_state = 'SELECTED'
+            GROUP BY x.id
+            """
+        ).fetchall()
+        spans = [DateInterval(row["lo"], row["hi"]) for row in rows if row["lo"] and row["hi"]]
+        return spans, "observed_entry_span", False
+    rows = connection.execute(
+        """
+        SELECT s.period_start AS lo, s.period_end AS hi
+        FROM statements s JOIN extraction_runs x ON x.id = s.extraction_run_id
+        WHERE s.source_type = ? AND x.status = 'ACCEPTED'
+          AND s.selection_state = 'SELECTED'
+          AND s.period_start IS NOT NULL AND s.period_end IS NOT NULL
+        """,
+        (family,),
+    ).fetchall()
+    return [DateInterval(row["lo"], row["hi"]) for row in rows], "statement_period", True
+
+
+def _family_evidence_refs(connection: sqlite3.Connection, family: str) -> list[str]:
+    if family == "REVOLUT_CSV":
+        rows = connection.execute(
+            "SELECT DISTINCT evidence_sha256 FROM extraction_runs "
+            "WHERE source_profile_version LIKE 'revolut-csv-%' "
+            "AND status = 'ACCEPTED' AND selection_state = 'SELECTED'"
+        )
+    else:
+        rows = connection.execute(
+            "SELECT DISTINCT s.evidence_sha256 FROM statements s "
+            "JOIN extraction_runs x ON x.id = s.extraction_run_id "
+            "WHERE s.source_type = ? AND x.status = 'ACCEPTED' "
+            "AND s.selection_state = 'SELECTED'",
+            (family,),
+        )
+    return sorted(str(row[0]) for row in rows if row[0])
+
+
+def _coverage_contract(connection: sqlite3.Connection) -> _CoverageContract:
+    """Normalize each required family's intervals and intersect them (§2)."""
+    required = _required_source_families(connection)
+    source_intervals: dict[str, dict[str, Any]] = {}
+    family_sets: list[list[DateInterval]] = []
+    empty_families: list[str] = []
+    for family in required:
+        raw, basis, established = _family_eligible_intervals(connection, family)
+        merged = normalize(raw)
+        source_intervals[family] = {
+            "basis": basis,
+            "completeness_established": established,
+            "intervals": [interval.as_dict() for interval in merged],
+            "evidence_refs": _family_evidence_refs(connection, family),
+            "warnings": (
+                []
+                if established
+                else ["export completeness was not independently established"]
+            ),
+        }
+        family_sets.append(merged)
+        if not merged:
+            empty_families.append(family)
+
+    covered = intersect_all(family_sets) if required else []
+    reasons: list[str] = []
+    if not required:
+        status = "UNAVAILABLE"
+        reasons.append("no inventoried source families")
+    elif not covered:
+        status = "UNAVAILABLE"
+        if empty_families:
+            reasons.append(
+                "required source families with no eligible interval: "
+                + ", ".join(empty_families)
+            )
         else:
-            spans[source_type] = (start, end)
-    if not spans:
-        return None, None
-    # Same-source periods union; distinct sources must overlap to count as
-    # fully cross-source observed.
-    return (
-        max(low for low, _ in spans.values()),
-        min(high for _, high in spans.values()),
-    )
+            reasons.append("required source families do not overlap")
+    elif len(covered) == 1:
+        status = "COVERED"
+    else:
+        status = "GAPPED"
+        reasons.append(
+            "coverage is split across "
+            + ", ".join(f"{interval.start}..{interval.end}" for interval in covered)
+        )
+    return _CoverageContract(required, source_intervals, covered, status, reasons)
 
 
-def _analysis_window(
-    covered_start: str | None,
-    covered_end: str | None,
+def _analysis_intervals(
+    covered: list[DateInterval],
     *,
     start: str | None,
     end: str | None,
-) -> tuple[str | None, str | None, str]:
-    """Validate an explicit analysis window against the coverage intersection."""
+) -> tuple[list[DateInterval], str]:
+    """Resolve the analysis interval set from an optional explicit window (§2).
+
+    Without ``--start``/``--end`` the analysis set is the covered intersection.
+    An explicit window must lie wholly inside a single covered interval; one
+    that crosses a coverage gap is refused with the uncovered dates named.
+    """
     if (start is None) != (end is None):
         raise FinCLError("economic-flow requires --start and --end together")
     if start is None:
-        return covered_start, covered_end, "COVERAGE_INTERSECTION"
+        return covered, "COVERAGE_INTERSECTION"
     assert end is not None
     try:
         parsed_start, parsed_end = date.fromisoformat(start), date.fromisoformat(end)
@@ -530,14 +675,16 @@ def _analysis_window(
         raise FinCLError("economic-flow dates must use YYYY-MM-DD") from exc
     if parsed_start > parsed_end:
         raise FinCLError("economic-flow --start must not be after --end")
-    if covered_start is None or covered_end is None or covered_start > covered_end:
+    if not covered:
         raise FinCLError("economic-flow has no non-empty cross-source covered window")
-    if start < covered_start or end > covered_end:
+    if not contains_range(covered, start, end):
+        gaps = uncovered_dates(covered, start, end)
         raise FinCLError(
-            "economic-flow analysis window must be inside the covered window "
-            f"{covered_start}..{covered_end}"
+            "economic-flow analysis window is not inside a single covered window; "
+            "uncovered dates: "
+            + ", ".join(f"{gap.start}..{gap.end}" for gap in gaps)
         )
-    return start, end, "EXPLICIT"
+    return [DateInterval(start, end)], "EXPLICIT"
 
 
 def build_economic_flow_report(
@@ -553,10 +700,17 @@ def build_economic_flow_report(
         )
     else:
         consolidated_line = f"consolidated_sgd_total: {data['consolidated_sgd_total']} SGD"
+    covered_intervals = ", ".join(
+        f"{interval['start']}..{interval['end']}" for interval in data["covered_intervals"]
+    )
     lines = [
         "economic_flow: per-currency exact totals",
         consolidated_line,
         f"coverage_complete: {data['coverage_complete']}",
+        f"coverage_status: {data['coverage_status']} [{covered_intervals}]"
+        f" ({data['coverage_policy_version']})",
+        f"excluded_entry_count: {data['excluded_entry_count']} "
+        f"(period_precision_excluded={data['period_precision_excluded']})",
         "analysis_window: "
         f"{data['analysis_window']} ({data['analysis_window_kind']})",
         f"dangling_decisions: {data['dangling_decisions']}",
@@ -611,6 +765,7 @@ def coverage_report_data(database_path: Path) -> dict[str, Any]:
                     "unresolved_pages": row["unresolved_pages"],
                 }
             )
+        contract = _coverage_contract(connection)
         data = {
             "statements": statements,
             "confirmed_transfer_links": connection.execute(
@@ -619,6 +774,14 @@ def coverage_report_data(database_path: Path) -> dict[str, Any]:
             "dangling_decisions": _dangling_decisions(connection),
             "needs_reextraction": needs_reextraction(connection),
             "categories": _category_warnings(connection, recompute=True),
+            "coverage_policy_version": COVERAGE_POLICY_VERSION,
+            "coverage_status": contract.status,
+            "coverage_status_reasons": contract.reasons,
+            "required_sources": contract.required_sources,
+            "source_intervals": contract.source_intervals,
+            "covered_intervals": [
+                interval.as_dict() for interval in contract.covered_intervals
+            ],
         }
     return data
 
@@ -698,6 +861,13 @@ def build_coverage_report(database_path: Path) -> str:
             f"{statement['status']} {statement['selection_state']} {statement['pages']} "
             f"{statement['transaction_rows']} {statement['unresolved_pages']}"
         )
+    covered_intervals = ", ".join(
+        f"{interval['start']}..{interval['end']}" for interval in data["covered_intervals"]
+    )
+    lines.append(
+        f"coverage_status={data['coverage_status']} covered_intervals=[{covered_intervals}] "
+        f"required_sources={','.join(data['required_sources'])}"
+    )
     lines.append(f"confirmed_transfer_links={data['confirmed_transfer_links']}")
     lines.append(f"dangling_decisions={data['dangling_decisions']}")
     lines.append(f"needs_reextraction={len(stale)}")

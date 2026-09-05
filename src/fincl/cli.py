@@ -193,6 +193,13 @@ def coverage(
                 str(statement["transaction_rows"]),
             )
         console.print(table)
+        covered = ", ".join(
+            f"{interval['start']}..{interval['end']}" for interval in data["covered_intervals"]
+        )
+        console.print(
+            f"Coverage status: {data['coverage_status']} [{covered or 'none'}] "
+            f"(required: {', '.join(data['required_sources']) or 'none'})"
+        )
         console.print(f"Confirmed transfer links: {data['confirmed_transfer_links']}")
         console.print(f"Dangling journal decisions: {data['dangling_decisions']}")
         stale = data["needs_reextraction"]
@@ -247,6 +254,19 @@ def economic_flow(
         else:
             console.print(f"Consolidated SGD total: {data['consolidated_sgd_total']} SGD.")
         console.print(f"Coverage complete: {data['coverage_complete']}")
+        covered = ", ".join(
+            f"{interval['start']}..{interval['end']}" for interval in data["covered_intervals"]
+        )
+        console.print(
+            f"Coverage status: {data['coverage_status']} [{covered or 'none'}]"
+        )
+        for reason in data["coverage_status_reasons"]:
+            console.print(f"  - {reason}")
+        if data["excluded_entry_count"]:
+            console.print(
+                f"Entries excluded from analysis: {data['excluded_entry_count']} "
+                f"(period-precision: {data['period_precision_excluded']})"
+            )
         console.print(
             f"Analysis window: {data['analysis_window']} ({data['analysis_window_kind']})"
         )

@@ -15,9 +15,15 @@ from fincl.db import (
 )
 from fincl.decision_journal import default_journal_path, read_records
 from fincl.errors import FinCLError, SchemaVersionError
+from fincl.intervals import DateInterval, intersect_all, normalize
 from fincl.rebuild import rebuild_database
 from fincl.recovery import recover_extraction
-from fincl.report import build_profile_report, economic_flow_report_data, profile_report_data
+from fincl.report import (
+    _analysis_intervals,
+    build_profile_report,
+    economic_flow_report_data,
+    profile_report_data,
+)
 from fincl.revolut import EXPECTED_HEADER
 from fincl.service import FinCLService
 
@@ -423,90 +429,77 @@ class EconomicFlowInboundBucketTests(unittest.TestCase):
 
 
 class CoveredWindowTests(unittest.TestCase):
-    def _coverage(self, *spans: tuple[str, str, str]) -> list[dict[str, object]]:
-        return [
-            {
-                "source_type": source_type,
-                "period_start": start,
-                "period_end": end,
-                "status": "ACCEPTED",
-                "selection_state": "SELECTED",
-            }
-            for source_type, start, end in spans
-        ]
+    def _spans(self, *pairs: tuple[str, str]) -> list[DateInterval]:
+        return [DateInterval(start, end) for start, end in pairs]
 
     def test_single_source_window_is_its_own_range(self):
-        from fincl.report import _covered_window
-
         self.assertEqual(
-            _covered_window(self._coverage(("REVOLUT_CSV", "2026-01-01", "2026-01-31"))),
-            ("2026-01-01", "2026-01-31"),
+            intersect_all([self._spans(("2026-01-01", "2026-01-31"))]),
+            [DateInterval("2026-01-01", "2026-01-31")],
         )
 
-    def test_same_source_periods_union(self):
-        from fincl.report import _covered_window
-
+    def test_same_source_periods_union_when_overlapping_or_adjacent(self):
         self.assertEqual(
-            _covered_window(
-                self._coverage(
-                    ("REVOLUT_CSV", "2026-01-01", "2026-01-15"),
-                    ("REVOLUT_CSV", "2026-01-10", "2026-02-05"),
+            normalize(
+                self._spans(
+                    ("2026-01-01", "2026-01-15"),
+                    ("2026-01-16", "2026-02-05"),
                 )
             ),
-            ("2026-01-01", "2026-02-05"),
+            [DateInterval("2026-01-01", "2026-02-05")],
         )
 
     def test_distinct_sources_intersect(self):
-        from fincl.report import _covered_window
-
         self.assertEqual(
-            _covered_window(
-                self._coverage(
-                    ("REVOLUT_CSV", "2026-01-01", "2026-01-31"),
-                    ("DBS_CONSOLIDATED", "2026-01-10", "2026-02-28"),
-                )
+            intersect_all(
+                [
+                    self._spans(("2026-01-01", "2026-01-31")),
+                    self._spans(("2026-01-10", "2026-02-28")),
+                ]
             ),
-            ("2026-01-10", "2026-01-31"),
+            [DateInterval("2026-01-10", "2026-01-31")],
         )
 
-    def test_quarantined_source_does_not_contribute(self):
-        from fincl.report import _covered_window
-
-        coverage = self._coverage(("REVOLUT_CSV", "2026-01-01", "2026-01-31"))
-        coverage.append(
-            {
-                "source_type": "DBS_CONSOLIDATED", "period_start": "2026-06-01",
-                "period_end": "2026-06-30", "status": "QUARANTINED",
-                "selection_state": "QUARANTINED",
-            }
-        )
-        self.assertEqual(_covered_window(coverage), ("2026-01-01", "2026-01-31"))
-
-    def test_explicit_analysis_window_must_be_inside_coverage(self):
-        from fincl.report import _analysis_window
-
+    def test_a_required_family_with_no_interval_collapses_the_intersection(self):
         self.assertEqual(
-            _analysis_window(
-                "2026-01-10", "2026-01-31", start="2026-01-15", end="2026-01-20"
-            ),
-            ("2026-01-15", "2026-01-20", "EXPLICIT"),
+            intersect_all([self._spans(("2026-01-01", "2026-01-31")), []]),
+            [],
         )
-        with self.assertRaisesRegex(FinCLError, "inside the covered window"):
-            _analysis_window(
-                "2026-01-10", "2026-01-31", start="2026-01-01", end="2026-01-20"
-            )
+
+    def test_disjoint_intersection_keeps_every_interval(self):
+        self.assertEqual(
+            intersect_all(
+                [
+                    self._spans(("2026-01-01", "2026-01-31"), ("2026-03-01", "2026-03-31")),
+                    self._spans(("2026-01-01", "2026-03-31")),
+                ]
+            ),
+            [
+                DateInterval("2026-01-01", "2026-01-31"),
+                DateInterval("2026-03-01", "2026-03-31"),
+            ],
+        )
+
+    def test_explicit_analysis_window_must_lie_inside_one_covered_interval(self):
+        covered = [
+            DateInterval("2026-01-01", "2026-01-31"),
+            DateInterval("2026-03-01", "2026-03-31"),
+        ]
+        self.assertEqual(
+            _analysis_intervals(covered, start="2026-01-15", end="2026-01-20"),
+            ([DateInterval("2026-01-15", "2026-01-20")], "EXPLICIT"),
+        )
+        with self.assertRaisesRegex(FinCLError, "2026-02-01..2026-02-28"):
+            _analysis_intervals(covered, start="2026-01-15", end="2026-03-10")
 
     def test_explicit_analysis_window_requires_two_ordered_iso_dates(self):
-        from fincl.report import _analysis_window
-
+        covered = [DateInterval("2026-01-01", "2026-01-31")]
         with self.assertRaisesRegex(FinCLError, "--start and --end together"):
-            _analysis_window("2026-01-01", "2026-01-31", start="2026-01-10", end=None)
+            _analysis_intervals(covered, start="2026-01-10", end=None)
         with self.assertRaisesRegex(FinCLError, "YYYY-MM-DD"):
-            _analysis_window("2026-01-01", "2026-01-31", start="Jan 10", end="2026-01-20")
+            _analysis_intervals(covered, start="Jan 10", end="2026-01-20")
         with self.assertRaisesRegex(FinCLError, "must not be after"):
-            _analysis_window(
-                "2026-01-01", "2026-01-31", start="2026-01-20", end="2026-01-10"
-            )
+            _analysis_intervals(covered, start="2026-01-20", end="2026-01-10")
 
 
 if __name__ == "__main__":
