@@ -267,6 +267,17 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             verified_hash TEXT NOT NULL
         ) STRICT;
 
+        -- Applied schema migrations (F27, DESIGN-recovery-and-application.md §5).
+        -- `from_version`, `to_version`, and `checksum` are immutable once
+        -- written. Normal startup never migrates; `fincl` applies a migration
+        -- only on explicit request and only after a verified backup.
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            to_version INTEGER PRIMARY KEY,
+            from_version INTEGER NOT NULL,
+            checksum TEXT NOT NULL,
+            applied_at TEXT NOT NULL
+        ) STRICT;
+
         CREATE TABLE IF NOT EXISTS import_runs (
             id TEXT PRIMARY KEY,
             started_at TEXT NOT NULL,

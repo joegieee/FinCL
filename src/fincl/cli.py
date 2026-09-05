@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .association import adopt_ledger
+from .backup import backup_ledger, restore_ledger
 from .categorization import (
     canonical_amount_band,
     canonical_match,
@@ -416,6 +417,56 @@ def adopt_ledger_command(
                 "journal_relative_path": association.journal_relative_path,
                 "verified_seq": association.verified_seq,
                 "verified_hash": association.verified_hash,
+            },
+            plain,
+            json_output,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@app.command("backup")
+def backup_command(
+    database: Path = typer.Option(..., "--database"),
+    evidence_dir: Path = typer.Option(..., "--evidence-dir"),
+    output: Path = typer.Option(..., "--output", help="New bundle directory; must not exist."),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Capture a verified backup bundle (database, journal, evidence, manifest)."""
+    try:
+        result = backup_ledger(database, evidence_dir, output)
+        _emit_mapping(
+            {
+                "status": "BACKED_UP",
+                "location": result.location,
+                "ledger_id": result.ledger_id,
+                "evidence_objects": result.evidence_objects,
+                "journal_seq": result.journal_seq,
+            },
+            plain,
+            json_output,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@app.command("restore")
+def restore_command(
+    backup: Path = typer.Option(..., "--backup", help="Bundle produced by `fincl backup`."),
+    output: Path = typer.Option(..., "--output", help="New ledger directory; must not exist."),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Verify a backup bundle and restore it into a new directory."""
+    try:
+        result = restore_ledger(backup, output)
+        _emit_mapping(
+            {
+                "status": "RESTORED",
+                "location": result.location,
+                "ledger_id": result.ledger_id,
+                "evidence_objects": result.evidence_objects,
             },
             plain,
             json_output,
