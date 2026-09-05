@@ -7,6 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import NamedTuple
 
+from .association import advance_checkpoint, require_valid_association
 from .categorization import (
     CATEGORIZATION_DECISION_KINDS,
     CATEGORY_OVERRIDE,
@@ -19,7 +20,7 @@ from .categorization import (
     validate_payload,
 )
 from .common import canonical_json, resolve_category
-from .decision_journal import JournalRecord, default_journal_path, read_records
+from .decision_journal import GENESIS_HASH, JournalRecord, default_journal_path, read_records
 from .errors import FinCLError
 
 NATURAL_ANCHOR_VERSION = "natural-anchor-v1"
@@ -52,11 +53,15 @@ KNOWN_DECISION_KINDS = frozenset(
 SUPERSEDED_ANCHOR_VERSIONS: frozenset[str] = frozenset()
 
 
-def journal_path_for(connection: sqlite3.Connection) -> Path:
+def database_path_of(connection: sqlite3.Connection) -> Path:
     row = connection.execute("PRAGMA database_list").fetchone()
     if row is None or not row[2]:
         raise FinCLError("cannot determine the SQLite database path for decision replay")
-    return default_journal_path(Path(row[2]))
+    return Path(row[2])
+
+
+def journal_path_for(connection: sqlite3.Connection) -> Path:
+    return default_journal_path(database_path_of(connection))
 
 
 def entry_anchor(connection: sqlite3.Connection, entry_id: str) -> str:
@@ -150,7 +155,20 @@ def invariant_violation_is_live(
 
 
 def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = None) -> tuple[int, int]:
-    """Verify and project the complete journal; return bound and dangling counts."""
+    """Verify and project the complete journal; return bound and dangling counts.
+
+    When ``journal_path`` is not given this is a real ledger being opened: the
+    journal↔ledger association and its sequence/hash checkpoint are validated
+    before any projection row is deleted (F24), and the checkpoint is advanced
+    to the journal head once the replay succeeds. An explicit ``journal_path``
+    is a rebuild staging replay against the source journal and is not
+    association-checked here — ``rebuild`` performs its own F24 handling.
+    """
+    verify_association = journal_path is None
+    database_path = database_path_of(connection) if verify_association else None
+    if verify_association:
+        assert database_path is not None
+        require_valid_association(connection, database_path)
     records = read_records(journal_path or journal_path_for(connection))
     with connection:
         for table in (
@@ -165,6 +183,10 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
         for record in records:
             _apply_record(connection, record)
         connection.execute("UPDATE decision_watermark SET applied_seq = ? WHERE id = 1", (len(records),))
+        if verify_association:
+            assert database_path is not None
+            head = records[-1].record_hash if records else GENESIS_HASH
+            advance_checkpoint(connection, database_path, len(records), head)
     bound = connection.execute(
         "SELECT (SELECT count(*) FROM link_decisions WHERE bound=1) + "
         "(SELECT count(*) FROM invariant_escapes WHERE bound=1) + "

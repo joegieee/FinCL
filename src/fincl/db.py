@@ -252,6 +252,21 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             value TEXT NOT NULL
         ) STRICT;
 
+        -- Binds this database to its decision journal (F24,
+        -- DESIGN-recovery-and-application.md §3). `verified_seq`/`verified_hash`
+        -- is a checkpoint an internally valid hash chain cannot supply: it is
+        -- what detects removal of a complete journal tail. Added additively at
+        -- schema 8 so an existing ledger keeps working and is bound explicitly
+        -- with `fincl adopt-ledger` rather than forced through a rebuild.
+        CREATE TABLE IF NOT EXISTS ledger_association (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            ledger_id TEXT NOT NULL,
+            journal_relative_path TEXT NOT NULL,
+            journal_id TEXT NOT NULL,
+            verified_seq INTEGER NOT NULL CHECK (verified_seq >= 0),
+            verified_hash TEXT NOT NULL
+        ) STRICT;
+
         CREATE TABLE IF NOT EXISTS import_runs (
             id TEXT PRIMARY KEY,
             started_at TEXT NOT NULL,

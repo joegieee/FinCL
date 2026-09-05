@@ -9,7 +9,8 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-from .db import connect_sqlite
+from .association import copy_association_for_rebuild
+from .db import connect_sqlite, initialize_schema
 from .decision_journal import default_journal_path
 from .document_service import DocumentImportService, link_narrow_transfers
 from .engine import categorize
@@ -49,6 +50,12 @@ def rebuild_database(database: Path, evidence_directory: Path, output: Path) -> 
     output = Path(output).resolve()
     if database == output:
         raise FinCLError("rebuild output must differ from the source database")
+    if output.parent != database.parent:
+        raise FinCLError(
+            "the first F24 implementation only supports a same-directory rebuild: the "
+            "rebuilt copy keeps the source ledger identity and shares its one decision "
+            "journal. Use `fincl backup` / `fincl restore` to relocate a ledger."
+        )
     if not database.is_file():
         raise FinCLError(f"source database does not exist: {database}")
     if output.exists():
@@ -66,6 +73,12 @@ def rebuild_database(database: Path, evidence_directory: Path, output: Path) -> 
     accepted = 0
     quarantined = 0
     try:
+        # Establish the staging database's journal association up front so the
+        # per-source imports (each replays the shared journal on open) validate
+        # against the source ledger's identity and checkpoint rather than
+        # refusing an un-adopted database (F24). A same-directory rebuild is a
+        # replacement candidate for one ledger and shares its one journal.
+        _initialize_staging_association(database, staging)
         for source in sources:
             suffix = ".csv" if source.profile.startswith("revolut-") else ".pdf"
             materialized_path: Path | None = None
@@ -113,6 +126,21 @@ def rebuild_database(database: Path, evidence_directory: Path, output: Path) -> 
         staging.unlink(missing_ok=True)
         raise
     return RebuildResult(output, len(sources), accepted, quarantined, decisions_bound, decisions_dangling)
+
+
+def _initialize_staging_association(source: Path, staging: Path) -> None:
+    connection = connect_sqlite(staging)
+    try:
+        initialize_schema(connection)
+        reader = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
+        reader.row_factory = sqlite3.Row
+        try:
+            copy_association_for_rebuild(reader, connection)
+        finally:
+            reader.close()
+        connection.commit()
+    finally:
+        connection.close()
 
 
 def _sources_to_rebuild(database: Path) -> list[_Source]:

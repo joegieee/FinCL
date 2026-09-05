@@ -11,6 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from .association import adopt_ledger
 from .categorization import (
     canonical_amount_band,
     canonical_match,
@@ -20,7 +21,7 @@ from .categorization import (
 from .common import resolve_category
 from .db import connect_sqlite, initialize_schema
 from .decision_journal import append_decision, default_journal_path
-from .decisions import entry_anchor, invariant_violation_is_live, resolve_anchor
+from .decisions import entry_anchor, invariant_violation_is_live, replay_journal, resolve_anchor
 from .document_service import DocumentImportService, link_narrow_transfers
 from .engine import categorize as run_categorize
 from .engine import summarize_run
@@ -394,6 +395,33 @@ def rebuild(
             "no longer bind to a live anchor"
         )
         raise typer.Exit(3)
+
+
+@app.command("adopt-ledger")
+def adopt_ledger_command(
+    database: Path = typer.Option(..., "--database", help="Existing ledger to bind to its journal."),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Bind a legacy ledger to its decision journal (F24 journal association)."""
+    try:
+        with _ledger(database) as connection:
+            association = adopt_ledger(connection, Path(database))
+            replay_journal(connection)
+        _emit_mapping(
+            {
+                "status": "ADOPTED",
+                "ledger_id": association.ledger_id,
+                "journal_id": association.journal_id,
+                "journal_relative_path": association.journal_relative_path,
+                "verified_seq": association.verified_seq,
+                "verified_hash": association.verified_hash,
+            },
+            plain,
+            json_output,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
 
 
 @app.command("repair")
