@@ -71,14 +71,6 @@ def exact_sum(*values: ExactMoney) -> tuple[int, int]:
     return coefficient, scale
 
 
-def compare(left: ExactMoney, right: ExactMoney) -> int:
-    """Compare exact decimals after safely aligning to their greatest scale."""
-    scale = max(left.scale, right.scale)
-    a = left.rescaled_coefficient(scale)
-    b = right.rescaled_coefficient(scale)
-    return (a > b) - (a < b)
-
-
 def format_decimal(coefficient: int, scale: int) -> str:
     sign = "-" if coefficient < 0 else ""
     digits = str(abs(coefficient))
