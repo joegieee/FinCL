@@ -4,6 +4,7 @@ from fincl.money import (
     MAX_ABS_COEFFICIENT,
     MAX_SCALE,
     ExactMoney,
+    compare,
     exact_sum,
     format_decimal,
 )
@@ -41,6 +42,11 @@ class ExactMoneyTests(unittest.TestCase):
         )
         self.assertEqual((coefficient, scale), (3197, 3))
         self.assertEqual(format_decimal(coefficient, scale), "3.197")
+
+    def test_compare_aligns_scales_without_float_conversion(self):
+        self.assertEqual(compare(ExactMoney.parse("10.00"), ExactMoney.parse("10")), 0)
+        self.assertEqual(compare(ExactMoney.parse("9.999"), ExactMoney.parse("10")), -1)
+        self.assertEqual(compare(ExactMoney.parse("10.001"), ExactMoney.parse("10")), 1)
 
 
 if __name__ == "__main__":
