@@ -5,7 +5,9 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from fincl import refresh as refresh_module
 from fincl.application import RequestIdConflict, record_decision
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.decision_journal import append_decision, default_journal_path, read_records
@@ -96,6 +98,26 @@ class CommandReceiptTests(unittest.TestCase):
             connection.close()
         self.assertEqual(row["intent_hash"], "i9")
         self.assertEqual(row["journal_seq"], 1)
+
+    def test_a_failed_refresh_still_records_the_decision_as_pending(self) -> None:
+        with mock.patch.object(
+            refresh_module, "publish_generation", side_effect=RuntimeError("x")
+        ):
+            receipt = self._override(
+                "req-pending", category="Food & Dining / Cafes & Drinks", intent="ip"
+            )
+        self.assertTrue(receipt.appended)
+        self.assertTrue(receipt.refresh_pending)
+        self.assertIsNone(receipt.generation_token)
+        self.assertEqual(self._journal_len(), 1)
+
+        # A retry with the same id is idempotent even though the refresh failed.
+        again = self._override(
+            "req-pending", category="Food & Dining / Cafes & Drinks", intent="ip"
+        )
+        self.assertFalse(again.appended)
+        self.assertEqual(again.journal_seq, receipt.journal_seq)
+        self.assertEqual(self._journal_len(), 1)
 
     def test_recovers_a_durable_append_without_a_duplicate(self) -> None:
         # Simulate a crash after the journal append but before the projection

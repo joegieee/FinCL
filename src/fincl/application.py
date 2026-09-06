@@ -20,11 +20,10 @@ from pathlib import Path
 from .db import connect_sqlite, initialize_schema
 from .decision_journal import append_decision, default_journal_path
 from .decisions import replay_journal
-from .engine import categorize
 from .errors import FinCLError
-from .generation import current_generation, publish_generation
+from .generation import current_generation
 from .locking import ledger_writer
-from .reconciliation import link_narrow_transfers
+from .refresh import rebuild_projection
 
 
 class RequestIdConflict(FinCLError):
@@ -42,6 +41,10 @@ class DecisionReceipt:
     # this request id and intent was found and reused.
     appended: bool
     generation_token: str | None
+    # True when the journal append is durable but the projection refresh failed
+    # (the §2 `recorded_refresh_pending` outcome). A later `fincl refresh`
+    # converges; the receipt makes a retry idempotent in the meantime.
+    refresh_pending: bool = False
 
 
 def record_decision(
@@ -99,16 +102,17 @@ def record_decision(
                 anchor_version=anchor_version,
                 command={"request_id": request_id, "intent_hash": intent_hash},
             )
+            # The append is durable now. Project the receipt so a retry is
+            # idempotent even if the refresh below fails.
+            replay_journal(connection)
 
             token: str | None = None
+            refresh_failed = False
             if refresh:
-                link_narrow_transfers(connection)
-                categorize(connection)
-                token = publish_generation(connection)
-            else:
-                # Still project the new receipt so a retry is idempotent.
-                replay_journal(connection)
-            connection.commit()
+                try:
+                    _, token = rebuild_projection(connection)
+                except Exception:
+                    refresh_failed = True
 
             return DecisionReceipt(
                 request_id=request_id,
@@ -118,6 +122,7 @@ def record_decision(
                 decision_kind=decision_kind,
                 appended=True,
                 generation_token=token,
+                refresh_pending=refresh_failed,
             )
         finally:
             connection.close()
