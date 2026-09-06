@@ -186,3 +186,15 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .custom-category-row .mono{font-size:9px}
 .row-actions{display:flex;gap:6px}
 .rule-row form,.custom-category-row form{flex-basis:100%;border-top:1px dashed var(--border);margin-top:8px;padding-top:12px}
+
+/* v0.5 slice 4 — review hub */
+.review-hub{display:flex;flex-direction:column;gap:16px}
+.queue-summary{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.review-queue,.undo-panel{padding:20px!important}
+.issue-row{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px;border-top:1px solid var(--border);padding:12px 0}
+.issue-row>div:first-child{min-width:240px;flex:1}
+.issue-row strong{margin-left:8px}
+.issue-row p{color:var(--muted);font-size:11px;margin:4px 0}
+.issue-row .mono{font-size:9px}
+.inverse-preview{border-top:1px solid var(--border);margin-top:12px;padding-top:12px;font-size:12px}
+.inverse-preview code{font-size:11px}
