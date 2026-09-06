@@ -83,6 +83,12 @@ class Command(StrictModel):
     payload: dict[str,Any]
 
 
+class RuleDraft(StrictModel):
+    match: dict[str,Any]
+    category: str = Field(min_length=1,max_length=200)
+    reason: str = Field(min_length=1,max_length=2000)
+
+
 class BatchItem(StrictModel):
     kind: Literal[
         'CATEGORY_OVERRIDE','CATEGORY_OVERRIDE_RETIRE','INBOUND_CLASSIFICATION',
@@ -619,6 +625,34 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
         with ledger_writer(database):
             _validate(database,command)
         return {'valid':True,'generation':command.expected_generation,'effect':command.payload}
+
+    @app.post('/api/v1/rules/compile')
+    def rules_compile(draft: RuleDraft) -> Any:
+        # Server owns rule_id_for(); the browser cannot compute the anchor hash.
+        from .categorization import canonical_match, rule_id_for
+        from .custom_categories import custom_categories
+        from .db import connect_readonly
+        canonical = canonical_match(draft.match)
+        rule_id = rule_id_for(canonical)
+        resolve_category(draft.category, custom_categories(database))
+        connection = connect_readonly(database)
+        try:
+            key = next(k for k in ('merchant_canonical','paynow_to','description_prefix','description_contains') if k in canonical)
+            literal = canonical[key]
+            counts = {
+                'merchant_canonical': ('SELECT count(*) FROM merchant_observations WHERE merchant_normalized=? OR merchant_canonical=?', (literal,literal)),
+                'paynow_to': ('SELECT count(*) FROM merchant_observations WHERE paynow_to=?', (literal,)),
+                'description_prefix': ('SELECT count(*) FROM merchant_observations WHERE substr(description_text,1,?)=?', (len(literal),literal)),
+                'description_contains': ('SELECT count(*) FROM merchant_observations WHERE instr(description_text,?)>0', (literal,)),
+            }[key]
+            match_count = connection.execute(counts[0],counts[1]).fetchone()[0]
+        finally:
+            connection.close()
+        return {
+            'command': {'kind':'CATEGORY_RULE_SET','anchors':{'rule_id':rule_id},
+                        'payload':{'match':canonical,'category':draft.category,'reason':draft.reason}},
+            'match_count': match_count,
+        }
 
     @app.get('/api/v1/review')
     def unified_review() -> Any:

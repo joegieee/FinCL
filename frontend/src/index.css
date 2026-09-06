@@ -174,3 +174,15 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .account-details-form{border-top:1px solid var(--border);margin-top:12px;padding-top:14px}
 .alias-section{padding:20px!important}
 @media(max-width:700px){.form-row-3{grid-template-columns:1fr}.pocket-table{display:block;overflow-x:auto}}
+
+/* v0.5 slice 3 — rules and custom category management */
+.rules-view{display:flex;flex-direction:column;gap:18px}
+.rule-builder,.rules-list,.custom-category-manager{padding:20px!important}
+.inline-check{display:flex;flex-direction:row;align-items:center;gap:8px;font-size:11px;margin:4px 0 12px}
+.rule-row,.custom-category-row{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px;border-top:1px solid var(--border);padding:12px 0}
+.rule-row code{font-size:10px;word-break:break-all}
+.rule-row p,.custom-category-row small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
+.custom-category-row>div:first-child{min-width:220px}
+.custom-category-row .mono{font-size:9px}
+.row-actions{display:flex;gap:6px}
+.rule-row form,.custom-category-row form{flex-basis:100%;border-top:1px dashed var(--border);margin-top:8px;padding-top:12px}
