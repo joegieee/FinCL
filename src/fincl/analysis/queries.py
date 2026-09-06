@@ -244,6 +244,52 @@ def analysis_page(
             )
         ]
 
+        # Receipt-period category cost: gross spending per category minus the
+        # refund allocations whose refund was received inside the window,
+        # attributed to the refunded purchase's current category
+        # (DESIGN-relationships-and-cost.md §3). This can go negative for a
+        # category with refunds but no purchases in the window.
+        gross_by_cat = _grouped_spending(current_rows, "category_key") if covered else {}
+        refunds_by_cat: dict[str, list[ExactMoney]] = {}
+        if covered:
+            for row in connection.execute(
+                "SELECT ra.refund_coefficient, ra.refund_scale, ra.currency, "
+                "substr(re.effective_at, 1, 10) AS refund_date, "
+                "COALESCE(ec.group_name || ' / ' || ec.category, "
+                "         'Unclassified / Unclassified') AS category_key "
+                "FROM refund_allocations ra "
+                "JOIN ledger_entries re ON re.natural_anchor = ra.refund_anchor "
+                "JOIN extraction_runs xr ON xr.id = re.extraction_run_id "
+                "  AND xr.selection_state = 'SELECTED' "
+                "JOIN ledger_entries pe ON pe.natural_anchor = ra.purchase_anchor "
+                "LEFT JOIN entry_categories ec ON ec.entry_id = pe.id"
+            ):
+                if row["currency"] != scope.currency:
+                    continue
+                if not (scope.start <= row["refund_date"] <= scope.end):
+                    continue
+                if scope.category_keys and row["category_key"] not in scope.category_keys:
+                    continue
+                refunds_by_cat.setdefault(row["category_key"], []).append(
+                    ExactMoney(int(row["refund_coefficient"]), int(row["refund_scale"]), "")
+                )
+        receipt_period_cost = []
+        for name in sorted(set(gross_by_cat) | set(refunds_by_cat)):
+            gross_str = gross_by_cat.get(name, ("0", 0))[0]
+            refund_terms = refunds_by_cat.get(name, [])
+            refund_str = format_decimal(*exact_sum(*refund_terms)) if refund_terms else "0"
+            gross = ExactMoney.parse(gross_str)
+            refund = ExactMoney.parse(refund_str)
+            net_str = format_decimal(
+                *exact_sum(gross, ExactMoney(-refund.coefficient, refund.scale, ""))
+            )
+            receipt_period_cost.append({
+                "category": name,
+                "gross": _money(gross_str, currency),
+                "refunds_received": _money(refund_str, currency),
+                "net_cost": _money(net_str, currency),
+            })
+
         # Six calendar months ending at the most recent complete calendar month
         # whose end does not exceed the selected end.
         end_date = date.fromisoformat(scope.end)
@@ -293,6 +339,7 @@ def analysis_page(
                 "restated_using_current_categories": True,
             },
             "merchant_ranking": merchant_ranking,
+            "receipt_period_cost": receipt_period_cost,
             "contributors_handle": _handle(["spending"]),
         }
     finally:

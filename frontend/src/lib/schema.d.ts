@@ -290,6 +290,8 @@ export interface components {
             category_changes: components["schemas"]["CategoryChanges"];
             /** Merchant Ranking */
             merchant_ranking: components["schemas"]["MerchantRank"][];
+            /** Receipt Period Cost */
+            receipt_period_cost: components["schemas"]["CategoryCost"][];
             /** Contributors Handle */
             contributors_handle: string | null;
         };
@@ -368,6 +370,14 @@ export interface components {
             /** Restated Using Current Categories */
             restated_using_current_categories: boolean;
         };
+        /** CategoryCost */
+        CategoryCost: {
+            /** Category */
+            category: string;
+            gross: components["schemas"]["MoneyDTO"];
+            refunds_received: components["schemas"]["MoneyDTO"];
+            net_cost: components["schemas"]["MoneyDTO"];
+        };
         /** Command */
         Command: {
             /**
@@ -381,14 +391,14 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT";
             /** Anchors */
             anchors: {
                 [key: string]: string;
             };
             /** Payload */
             payload: {
-                [key: string]: string;
+                [key: string]: unknown;
             };
         };
         /** ComparisonDTO */

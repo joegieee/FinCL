@@ -38,10 +38,11 @@ class Command(StrictModel):
     kind: Literal[
         'CATEGORY_OVERRIDE','CATEGORY_CREATE','PLAN_SET','INBOUND_CLASSIFICATION',
         'TRANSFER_DECISION','DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE',
-        'CATEGORY_OVERRIDE_RETIRE',
+        'CATEGORY_OVERRIDE_RETIRE','REFUND_ALLOCATION_SET','REFUND_ALLOCATION_RETIRE',
+        'REFUND_LINK_REJECT',
     ]
     anchors: dict[str,str]
-    payload: dict[str,str]
+    payload: dict[str,Any]
 
 
 class BatchItem(StrictModel):
@@ -272,6 +273,13 @@ class MerchantRank(StrictModel):
     handle: str | None
 
 
+class CategoryCost(StrictModel):
+    category: str
+    gross: MoneyDTO
+    refunds_received: MoneyDTO
+    net_cost: MoneyDTO
+
+
 class ReviewProposal(StrictModel):
     primary: str
     candidate: str
@@ -305,6 +313,7 @@ class Analysis(StrictModel):
     trend: list[TrendPoint]
     category_changes: CategoryChanges
     merchant_ranking: list[MerchantRank]
+    receipt_period_cost: list[CategoryCost]
     contributors_handle: str | None
 
 
@@ -356,6 +365,19 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
             validate_override_retire(command.anchors, command.payload)
             if resolve_anchor(connection, command.anchors['entry']) is None:
                 raise FinCLError('The transaction no longer resolves')
+        elif command.kind in {'REFUND_ALLOCATION_SET','REFUND_ALLOCATION_RETIRE','REFUND_LINK_REJECT'}:
+            from .relationships import preview_refund_allocation, validate_refund_allocation
+            validate_refund_allocation(command.kind, command.anchors, command.payload)
+            for anchor in command.anchors.values():
+                if resolve_anchor(connection, anchor) is None:
+                    raise FinCLError('A referenced transaction no longer resolves')
+            if command.kind == 'REFUND_ALLOCATION_SET':
+                totals = preview_refund_allocation(
+                    connection, command.anchors['refund'],
+                    list(command.payload['allocations']),
+                    resolve_anchor=lambda a: resolve_anchor(connection, a),
+                )
+                extra = {k: str(v) for k, v in totals.items()}
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -480,11 +502,16 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
     @app.post('/api/v1/preview')
     def preview(command: Command) -> Any:
         with ledger_writer(database):
-            _validate(database,command)
-            note = ('Categories do not change cash-flow classification.' if command.kind.startswith('CATEGORY')
+            extra = _validate(database,command)
+            note = ('Refund allocation affects attributed and receipt-period cost, never the recorded cash flow or its date.' if command.kind.startswith('REFUND')
+                    else 'A confirmed duplicate removes the candidate from every total.' if command.kind.startswith('DUPLICATE')
+                    else 'Categories do not change cash-flow classification.' if command.kind.startswith('CATEGORY')
                     else 'A confirmed transfer removes both legs from spending and income.' if command.kind == 'TRANSFER_DECISION'
                     else 'Review these values before saving.')
-            return {'valid':True,'generation':command.expected_generation,'effect':command.payload,'note':note}
+            result = {'valid':True,'generation':command.expected_generation,'effect':command.payload,'note':note}
+            if command.kind == 'REFUND_ALLOCATION_SET':
+                result['totals'] = extra
+            return result
 
     @app.post('/api/v1/commands')
     def submit(command: Command) -> Any:

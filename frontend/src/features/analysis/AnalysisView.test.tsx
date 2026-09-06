@@ -39,7 +39,8 @@ function analysis(over: Record<string, unknown> = {}) {
       decreases: [{ category: 'Food & Dining / Groceries', current: money('27.50'), previous: money('50.00'), delta: money('-22.50'), pct: '-45.0', new_in_period: false, handle: 'h-cat' }],
       restated_using_current_categories: true,
     },
-    merchant_ranking: [{ merchant: 'ALPHA', value: money('20.00'), count: 1, handle: 'h-alpha' }],
+    receipt_period_cost: [{ category: "Food & Dining / Groceries", gross: money("27.50"), refunds_received: money("0"), net_cost: money("27.50") }],
+    merchant_ranking: [{ merchant: "ALPHA", value: money('20.00'), count: 1, handle: 'h-alpha' }],
     contributors_handle: 'h-all',
     ...over,
   }

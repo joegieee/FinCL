@@ -903,6 +903,13 @@
             "type": "array",
             "title": "Merchant Ranking"
           },
+          "receipt_period_cost": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCost"
+            },
+            "type": "array",
+            "title": "Receipt Period Cost"
+          },
           "contributors_handle": {
             "anyOf": [
               {
@@ -930,6 +937,7 @@
           "trend",
           "category_changes",
           "merchant_ranking",
+          "receipt_period_cost",
           "contributors_handle"
         ],
         "title": "Analysis"
@@ -1168,6 +1176,32 @@
         ],
         "title": "CategoryChanges"
       },
+      "CategoryCost": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/MoneyDTO"
+          },
+          "refunds_received": {
+            "$ref": "#/components/schemas/MoneyDTO"
+          },
+          "net_cost": {
+            "$ref": "#/components/schemas/MoneyDTO"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "category",
+          "gross",
+          "refunds_received",
+          "net_cost"
+        ],
+        "title": "CategoryCost"
+      },
       "Command": {
         "properties": {
           "request_id": {
@@ -1192,7 +1226,10 @@
               "DUPLICATE_CONFIRM",
               "DUPLICATE_REJECT",
               "DUPLICATE_RETIRE",
-              "CATEGORY_OVERRIDE_RETIRE"
+              "CATEGORY_OVERRIDE_RETIRE",
+              "REFUND_ALLOCATION_SET",
+              "REFUND_ALLOCATION_RETIRE",
+              "REFUND_LINK_REJECT"
             ],
             "title": "Kind"
           },
@@ -1204,9 +1241,7 @@
             "title": "Anchors"
           },
           "payload": {
-            "additionalProperties": {
-              "type": "string"
-            },
+            "additionalProperties": true,
             "type": "object",
             "title": "Payload"
           }

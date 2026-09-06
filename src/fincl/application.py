@@ -26,7 +26,7 @@ from .errors import FinCLError
 from .generation import current_generation
 from .locking import WriterContext, ledger_writer
 from .refresh import rebuild_projection
-from .relationships import preview_batch
+from .relationships import preview_batch, preview_refund_allocation
 
 
 class RequestIdConflict(FinCLError):
@@ -170,5 +170,48 @@ def record_batch(
             payload={"items": items, "reason": reason},
             policy_version=policy_version,
             snapshot=f"DECISION_BATCH: {len(items)} item(s)",
+            writer=held,
+        )
+
+
+def record_refund_allocation(
+    database_path: Path,
+    *,
+    request_id: str,
+    intent_hash: str,
+    refund_anchor: str,
+    allocations: list[dict[str, object]],
+    reason: str,
+    policy_version: str = "refund-allocation-v1",
+    writer: WriterContext | None = None,
+) -> DecisionReceipt:
+    """Append a `REFUND_ALLOCATION_SET` after the full-state preview.
+
+    The same-currency balance, refund-before-purchase and over-allocation checks
+    run against the current projection first, so a durable record is never made
+    for an allocation the design forbids.
+    """
+    from .decisions import resolve_anchor
+
+    with ledger_writer(database_path, existing=writer) as held:
+        connection = connect_sqlite(database_path)
+        try:
+            initialize_schema(connection)
+            replay_journal(connection)
+            preview_refund_allocation(
+                connection, refund_anchor, [dict(a) for a in allocations],
+                resolve_anchor=lambda a: resolve_anchor(connection, a),
+            )
+        finally:
+            connection.close()
+        return record_decision(
+            database_path,
+            request_id=request_id,
+            intent_hash=intent_hash,
+            decision_kind="REFUND_ALLOCATION_SET",
+            anchors={"refund": refund_anchor},
+            payload={"allocations": allocations, "reason": reason},
+            policy_version=policy_version,
+            snapshot=f"REFUND_ALLOCATION_SET: {len(allocations)} allocation(s)",
             writer=held,
         )

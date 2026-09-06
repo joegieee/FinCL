@@ -80,6 +80,8 @@ rules_app = typer.Typer(help="Author and inspect categorization rules and mercha
 app.add_typer(rules_app, name="rules")
 duplicates_app = typer.Typer(help="Review and record manual duplicate-transaction decisions.")
 app.add_typer(duplicates_app, name="duplicates")
+refunds_app = typer.Typer(help="Record and inspect refund allocations against purchases.")
+app.add_typer(refunds_app, name="refunds")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -506,6 +508,144 @@ def duplicates_retire(
 ) -> None:
     """Remove a prior confirm/reject so the pair can be proposed again."""
     _record_duplicate(database, "DUPLICATE_RETIRE", primary, candidate, reason)
+
+
+@refunds_app.command("list")
+def refunds_list(
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """Recorded refund allocations (refund anchor -> purchase anchor, exact amounts)."""
+    try:
+        _prepare_for_query(database, no_refresh)
+        with _ledger(database) as connection:
+            rows = [
+                dict(row) for row in connection.execute(
+                    "SELECT refund_anchor, purchase_anchor, currency, "
+                    "printf('%s', refund_coefficient / power(10.0, refund_scale)) AS refund_amount, "
+                    "printf('%s', purchase_coefficient / power(10.0, purchase_scale)) AS purchase_amount "
+                    "FROM refund_allocations ORDER BY refund_anchor, purchase_anchor"
+                )
+            ]
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report({"allocations": rows}))
+        return
+    if not rows:
+        console.print("No refund allocations recorded.")
+        return
+    table = Table(title=f"Refund allocations ({len(rows)})")
+    for heading in ("Refund", "Purchase", "Refund amt", "Purchase amt", "Currency"):
+        table.add_column(heading)
+    for row in rows:
+        table.add_row(row["refund_anchor"], row["purchase_anchor"],
+                      str(row["refund_amount"]), str(row["purchase_amount"]), row["currency"])
+    console.print(table)
+
+
+@refunds_app.command("set")
+def refunds_set(
+    refund: str = typer.Option(..., "--refund"),
+    allocation: list[str] = typer.Option(
+        ..., "--allocation",
+        help="purchase_anchor,refund_amount,purchase_amount (repeatable)",
+    ),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Replace every allocation for one refund (REFUND_ALLOCATION_SET)."""
+    import hashlib
+    import uuid as _uuid
+
+    from .application import record_refund_allocation
+    from .common import canonical_json
+
+    try:
+        allocations: list[dict[str, object]] = []
+        for spec in allocation:
+            parts = spec.split(",")
+            if len(parts) != 3:
+                raise FinCLError(
+                    "each --allocation is purchase_anchor,refund_amount,purchase_amount"
+                )
+            allocations.append({
+                "purchase_anchor": parts[0], "refund_amount": parts[1],
+                "purchase_amount": parts[2],
+            })
+        request_id = str(_uuid.uuid4())
+        payload = {"allocations": allocations, "reason": reason.strip()}
+        intent = hashlib.sha256(
+            canonical_json({"kind": "REFUND_ALLOCATION_SET",
+                            "anchors": {"refund": refund}, "payload": payload}).encode()
+        ).hexdigest()
+        receipt = record_refund_allocation(
+            database, request_id=request_id, intent_hash=intent, refund_anchor=refund,
+            allocations=allocations, reason=reason.strip(),
+        )
+        _emit_mapping(
+            {"seq": receipt.journal_seq, "record_hash": receipt.record_hash,
+             "status": "recorded_refresh_pending" if receipt.refresh_pending else "applied"},
+            True, False,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@refunds_app.command("retire")
+def refunds_retire(
+    refund: str = typer.Option(..., "--refund"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Remove every allocation for one refund (REFUND_ALLOCATION_RETIRE)."""
+    _record_simple_relationship(
+        database, "REFUND_ALLOCATION_RETIRE", {"refund": refund}, reason, "refund-v1",
+    )
+
+
+@refunds_app.command("reject")
+def refunds_reject(
+    refund: str = typer.Option(..., "--refund"),
+    purchase: str = typer.Option(..., "--purchase"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Suppress one automatic (refund, purchase) proposal (REFUND_LINK_REJECT)."""
+    _record_simple_relationship(
+        database, "REFUND_LINK_REJECT", {"refund": refund, "purchase": purchase},
+        reason, "refund-v1",
+    )
+
+
+def _record_simple_relationship(
+    database: Path, kind: str, anchors: dict[str, str], reason: str, policy: str,
+) -> None:
+    import hashlib
+    import uuid as _uuid
+
+    from .application import record_decision
+    from .common import canonical_json
+
+    try:
+        payload: dict[str, object] = {"reason": reason.strip()}
+        request_id = str(_uuid.uuid4())
+        intent = hashlib.sha256(
+            canonical_json({"kind": kind, "anchors": anchors, "payload": payload}).encode()
+        ).hexdigest()
+        receipt = record_decision(
+            database, request_id=request_id, intent_hash=intent, decision_kind=kind,
+            anchors=anchors, payload=payload, policy_version=policy,
+            snapshot=f"{kind}: {reason.strip()}",
+        )
+        _emit_mapping(
+            {"seq": receipt.journal_seq, "record_hash": receipt.record_hash,
+             "status": "recorded_refresh_pending" if receipt.refresh_pending else "applied"},
+            True, False,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
 
 
 @app.command("link-transfers")

@@ -129,6 +129,31 @@ export function AnalysisView({
             </Card>
           </div>
 
+          {(analysis.receipt_period_cost ?? []).some(r => Number(r.refunds_received.value) !== 0) && (
+            <Card className="ranking">
+              <h2>Receipt-period category cost</h2>
+              <p className="restate-note">Gross purchases minus refunds received in this window, by the purchase's category.</p>
+              <div className="table-scroll">
+                <table className="transactions-table">
+                  <thead>
+                    <tr><th>Category</th><th className="amount">Gross</th><th className="amount">Refunds</th><th className="amount">Net cost</th></tr>
+                  </thead>
+                  <tbody>
+                    {(analysis.receipt_period_cost ?? []).map(r => (
+                      <tr key={r.category}>
+                        <td>{shortCategory(r.category)}</td>
+                        <td className="amount">{money(r.gross.value, currency)}</td>
+                        <td className="amount">{Number(r.refunds_received.value) ? `−${money(r.refunds_received.value, currency)}` : '—'}</td>
+                        <td className="amount">{money(r.net_cost.value, currency)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="card-foot">A category can go negative here when it has refunds but no purchases in the window.</div>
+            </Card>
+          )}
+
           {selected
             ? <ContributorTable title={selected.title} handle={selected.handle} currency={currency} onClose={() => setSelected(null)} />
             : analysis.contributors_handle && (

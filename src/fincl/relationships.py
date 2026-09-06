@@ -17,19 +17,29 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from fractions import Fraction
 from typing import Any
 
 from .common import canonical_json
 from .errors import FinCLError
+from .money import ExactMoney, format_decimal
 
 DECISION_BATCH = "DECISION_BATCH"
 DUPLICATE_CONFIRM = "DUPLICATE_CONFIRM"
 DUPLICATE_REJECT = "DUPLICATE_REJECT"
 DUPLICATE_RETIRE = "DUPLICATE_RETIRE"
 CATEGORY_OVERRIDE_RETIRE = "CATEGORY_OVERRIDE_RETIRE"
+REFUND_ALLOCATION_SET = "REFUND_ALLOCATION_SET"
+REFUND_ALLOCATION_RETIRE = "REFUND_ALLOCATION_RETIRE"
+REFUND_LINK_REJECT = "REFUND_LINK_REJECT"
 
 DUPLICATE_KINDS = frozenset({DUPLICATE_CONFIRM, DUPLICATE_REJECT, DUPLICATE_RETIRE})
-RELATIONSHIP_DECISION_KINDS = DUPLICATE_KINDS | {CATEGORY_OVERRIDE_RETIRE}
+REFUND_KINDS = frozenset(
+    {REFUND_ALLOCATION_SET, REFUND_ALLOCATION_RETIRE, REFUND_LINK_REJECT}
+)
+RELATIONSHIP_DECISION_KINDS = (
+    DUPLICATE_KINDS | REFUND_KINDS | {CATEGORY_OVERRIDE_RETIRE}
+)
 
 # Kinds a DECISION_BATCH may carry. Coupled corrections only: a batch can retire
 # an incompatible classification and author its replacement. It cannot nest, and
@@ -80,6 +90,167 @@ def validate_override_retire(anchors: dict[str, str], payload: dict[str, Any]) -
     _reason(payload)
 
 
+def refund_link_identity(refund: str, purchase: str) -> str:
+    return f"{refund}\x1f{purchase}"
+
+
+def _positive_money(text: object, label: str) -> ExactMoney:
+    if not isinstance(text, str):
+        raise FinCLError(f"{label} must be a decimal string")
+    try:
+        value = ExactMoney.parse(text)
+    except (ValueError, OverflowError) as exc:
+        raise FinCLError(f"{label} is not a valid amount: {text!r}") from exc
+    if value.coefficient <= 0:
+        raise FinCLError(f"{label} must be strictly positive")
+    return value
+
+
+def _fraction(coefficient: int, scale: int) -> Fraction:
+    return Fraction(coefficient, 10**scale)
+
+
+def validate_refund_allocation(
+    kind: str, anchors: dict[str, str], payload: dict[str, Any]
+) -> None:
+    if kind == REFUND_LINK_REJECT:
+        if set(anchors) != {"refund", "purchase"}:
+            raise FinCLError("REFUND_LINK_REJECT needs a refund and a purchase anchor")
+        if set(payload) != {"reason"}:
+            raise FinCLError("REFUND_LINK_REJECT payload is exactly {reason}")
+        _reason(payload)
+        return
+    if set(anchors) != {"refund"}:
+        raise FinCLError("a refund-allocation decision needs a refund anchor")
+    if kind == REFUND_ALLOCATION_RETIRE:
+        if set(payload) != {"reason"}:
+            raise FinCLError("REFUND_ALLOCATION_RETIRE payload is exactly {reason}")
+        _reason(payload)
+        return
+    if set(payload) != {"allocations", "reason"}:
+        raise FinCLError("REFUND_ALLOCATION_SET payload is exactly {allocations, reason}")
+    _reason(payload)
+    allocations = payload["allocations"]
+    if not isinstance(allocations, list) or not allocations:
+        raise FinCLError("a refund allocation needs at least one purchase")
+    seen: set[str] = set()
+    for index, item in enumerate(allocations):
+        if not isinstance(item, dict) or set(item) != {
+            "purchase_anchor", "refund_amount", "purchase_amount"
+        }:
+            raise FinCLError(
+                f"allocation {index} must be exactly "
+                "{purchase_anchor, refund_amount, purchase_amount}"
+            )
+        if not isinstance(item["purchase_anchor"], str) or not item["purchase_anchor"]:
+            raise FinCLError(f"allocation {index} needs a purchase anchor")
+        if item["purchase_anchor"] in seen:
+            raise FinCLError(f"allocation {index} repeats a purchase anchor")
+        seen.add(item["purchase_anchor"])
+        _positive_money(item["refund_amount"], f"allocation {index} refund amount")
+        _positive_money(item["purchase_amount"], f"allocation {index} purchase amount")
+
+
+def preview_refund_allocation(
+    connection: sqlite3.Connection,
+    refund_anchor: str,
+    allocations: list[dict[str, Any]],
+    *,
+    resolve_anchor: Any,
+) -> dict[str, Any]:
+    """Validate one REFUND_ALLOCATION_SET against the current projection.
+
+    Enforces: refund and purchases resolve and have the right direction;
+    same-currency amounts balance exactly; a refund is not dated strictly before
+    its purchase when both dates are day-precise; allocated refund total does not
+    exceed the refund magnitude; and no purchase receives more credit than its
+    gross cost across every active refund. Cross-currency allocation is refused
+    for now (slice 4 baseline). Returns the exact refund/allocated/residual
+    totals.
+    """
+    refund = connection.execute(
+        "SELECT e.natural_anchor, e.economic_direction, e.event_kind, "
+        "e.currency_pocket, e.amount_coefficient, e.amount_scale, "
+        "substr(e.effective_at, 1, 10) AS posted_date, e.effective_precision "
+        "FROM ledger_entries e JOIN extraction_runs x "
+        "  ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED' "
+        "WHERE e.natural_anchor = ? AND e.economic_direction = 'IN' LIMIT 1",
+        (refund_anchor,),
+    ).fetchone()
+    if refund is None or resolve_anchor(refund_anchor) is None:
+        raise FinCLError("the refund transaction does not resolve to one inbound entry")
+
+    refund_magnitude = _fraction(abs(int(refund["amount_coefficient"])), int(refund["amount_scale"]))
+    allocated_total = Fraction(0)
+    for index, item in enumerate(allocations):
+        purchase_anchor = item["purchase_anchor"]
+        refund_amount = _positive_money(item["refund_amount"], f"allocation {index} refund amount")
+        purchase_amount = _positive_money(item["purchase_amount"], f"allocation {index} purchase amount")
+        purchase = connection.execute(
+            "SELECT e.currency_pocket, e.amount_coefficient, e.amount_scale, "
+            "substr(e.effective_at, 1, 10) AS posted_date, e.effective_precision "
+            "FROM ledger_entries e JOIN extraction_runs x "
+            "  ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED' "
+            "WHERE e.natural_anchor = ? AND e.economic_direction = 'OUT' LIMIT 1",
+            (purchase_anchor,),
+        ).fetchone()
+        if purchase is None or resolve_anchor(purchase_anchor) is None:
+            raise FinCLError(f"allocation {index}: the purchase does not resolve")
+        if purchase["currency_pocket"] != refund["currency_pocket"]:
+            raise FinCLError(
+                f"allocation {index}: cross-currency refund allocation is not yet supported"
+            )
+        if (refund_amount.coefficient, refund_amount.scale) != (
+            purchase_amount.coefficient, purchase_amount.scale
+        ) and _fraction(refund_amount.coefficient, refund_amount.scale) != _fraction(
+            purchase_amount.coefficient, purchase_amount.scale
+        ):
+            raise FinCLError(
+                f"allocation {index}: same-currency refund and purchase amounts must be equal"
+            )
+        if (
+            refund["effective_precision"] == "DAY"
+            and purchase["effective_precision"] == "DAY"
+            and refund["posted_date"] < purchase["posted_date"]
+        ):
+            raise FinCLError(f"allocation {index}: the refund is dated before its purchase")
+
+        purchase_gross = _fraction(
+            abs(int(purchase["amount_coefficient"])), int(purchase["amount_scale"])
+        )
+        other = connection.execute(
+            "SELECT COALESCE(SUM(purchase_coefficient * 1.0 / power(10, purchase_scale)), 0) "
+            "FROM refund_allocations WHERE purchase_anchor = ? AND refund_anchor <> ?",
+            (purchase_anchor, refund_anchor),
+        ).fetchone()
+        prior_credit = Fraction(str(other[0]))
+        this_credit = _fraction(purchase_amount.coefficient, purchase_amount.scale)
+        if prior_credit + this_credit > purchase_gross:
+            raise FinCLError(
+                f"allocation {index}: total refunds would exceed the purchase cost"
+            )
+        allocated_total += _fraction(refund_amount.coefficient, refund_amount.scale)
+
+    if allocated_total > refund_magnitude:
+        raise FinCLError("the allocated total exceeds the refund amount")
+    residual = refund_magnitude - allocated_total
+    scale = int(refund["amount_scale"])
+
+    def _fmt(value: Fraction) -> str:
+        scaled = value * (10**scale)
+        if scaled.denominator != 1:
+            raise FinCLError("a refund amount is finer than the ledger scale")
+        return format_decimal(int(scaled), scale)
+
+    return {
+        "refund_total": _fmt(refund_magnitude),
+        "allocated_total": _fmt(allocated_total),
+        "residual": _fmt(residual),
+        "currency": refund["currency_pocket"],
+        "allocations": len(allocations),
+    }
+
+
 def validate_relationship_payload(
     kind: str, anchors: dict[str, str], payload: dict[str, Any]
 ) -> None:
@@ -87,6 +258,8 @@ def validate_relationship_payload(
         validate_duplicate(kind, anchors, payload)
     elif kind == CATEGORY_OVERRIDE_RETIRE:
         validate_override_retire(anchors, payload)
+    elif kind in REFUND_KINDS:
+        validate_refund_allocation(kind, anchors, payload)
     else:  # pragma: no cover - guarded by the dispatcher
         raise FinCLError(f"{kind} is not a relationship decision")
 
@@ -264,6 +437,14 @@ def apply_relationship(
         )
         return
 
+    if decision_kind in REFUND_KINDS:
+        _apply_refund(
+            connection, decision_kind=decision_kind, anchors=anchors, payload=payload,
+            journal_seq=journal_seq, snapshot=snapshot, override=override,
+            batch_index=batch_index, resolve_anchor=resolve_anchor,
+        )
+        return
+
     identity = duplicate_identity(anchors["primary"], anchors["candidate"])
     if decision_kind == DUPLICATE_RETIRE:
         connection.execute(
@@ -292,16 +473,73 @@ def apply_relationship(
     )
 
 
-def resolve(connection: sqlite3.Connection) -> None:
-    """Fold effective DUPLICATE confirmations into ``duplicate_suppressions``.
+def _apply_refund(
+    connection: sqlite3.Connection,
+    *,
+    decision_kind: str,
+    anchors: dict[str, str],
+    payload: dict[str, Any],
+    journal_seq: int,
+    snapshot: str,
+    override: str | None,
+    batch_index: int | None,
+    resolve_anchor: Any,
+) -> None:
+    if decision_kind == REFUND_ALLOCATION_RETIRE:
+        connection.execute(
+            "DELETE FROM relationship_decisions "
+            "WHERE kind = 'REFUND_ALLOCATION' AND identity = ?",
+            (anchors["refund"],),
+        )
+        return
+    if decision_kind == REFUND_LINK_REJECT:
+        identity = refund_link_identity(anchors["refund"], anchors["purchase"])
+        reason = (
+            override
+            or (None if resolve_anchor(anchors["refund"]) else "refund no longer resolves")
+            or (None if resolve_anchor(anchors["purchase"]) else "purchase no longer resolves")
+        )
+        _upsert(
+            connection, kind="REFUND_LINK_REJECT", identity=identity,
+            journal_seq=journal_seq, batch_index=batch_index,
+            payload={"refund": anchors["refund"], "purchase": anchors["purchase"],
+                     "reason": payload["reason"]},
+            snapshot=snapshot, bound=0 if reason else 1, dangling_reason=reason,
+        )
+        return
 
-    Group-wide checks: an anchor designated primary must not itself be suppressed
-    elsewhere, and a candidate must not be claimed by two primaries. A pair that
-    fails is left un-applied (its ``relationship_decisions`` row already records
-    the operator decision and stays inspectable); it never silently promotes a
-    different row.
+    allocations = payload["allocations"]
+    unresolved = [
+        a["purchase_anchor"] for a in allocations
+        if resolve_anchor(a["purchase_anchor"]) is None
+    ]
+    reason = (
+        override
+        or (None if resolve_anchor(anchors["refund"]) else "refund no longer resolves")
+        or (f"purchase {unresolved[0]} no longer resolves" if unresolved else None)
+    )
+    _upsert(
+        connection, kind="REFUND_ALLOCATION", identity=anchors["refund"],
+        journal_seq=journal_seq, batch_index=batch_index,
+        payload={"refund": anchors["refund"], "allocations": allocations,
+                 "reason": payload["reason"]},
+        snapshot=snapshot, bound=0 if reason else 1, dangling_reason=reason,
+    )
+
+
+def resolve(connection: sqlite3.Connection) -> None:
+    """Fold effective relationship decisions into their normalized tables.
+
+    Duplicates → ``duplicate_suppressions`` with the group-wide checks (an anchor
+    designated primary must not itself be suppressed elsewhere; a candidate must
+    not be claimed by two primaries). A pair that fails is left un-applied — its
+    ``relationship_decisions`` row still records the operator decision.
+    Refund allocations → ``refund_allocations``, minus any pair a bound
+    ``REFUND_LINK_REJECT`` suppresses.
     """
     connection.execute("DELETE FROM duplicate_suppressions")
+    connection.execute("DELETE FROM refund_allocations")
+    _resolve_refunds(connection)
     confirms = [
         (json.loads(row["payload_json"]), row["journal_seq"])
         for row in connection.execute(
@@ -328,3 +566,38 @@ def resolve(connection: sqlite3.Connection) -> None:
             "(suppressed_anchor, primary_anchor, journal_seq, reason) VALUES (?, ?, ?, ?)",
             (candidate, primary, seq, body["reason"]),
         )
+
+
+def _resolve_refunds(connection: sqlite3.Connection) -> None:
+    rejected = {
+        row["identity"]
+        for row in connection.execute(
+            "SELECT identity FROM relationship_decisions "
+            "WHERE kind = 'REFUND_LINK_REJECT' AND bound = 1"
+        )
+    }
+    for row in connection.execute(
+        "SELECT payload_json, journal_seq FROM relationship_decisions "
+        "WHERE kind = 'REFUND_ALLOCATION' AND bound = 1 ORDER BY journal_seq"
+    ):
+        body = json.loads(row["payload_json"])
+        refund = body["refund"]
+        currency = connection.execute(
+            "SELECT currency_pocket FROM ledger_entries WHERE natural_anchor = ? LIMIT 1",
+            (refund,),
+        ).fetchone()
+        for allocation in body["allocations"]:
+            purchase = allocation["purchase_anchor"]
+            if refund_link_identity(refund, purchase) in rejected:
+                continue
+            refund_amount = ExactMoney.parse(allocation["refund_amount"])
+            purchase_amount = ExactMoney.parse(allocation["purchase_amount"])
+            connection.execute(
+                "INSERT OR REPLACE INTO refund_allocations"
+                "(refund_anchor, purchase_anchor, refund_coefficient, refund_scale,"
+                " purchase_coefficient, purchase_scale, currency, journal_seq)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (refund, purchase, refund_amount.coefficient, refund_amount.scale,
+                 purchase_amount.coefficient, purchase_amount.scale,
+                 currency[0] if currency else "", row["journal_seq"]),
+            )
