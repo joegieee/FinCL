@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -253,6 +253,96 @@ ALTER TABLE category_overrides__s12 RENAME TO category_overrides;
 """
 
 
+# Schema 13 derived tables (v0.3 personal debts and shared expenses,
+# DESIGN-debts-and-context.md §§1-3). The disposable debt projection: identity
+# and lifecycle in `personal_debts`, the dated principal timeline in
+# `personal_debt_events`, per-source component claims in
+# `personal_debt_allocations`, and the one-per-entry owner residual in
+# `entry_residuals`. All are rebuilt by every journal replay from the
+# `PERSONAL_DEBT_*` and `ENTRY_RESIDUAL_*` decision kinds; none carry a mutable
+# authoritative balance (as-of balances are computed from the event rows).
+# Shared verbatim between a fresh `initialize_schema` and the registered 12->13
+# migration.
+SCHEMA_13_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS personal_debts (
+    debt_id TEXT PRIMARY KEY,
+    direction TEXT NOT NULL CHECK (direction IN ('PAYABLE', 'RECEIVABLE')),
+    currency TEXT NOT NULL,
+    counterparty_label TEXT NOT NULL,
+    opened_on TEXT NOT NULL,
+    due_on TEXT,
+    status TEXT NOT NULL CHECK (status IN ('OPEN', 'CLOSED')),
+    closed_on TEXT,
+    opened_seq INTEGER NOT NULL,
+    details_seq INTEGER,
+    lifecycle_seq INTEGER,
+    reason TEXT NOT NULL
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS personal_debts_scope
+    ON personal_debts(status, currency, direction);
+
+CREATE TABLE IF NOT EXISTS personal_debt_events (
+    debt_id TEXT NOT NULL REFERENCES personal_debts(debt_id),
+    event_id TEXT NOT NULL,
+    event_kind TEXT NOT NULL,
+    effective_on TEXT NOT NULL,
+    principal_coefficient INTEGER NOT NULL
+        CHECK (principal_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    principal_scale INTEGER NOT NULL CHECK (principal_scale BETWEEN 0 AND {MAX_SCALE}),
+    signed INTEGER NOT NULL CHECK (signed IN (-1, 1)),
+    opening_balance INTEGER NOT NULL DEFAULT 0 CHECK (opening_balance IN (0, 1)),
+    expense_category TEXT,
+    journal_seq INTEGER NOT NULL,
+    batch_index INTEGER,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    reason TEXT NOT NULL,
+    PRIMARY KEY (debt_id, event_id)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS personal_debt_events_timeline
+    ON personal_debt_events(debt_id, effective_on, event_id);
+
+CREATE TABLE IF NOT EXISTS personal_debt_allocations (
+    debt_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    seq_in_event INTEGER NOT NULL,
+    entry_anchor TEXT NOT NULL,
+    entry_id TEXT,
+    principal_coefficient INTEGER NOT NULL,
+    principal_scale INTEGER NOT NULL CHECK (principal_scale BETWEEN 0 AND {MAX_SCALE}),
+    interest_coefficient INTEGER NOT NULL,
+    interest_scale INTEGER NOT NULL CHECK (interest_scale BETWEEN 0 AND {MAX_SCALE}),
+    fee_coefficient INTEGER NOT NULL,
+    fee_scale INTEGER NOT NULL CHECK (fee_scale BETWEEN 0 AND {MAX_SCALE}),
+    separate_fee_coefficient INTEGER NOT NULL,
+    separate_fee_scale INTEGER NOT NULL CHECK (separate_fee_scale BETWEEN 0 AND {MAX_SCALE}),
+    currency TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    PRIMARY KEY (debt_id, event_id, seq_in_event),
+    FOREIGN KEY (debt_id, event_id)
+        REFERENCES personal_debt_events(debt_id, event_id)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS personal_debt_allocations_source
+    ON personal_debt_allocations(entry_anchor);
+
+CREATE TABLE IF NOT EXISTS entry_residuals (
+    entry_anchor TEXT PRIMARY KEY,
+    expense_coefficient INTEGER NOT NULL,
+    expense_scale INTEGER NOT NULL CHECK (expense_scale BETWEEN 0 AND {MAX_SCALE}),
+    expense_category TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    batch_index INTEGER,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    reason TEXT NOT NULL
+) STRICT;
+"""
+
+
 def _create_decision_projection(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
@@ -404,6 +494,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_9_TABLES_SQL
         + SCHEMA_10_TABLES_SQL
         + SCHEMA_11_TABLES_SQL
+        + SCHEMA_13_TABLES_SQL
     )
 
 

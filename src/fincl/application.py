@@ -174,6 +174,39 @@ def record_batch(
         )
 
 
+def record_debt_decision(
+    database_path: Path,
+    *,
+    request_id: str,
+    intent_hash: str,
+    decision_kind: str,
+    anchors: dict[str, str],
+    payload: dict[str, object],
+    policy_version: str = "personal-debt-v1",
+    writer: WriterContext | None = None,
+) -> DecisionReceipt:
+    """Append one ``PERSONAL_DEBT_*`` / ``ENTRY_RESIDUAL_*`` record.
+
+    Shape validation runs in ``debts.validation`` (called by the HTTP/CLI
+    preview and again during replay). Slice 2 adds a full-state ``preview_debt``
+    here for chronology and component-partition checks before the append.
+    """
+    from .debts.validation import validate_debt_payload
+
+    validate_debt_payload(decision_kind, anchors, payload)
+    return record_decision(
+        database_path,
+        request_id=request_id,
+        intent_hash=intent_hash,
+        decision_kind=decision_kind,
+        anchors=anchors,
+        payload=payload,
+        policy_version=policy_version,
+        snapshot=f"{decision_kind}: {anchors}",
+        writer=writer,
+    )
+
+
 def record_refund_allocation(
     database_path: Path,
     *,

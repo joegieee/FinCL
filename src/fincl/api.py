@@ -42,7 +42,17 @@ _SINGLE_KINDS = Literal[
     'ACCOUNT_DETAILS_SET','ACCOUNT_ALIAS_SET','ACCOUNT_ALIAS_RETIRE',
     'REVIEW_DEFER_SET','REVIEW_DEFER_RETIRE','MERCHANT_ALIAS_SET',
     'MERCHANT_ALIAS_RETIRE','CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE',
+    # v0.3 personal debts and shared expenses
+    'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
+    'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
+    'ENTRY_RESIDUAL_SET','ENTRY_RESIDUAL_RETIRE','INBOUND_CLASSIFICATION_RETIRE',
 ]
+
+_DEBT_KINDS = frozenset({
+    'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
+    'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
+    'ENTRY_RESIDUAL_SET','ENTRY_RESIDUAL_RETIRE','INBOUND_CLASSIFICATION_RETIRE',
+})
 
 
 class Command(StrictModel):
@@ -398,6 +408,20 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                 account_id = command.anchors.get('account') or str(command.payload.get('account_id',''))
                 if account_id and not connection.execute('SELECT 1 FROM accounts WHERE id=?',(account_id,)).fetchone():
                     raise FinCLError('The selected account no longer exists')
+        elif command.kind in _DEBT_KINDS:
+            from .debts.validation import validate_debt_payload
+            validate_debt_payload(command.kind, command.anchors, command.payload)
+            if command.kind == 'PERSONAL_DEBT_OPEN' and connection.execute(
+                'SELECT 1 FROM personal_debts WHERE debt_id=?', (command.anchors['debt'],)
+            ).fetchone():
+                raise FinCLError('That debt id is already open')
+            if command.kind in {
+                'PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
+                'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
+            } and not connection.execute(
+                'SELECT 1 FROM personal_debts WHERE debt_id=?', (command.anchors['debt'],)
+            ).fetchone():
+                raise FinCLError('That debt does not exist')
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -613,6 +637,45 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                     raise HTTPException(409, str(exc)) from exc
                 raise
 
+    @app.get('/api/v1/debts')
+    def debts(as_of: str | None = None, currency: str | None = None,
+              status: str | None = None, cursor: str | None = None,
+              limit: int = 50, generation: str | None = None) -> Any:
+        from .debts.queries import debts_page
+        with ledger_writer(database):
+            try:
+                return debts_page(database, as_of=as_of, currency=currency,
+                                  status=status, cursor=cursor, limit=limit,
+                                  expected=generation)
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise HTTPException(422, str(exc)) from exc
+
+    @app.get('/api/v1/debts/{debt_id}')
+    def debt(debt_id: str, as_of: str | None = None, generation: str | None = None) -> Any:
+        from .debts.queries import debt_detail
+        with ledger_writer(database):
+            try:
+                return debt_detail(database, debt_id, as_of=as_of, expected=generation)
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
+
+    @app.get('/api/v1/debts/{debt_id}/events')
+    def debt_event_list(debt_id: str, cursor: str | None = None, limit: int = 100,
+                        generation: str | None = None) -> Any:
+        from .debts.queries import debt_events
+        with ledger_writer(database):
+            try:
+                return debt_events(database, debt_id, cursor=cursor, limit=limit,
+                                   expected=generation)
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
+
     @app.post('/api/v1/preview')
     def preview(command: Command) -> Any:
         with ledger_writer(database):
@@ -647,6 +710,8 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                     anchors = {'left':command.anchors['left'],'right':command.anchors['right']}
                     payload = {'reason':command.payload['reason'],'link_kind':extra['link_kind']}
                     policy = extra.get('policy_version',policy)
+                elif command.kind in _DEBT_KINDS:
+                    policy = 'personal-debt-v1'
             receipt = record_decision(database,request_id=str(command.request_id),intent_hash=intent,decision_kind=kind,anchors=anchors,payload=payload,policy_version=policy,snapshot=f'{kind}: {payload}',writer=writer)
             return JSONResponse({**asdict(receipt),'status':'recorded_refresh_pending' if receipt.refresh_pending else 'applied'},status_code=202 if receipt.refresh_pending else 200)
 

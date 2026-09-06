@@ -20,6 +20,12 @@ from .categorization import (
     validate_payload,
 )
 from .common import canonical_json, resolve_category
+from .debts import (
+    DEBT_DECISION_KINDS,
+    apply_debt,
+    resolve_debts,
+    validate_debt_payload,
+)
 from .decision_journal import GENESIS_HASH, JournalRecord, default_journal_path, read_records
 from .errors import FinCLError
 from .relationships import (
@@ -71,6 +77,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | CATEGORIZATION_DECISION_KINDS
     | RELATIONSHIP_DECISION_KINDS
     | V05_DECISION_KINDS
+    | DEBT_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -215,6 +222,10 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "relationship_decisions",
             "duplicate_suppressions",
             "refund_allocations",
+            "personal_debt_allocations",
+            "personal_debt_events",
+            "entry_residuals",
+            "personal_debts",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -226,6 +237,8 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             _apply_record(connection, record, frozenset(custom))
         if _table_exists(connection, "relationship_decisions"):
             resolve_relationships(connection)
+        if _table_exists(connection, "personal_debts"):
+            resolve_debts(connection)
         _rebuild_command_receipts(connection, records)
         connection.execute("UPDATE decision_watermark SET applied_seq = ? WHERE id = 1", (len(records),))
         if verify_association:
@@ -369,6 +382,22 @@ def _apply_record(
             journal_seq=record.seq,
             snapshot=record.snapshot,
             override=override,
+            batch_index=batch_index,
+            resolve_anchor=lambda anchor: resolve_anchor(connection, anchor),
+        )
+    elif record.decision_kind in DEBT_DECISION_KINDS:
+        try:
+            validate_debt_payload(
+                record.decision_kind, record.anchors, record.payload
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
+        apply_debt(
+            connection,
+            decision_kind=record.decision_kind,
+            anchors=record.anchors,
+            payload=record.payload,
+            journal_seq=record.seq,
             batch_index=batch_index,
             resolve_anchor=lambda anchor: resolve_anchor(connection, anchor),
         )

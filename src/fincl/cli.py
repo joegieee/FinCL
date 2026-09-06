@@ -82,6 +82,8 @@ duplicates_app = typer.Typer(help="Review and record manual duplicate-transactio
 app.add_typer(duplicates_app, name="duplicates")
 refunds_app = typer.Typer(help="Record and inspect refund allocations against purchases.")
 app.add_typer(refunds_app, name="refunds")
+debt_app = typer.Typer(help="Open and inspect personal debts and shared expenses (v0.3).")
+app.add_typer(debt_app, name="debt")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -1495,6 +1497,213 @@ def serve_command(
         uvicorn.run(create_app(database, port=port, bootstrap_secret=secret, evidence_dir=evidence_dir, demo=demo), host="127.0.0.1", port=port, access_log=False)
     except (FinCLError, OSError) as exc:
         _fail(exc)
+
+
+def _record_debt(
+    database: Path, kind: str, anchors: dict[str, str], payload: dict[str, object],
+    *, json_output: bool = False, plain: bool = False,
+) -> None:
+    import hashlib
+    import uuid as _uuid
+
+    from .application import record_debt_decision
+    from .common import canonical_json
+
+    try:
+        request_id = str(_uuid.uuid4())
+        intent = hashlib.sha256(
+            canonical_json({"kind": kind, "anchors": anchors, "payload": payload}).encode()
+        ).hexdigest()
+        receipt = record_debt_decision(
+            database, request_id=request_id, intent_hash=intent,
+            decision_kind=kind, anchors=anchors, payload=payload,
+        )
+        _emit_mapping(
+            {"seq": receipt.journal_seq, "record_hash": receipt.record_hash,
+             "debt": anchors.get("debt", ""),
+             "event": anchors.get("event", ""),
+             "status": "recorded_refresh_pending" if receipt.refresh_pending else "applied"},
+            plain, json_output,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@debt_app.command("open")
+def debt_open(
+    direction: str = typer.Option(..., "--direction", help="payable or receivable."),
+    currency: str = typer.Option(..., "--currency"),
+    counterparty: str = typer.Option(..., "--counterparty"),
+    opened_on: str = typer.Option(..., "--opened-on", help="YYYY-MM-DD."),
+    reason: str = typer.Option(..., "--reason"),
+    due_on: str | None = typer.Option(None, "--due-on", help="YYYY-MM-DD (optional)."),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Open a personal debt identity (PERSONAL_DEBT_OPEN); no principal is created."""
+    import uuid as _uuid
+
+    _record_debt(
+        database, "PERSONAL_DEBT_OPEN", {"debt": str(_uuid.uuid4())},
+        {
+            "direction": direction.strip().upper(),
+            "currency": currency.strip().upper(),
+            "counterparty_label": counterparty.strip(),
+            "opened_on": opened_on.strip(),
+            "due_on": due_on.strip() if due_on else None,
+            "reason": reason.strip(),
+        },
+        json_output=json_output, plain=plain,
+    )
+
+
+@debt_app.command("details")
+def debt_details(
+    debt: str = typer.Option(..., "--debt"),
+    counterparty: str = typer.Option(..., "--counterparty"),
+    reason: str = typer.Option(..., "--reason"),
+    due_on: str | None = typer.Option(None, "--due-on"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Rename the counterparty or set the due date (PERSONAL_DEBT_DETAILS_SET)."""
+    _record_debt(
+        database, "PERSONAL_DEBT_DETAILS_SET", {"debt": debt},
+        {
+            "counterparty_label": counterparty.strip(),
+            "due_on": due_on.strip() if due_on else None,
+            "reason": reason.strip(),
+        },
+        json_output=json_output, plain=plain,
+    )
+
+
+@debt_app.command("add-event")
+def debt_add_event(
+    debt: str = typer.Option(..., "--debt"),
+    kind: str = typer.Option(..., "--kind", help="BORROWED or LENT (slice 1: opening balance)."),
+    direction: str = typer.Option(..., "--direction", help="payable or receivable."),
+    principal: str = typer.Option(..., "--principal", help="Exact amount in the debt currency."),
+    effective_on: str = typer.Option(..., "--effective-on", help="YYYY-MM-DD."),
+    reason: str = typer.Option(..., "--reason"),
+    opening_balance: bool = typer.Option(
+        False, "--opening-balance", help="Record a pre-existing obligation with no observed funding."
+    ),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Add a debt principal event (PERSONAL_DEBT_EVENT_SET).
+
+    Slice 1 accepts explicit opening balances only; source-linked repayments and
+    shared-expense splits arrive in v0.3 slice 2.
+    """
+    import uuid as _uuid
+
+    _record_debt(
+        database, "PERSONAL_DEBT_EVENT_SET",
+        {"debt": debt, "event": str(_uuid.uuid4())},
+        {
+            "event_kind": kind.strip().upper(),
+            "direction": direction.strip().upper(),
+            "principal_amount": principal.strip(),
+            "effective_on": effective_on.strip(),
+            "entry_allocations": [],
+            "opening_balance": bool(opening_balance),
+            "expense_category": None,
+            "reason": reason.strip(),
+        },
+        json_output=json_output, plain=plain,
+    )
+
+
+@debt_app.command("retire-event")
+def debt_retire_event(
+    debt: str = typer.Option(..., "--debt"),
+    event: str = typer.Option(..., "--event"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Retire a debt event, keeping it in the timeline history (PERSONAL_DEBT_EVENT_RETIRE)."""
+    _record_debt(
+        database, "PERSONAL_DEBT_EVENT_RETIRE", {"debt": debt, "event": event},
+        {"reason": reason.strip()},
+        json_output=json_output, plain=plain,
+    )
+
+
+@debt_app.command("list")
+def debt_list(
+    database: Path = typer.Option(..., "--database"),
+    as_of: str | None = typer.Option(None, "--as-of", help="YYYY-MM-DD; defaults to today."),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """List payables and receivables separately; they are never netted."""
+    from .debts.queries import debts_page
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        data = debts_page(database, as_of=as_of, limit=200)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+        return
+    for heading, rows in (("I owe", data["i_owe"]), ("Owed to me", data["owed_to_me"])):
+        table = Table(title=f"{heading} — as of {data['as_of']}")
+        for column in ("Debt", "Counterparty", "Currency", "Remaining", "Status", "Reconciliation"):
+            table.add_column(column)
+        for row in rows:
+            table.add_row(
+                row["debt_id"], row["counterparty_label"], row["currency"],
+                row["remaining_principal"]["value"], row["status"],
+                row["reconciliation_status"],
+            )
+        console.print(table)
+
+
+@debt_app.command("show")
+def debt_show(
+    debt: str = typer.Option(..., "--debt"),
+    database: Path = typer.Option(..., "--database"),
+    as_of: str | None = typer.Option(None, "--as-of"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """Show one debt: identity, remaining principal and its dated event history."""
+    from .debts.queries import debt_detail
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        data = debt_detail(database, debt, as_of=as_of)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+        return
+    body = data["debt"]
+    console.print(
+        f"{body['counterparty_label']} — "
+        f"{'I owe' if body['direction'] == 'PAYABLE' else 'owed to me'} "
+        f"{body['remaining_principal']['value']} {body['currency']} "
+        f"(as of {data['as_of']}, {body['status']})"
+    )
+    table = Table(title="Principal history")
+    for column in ("Date", "Event", "Opening", "Principal", "Bound", "Reason"):
+        table.add_column(column)
+    for event in body["principal_history"]:
+        table.add_row(
+            event["effective_on"], event["event_kind"],
+            "yes" if event["opening_balance"] else "",
+            ("−" if event["signed"] < 0 else "+") + event["principal"]["value"],
+            "yes" if event["bound"] else "no", event["reason"],
+        )
+    console.print(table)
 
 
 def main() -> None:

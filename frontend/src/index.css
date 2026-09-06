@@ -58,3 +58,35 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .proposal-decide{display:flex;flex-direction:column;gap:8px;margin:10px 0}
 .proposal-decide select,.proposal-decide input{height:34px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:12px;padding:0 9px}
 .proposal-legs .anchor{font-family:ui-monospace,monospace;font-size:9px;color:var(--muted);word-break:break-all;margin-top:4px}
+
+/* v0.3 debts — list + detail */
+.debts-view{display:flex;flex-direction:column;gap:14px}
+.debts-asof{font-size:12px;color:var(--muted)}
+.debts-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:820px){.debts-columns{grid-template-columns:1fr}}
+.debt-list{padding:16px}
+.debt-list header h3{margin:0;font-size:14px}
+.debt-list header p{margin:2px 0 10px;font-size:12px;color:var(--muted)}
+.debt-empty{font-size:12px;color:var(--muted);padding:8px 0}
+.debt-currency-group{margin-bottom:10px}
+.debt-currency-head{font-size:10px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin:6px 0 3px}
+.debt-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--border);padding:10px 2px;cursor:pointer}
+.debt-row:hover{background:var(--muted-bg,rgba(0,0,0,.02))}
+.debt-row-main{flex:1;display:flex;flex-direction:column;gap:2px}
+.debt-row-main small{font-size:11px;color:var(--muted)}
+.debt-row-amount{font-variant-numeric:tabular-nums;font-weight:600;font-size:13px}
+.debt-detail{padding:18px;display:flex;flex-direction:column;gap:12px}
+.debt-detail-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.debt-detail-head h2{margin:0;font-size:17px}
+.debt-detail-head p{margin:3px 0 0;font-size:12px;color:var(--muted)}
+.debt-detail-balance{text-align:right;display:flex;flex-direction:column;gap:1px}
+.debt-detail-balance span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.debt-detail-balance strong{font-size:19px;font-variant-numeric:tabular-nums}
+.debt-detail-balance small{font-size:11px;color:var(--muted)}
+.debt-detail-status{font-size:12px;color:var(--muted);margin:0}
+.debt-history{width:100%;border-collapse:collapse;font-size:12px}
+.debt-history th{text-align:left;font-weight:600;color:var(--muted);border-bottom:1px solid var(--border);padding:6px 8px}
+.debt-history td{border-bottom:1px solid var(--border);padding:6px 8px;vertical-align:top}
+.debt-history .tag{display:inline-block;margin-left:6px;font-size:9px;padding:1px 5px;border:1px solid var(--border);border-radius:6px;color:var(--muted)}
+.debt-history .tag.warn{color:#b23b3b;border-color:#e0b4b4}
+.debt-detail-foot{font-size:11px;color:var(--muted);margin:0}
