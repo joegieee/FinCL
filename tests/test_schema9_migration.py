@@ -1,8 +1,11 @@
-"""The real schema 8 -> 9 -> 10 migrations and their backup/restore round trip.
+"""The real schema 8 -> 9 -> 10 -> 11 -> 12 migrations and their backup/restore
+round trip.
 
-Each step adds derived tables and nothing else, so a faithful older-schema
-fixture is a fresh current ledger with the newer tables dropped and the version
-stamp rolled back — the exact pre-upgrade layout, built from the same DDL.
+Every step either adds derived tables or relaxes a constraint on one, rewriting
+no rows, so a faithful older-schema fixture is a fresh current ledger with the
+newer tables dropped and the version stamp rolled back — close enough to the
+pre-upgrade layout that the add-only steps replay identically and the 11->12
+table rebuild is a verbatim row copy.
 """
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ from fincl.migrations import (
     MIGRATION_8_TO_9_CHECKSUM,
     MIGRATION_9_TO_10_CHECKSUM,
     MIGRATION_10_TO_11_CHECKSUM,
+    MIGRATION_11_TO_12_CHECKSUM,
     apply_pending_migrations,
 )
 from fincl.refresh import refresh_ledger
@@ -116,7 +120,7 @@ class Schema9MigrationTests(unittest.TestCase):
         result = apply_pending_migrations(self.database, backup_dir=bundle)
 
         self.assertEqual((result.from_version, result.to_version), (8, SCHEMA_VERSION))
-        self.assertEqual(result.steps, [9, 10, 11])
+        self.assertEqual(result.steps, [9, 10, 11, 12])
         self.assertEqual(self._stored_version(), SCHEMA_VERSION)
         for table in (*_SCHEMA_9_TABLES, *_SCHEMA_10_TABLES, *_SCHEMA_11_TABLES):
             self.assertIn(table, self._tables(self.database))
@@ -135,6 +139,7 @@ class Schema9MigrationTests(unittest.TestCase):
                 (9, 8, MIGRATION_8_TO_9_CHECKSUM),
                 (10, 9, MIGRATION_9_TO_10_CHECKSUM),
                 (11, 10, MIGRATION_10_TO_11_CHECKSUM),
+                (12, 11, MIGRATION_11_TO_12_CHECKSUM),
             ],
         )
 
@@ -157,7 +162,7 @@ class Schema9MigrationTests(unittest.TestCase):
         result = apply_pending_migrations(self.database, backup_dir=bundle)
 
         self.assertEqual((result.from_version, result.to_version), (9, SCHEMA_VERSION))
-        self.assertEqual(result.steps, [10, 11])
+        self.assertEqual(result.steps, [10, 11, 12])
         self.assertEqual(
             self._tables(self.database) - fresh_layout,
             set(_SCHEMA_10_TABLES) | set(_SCHEMA_11_TABLES),

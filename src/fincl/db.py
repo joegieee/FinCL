@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -149,6 +149,110 @@ CREATE TABLE IF NOT EXISTS refund_allocations (
 """
 
 
+# Schema 12 (v0.5 bulk actions). The schema 8 categorization projection tables
+# carried `journal_seq INTEGER NOT NULL UNIQUE`, an identity claim that predates
+# DECISION_BATCH: one batch record now projects a child row per item, so several
+# rows legitimately share the outer record's seq. This step rebuilds the six
+# affected tables to drop that UNIQUE; every other column, check and primary key
+# is unchanged, so a migrated ledger and a fresh one stay byte-identical. No row
+# is rewritten. `initialize_schema` already emits the post-12 layout for fresh
+# ledgers; this DDL is applied only by the registered 11->12 migration and must
+# be kept free of semicolons outside statement terminators (see
+# `migrations._apply_table_ddl`).
+SCHEMA_12_MIGRATION_SQL = """
+CREATE TABLE link_decisions__s12 (
+    left_anchor TEXT NOT NULL,
+    right_anchor TEXT NOT NULL,
+    anchor_version TEXT NOT NULL,
+    link_kind TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK (decision IN ('CONFIRM', 'REJECT')),
+    policy_version TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    snapshot TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    link_purpose TEXT CHECK (link_purpose IN
+        ('transfer', 'card_repayment', 'wallet_topup')),
+    PRIMARY KEY(left_anchor, right_anchor, anchor_version, link_kind)
+) STRICT;
+INSERT INTO link_decisions__s12 SELECT * FROM link_decisions;
+DROP TABLE link_decisions;
+ALTER TABLE link_decisions__s12 RENAME TO link_decisions;
+
+CREATE TABLE invariant_escapes__s12 (
+    invariant_code TEXT NOT NULL,
+    anchors_json TEXT NOT NULL,
+    anchor_version TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    snapshot TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    PRIMARY KEY(invariant_code, anchors_json, anchor_version)
+) STRICT;
+INSERT INTO invariant_escapes__s12 SELECT * FROM invariant_escapes;
+DROP TABLE invariant_escapes;
+ALTER TABLE invariant_escapes__s12 RENAME TO invariant_escapes;
+
+CREATE TABLE inbound_classifications__s12 (
+    anchor TEXT NOT NULL,
+    anchor_version TEXT NOT NULL,
+    classification TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    snapshot TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    PRIMARY KEY(anchor, anchor_version)
+) STRICT;
+INSERT INTO inbound_classifications__s12 SELECT * FROM inbound_classifications;
+DROP TABLE inbound_classifications;
+ALTER TABLE inbound_classifications__s12 RENAME TO inbound_classifications;
+
+CREATE TABLE merchant_aliases__s12 (
+    canonical TEXT PRIMARY KEY,
+    patterns_json TEXT NOT NULL,
+    display_name TEXT,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    record_hash TEXT NOT NULL
+) STRICT;
+INSERT INTO merchant_aliases__s12 SELECT * FROM merchant_aliases;
+DROP TABLE merchant_aliases;
+ALTER TABLE merchant_aliases__s12 RENAME TO merchant_aliases;
+
+CREATE TABLE category_rules__s12 (
+    rule_id TEXT PRIMARY KEY,
+    match_json TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    migrated_from TEXT,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    record_hash TEXT NOT NULL
+) STRICT;
+INSERT INTO category_rules__s12 SELECT * FROM category_rules;
+DROP TABLE category_rules;
+ALTER TABLE category_rules__s12 RENAME TO category_rules;
+
+CREATE TABLE category_overrides__s12 (
+    entry_anchor TEXT PRIMARY KEY,
+    anchor_version TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    migrated_from TEXT,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    record_hash TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT
+) STRICT;
+INSERT INTO category_overrides__s12 SELECT * FROM category_overrides;
+DROP TABLE category_overrides;
+ALTER TABLE category_overrides__s12 RENAME TO category_overrides;
+"""
+
+
 def _create_decision_projection(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
@@ -165,7 +269,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             link_kind TEXT NOT NULL,
             decision TEXT NOT NULL CHECK (decision IN ('CONFIRM', 'REJECT')),
             policy_version TEXT NOT NULL,
-            journal_seq INTEGER NOT NULL UNIQUE,
+            journal_seq INTEGER NOT NULL,
             snapshot TEXT NOT NULL,
             bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
             dangling_reason TEXT,
@@ -183,7 +287,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             anchors_json TEXT NOT NULL,
             anchor_version TEXT NOT NULL,
             policy_version TEXT NOT NULL,
-            journal_seq INTEGER NOT NULL UNIQUE,
+            journal_seq INTEGER NOT NULL,
             snapshot TEXT NOT NULL,
             bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
             dangling_reason TEXT,
@@ -195,7 +299,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             anchor_version TEXT NOT NULL,
             classification TEXT NOT NULL,
             policy_version TEXT NOT NULL,
-            journal_seq INTEGER NOT NULL UNIQUE,
+            journal_seq INTEGER NOT NULL,
             snapshot TEXT NOT NULL,
             bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
             dangling_reason TEXT,
@@ -206,13 +310,15 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         -- (Confirmed 28). These are the replayable projection: the latest
         -- record per anchor wins, and an anchor whose latest record is a
         -- RETIRE is absent entirely. `record_hash` is carried so §5.3's
-        -- rule_set_hash can be computed from the projection.
+        -- rule_set_hash can be computed from the projection. `journal_seq` is
+        -- provenance, not an identity: one DECISION_BATCH record projects a row
+        -- per child, so many rows can legitimately share its seq (schema 12).
         CREATE TABLE IF NOT EXISTS merchant_aliases (
             canonical TEXT PRIMARY KEY,
             patterns_json TEXT NOT NULL,
             display_name TEXT,
             reason TEXT NOT NULL,
-            journal_seq INTEGER NOT NULL UNIQUE,
+            journal_seq INTEGER NOT NULL,
             record_hash TEXT NOT NULL
         ) STRICT;
 
@@ -223,7 +329,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             category TEXT NOT NULL,
             migrated_from TEXT,
             reason TEXT NOT NULL,
-            journal_seq INTEGER NOT NULL UNIQUE,
+            journal_seq INTEGER NOT NULL,
             record_hash TEXT NOT NULL
         ) STRICT;
 
@@ -234,7 +340,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             category TEXT NOT NULL,
             migrated_from TEXT,
             reason TEXT NOT NULL,
-            journal_seq INTEGER NOT NULL UNIQUE,
+            journal_seq INTEGER NOT NULL,
             record_hash TEXT NOT NULL,
             bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
             dangling_reason TEXT

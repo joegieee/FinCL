@@ -7,9 +7,13 @@ foreign-key checks run before commit, and the new version is stamped only at
 commit. There is no lossy down-migration; reversal restores the backup.
 
 The registry holds the 8->9 upgrade (MVP M1b, two derived generation/receipt
-tables) and the 9->10 upgrade (v0.2 analysis slice 1, the `analysis_components`
-projection tables). Each adds derived tables and nothing else, so a migrated
-ledger and a fresh one are byte-identical.
+tables), the 9->10 upgrade (v0.2 analysis slice 1, the `analysis_components`
+projection tables), the 10->11 upgrade (v0.2 analysis slices 3-4, the
+relationship projection tables) and the 11->12 upgrade (v0.5 bulk actions,
+dropping the pre-batch `journal_seq UNIQUE` from the six categorization
+projection tables). Every step either adds derived tables or relaxes a
+constraint on one, rewriting no rows, so a migrated ledger and a fresh one stay
+byte-identical.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from .db import (
     SCHEMA_9_TABLES_SQL,
     SCHEMA_10_TABLES_SQL,
     SCHEMA_11_TABLES_SQL,
+    SCHEMA_12_MIGRATION_SQL,
     SCHEMA_VERSION,
     connect_sqlite,
 )
@@ -73,6 +78,18 @@ def _migrate_10_to_11(connection: sqlite3.Connection) -> None:
     _apply_table_ddl(connection, SCHEMA_11_TABLES_SQL)
 
 
+def _migrate_11_to_12(connection: sqlite3.Connection) -> None:
+    """Drop the pre-batch ``journal_seq UNIQUE`` from the six categorization
+    projection tables by rebuilding each in place.
+
+    Every existing row is copied verbatim; only the redundant unique index is
+    gone, so a ``DECISION_BATCH`` record can project one child row per item
+    without a second child colliding on the outer record's seq. The tables are
+    disposable projections rebuilt by the next journal replay regardless.
+    """
+    _apply_table_ddl(connection, SCHEMA_12_MIGRATION_SQL)
+
+
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
 # edit to that DDL is a new migration rather than a silent change under one id.
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
@@ -84,12 +101,16 @@ MIGRATION_9_TO_10_CHECKSUM = "sha256:" + hashlib.sha256(
 MIGRATION_10_TO_11_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_11_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_11_TO_12_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_12_MIGRATION_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
     8: Migration(8, 9, MIGRATION_8_TO_9_CHECKSUM, _migrate_8_to_9),
     9: Migration(9, 10, MIGRATION_9_TO_10_CHECKSUM, _migrate_9_to_10),
     10: Migration(10, 11, MIGRATION_10_TO_11_CHECKSUM, _migrate_10_to_11),
+    11: Migration(11, 12, MIGRATION_11_TO_12_CHECKSUM, _migrate_11_to_12),
 }
 
 
