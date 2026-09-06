@@ -5,6 +5,13 @@ export type Plan = components['schemas']['Plan']
 export type Proposal = components['schemas']['Proposal']
 export type TransactionsPage = components['schemas']['TransactionsPage']
 export type Command = components['schemas']['Command']
+export type Analysis = components['schemas']['Analysis']
+export type SummaryCell = components['schemas']['SummaryCell']
+export type CategoryChange = components['schemas']['CategoryChange']
+export type MerchantRank = components['schemas']['MerchantRank']
+export type TrendPoint = components['schemas']['TrendPoint']
+export type ContributorsPage = components['schemas']['ContributorsPage']
+export type Contributor = components['schemas']['Contributor']
 let csrf = ''
 export class ApiError extends Error { constructor(message:string,public status:number){super(message)} }
 export async function api<T>(path:string, body?:unknown):Promise<T> {

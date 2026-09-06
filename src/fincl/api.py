@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,7 +23,7 @@ from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
 from .locking import LedgerBusyError, ledger_writer
 from .plans import validate_plan
-from .queries import contributors_page, dashboard, transactions_page
+from .queries import analysis_page, contributors_page, dashboard, transactions_page
 from .refresh import refresh_ledger
 
 
@@ -190,6 +190,83 @@ class ContributorsPage(StrictModel):
     total: int
 
 
+class MoneyDTO(StrictModel):
+    value: str
+    currency: str
+
+
+class SummaryCell(StrictModel):
+    value: MoneyDTO | None
+    previous: MoneyDTO | None
+    delta: MoneyDTO | None
+    pct: str | None
+
+
+class AnalysisScopeDTO(StrictModel):
+    start: str
+    end: str
+    currency: str
+    lens: str
+    accounts: list[str]
+    category_keys: list[str]
+    merchant: str | None
+
+
+class ComparisonDTO(StrictModel):
+    kind: str
+    start: str | None
+    end: str | None
+    available: bool
+    reasons: list[str]
+
+
+class TrendPoint(StrictModel):
+    month: str
+    spending: MoneyDTO | None
+    fees: MoneyDTO | None
+    income: MoneyDTO | None
+    complete: bool
+
+
+class CategoryChange(StrictModel):
+    category: str
+    current: MoneyDTO
+    previous: MoneyDTO
+    delta: MoneyDTO
+    pct: str | None
+    new_in_period: bool
+    handle: str | None
+
+
+class CategoryChanges(StrictModel):
+    increases: list[CategoryChange]
+    decreases: list[CategoryChange]
+    restated_using_current_categories: bool
+
+
+class MerchantRank(StrictModel):
+    merchant: str
+    value: MoneyDTO
+    count: int
+    handle: str | None
+
+
+class Analysis(StrictModel):
+    generation: str
+    freshness: str
+    updated_at: str
+    scope: AnalysisScopeDTO
+    covered: bool
+    coverage_reasons: list[str]
+    comparison: ComparisonDTO
+    summary: dict[str, SummaryCell]
+    summary_handles: dict[str, str | None]
+    trend: list[TrendPoint]
+    category_changes: CategoryChanges
+    merchant_ranking: list[MerchantRank]
+    contributors_handle: str | None
+
+
 def _validate(database: Path, command: Command) -> dict[str,str]:
     """Raise on an invalid command; return journal-side values derived during validation."""
     extra: dict[str,str] = {}
@@ -311,6 +388,27 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                     database, generation=generation, start=start, end=end, currency=currency,
                     search=search, category=category, account=account, kind=kind,
                     include_excluded=include_excluded, sort=sort, cursor=cursor, limit=limit,
+                )
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise
+
+    @app.get('/api/v1/analysis',response_model=Analysis)
+    def analysis(
+        start: str, end: str, currency: str = 'SGD',
+        comparison: str | None = None,
+        accounts: list[str] | None = Query(default=None),
+        category_keys: list[str] | None = Query(default=None),
+        merchant: str | None = None,
+        expected_generation: str | None = None,
+    ) -> Any:
+        with ledger_writer(database):
+            try:
+                return analysis_page(
+                    database, start=start, end=end, currency=currency,
+                    accounts=accounts, category_keys=category_keys, merchant=merchant,
+                    comparison=comparison, expected=expected_generation,
                 )
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):

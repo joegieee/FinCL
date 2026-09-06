@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .analysis import handles
+from .analysis.queries import analysis_page as analysis_page
 from .common import category_strings
 from .custom_categories import custom_categories
 from .db import connect_readonly

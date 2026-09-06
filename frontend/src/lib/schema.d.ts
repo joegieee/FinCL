@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Analysis */
+        get: operations["analysis_api_v1_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/contributors/{handle}": {
         parameters: {
             query?: never;
@@ -212,10 +229,80 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Analysis */
+        Analysis: {
+            /** Generation */
+            generation: string;
+            /** Freshness */
+            freshness: string;
+            /** Updated At */
+            updated_at: string;
+            scope: components["schemas"]["AnalysisScopeDTO"];
+            /** Covered */
+            covered: boolean;
+            /** Coverage Reasons */
+            coverage_reasons: string[];
+            comparison: components["schemas"]["ComparisonDTO"];
+            /** Summary */
+            summary: {
+                [key: string]: components["schemas"]["SummaryCell"];
+            };
+            /** Summary Handles */
+            summary_handles: {
+                [key: string]: string | null;
+            };
+            /** Trend */
+            trend: components["schemas"]["TrendPoint"][];
+            category_changes: components["schemas"]["CategoryChanges"];
+            /** Merchant Ranking */
+            merchant_ranking: components["schemas"]["MerchantRank"][];
+            /** Contributors Handle */
+            contributors_handle: string | null;
+        };
+        /** AnalysisScopeDTO */
+        AnalysisScopeDTO: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            /** Currency */
+            currency: string;
+            /** Lens */
+            lens: string;
+            /** Accounts */
+            accounts: string[];
+            /** Category Keys */
+            category_keys: string[];
+            /** Merchant */
+            merchant: string | null;
+        };
         /** Bootstrap */
         Bootstrap: {
             /** Secret */
             secret: string;
+        };
+        /** CategoryChange */
+        CategoryChange: {
+            /** Category */
+            category: string;
+            current: components["schemas"]["MoneyDTO"];
+            previous: components["schemas"]["MoneyDTO"];
+            delta: components["schemas"]["MoneyDTO"];
+            /** Pct */
+            pct: string | null;
+            /** New In Period */
+            new_in_period: boolean;
+            /** Handle */
+            handle: string | null;
+        };
+        /** CategoryChanges */
+        CategoryChanges: {
+            /** Increases */
+            increases: components["schemas"]["CategoryChange"][];
+            /** Decreases */
+            decreases: components["schemas"]["CategoryChange"][];
+            /** Restated Using Current Categories */
+            restated_using_current_categories: boolean;
         };
         /** Command */
         Command: {
@@ -239,6 +326,19 @@ export interface components {
             payload: {
                 [key: string]: string;
             };
+        };
+        /** ComparisonDTO */
+        ComparisonDTO: {
+            /** Kind */
+            kind: string;
+            /** Start */
+            start: string | null;
+            /** End */
+            end: string | null;
+            /** Available */
+            available: boolean;
+            /** Reasons */
+            reasons: string[];
         };
         /** Contributor */
         Contributor: {
@@ -401,6 +501,23 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** MerchantRank */
+        MerchantRank: {
+            /** Merchant */
+            merchant: string;
+            value: components["schemas"]["MoneyDTO"];
+            /** Count */
+            count: number;
+            /** Handle */
+            handle: string | null;
+        };
+        /** MoneyDTO */
+        MoneyDTO: {
+            /** Value */
+            value: string;
+            /** Currency */
+            currency: string;
+        };
         /** Plan */
         Plan: {
             /** Id */
@@ -476,6 +593,14 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** SummaryCell */
+        SummaryCell: {
+            value: components["schemas"]["MoneyDTO"] | null;
+            previous: components["schemas"]["MoneyDTO"] | null;
+            delta: components["schemas"]["MoneyDTO"] | null;
+            /** Pct */
+            pct: string | null;
+        };
         /** Total */
         Total: {
             /** Name */
@@ -506,6 +631,16 @@ export interface components {
             spending: string | null;
             /** Income */
             income: string | null;
+            /** Complete */
+            complete: boolean;
+        };
+        /** TrendPoint */
+        TrendPoint: {
+            /** Month */
+            month: string;
+            spending: components["schemas"]["MoneyDTO"] | null;
+            fees: components["schemas"]["MoneyDTO"] | null;
+            income: components["schemas"]["MoneyDTO"] | null;
             /** Complete */
             complete: boolean;
         };
@@ -648,6 +783,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TransactionsPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analysis_api_v1_analysis_get: {
+        parameters: {
+            query: {
+                start: string;
+                end: string;
+                currency?: string;
+                comparison?: string | null;
+                accounts?: string[] | null;
+                category_keys?: string[] | null;
+                merchant?: string | null;
+                expected_generation?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Analysis"];
                 };
             };
             /** @description Validation Error */

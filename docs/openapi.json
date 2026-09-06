@@ -286,6 +286,150 @@
         }
       }
     },
+    "/api/v1/analysis": {
+      "get": {
+        "summary": "Analysis",
+        "operationId": "analysis_api_v1_analysis_get",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "End"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SGD",
+              "title": "Currency"
+            }
+          },
+          {
+            "name": "comparison",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Comparison"
+            }
+          },
+          {
+            "name": "accounts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accounts"
+            }
+          },
+          {
+            "name": "category_keys",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category Keys"
+            }
+          },
+          {
+            "name": "merchant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Merchant"
+            }
+          },
+          {
+            "name": "expected_generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Analysis"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/contributors/{handle}": {
       "get": {
         "summary": "Contributors",
@@ -570,6 +714,163 @@
   },
   "components": {
     "schemas": {
+      "Analysis": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "freshness": {
+            "type": "string",
+            "title": "Freshness"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/AnalysisScopeDTO"
+          },
+          "covered": {
+            "type": "boolean",
+            "title": "Covered"
+          },
+          "coverage_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Coverage Reasons"
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/ComparisonDTO"
+          },
+          "summary": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SummaryCell"
+            },
+            "type": "object",
+            "title": "Summary"
+          },
+          "summary_handles": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Summary Handles"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "type": "array",
+            "title": "Trend"
+          },
+          "category_changes": {
+            "$ref": "#/components/schemas/CategoryChanges"
+          },
+          "merchant_ranking": {
+            "items": {
+              "$ref": "#/components/schemas/MerchantRank"
+            },
+            "type": "array",
+            "title": "Merchant Ranking"
+          },
+          "contributors_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contributors Handle"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "freshness",
+          "updated_at",
+          "scope",
+          "covered",
+          "coverage_reasons",
+          "comparison",
+          "summary",
+          "summary_handles",
+          "trend",
+          "category_changes",
+          "merchant_ranking",
+          "contributors_handle"
+        ],
+        "title": "Analysis"
+      },
+      "AnalysisScopeDTO": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "lens": {
+            "type": "string",
+            "title": "Lens"
+          },
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accounts"
+          },
+          "category_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Category Keys"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "currency",
+          "lens",
+          "accounts",
+          "category_keys",
+          "merchant"
+        ],
+        "title": "AnalysisScopeDTO"
+      },
       "Bootstrap": {
         "properties": {
           "secret": {
@@ -584,6 +885,91 @@
           "secret"
         ],
         "title": "Bootstrap"
+      },
+      "CategoryChange": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "current": {
+            "$ref": "#/components/schemas/MoneyDTO"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/MoneyDTO"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/MoneyDTO"
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct"
+          },
+          "new_in_period": {
+            "type": "boolean",
+            "title": "New In Period"
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handle"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "category",
+          "current",
+          "previous",
+          "delta",
+          "pct",
+          "new_in_period",
+          "handle"
+        ],
+        "title": "CategoryChange"
+      },
+      "CategoryChanges": {
+        "properties": {
+          "increases": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryChange"
+            },
+            "type": "array",
+            "title": "Increases"
+          },
+          "decreases": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryChange"
+            },
+            "type": "array",
+            "title": "Decreases"
+          },
+          "restated_using_current_categories": {
+            "type": "boolean",
+            "title": "Restated Using Current Categories"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "increases",
+          "decreases",
+          "restated_using_current_categories"
+        ],
+        "title": "CategoryChanges"
       },
       "Command": {
         "properties": {
@@ -634,6 +1020,57 @@
           "payload"
         ],
         "title": "Command"
+      },
+      "ComparisonDTO": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "start",
+          "end",
+          "available",
+          "reasons"
+        ],
+        "title": "ComparisonDTO"
       },
       "Contributor": {
         "properties": {
@@ -1127,6 +1564,60 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "MerchantRank": {
+        "properties": {
+          "merchant": {
+            "type": "string",
+            "title": "Merchant"
+          },
+          "value": {
+            "$ref": "#/components/schemas/MoneyDTO"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handle"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "merchant",
+          "value",
+          "count",
+          "handle"
+        ],
+        "title": "MerchantRank"
+      },
+      "MoneyDTO": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "currency"
+        ],
+        "title": "MoneyDTO"
+      },
       "Plan": {
         "properties": {
           "id": {
@@ -1333,6 +1824,60 @@
         ],
         "title": "Recurring"
       },
+      "SummaryCell": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "previous",
+          "delta",
+          "pct"
+        ],
+        "title": "SummaryCell"
+      },
       "Total": {
         "properties": {
           "name": {
@@ -1449,6 +1994,58 @@
           "complete"
         ],
         "title": "Trend"
+      },
+      "TrendPoint": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "spending": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fees": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "income": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "month",
+          "spending",
+          "fees",
+          "income",
+          "complete"
+        ],
+        "title": "TrendPoint"
       },
       "ValidationError": {
         "properties": {
