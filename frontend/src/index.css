@@ -158,3 +158,19 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .import-table th{background:var(--background);font-size:10px;text-align:left}
 .import-table td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:top}
 .import-table td small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+
+/* v0.5 slice 2 — account inventory and coverage */
+.accounts-view{display:flex;flex-direction:column;gap:18px}
+.accounts-view .alert ul{margin:6px 0 0 16px;font-size:11px}
+.account-card{padding:20px!important}
+.account-status{display:flex;align-items:center;gap:10px}
+.pocket-table{width:100%;font-size:11px;margin-top:14px;border-collapse:collapse}
+.pocket-table th{text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border);padding:6px 8px}
+.pocket-table td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top}
+.pocket-table td small{display:block;color:var(--muted);font-size:9px;margin-top:2px}
+.pocket-form-row td{background:var(--background)}
+.form-row-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.form-row-3 label{margin-bottom:8px}
+.account-details-form{border-top:1px solid var(--border);margin-top:12px;padding-top:14px}
+.alias-section{padding:20px!important}
+@media(max-width:700px){.form-row-3{grid-template-columns:1fr}.pocket-table{display:block;overflow-x:auto}}
