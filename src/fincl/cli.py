@@ -31,6 +31,7 @@ from .fx import load_fx_rates_file, load_mas_weekly_csv_file
 from .money import ExactMoney
 from .rebuild import rebuild_database
 from .recovery import recover_extraction
+from .refresh import refresh_ledger
 from .report import (
     build_coverage_report,
     build_economic_flow_report,
@@ -147,14 +148,59 @@ def import_mari_card(
     _import_document(source, database, evidence_dir, "MARI_CARD", plain, json_output)
 
 
+_NO_REFRESH_HELP = (
+    "Skip the implicit refresh and read whatever the last preparation committed."
+)
+
+
+def _prepare_for_query(database: Path, no_refresh: bool) -> None:
+    """Explicit preparation before a CLI query (plan M1a, application contract §4)."""
+    if no_refresh:
+        return
+    refresh_ledger(database)
+
+
+@app.command("refresh")
+def refresh_command(
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Rebuild the disposable projection the read surface serves."""
+    try:
+        result = refresh_ledger(database)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    _emit_mapping(
+        {
+            "status": "REFRESHED",
+            "decisions_bound": result.decisions_bound,
+            "decisions_dangling": result.decisions_dangling,
+            "confirmed_transfer_links": result.confirmed_transfer_links,
+            "categorization_run": result.categorization_run_id or "none",
+            "categorized_entries": result.categorized_entries,
+        },
+        plain,
+        json_output,
+    )
+    if result.decisions_dangling > 0:
+        error_console.print(
+            f"[yellow]fincl:[/yellow] {result.decisions_dangling} journaled decision(s) "
+            "no longer bind to a live anchor"
+        )
+        raise typer.Exit(3)
+
+
 @app.command("report")
 def report(
     database: Path = typer.Option(..., "--database"),
     plain: bool = typer.Option(False, "--plain"),
     json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
 ) -> None:
     """Show the latest extraction report."""
     try:
+        _prepare_for_query(database, no_refresh)
         if json_output:
             typer.echo(json_report(latest_report_data(database)))
         elif plain:
@@ -170,9 +216,11 @@ def coverage(
     database: Path = typer.Option(..., "--database"),
     plain: bool = typer.Option(False, "--plain"),
     json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
 ) -> None:
     """Show statement coverage and selection status."""
     try:
+        _prepare_for_query(database, no_refresh)
         data = coverage_report_data(database)
     except (FinCLError, OSError) as exc:
         _fail(exc)
@@ -222,9 +270,11 @@ def economic_flow(
     end: str | None = typer.Option(None, "--end", help="Analysis end date (YYYY-MM-DD)."),
     plain: bool = typer.Option(False, "--plain"),
     json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
 ) -> None:
     """Show exact per-currency external economic flow and source coverage."""
     try:
+        _prepare_for_query(database, no_refresh)
         data = economic_flow_report_data(database, start=start, end=end)
     except (FinCLError, OSError) as exc:
         _fail(exc)
@@ -325,9 +375,11 @@ def profile(
     database: Path = typer.Option(..., "--database"),
     plain: bool = typer.Option(False, "--plain"),
     json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
 ) -> None:
     """Show repeatable observations about imported source profiles."""
     try:
+        _prepare_for_query(database, no_refresh)
         data = profile_report_data(database)
     except (FinCLError, OSError) as exc:
         _fail(exc)

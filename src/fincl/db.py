@@ -194,6 +194,42 @@ def connect_sqlite(path: Path) -> sqlite3.Connection:
     return connection
 
 
+def connect_readonly(path: Path) -> sqlite3.Connection:
+    """Open an existing ledger for reading only (MVP M1a query surface).
+
+    The connection is opened with SQLite's ``mode=ro`` flag and pinned with
+    ``PRAGMA query_only`` so a read path cannot initialize the schema, replay
+    the journal, or recompute a projection as a side effect of a query. The
+    database must already exist and carry a schema stamp: preparation
+    (`fincl refresh`) is an explicit step, not something a report does on the
+    way past.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise SchemaVersionError(
+            f"ledger {path} does not exist; import a statement or run "
+            "`fincl refresh` before querying it"
+        )
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
+    connection.execute("PRAGMA query_only = ON")
+    stored = _stored_schema_version(connection)
+    if stored is None:
+        connection.close()
+        raise SchemaVersionError(
+            f"ledger {path} has no schema stamp; run `fincl refresh` before querying it"
+        )
+    if stored != SCHEMA_VERSION:
+        connection.close()
+        raise SchemaVersionError(
+            f"ledger {path} is at schema version {stored}, not {SCHEMA_VERSION}; "
+            "run `fincl refresh` (or a supported migration) before querying it"
+        )
+    return connection
+
+
 def _stored_schema_version(connection: sqlite3.Connection) -> int | None:
     """Return the schema version recorded in an existing database, or None."""
     has_metadata = connection.execute(

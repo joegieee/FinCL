@@ -12,9 +12,8 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 from . import fx
-from .db import connect_sqlite, initialize_schema
-from .decisions import replay_journal
-from .engine import categorize, summarize_run
+from .db import connect_readonly
+from .engine import summarize_run
 from .errors import FinCLError
 from .intervals import (
     COVERAGE_POLICY_VERSION,
@@ -34,13 +33,15 @@ _REPORTING_CURRENCY = "SGD"
 
 
 @contextmanager
-def _reading(database_path: Path, *, replay: bool = True) -> Iterator[sqlite3.Connection]:
-    """Open an initialized connection for a report that always closes."""
-    connection = connect_sqlite(database_path)
+def _reading(database_path: Path) -> Iterator[sqlite3.Connection]:
+    """Open the ledger read-only for a query that always closes (plan M1a).
+
+    Reports read whatever the last ``fincl refresh`` committed. Schema
+    initialization, journal replay and categorization are preparation steps and
+    never run on this path — the connection is pinned ``query_only``.
+    """
+    connection = connect_readonly(database_path)
     try:
-        initialize_schema(connection)
-        if replay:
-            replay_journal(connection)
         yield connection
     finally:
         connection.close()
@@ -58,18 +59,12 @@ def _dangling_decisions(connection: sqlite3.Connection) -> int:
     )
 
 
-def _category_warnings(connection: sqlite3.Connection, *, recompute: bool) -> dict[str, Any]:
+def _category_warnings(connection: sqlite3.Connection) -> dict[str, Any]:
     """Category coverage plus the counts surfaced as warnings (§7, §14.3).
 
-    ``recompute`` runs the engine first so the counts match the journal; a
-    read-only caller (``profile``) reads whatever the last run left.
+    A pure read: it reports whatever the last ``fincl refresh`` / ``fincl
+    categorize`` committed. ``NOT_RUN`` until a categorization run exists.
     """
-    has_entries = connection.execute(
-        "SELECT 1 FROM ledger_entries e JOIN extraction_runs x "
-        "ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED' LIMIT 1"
-    ).fetchone()
-    if recompute and has_entries is not None:
-        summarize_run(connection, categorize(connection))
     run = connection.execute(
         "SELECT id FROM categorization_runs ORDER BY completed_at DESC, id DESC LIMIT 1"
     ).fetchone()
@@ -165,7 +160,7 @@ def _build_report(connection: sqlite3.Connection) -> str:
         ),
         f"balance_checks: passed={checks['passed']} total={checks['total']}",
         f"dangling_decisions: {_dangling_decisions(connection)}",
-        *_category_lines(_category_warnings(connection, recompute=True)),
+        *_category_lines(_category_warnings(connection)),
     ]
 
     currencies = [
@@ -278,7 +273,7 @@ def _latest_report_data(connection: sqlite3.Connection) -> dict[str, Any]:
         "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
     ).fetchone()[0]
     data["dangling_decisions"] = _dangling_decisions(connection)
-    data["categories"] = _category_warnings(connection, recompute=True)
+    data["categories"] = _category_warnings(connection)
     return data
 
 
@@ -791,7 +786,7 @@ def coverage_report_data(database_path: Path) -> dict[str, Any]:
             ).fetchone()[0],
             "dangling_decisions": _dangling_decisions(connection),
             "needs_reextraction": needs_reextraction(connection),
-            "categories": _category_warnings(connection, recompute=True),
+            "categories": _category_warnings(connection),
             "coverage_policy_version": COVERAGE_POLICY_VERSION,
             "coverage_status": contract.status,
             "coverage_status_reasons": contract.reasons,
@@ -806,7 +801,7 @@ def coverage_report_data(database_path: Path) -> dict[str, Any]:
 
 def profile_report_data(database_path: Path) -> dict[str, Any]:
     """Return repeatable corpus observations without asserting their values."""
-    with _reading(database_path, replay=False) as connection:
+    with _reading(database_path) as connection:
         profiles = [
             dict(row)
             for row in connection.execute(
@@ -834,7 +829,7 @@ def profile_report_data(database_path: Path) -> dict[str, Any]:
                 """
             )
         ]
-        categories = _category_warnings(connection, recompute=False)
+        categories = _category_warnings(connection)
     return {"profiles": profiles, "source_types": source_types, "categories": categories}
 
 
