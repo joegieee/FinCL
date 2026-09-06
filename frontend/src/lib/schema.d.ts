@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Transactions */
+        get: operations["transactions_api_v1_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/preview": {
         parameters: {
             query?: never;
@@ -244,8 +261,10 @@ export interface components {
             recurring: components["schemas"]["Recurring"][];
             /** Plans */
             plans: components["schemas"]["Plan"][];
-            /** Entries */
-            entries: components["schemas"]["Entry"][];
+            /** Recent */
+            recent: components["schemas"]["Entry"][];
+            /** Review Count */
+            review_count: number;
             /** Accounts */
             accounts: string[];
             /** Total Entries */
@@ -381,6 +400,17 @@ export interface components {
             /** Count */
             count: number;
         };
+        /** TransactionsPage */
+        TransactionsPage: {
+            /** Generation */
+            generation: string;
+            /** Entries */
+            entries: components["schemas"]["Entry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
         /** Trend */
         Trend: {
             /** Month */
@@ -489,6 +519,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Dashboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    transactions_api_v1_transactions_get: {
+        parameters: {
+            query: {
+                generation: string;
+                start: string;
+                end: string;
+                currency?: string;
+                search?: string;
+                category?: string;
+                account?: string;
+                kind?: string;
+                include_excluded?: boolean;
+                sort?: string;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionsPage"];
                 };
             };
             /** @description Validation Error */

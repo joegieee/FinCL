@@ -36,6 +36,22 @@ test('a category edit survives preview, save and a full page reload', async ({ p
     .toHaveText(target.split(' / ').at(-1)!.trim())
 })
 
+test('the transactions list is served and paged by the backend', async ({ page }) => {
+  const request = page.waitForRequest((r) => r.url().includes('/api/v1/transactions'))
+  await page.locator('.navigation').getByRole('button', { name: /Transactions/ }).click()
+  const url = new URL((await request).url())
+  expect(url.searchParams.get('generation')).toBeTruthy()
+  expect(url.searchParams.get('limit')).toBe('50')
+
+  await expect(page.locator('.transactions-table tbody tr').first()).toBeVisible()
+  await expect(page.locator('.pagination span')).toHaveText(/Showing \d+ of \d+/)
+
+  // Sorting re-queries the server rather than reordering in the client.
+  const resort = page.waitForRequest((r) => r.url().includes('sort=amount'))
+  await page.getByLabel('Sort transactions').selectOption('amount')
+  await resort
+})
+
 test('the review tab reflects the ledger state', async ({ page }) => {
   await page.locator('.navigation').getByRole('button', { name: /^Review/ }).click()
   await expect(page.getByRole('heading', { name: /awaiting a decision/ })).toBeVisible()

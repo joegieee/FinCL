@@ -3,6 +3,7 @@ export type Dashboard = components['schemas']['Dashboard']
 export type Entry = components['schemas']['Entry']
 export type Plan = components['schemas']['Plan']
 export type Proposal = components['schemas']['Proposal']
+export type TransactionsPage = components['schemas']['TransactionsPage']
 export type Command = components['schemas']['Command']
 let csrf = ''
 export class ApiError extends Error { constructor(message:string,public status:number){super(message)} }

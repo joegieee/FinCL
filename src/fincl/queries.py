@@ -1,6 +1,8 @@
 """Snapshot-only dashboard queries. Decimal strings are authoritative; chart coordinates are not."""
 from __future__ import annotations
 
+import base64
+import binascii
 import calendar
 import json
 from collections import defaultdict
@@ -18,52 +20,209 @@ from .generation import build_manifest, current_generation, generation_token
 from .intervals import DateInterval, covers_date, month_span
 from .report import _coverage_contract, _economic_flow
 
+# One shared shaping of a ledger entry for every screen: the raw join, then the
+# economic `bucket` and the `review` flag as SQL so a paged query can filter and
+# sort on them before LIMIT. `dashboard()` and `transactions_page()` both read
+# from this so they can never disagree on what a row's bucket is.
+_ENTRY_VIEW = """
+WITH base AS (
+  SELECT e.*, a.display_name AS account,
+    coalesce(m.merchant_canonical, m.merchant_normalized, r.description_raw, d.description_raw, 'Unknown merchant') AS merchant,
+    coalesce(r.description_raw, d.description_raw, '') AS description,
+    coalesce(c.group_name || ' / ' || c.category, 'Unclassified / Unclassified') AS category,
+    coalesce(c.basis, 'Not categorized') AS basis,
+    coalesce('Page ' || d.page_number, 'Lines ' || r.physical_line_start || '–' || r.physical_line_end, 'Source record') AS source_location,
+    coalesce(c.ambiguous, 0) AS ambiguous, coalesce(c.direction_conflict, 0) AS direction_conflict,
+    i.classification,
+    EXISTS(SELECT 1 FROM transfer_links t WHERE t.status='CONFIRMED' AND (t.left_entry_id=e.id OR t.right_entry_id=e.id)) AS linked,
+    (e.analytics_eligible=1 AND e.lifecycle_state='COMPLETED' AND x.selection_state='SELECTED'
+      AND (e.source_family='CSV' OR s.selection_state='SELECTED')) AS eligible
+  FROM ledger_entries e JOIN accounts a ON a.id=e.account_id
+  JOIN extraction_runs x ON x.id=e.extraction_run_id
+  LEFT JOIN statements s ON s.id=e.statement_id
+  LEFT JOIN raw_records r ON r.id=e.raw_record_id
+  LEFT JOIN document_records d ON d.id=e.document_record_id
+  LEFT JOIN merchant_observations m ON m.entry_id=e.id
+  LEFT JOIN entry_categories c ON c.entry_id=e.id
+  LEFT JOIN inbound_classifications i ON i.anchor=e.natural_anchor AND i.bound=1
+),
+shaped AS (
+  SELECT base.*,
+    CASE
+      WHEN NOT eligible THEN 'excluded'
+      WHEN linked OR classification = 'self_transfer' THEN 'internal'
+      WHEN economic_direction = 'OUT' THEN 'spending'
+      WHEN economic_direction = 'IN' THEN CASE classification
+        WHEN 'income' THEN 'income'
+        WHEN 'reimbursement' THEN 'reimbursements'
+        WHEN 'gift' THEN 'non_income_inflow'
+        WHEN 'family_transfer' THEN 'non_income_inflow'
+        WHEN 'other' THEN 'other'
+        ELSE CASE WHEN classification IS NULL AND event_kind = 'REFUND' THEN 'refunds' ELSE 'pending_review' END
+      END
+      ELSE 'excluded'
+    END AS bucket
+  FROM base
+)
+SELECT shaped.*,
+  (ambiguous OR direction_conflict OR category LIKE 'Unclassified%' OR bucket = 'pending_review') AS review,
+  (coalesce(fee_coefficient, 0) <> 0) AS fee_nonzero,
+  substr(effective_at, 1, 7) AS effective_month,
+  CAST(amount_coefficient AS REAL) / power(10.0, amount_scale) AS amount_value
+FROM shaped
+"""
+
+# Sort options exposed to the transaction list. Each is a deterministic ORDER BY
+# with (natural_anchor, id) as the final tie-break, plus the keyset comparison
+# that pages forward from a cursor row.
+_SORTS: dict[str, dict[str, str]] = {
+    "date": {  # newest first
+        "order": "effective_at DESC, natural_anchor ASC, id ASC",
+        "key": "effective_at",
+        "after": "(effective_at < :k_val OR (effective_at = :k_val AND (natural_anchor > :k_anchor OR (natural_anchor = :k_anchor AND id > :k_id))))",
+    },
+    "amount": {  # largest outgoings first (most negative signed value first)
+        "order": "amount_value ASC, natural_anchor ASC, id ASC",
+        "key": "amount_text",
+        "after": "(amount_value > CAST(:k_val AS REAL) OR (amount_value = CAST(:k_val AS REAL) AND (natural_anchor > :k_anchor OR (natural_anchor = :k_anchor AND id > :k_id))))",
+    },
+    "merchant": {  # A -> Z
+        "order": "merchant ASC, natural_anchor ASC, id ASC",
+        "key": "merchant",
+        "after": "(merchant > :k_val OR (merchant = :k_val AND (natural_anchor > :k_anchor OR (natural_anchor = :k_anchor AND id > :k_id))))",
+    },
+}
+
+_ROW_KEYS = ('id','anchor','date','precision','amount','fee','currency','account','merchant',
+             'description','category','basis','source_location','bucket','eligible','review',
+             'source_family','lifecycle_state')
+
 
 def money(value: Decimal) -> str:
     return format(value, 'f')
 
 
+def _shape(row: Any) -> dict[str, Any]:
+    """Turn one `_ENTRY_VIEW` row into the screen dict; amounts stay exact strings."""
+    item = dict(row)
+    magnitude = abs(Decimal(item['amount_text']))
+    item.update(
+        amount=money(-magnitude if item['economic_direction'] == 'OUT' else magnitude),
+        fee=money(abs(Decimal(item['fee_text'] or '0'))),
+        currency=item['currency_pocket'],
+        date=item['effective_at'][:10],
+        precision=item['effective_precision'],
+        anchor=item['natural_anchor'],
+        review=bool(item['review']),
+    )
+    return {key: item[key] for key in _ROW_KEYS}
+
+
 def all_entries(connection: Any) -> list[dict[str, Any]]:
-    rows = connection.execute("""
-      SELECT e.*, a.display_name AS account,
-        coalesce(m.merchant_canonical, m.merchant_normalized, r.description_raw, d.description_raw, 'Unknown merchant') AS merchant,
-        coalesce(r.description_raw, d.description_raw, '') AS description,
-        coalesce(c.group_name || ' / ' || c.category, 'Unclassified / Unclassified') AS category,
-        coalesce(c.basis, 'Not categorized') AS basis,
-        coalesce('Page ' || d.page_number, 'Lines ' || r.physical_line_start || '–' || r.physical_line_end, 'Source record') AS source_location,
-        coalesce(c.ambiguous, 0) AS ambiguous, coalesce(c.direction_conflict, 0) AS direction_conflict,
-        i.classification,
-        EXISTS(SELECT 1 FROM transfer_links t WHERE t.status='CONFIRMED' AND (t.left_entry_id=e.id OR t.right_entry_id=e.id)) AS linked,
-        (e.analytics_eligible=1 AND e.lifecycle_state='COMPLETED' AND x.selection_state='SELECTED'
-          AND (e.source_family='CSV' OR s.selection_state='SELECTED')) AS eligible
-      FROM ledger_entries e JOIN accounts a ON a.id=e.account_id
-      JOIN extraction_runs x ON x.id=e.extraction_run_id
-      LEFT JOIN statements s ON s.id=e.statement_id
-      LEFT JOIN raw_records r ON r.id=e.raw_record_id
-      LEFT JOIN document_records d ON d.id=e.document_record_id
-      LEFT JOIN merchant_observations m ON m.entry_id=e.id
-      LEFT JOIN entry_categories c ON c.entry_id=e.id
-      LEFT JOIN inbound_classifications i ON i.anchor=e.natural_anchor AND i.bound=1
-      ORDER BY e.effective_at DESC, e.natural_anchor, e.id
-    """).fetchall()
-    result = []
-    for row in rows:
-        item = dict(row)
-        amount = abs(Decimal(item['amount_text']))
-        bucket = 'excluded'
-        if item['eligible']:
-            if item['linked'] or item['classification'] == 'self_transfer':
-                bucket = 'internal'
-            elif item['economic_direction'] == 'OUT':
-                bucket = 'spending'
-            elif item['economic_direction'] == 'IN':
-                bucket = {'income': 'income', 'reimbursement': 'reimbursements', 'gift': 'non_income_inflow', 'family_transfer': 'non_income_inflow', 'other': 'other'}.get(item['classification'], 'refunds' if item['classification'] is None and item['event_kind'] == 'REFUND' else 'pending_review')
-        item.update(amount=money(-amount if item['economic_direction'] == 'OUT' else amount),
-                    fee=money(abs(Decimal(item['fee_text'] or '0'))), currency=item['currency_pocket'],
-                    date=item['effective_at'][:10], precision=item['effective_precision'], bucket=bucket,
-                    anchor=item['natural_anchor'], review=bool(item['ambiguous'] or item['direction_conflict'] or item['category'].startswith('Unclassified') or bucket == 'pending_review'))
-        result.append({key: item[key] for key in ('id','anchor','date','precision','amount','fee','currency','account','merchant','description','category','basis','source_location','bucket','eligible','review','source_family','lifecycle_state')})
-    return result
+    rows = connection.execute(
+        f"{_ENTRY_VIEW} ORDER BY effective_at DESC, natural_anchor, id"
+    ).fetchall()
+    return [_shape(row) for row in rows]
+
+
+def _decode_cursor(cursor: str | None) -> dict[str, str] | None:
+    if not cursor:
+        return None
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+        if {'val', 'anchor', 'id'} <= set(payload) and all(isinstance(payload[k], str) for k in ('val', 'anchor', 'id')):
+            return {'val': payload['val'], 'anchor': payload['anchor'], 'id': payload['id']}
+    except (binascii.Error, ValueError, TypeError):
+        pass
+    raise FinCLError('The page cursor is not valid; reload the list')
+
+
+def _encode_cursor(row: dict[str, Any], sort: str) -> str:
+    payload = {'val': str(row[_SORTS[sort]['key']]), 'anchor': row['natural_anchor'], 'id': row['id']}
+    return base64.urlsafe_b64encode(json.dumps(payload, separators=(',', ':')).encode()).decode()
+
+
+def _window_sql(param_start: str, param_end: str) -> str:
+    """A MONTH-precision row counts only when its whole month is inside the window."""
+    return (
+        f"(CASE WHEN effective_precision = 'MONTH' "
+        f"THEN date(effective_month || '-01') >= date({param_start}) "
+        f"AND date(effective_month || '-01', '+1 month', '-1 day') <= date({param_end}) "
+        f"ELSE substr(effective_at, 1, 10) BETWEEN {param_start} AND {param_end} END)"
+    )
+
+
+def transactions_page(
+    database: Path, *, generation: str, start: str, end: str, currency: str = 'SGD',
+    search: str = '', category: str = '', account: str = '', kind: str = '',
+    include_excluded: bool = False, sort: str = 'date', cursor: str | None = None,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """One keyset-paged slice of the transaction list, pinned to `generation`."""
+    if sort not in _SORTS:
+        raise FinCLError('Unknown sort order')
+    limit = max(1, min(int(limit), 200))
+    key = _decode_cursor(cursor)
+    connection = connect_readonly(database)
+    try:
+        connection.execute('BEGIN')
+        current = current_generation(connection)
+        if current is None:
+            raise FinCLError('Ledger is not ready. Run fincl refresh first.')
+        if generation != current['generation_token']:
+            raise FinCLError('STALE_GENERATION: reload the list')
+        for value in (start, end):
+            try:
+                date.fromisoformat(value)
+            except ValueError as exc:
+                raise FinCLError('Dates must use YYYY-MM-DD') from exc
+
+        where = ['currency_pocket = :currency', _window_sql(':start', ':end')]
+        params: dict[str, Any] = {'currency': currency, 'start': start, 'end': end}
+        if not include_excluded:
+            where.append('eligible')
+        if account:
+            where.append('account = :account')
+            params['account'] = account
+        if category:
+            where.append('category = :category')
+            params['category'] = category
+        if search.strip():
+            where.append("instr(lower(merchant || ' ' || description), lower(:search)) > 0")
+            params['search'] = search.strip()
+        if kind == 'fees':
+            where.append('fee_nonzero')
+        elif kind == 'review':
+            where.append('review')
+        elif kind:
+            where.append('bucket = :kind')
+            params['kind'] = kind
+        clause = ' AND '.join(where)
+
+        total = connection.execute(
+            f"SELECT count(*) FROM ({_ENTRY_VIEW}) WHERE {clause}", params
+        ).fetchone()[0]
+
+        paged = clause
+        if key is not None:
+            paged = f"{clause} AND {_SORTS[sort]['after']}"
+            params.update(k_val=key['val'], k_anchor=key['anchor'], k_id=key['id'])
+        rows = connection.execute(
+            f"SELECT * FROM ({_ENTRY_VIEW}) WHERE {paged} ORDER BY {_SORTS[sort]['order']} LIMIT :limit",
+            {**params, 'limit': limit + 1},
+        ).fetchall()
+
+        has_more = len(rows) > limit
+        window = [dict(row) for row in rows[:limit]]
+        next_cursor = _encode_cursor(window[-1], sort) if has_more and window else None
+        return {
+            'generation': generation,
+            'entries': [_shape(row) for row in window],
+            'next_cursor': next_cursor,
+            'total': int(total),
+        }
+    finally:
+        connection.close()
 
 
 def in_window(entry: dict[str, Any], start: str, end: str) -> bool:
@@ -170,6 +329,10 @@ def dashboard(database: Path, *, start: str | None = None, end: str | None = Non
         summary = {key: (bucket[key] if bucket else '0') if covered else None for key in ('spending','income','fees','refunds','reimbursements','non_income_inflow','pending_review','net_economic_flow')}
         selected = [e for e in entries if e['currency'] == currency and in_window(e,start,end)]
         eligible = [e for e in selected if e['eligible']]
+        # The full list is served page-by-page from /transactions; the dashboard
+        # payload only carries what Overview draws directly.
+        recent = [e for e in selected if e['bucket'] == 'spending'][:8]
+        review_count = sum(1 for e in selected if e['review'] and e['eligible'])
         # Withhold analytics entirely when the requested window crosses a coverage gap.
         analytical = eligible if covered else []
         groups = aggregate(analytical, 'category')
@@ -215,6 +378,6 @@ def dashboard(database: Path, *, start: str | None = None, end: str | None = Non
                 spent += sum((Decimal(e['fee']) for e in relevant),Decimal(0))
             plan['actual'] = money(spent) if plan['type']=='budget' and covered and full_month and plan['currency']==currency else (plan['saved'] if plan['type']=='goal' else None)
             plan['remaining'] = money(Decimal(plan['target'])-Decimal(plan['actual'])) if plan['actual'] is not None else None
-        return {'generation':token,'freshness':'stale' if stale else 'current','updated_at':generation['completed_at'], 'start':start,'end':end,'currency':currency,'currencies':sorted({e['currency'] for e in entries} | {'SGD'}),'covered':covered,'coverage_reasons':contract.reasons,'summary':summary,'categories':sorted(category_strings()|custom),'custom_categories':sorted(custom),'category_totals':groups,'merchant_totals':merchants,'trend':months,'recurring':recurring,'plans':list(plans.values()),'entries':selected,'accounts':sorted({e['account'] for e in entries}), 'total_entries':len(entries),'transfer_proposals':transfer_proposals(connection)}
+        return {'generation':token,'freshness':'stale' if stale else 'current','updated_at':generation['completed_at'], 'start':start,'end':end,'currency':currency,'currencies':sorted({e['currency'] for e in entries} | {'SGD'}),'covered':covered,'coverage_reasons':contract.reasons,'summary':summary,'categories':sorted(category_strings()|custom),'custom_categories':sorted(custom),'category_totals':groups,'merchant_totals':merchants,'trend':months,'recurring':recurring,'plans':list(plans.values()),'recent':recent,'review_count':review_count,'accounts':sorted({e['account'] for e in entries}), 'total_entries':len(entries),'transfer_proposals':transfer_proposals(connection)}
     finally:
         connection.close()

@@ -44,7 +44,7 @@ class BackupAfterUiWriteTests(unittest.TestCase):
         refresh_ledger(self.database)
 
     def test_decision_and_report_values_survive_backup_restore_reopen(self) -> None:
-        entry_anchor = dashboard(self.database)["entries"][0]["anchor"]
+        entry_anchor = dashboard(self.database)["recent"][0]["anchor"]
         record_decision(
             self.database, request_id="ui-1", intent_hash="h1",
             decision_kind="CATEGORY_OVERRIDE", anchors={"entry": entry_anchor},

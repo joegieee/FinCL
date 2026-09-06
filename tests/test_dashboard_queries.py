@@ -71,11 +71,13 @@ class WindowSelectionTests(unittest.TestCase):
         self.assertEqual((data["start"], data["end"]), ("2026-02-01", "2026-02-28"))
         self.assertTrue(data["covered"])
 
-    def test_summary_spending_equals_the_contributor_sum(self) -> None:
+    def test_summary_spending_equals_the_recent_contributor_sum(self) -> None:
+        # The Feb window has two spending rows (-20.00, -7.50); `recent` (cap 8)
+        # holds both, so their magnitudes reconcile to the summary exactly.
         data = dashboard(self.database)
         total = sum(
             abs(Decimal(e["amount"]))
-            for e in data["entries"]
+            for e in data["recent"]
             if e["bucket"] == "spending" and e["currency"] == "SGD"
         )
         self.assertEqual(data["summary"]["spending"], money(total))

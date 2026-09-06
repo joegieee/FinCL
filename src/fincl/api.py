@@ -23,7 +23,7 @@ from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
 from .locking import LedgerBusyError, ledger_writer
 from .plans import validate_plan
-from .queries import dashboard
+from .queries import dashboard, transactions_page
 from .refresh import refresh_ledger
 
 
@@ -137,10 +137,18 @@ class Dashboard(StrictModel):
     trend: list[Trend]
     recurring: list[Recurring]
     plans: list[Plan]
-    entries: list[Entry]
+    recent: list[Entry]
+    review_count: int
     accounts: list[str]
     total_entries: int
     transfer_proposals: list[Proposal]
+
+
+class TransactionsPage(StrictModel):
+    generation: str
+    entries: list[Entry]
+    next_cursor: str | None
+    total: int
 
 
 def _validate(database: Path, command: Command) -> dict[str,str]:
@@ -252,6 +260,23 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
     def overview(start: str | None = None,end: str | None = None,currency: str = 'SGD') -> Any:
         with ledger_writer(database):
             return dashboard(database,start=start,end=end,currency=currency)
+
+    @app.get('/api/v1/transactions',response_model=TransactionsPage)
+    def transactions(generation: str, start: str, end: str, currency: str = 'SGD',
+                     search: str = '', category: str = '', account: str = '', kind: str = '',
+                     include_excluded: bool = False, sort: str = 'date',
+                     cursor: str | None = None, limit: int = 50) -> Any:
+        with ledger_writer(database):
+            try:
+                return transactions_page(
+                    database, generation=generation, start=start, end=end, currency=currency,
+                    search=search, category=category, account=account, kind=kind,
+                    include_excluded=include_excluded, sort=sort, cursor=cursor, limit=limit,
+                )
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise
 
     @app.post('/api/v1/preview')
     def preview(command: Command) -> Any:
