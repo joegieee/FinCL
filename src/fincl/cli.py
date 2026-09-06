@@ -88,6 +88,12 @@ cards_app = typer.Typer(help="Inspect credit cards and their observed statements
 app.add_typer(cards_app, name="cards")
 installments_app = typer.Typer(help="Confirm and inspect credit-card installment plans (v0.4).")
 app.add_typer(installments_app, name="installments")
+accounts_app = typer.Typer(help="Inspect the account inventory and record scope, labels and source aliases.")
+app.add_typer(accounts_app, name="accounts")
+categories_app = typer.Typer(help="Inspect custom categories and record display metadata and archive state.")
+app.add_typer(categories_app, name="categories")
+imports_app = typer.Typer(help="Inspect in-app import history and per-file outcomes.")
+app.add_typer(imports_app, name="imports")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -1226,6 +1232,237 @@ def _append_retire(database: Path, kind: str, anchors: dict[str, str], reason: s
         _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError) as exc:
         _fail(exc)
+
+
+def _append_v05(
+    database: Path, kind: str, anchors: dict[str, str], payload: dict[str, Any]
+) -> None:
+    """Validate a v0.5 metadata decision at authoring, then append and re-project."""
+    from .v05 import validate_v05
+
+    try:
+        validate_v05(kind, anchors, payload, database=database)
+        with _ledger(database) as connection:
+            record = append_decision(
+                default_journal_path(database), decision_kind=kind, anchors=anchors,
+                payload=payload, policy_version=_CATEGORY_POLICY,
+                snapshot=f"{kind} {anchors}",
+            )
+            run_categorize(connection)
+        _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
+    except (FinCLError, OSError, ValueError) as exc:
+        _fail(exc)
+
+
+@app.command("setup")
+def setup_show(
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """Print the guided-setup state for this ledger."""
+    from .v05 import setup_options
+
+    try:
+        _emit_mapping(setup_options(database), plain, json_output)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@imports_app.command("list")
+def imports_list(
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """List in-app import runs, newest first."""
+    from .v05 import imports_page
+
+    try:
+        _emit_mapping(imports_page(database), plain, json_output)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@imports_app.command("show")
+def imports_show(
+    import_id: str = typer.Argument(...),
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """Show one import run with its blocking and advisory issues."""
+    from .v05 import import_detail
+
+    try:
+        _emit_mapping(import_detail(database, import_id), plain, json_output)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@accounts_app.command("list")
+def accounts_list(
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """List the account inventory with per-pocket coverage bands."""
+    from .v05 import accounts_page
+
+    try:
+        _emit_mapping(accounts_page(database), plain, json_output)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@accounts_app.command("scope")
+def accounts_scope(
+    account: str = typer.Argument(...),
+    pocket: str = typer.Option(..., "--pocket"),
+    start: str = typer.Option(..., "--start", help="Expected-active start, YYYY-MM-DD"),
+    end: str = typer.Option("", "--end", help="Expected-active end, YYYY-MM-DD or empty"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Record the expected-active window for one account pocket (ACCOUNT_SCOPE_SET)."""
+    _append_v05(
+        database, "ACCOUNT_SCOPE_SET", {"account": account, "pocket": pocket},
+        {"expected_start": start, "expected_end": end, "reason": reason},
+    )
+
+
+@accounts_app.command("details")
+def accounts_details(
+    account: str = typer.Argument(...),
+    name: str = typer.Option(..., "--name"),
+    archived_on: str = typer.Option("", "--archived-on", help="Archive date, YYYY-MM-DD or empty"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Set an account's readable label / archive date (ACCOUNT_DETAILS_SET)."""
+    _append_v05(
+        database, "ACCOUNT_DETAILS_SET", {"account": account},
+        {"display_name": name, "archived_on": archived_on, "reason": reason},
+    )
+
+
+@accounts_app.command("alias")
+def accounts_alias(
+    source_identity: str = typer.Argument(...),
+    account_id: str = typer.Option(..., "--account-id"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Bind a source account identity to an owned account (ACCOUNT_ALIAS_SET)."""
+    _append_v05(
+        database, "ACCOUNT_ALIAS_SET", {"source_identity": source_identity},
+        {"account_id": account_id, "reason": reason},
+    )
+
+
+@accounts_app.command("alias-retire")
+def accounts_alias_retire(
+    source_identity: str = typer.Argument(...),
+    reason: str = typer.Option("retired", "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Retire a source-identity alias (ACCOUNT_ALIAS_RETIRE)."""
+    _append_retire(database, "ACCOUNT_ALIAS_RETIRE", {"source_identity": source_identity}, reason)
+
+
+@categories_app.command("list")
+def categories_list(
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """List custom categories with display metadata and archive state."""
+    from .v05 import categories_page
+
+    try:
+        _emit_mapping(categories_page(database), plain, json_output)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@categories_app.command("create")
+def categories_create(
+    category: str = typer.Argument(..., help="New Group / Name key"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Define a new custom category (CATEGORY_CREATE)."""
+    from .custom_categories import custom_categories, validate_creation
+
+    try:
+        if not reason.strip():
+            raise FinCLError("a non-empty reason is required")
+        anchors = {"category": category}
+        payload: dict[str, Any] = {"category": category, "reason": reason.strip()}
+        with _ledger(database) as connection:
+            validate_creation(anchors, payload, custom_categories(database))
+            record = append_decision(
+                default_journal_path(database), decision_kind="CATEGORY_CREATE",
+                anchors=anchors, payload=payload,
+                policy_version=_CATEGORY_POLICY, snapshot=f"CATEGORY_CREATE {category}",
+            )
+            run_categorize(connection)
+        _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
+    except (FinCLError, OSError, ValueError) as exc:
+        _fail(exc)
+
+
+@categories_app.command("details")
+def categories_details(
+    category: str = typer.Argument(..., help="Immutable Group / Name key"),
+    group: str = typer.Option(..., "--group"),
+    name: str = typer.Option(..., "--name"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Set a custom category's display group / name (CATEGORY_DETAILS_SET)."""
+    _append_v05(
+        database, "CATEGORY_DETAILS_SET", {"category": category},
+        {"display_group": group, "display_name": name, "reason": reason},
+    )
+
+
+@categories_app.command("archive")
+def categories_archive(
+    category: str = typer.Argument(...),
+    restore: bool = typer.Option(False, "--restore", help="Restore instead of archive"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Archive or restore a custom category (CATEGORY_ARCHIVE_SET)."""
+    _append_v05(
+        database, "CATEGORY_ARCHIVE_SET", {"category": category},
+        {"archived": not restore, "reason": reason},
+    )
+
+
+@review_app.command("defer")
+def review_defer(
+    issue: str = typer.Argument(..., help="issue_key from the review hub"),
+    fingerprint: str = typer.Option(..., "--fingerprint"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Defer one review issue for its current fingerprint (REVIEW_DEFER_SET)."""
+    _append_v05(
+        database, "REVIEW_DEFER_SET", {"issue": issue},
+        {"fingerprint": fingerprint, "reason": reason},
+    )
+
+
+@review_app.command("defer-retire")
+def review_defer_retire(
+    issue: str = typer.Argument(...),
+    reason: str = typer.Option("resurfaced", "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Undefer one review issue (REVIEW_DEFER_RETIRE)."""
+    _append_retire(database, "REVIEW_DEFER_RETIRE", {"issue": issue}, reason)
 
 
 @rules_app.command("list")
