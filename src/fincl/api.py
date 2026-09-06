@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
@@ -32,15 +32,23 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
 
+_SINGLE_KINDS = Literal[
+    'CATEGORY_OVERRIDE','CATEGORY_CREATE','PLAN_SET','INBOUND_CLASSIFICATION',
+    'TRANSFER_DECISION','DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE',
+    'CATEGORY_OVERRIDE_RETIRE','REFUND_ALLOCATION_SET','REFUND_ALLOCATION_RETIRE',
+    'REFUND_LINK_REJECT',
+    # v0.5 setup / accounts / categories / rules / review kinds
+    'CATEGORY_METADATA_SET','CATEGORY_METADATA_RETIRE','ACCOUNT_SCOPE_SET',
+    'ACCOUNT_DETAILS_SET','ACCOUNT_ALIAS_SET','ACCOUNT_ALIAS_RETIRE',
+    'REVIEW_DEFER_SET','REVIEW_DEFER_RETIRE','MERCHANT_ALIAS_SET',
+    'MERCHANT_ALIAS_RETIRE','CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE',
+]
+
+
 class Command(StrictModel):
     request_id: UUID
     expected_generation: str = Field(min_length=1,max_length=100)
-    kind: Literal[
-        'CATEGORY_OVERRIDE','CATEGORY_CREATE','PLAN_SET','INBOUND_CLASSIFICATION',
-        'TRANSFER_DECISION','DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE',
-        'CATEGORY_OVERRIDE_RETIRE','REFUND_ALLOCATION_SET','REFUND_ALLOCATION_RETIRE',
-        'REFUND_LINK_REJECT',
-    ]
+    kind: _SINGLE_KINDS
     anchors: dict[str,str]
     payload: dict[str,Any]
 
@@ -378,6 +386,18 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                     resolve_anchor=lambda a: resolve_anchor(connection, a),
                 )
                 extra = {k: str(v) for k, v in totals.items()}
+        elif command.kind in {
+            'CATEGORY_METADATA_SET','CATEGORY_METADATA_RETIRE','ACCOUNT_SCOPE_SET',
+            'ACCOUNT_DETAILS_SET','ACCOUNT_ALIAS_SET','ACCOUNT_ALIAS_RETIRE',
+            'REVIEW_DEFER_SET','REVIEW_DEFER_RETIRE','MERCHANT_ALIAS_SET',
+            'MERCHANT_ALIAS_RETIRE','CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE',
+        }:
+            from .v05 import validate_v05
+            validate_v05(command.kind, command.anchors, command.payload, database=database)
+            if command.kind.startswith('ACCOUNT_'):
+                account_id = command.anchors.get('account') or str(command.payload.get('account_id',''))
+                if account_id and not connection.execute('SELECT 1 FROM accounts WHERE id=?',(account_id,)).fetchone():
+                    raise FinCLError('The selected account no longer exists')
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -414,7 +434,11 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
             return JSONResponse({'detail':'Invalid host'},status_code=403)
         if request.headers.get('origin') not in (None,origin):
             return JSONResponse({'detail':'Invalid origin'},status_code=403)
-        if request.method not in ('GET','HEAD') and (request.headers.get('origin') != origin or request.headers.get('content-type','').split(';')[0] != 'application/json'):
+        content_type = request.headers.get('content-type','').split(';')[0]
+        allowed_write_type = content_type == 'application/json' or (
+            request.url.path == '/api/v1/imports' and content_type == 'multipart/form-data'
+        )
+        if request.method not in ('GET','HEAD') and (request.headers.get('origin') != origin or not allowed_write_type):
             return JSONResponse({'detail':'Same-origin JSON is required'},status_code=403)
         if request.url.path.startswith('/api/'):
             if not app.state.bootstrapped or not secrets.compare_digest(request.cookies.get(cookie_name,''),app.state.session):
@@ -445,6 +469,96 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
     @app.get('/api/v1/health')
     def health() -> dict[str,Any]:
         return {'csrf':app.state.csrf,'demo':demo,'label':'Demo ledger' if demo else 'Personal ledger'}
+
+    # --- v0.5: guided setup, in-app imports, accounts, categories, rules, review ---
+
+    @app.get('/api/v1/setup/options')
+    def setup_read() -> Any:
+        from .v05 import setup_options
+        return setup_options(database)
+
+    @app.get('/api/v1/imports')
+    def imports_read() -> Any:
+        from .v05 import imports_page
+        return imports_page(database)
+
+    @app.get('/api/v1/imports/{import_id}')
+    def import_read(import_id: str) -> Any:
+        from .v05 import import_detail
+        return import_detail(database, import_id)
+
+    @app.post('/api/v1/imports')
+    def imports_create(
+        files: list[UploadFile] = File(...),
+        adapter: str = Form(...),
+    ) -> Any:
+        from .intake import MAX_FILES, import_stream
+        if not files or len(files) > MAX_FILES:
+            raise FinCLError(f'Choose between 1 and {MAX_FILES} files')
+        results: list[dict[str,object]] = []
+        with ledger_writer(database) as writer:
+            for upload in files:
+                try:
+                    results.append(import_stream(
+                        database,
+                        evidence_dir or database.parent / 'evidence',
+                        stream=upload.file,
+                        filename=upload.filename or 'upload',
+                        adapter=adapter,
+                        writer=writer,
+                    ))
+                except Exception as exc:
+                    results.append({
+                        'filename':Path(upload.filename or 'upload').name,
+                        'adapter':adapter,
+                        'status':'FAILED',
+                        'error':str(exc),
+                    })
+                finally:
+                    upload.file.close()
+        return {'results':results,'accepted':sum(r.get('status') not in {'FAILED'} for r in results)}
+
+    @app.get('/api/v1/accounts')
+    def accounts_read() -> Any:
+        from .v05 import accounts_page
+        return accounts_page(database)
+
+    @app.get('/api/v1/accounts/{account_id}/coverage')
+    def account_coverage(account_id: str) -> Any:
+        from .v05 import accounts_page
+        page = accounts_page(database)
+        account = next((row for row in page['accounts'] if row['id'] == account_id), None)
+        if account is None:
+            raise HTTPException(404,'Account not found')
+        return {'generation':page['generation'],'account':account}
+
+    @app.get('/api/v1/categories')
+    def categories_read() -> Any:
+        from .v05 import categories_page
+        return categories_page(database)
+
+    @app.get('/api/v1/rules')
+    def rules_read() -> Any:
+        from .v05 import rules_page
+        return rules_page(database)
+
+    @app.post('/api/v1/rules/preview')
+    def rules_preview(command: Command) -> Any:
+        if command.kind not in {'CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE','MERCHANT_ALIAS_SET','MERCHANT_ALIAS_RETIRE'}:
+            raise FinCLError('Choose a rule or merchant-alias command')
+        with ledger_writer(database):
+            _validate(database,command)
+        return {'valid':True,'generation':command.expected_generation,'effect':command.payload}
+
+    @app.get('/api/v1/review')
+    def unified_review() -> Any:
+        from .v05 import review_page
+        return review_page(database)
+
+    @app.get('/api/v1/history/{sequence}/inverse-preview')
+    def history_inverse(sequence: int) -> Any:
+        from .v05 import inverse_preview
+        return inverse_preview(database, sequence)
 
     @app.get('/api/v1/overview',response_model=Dashboard)
     def overview(start: str | None = None,end: str | None = None,currency: str = 'SGD') -> Any:
