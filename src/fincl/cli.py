@@ -339,6 +339,75 @@ def economic_flow(
         console.print(f"Dangling journal decisions: {data['dangling_decisions']}")
 
 
+@app.command("contributors")
+def contributors(
+    database: Path = typer.Option(..., "--database"),
+    bucket: str = typer.Option(
+        "spending", "--bucket",
+        help="Economic-flow bucket to inspect (spending, refunds, fees, income, …).",
+    ),
+    start: str | None = typer.Option(None, "--start", help="Analysis start date (YYYY-MM-DD)."),
+    end: str | None = typer.Option(None, "--end", help="Analysis end date (YYYY-MM-DD)."),
+    currency: str = typer.Option("SGD", "--currency"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """List the exact economic components behind a bucket total.
+
+    Reads the same shared projection the economic-flow report folds into its
+    totals, so a component sum here reconciles exactly with that report.
+    """
+    from .analysis.components import build_components
+    from .money import format_decimal
+    from .report import _analysis_intervals, _coverage_contract
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        connection = connect_sqlite(database)
+        try:
+            covered = _coverage_contract(connection).covered_intervals
+            analysis, _kind = _analysis_intervals(covered, start=start, end=end)
+            projection = build_components(
+                connection, covered_intervals=covered, analysis_intervals=analysis
+            )
+        finally:
+            connection.close()
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+    rows = [
+        c for c in projection.components
+        if c.currency == currency and (c.nets if bucket == "net" else c.bucket == bucket)
+    ]
+    rows.sort(key=lambda c: (-abs(c.coefficient), c.origin_anchor))
+    if json_output:
+        typer.echo(json_report({
+            "bucket": bucket, "currency": currency, "count": len(rows),
+            "components": [
+                {
+                    "origin_component_id": c.origin_component_id,
+                    "entry_anchor": c.origin_anchor, "role": c.role, "bucket": c.bucket,
+                    "value": format_decimal(c.coefficient, c.scale),
+                    "currency": c.currency, "category": c.category_key,
+                    "merchant": c.merchant_display, "date": c.represented_start,
+                    "precision": c.precision, "nets": c.nets,
+                }
+                for c in rows
+            ],
+        }))
+        return
+    table = Table(title=f"Contributors — {bucket} ({currency})")
+    for heading in ("Date", "Merchant", "Category", "Role", "Value", "Nets"):
+        table.add_column(heading)
+    for c in rows:
+        table.add_row(
+            c.represented_start, c.merchant_display, c.category_key, c.role,
+            format_decimal(c.coefficient, c.scale), "yes" if c.nets else "no",
+        )
+    console.print(table)
+    console.print(f"{len(rows)} component(s).")
+
+
 @app.command("link-transfers")
 def link_transfers(database: Path = typer.Option(..., "--database")) -> None:
     """Run only the narrow deterministic Phase 2 transfer linkers."""

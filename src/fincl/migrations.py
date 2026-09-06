@@ -6,8 +6,10 @@ only after a verified backup: each step is one transaction, integrity and
 foreign-key checks run before commit, and the new version is stamped only at
 commit. There is no lossy down-migration; reversal restores the backup.
 
-The registry holds the 8->9 upgrade (MVP M1b): it adds the two derived schema-9
-tables and nothing else, so a migrated ledger and a fresh one are identical.
+The registry holds the 8->9 upgrade (MVP M1b, two derived generation/receipt
+tables) and the 9->10 upgrade (v0.2 analysis slice 1, the `analysis_components`
+projection tables). Each adds derived tables and nothing else, so a migrated
+ledger and a fresh one are byte-identical.
 """
 
 from __future__ import annotations
@@ -20,7 +22,12 @@ from pathlib import Path
 
 from .backup import verify_backup_bundle
 from .common import utc_now
-from .db import SCHEMA_9_TABLES_SQL, SCHEMA_VERSION, connect_sqlite
+from .db import (
+    SCHEMA_9_TABLES_SQL,
+    SCHEMA_10_TABLES_SQL,
+    SCHEMA_VERSION,
+    connect_sqlite,
+)
 from .errors import FinCLError, SchemaVersionError
 from .locking import WriterContext, ledger_writer
 
@@ -33,14 +40,27 @@ class Migration:
     apply: Callable[[sqlite3.Connection], None]
 
 
-def _migrate_8_to_9(connection: sqlite3.Connection) -> None:
-    """Add `projection_generation` and `command_receipts`; no data is rewritten.
-
-    Each statement runs on its own so the migration stays inside the caller's
-    ``BEGIN IMMEDIATE`` transaction — ``executescript`` would commit it first.
+def _apply_table_ddl(connection: sqlite3.Connection, ddl: str) -> None:
+    """Run each ``CREATE`` statement on its own so the migration stays inside the
+    caller's ``BEGIN IMMEDIATE`` transaction — ``executescript`` would commit it
+    first.
     """
-    for statement in filter(None, (s.strip() for s in SCHEMA_9_TABLES_SQL.split(";"))):
+    for statement in filter(None, (s.strip() for s in ddl.split(";"))):
         connection.execute(statement)
+
+
+def _migrate_8_to_9(connection: sqlite3.Connection) -> None:
+    """Add `projection_generation` and `command_receipts`; no data is rewritten."""
+    _apply_table_ddl(connection, SCHEMA_9_TABLES_SQL)
+
+
+def _migrate_9_to_10(connection: sqlite3.Connection) -> None:
+    """Add the schema-10 `analysis_components` projection tables; no data rewrite.
+
+    The tables are populated by the next `fincl refresh`, in the same
+    transaction that publishes the generation.
+    """
+    _apply_table_ddl(connection, SCHEMA_10_TABLES_SQL)
 
 
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
@@ -48,10 +68,14 @@ def _migrate_8_to_9(connection: sqlite3.Connection) -> None:
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_9_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_9_TO_10_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_10_TABLES_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
     8: Migration(8, 9, MIGRATION_8_TO_9_CHECKSUM, _migrate_8_to_9),
+    9: Migration(9, 10, MIGRATION_9_TO_10_CHECKSUM, _migrate_9_to_10),
 }
 
 

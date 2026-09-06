@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -41,6 +41,66 @@ CREATE TABLE IF NOT EXISTS command_receipts (
     journal_seq INTEGER NOT NULL,
     record_hash TEXT NOT NULL,
     decision_kind TEXT NOT NULL
+) STRICT;
+"""
+
+# Schema 10 derived tables (v0.2 analysis, slice 1). The one committed economic
+# component projection the report totals and the `/contributors/{handle}` rows
+# both read. Disposable: `refresh` deletes and repopulates them for the current
+# generation in the same transaction that publishes it. Shared verbatim between a
+# fresh `initialize_schema` and the registered 9->10 migration so a migrated
+# ledger and a fresh one have byte-identical layout.
+SCHEMA_10_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS analysis_components (
+    component_id TEXT PRIMARY KEY,
+    origin_component_id TEXT NOT NULL,
+    generation_token TEXT NOT NULL,
+    lens TEXT NOT NULL,
+    origin_kind TEXT NOT NULL,
+    origin_anchor TEXT NOT NULL,
+    entry_id TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('amount', 'fee')),
+    bucket TEXT NOT NULL,
+    signed_coefficient INTEGER NOT NULL
+        CHECK (signed_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    scale INTEGER NOT NULL CHECK (scale BETWEEN 0 AND {MAX_SCALE}),
+    currency TEXT NOT NULL,
+    represented_start TEXT NOT NULL,
+    represented_end TEXT NOT NULL,
+    date_precision TEXT NOT NULL,
+    period TEXT NOT NULL,
+    category_key TEXT NOT NULL,
+    merchant_key TEXT,
+    merchant_display TEXT NOT NULL,
+    account TEXT NOT NULL,
+    source_location TEXT NOT NULL,
+    evidence_sha256 TEXT NOT NULL,
+    decision_seqs TEXT NOT NULL,
+    nets INTEGER NOT NULL CHECK (nets IN (0, 1)),
+    eligible INTEGER NOT NULL DEFAULT 1 CHECK (eligible IN (0, 1))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS analysis_components_scope
+    ON analysis_components(generation_token, lens, currency, represented_start);
+CREATE INDEX IF NOT EXISTS analysis_components_bucket
+    ON analysis_components(generation_token, lens, bucket);
+CREATE INDEX IF NOT EXISTS analysis_components_category
+    ON analysis_components(generation_token, lens, category_key);
+CREATE INDEX IF NOT EXISTS analysis_components_merchant
+    ON analysis_components(generation_token, lens, merchant_key);
+
+CREATE TABLE IF NOT EXISTS component_relationships (
+    component_id TEXT NOT NULL,
+    relationship_kind TEXT NOT NULL,
+    relationship_id TEXT NOT NULL,
+    PRIMARY KEY (component_id, relationship_kind, relationship_id)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS component_source_refs (
+    component_id TEXT NOT NULL,
+    evidence_sha256 TEXT NOT NULL,
+    locator TEXT NOT NULL,
+    PRIMARY KEY (component_id, evidence_sha256, locator)
 ) STRICT;
 """
 
@@ -192,6 +252,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
 
         """
         + SCHEMA_9_TABLES_SQL
+        + SCHEMA_10_TABLES_SQL
     )
 
 

@@ -23,7 +23,7 @@ from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
 from .locking import LedgerBusyError, ledger_writer
 from .plans import validate_plan
-from .queries import dashboard, transactions_page
+from .queries import contributors_page, dashboard, transactions_page
 from .refresh import refresh_ledger
 
 
@@ -68,6 +68,7 @@ class Total(StrictModel):
     name: str
     value: str
     count: int
+    handle: str | None = None
 
 
 class Proposal(StrictModel):
@@ -130,6 +131,7 @@ class Dashboard(StrictModel):
     covered: bool
     coverage_reasons: list[str]
     summary: dict[str,str | None]
+    summary_handles: dict[str,str | None]
     categories: list[str]
     custom_categories: list[str]
     category_totals: list[Total]
@@ -147,6 +149,43 @@ class Dashboard(StrictModel):
 class TransactionsPage(StrictModel):
     generation: str
     entries: list[Entry]
+    next_cursor: str | None
+    total: int
+
+
+class Contributor(StrictModel):
+    component_id: str
+    origin_component_id: str
+    entry_anchor: str
+    role: str
+    bucket: str
+    value: str
+    currency: str
+    category: str
+    merchant: str
+    merchant_key: str | None
+    account: str
+    date: str
+    precision: str
+    source_location: str
+    nets: bool
+
+
+class ContributorScope(StrictModel):
+    lens: str
+    currency: str
+    start: str
+    end: str
+    buckets: list[str]
+    sort: str
+    category: str | None
+    merchant: str | None
+
+
+class ContributorsPage(StrictModel):
+    generation: str
+    scope: ContributorScope
+    components: list[Contributor]
     next_cursor: str | None
     total: int
 
@@ -273,6 +312,16 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                     search=search, category=category, account=account, kind=kind,
                     include_excluded=include_excluded, sort=sort, cursor=cursor, limit=limit,
                 )
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise
+
+    @app.get('/api/v1/contributors/{handle}',response_model=ContributorsPage)
+    def contributors(handle: str, cursor: str | None = None, limit: int = 50) -> Any:
+        with ledger_writer(database):
+            try:
+                return contributors_page(database, handle=handle, cursor=cursor, limit=limit)
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc

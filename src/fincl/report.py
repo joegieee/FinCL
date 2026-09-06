@@ -9,9 +9,10 @@ from dataclasses import dataclass
 from datetime import date
 from fractions import Fraction
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any
 
 from . import fx
+from .analysis.components import build_components
 from .db import connect_readonly
 from .engine import summarize_run
 from .errors import FinCLError
@@ -20,9 +21,7 @@ from .intervals import (
     DateInterval,
     bounding,
     contains_range,
-    covers_date,
     intersect_all,
-    month_span,
     normalize,
     uncovered_dates,
 )
@@ -80,22 +79,6 @@ def _category_warnings(connection: sqlite3.Connection) -> dict[str, Any]:
         if summary[key]
     }
     return summary
-
-
-class _EconomicFlowBucket(TypedDict):
-    spending: list[ExactMoney]
-    income: list[ExactMoney]
-    refunds: list[ExactMoney]
-    reimbursements: list[ExactMoney]
-    non_income_inflow: list[ExactMoney]
-    pending_review: list[ExactMoney]
-    other_classified_inbound: list[ExactMoney]
-    fees: list[ExactMoney]
-    excluded_linked: int
-    excluded_self_transfer: int
-    entries: int
-    outside_covered_window: int
-    outside_analysis_window: int
 
 
 def build_report(database_path: Path) -> str:
@@ -294,37 +277,6 @@ def _economic_flow(
     start: str | None = None,
     end: str | None = None,
 ) -> dict[str, Any]:
-    rows = connection.execute(
-        """
-        WITH entries AS (
-            SELECT e.source_family AS entry_kind, e.id, e.currency_pocket AS currency,
-                   substr(e.effective_at, 1, 10) AS posted_date,
-                   e.effective_precision,
-                   e.amount_text, e.amount_coefficient, e.amount_scale,
-                   COALESCE(e.fee_text, '0') AS fee_text,
-                   COALESCE(e.fee_coefficient, 0) AS fee_coefficient,
-                   COALESCE(e.fee_scale, 0) AS fee_scale,
-                   e.economic_direction, e.event_kind,
-                   e.natural_anchor AS entry_anchor
-            FROM ledger_entries e
-            JOIN extraction_runs x ON x.id = e.extraction_run_id
-            LEFT JOIN statements s ON s.id = e.statement_id
-            WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'
-              AND x.selection_state = 'SELECTED'
-              AND (e.source_family = 'CSV' OR s.selection_state = 'SELECTED')
-        ), linked AS (
-            SELECT left_entry_id AS id FROM transfer_links WHERE status = 'CONFIRMED'
-            UNION
-            SELECT right_entry_id AS id FROM transfer_links WHERE status = 'CONFIRMED'
-        )
-        SELECT e.*, CASE WHEN l.id IS NULL THEN 0 ELSE 1 END AS is_linked,
-               i.classification AS inbound_classification
-        FROM entries e
-        LEFT JOIN linked l ON l.id = e.id
-        LEFT JOIN inbound_classifications i ON i.bound = 1 AND i.anchor = e.entry_anchor
-        ORDER BY e.currency, e.posted_date, e.entry_kind, e.id
-        """
-    ).fetchall()
     coverage = _economic_flow_coverage(connection)
     dangling = _dangling_decisions(connection)
 
@@ -337,81 +289,56 @@ def _economic_flow(
     )
     analysis_bound = bounding(analysis_intervals)
     analysis_window = None if analysis_bound is None else analysis_bound.as_dict()
-    excluded_entry_count = 0
-    period_precision_excluded = 0
 
-    by_currency: dict[str, _EconomicFlowBucket] = {}
-    netting: list[tuple[str, int, int, str]] = []
-    for row in rows:
-        bucket = by_currency.setdefault(row["currency"], _empty_bucket())
-        bucket["entries"] += 1
-        posted_date = row["posted_date"]
-        if not covers_date(covered_intervals, posted_date):
-            bucket["outside_covered_window"] += 1
-        if row["effective_precision"] == "MONTH":
-            in_analysis = any(
-                interval.contains_interval(month_span(posted_date[:7]))
-                for interval in analysis_intervals
-            )
-            if not in_analysis and covers_date(analysis_intervals, posted_date):
-                period_precision_excluded += 1
-        else:
-            in_analysis = covers_date(analysis_intervals, posted_date)
-        if not in_analysis:
-            bucket["outside_analysis_window"] += 1
-            excluded_entry_count += 1
-            continue
-        period = posted_date[:7]
-        if row["is_linked"]:
-            bucket["excluded_linked"] += 1
-        elif row["economic_direction"] == "OUT":
-            bucket["spending"].append(_magnitude(row, "amount"))
-            netting.append(
-                (row["currency"], -abs(int(row["amount_coefficient"])), int(row["amount_scale"]), period)
-            )
-        elif row["economic_direction"] == "IN" and _classify_inbound(bucket, row):
-            netting.append(
-                (row["currency"], abs(int(row["amount_coefficient"])), int(row["amount_scale"]), period)
-            )
-        if row["fee_coefficient"]:
-            bucket["fees"].append(_magnitude(row, "fee"))
-            netting.append(
-                (row["currency"], -abs(int(row["fee_coefficient"])), int(row["fee_scale"]), period)
-            )
+    # The economic-flow totals and the contributor rows behind them are the same
+    # shared component projection (v0.2 analysis §2); this report just folds it
+    # into per-currency sums.
+    projection = build_components(
+        connection,
+        covered_intervals=covered_intervals,
+        analysis_intervals=analysis_intervals,
+    )
+    excluded_entry_count = projection.excluded_entry_count
+    period_precision_excluded = projection.period_precision_excluded
+    netting = projection.netting()
 
     currencies = []
-    for currency, values in sorted(by_currency.items()):
-        income = _format_money_list(values["income"])
-        refunds = _format_money_list(values["refunds"])
-        reimbursements = _format_money_list(values["reimbursements"])
-        non_income_inflow = _format_money_list(values["non_income_inflow"])
-        spending = _format_money_list(values["spending"])
-        fees = _format_money_list(values["fees"])
+    for currency in sorted(projection.per_currency):
+        values = projection.per_currency[currency]
+        spending = projection.bucket_total(currency, "spending")
+        income = projection.bucket_total(currency, "income")
+        refunds = projection.bucket_total(currency, "refunds")
+        reimbursements = projection.bucket_total(currency, "reimbursements")
+        non_income_inflow = projection.bucket_total(currency, "non_income_inflow")
+        fees = projection.bucket_total(currency, "fees")
         currencies.append(
             {
                 "currency": currency,
-                "entries": values["entries"],
+                "entries": values.entries,
                 "spending": spending,
                 "income": income,
                 "refunds": refunds,
                 "reimbursements": reimbursements,
                 "non_income_inflow": non_income_inflow,
-                "pending_review": _format_money_list(values["pending_review"]),
-                "other_classified_inbound": _format_money_list(
-                    values["other_classified_inbound"]
-                ),
+                "pending_review": projection.bucket_total(currency, "pending_review"),
+                "other_classified_inbound": projection.bucket_total(currency, "other"),
                 "fees": fees,
                 "net_economic_flow": _net_money(
                     [income, refunds, reimbursements, non_income_inflow],
                     [spending, fees],
                 ),
-                "excluded_confirmed_internal_entries": values["excluded_linked"],
-                "excluded_self_transfer_entries": values["excluded_self_transfer"],
-                "entries_outside_covered_window": values["outside_covered_window"],
-                "entries_outside_analysis_window": values["outside_analysis_window"],
+                "excluded_confirmed_internal_entries": (
+                    values.excluded_confirmed_internal_entries
+                ),
+                "excluded_self_transfer_entries": values.excluded_self_transfer_entries,
+                "entries_outside_covered_window": values.outside_covered_window,
+                "entries_outside_analysis_window": values.outside_analysis_window,
                 "coverage_complete": (
                     analysis_window_kind == "EXPLICIT"
-                    or (contract.status == "COVERED" and values["outside_covered_window"] == 0)
+                    or (
+                        contract.status == "COVERED"
+                        and values.outside_covered_window == 0
+                    )
                 ),
                 "covered_window": covered_window,
                 "analysis_window": analysis_window,
@@ -488,45 +415,6 @@ def _consolidate_sgd(
     cents = total * 100
     rounded = int(cents + Fraction(1, 2)) if cents >= 0 else -int(-cents + Fraction(1, 2))
     return format_decimal(rounded, 2), "AVAILABLE"
-
-
-def _empty_bucket() -> _EconomicFlowBucket:
-    return {
-        "spending": [], "income": [], "refunds": [], "reimbursements": [], "non_income_inflow": [],
-        "pending_review": [], "other_classified_inbound": [], "fees": [],
-        "excluded_linked": 0, "excluded_self_transfer": 0, "entries": 0,
-        "outside_covered_window": 0, "outside_analysis_window": 0,
-    }
-
-
-def _classify_inbound(bucket: _EconomicFlowBucket, row: sqlite3.Row) -> bool:
-    """Route an inbound entry by its journaled classification (§15.1).
-
-    Returns True when the entry nets into ``net_economic_flow`` (income,
-    reimbursement, gift, family_transfer, or an unclassified source refund)
-    and False otherwise. Explicit classifications override source-refund defaults.
-    """
-    classification = row["inbound_classification"]
-    if classification is None and row["event_kind"] == "REFUND":
-        bucket["refunds"].append(_magnitude(row, "amount"))
-        return True
-    if classification == "income":
-        bucket["income"].append(_magnitude(row, "amount"))
-        return True
-    if classification == "self_transfer":
-        bucket["excluded_self_transfer"] += 1
-        return False
-    if classification == "reimbursement":
-        bucket["reimbursements"].append(_magnitude(row, "amount"))
-        return True
-    if classification in ("gift", "family_transfer"):
-        bucket["non_income_inflow"].append(_magnitude(row, "amount"))
-        return True
-    if classification == "other":
-        bucket["other_classified_inbound"].append(_magnitude(row, "amount"))
-        return False
-    bucket["pending_review"].append(_magnitude(row, "amount"))
-    return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -972,19 +860,6 @@ def _sum_rows(rows: list[sqlite3.Row], prefix: str) -> str:
         )
         for row in rows
     ]
-    coefficient, scale = exact_sum(*values)
-    return format_decimal(coefficient, scale)
-
-
-def _magnitude(row: sqlite3.Row, prefix: str) -> ExactMoney:
-    return ExactMoney(
-        abs(int(row[f"{prefix}_coefficient"])),
-        int(row[f"{prefix}_scale"]),
-        str(row[f"{prefix}_text"]),
-    )
-
-
-def _format_money_list(values: list[ExactMoney]) -> str:
     coefficient, scale = exact_sum(*values)
     return format_decimal(coefficient, scale)
 

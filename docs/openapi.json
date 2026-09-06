@@ -286,6 +286,71 @@
         }
       }
     },
+    "/api/v1/contributors/{handle}": {
+      "get": {
+        "summary": "Contributors",
+        "operationId": "contributors_api_v1_contributors__handle__get",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Handle"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContributorsPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/preview": {
       "post": {
         "summary": "Preview",
@@ -570,6 +635,206 @@
         ],
         "title": "Command"
       },
+      "Contributor": {
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "title": "Component Id"
+          },
+          "origin_component_id": {
+            "type": "string",
+            "title": "Origin Component Id"
+          },
+          "entry_anchor": {
+            "type": "string",
+            "title": "Entry Anchor"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "bucket": {
+            "type": "string",
+            "title": "Bucket"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "merchant": {
+            "type": "string",
+            "title": "Merchant"
+          },
+          "merchant_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant Key"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "precision": {
+            "type": "string",
+            "title": "Precision"
+          },
+          "source_location": {
+            "type": "string",
+            "title": "Source Location"
+          },
+          "nets": {
+            "type": "boolean",
+            "title": "Nets"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "component_id",
+          "origin_component_id",
+          "entry_anchor",
+          "role",
+          "bucket",
+          "value",
+          "currency",
+          "category",
+          "merchant",
+          "merchant_key",
+          "account",
+          "date",
+          "precision",
+          "source_location",
+          "nets"
+        ],
+        "title": "Contributor"
+      },
+      "ContributorScope": {
+        "properties": {
+          "lens": {
+            "type": "string",
+            "title": "Lens"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "buckets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Buckets"
+          },
+          "sort": {
+            "type": "string",
+            "title": "Sort"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lens",
+          "currency",
+          "start",
+          "end",
+          "buckets",
+          "sort",
+          "category",
+          "merchant"
+        ],
+        "title": "ContributorScope"
+      },
+      "ContributorsPage": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ContributorScope"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/Contributor"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "scope",
+          "components",
+          "next_cursor",
+          "total"
+        ],
+        "title": "ContributorsPage"
+      },
       "Dashboard": {
         "properties": {
           "generation": {
@@ -627,6 +892,20 @@
             },
             "type": "object",
             "title": "Summary"
+          },
+          "summary_handles": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Summary Handles"
           },
           "categories": {
             "items": {
@@ -720,6 +999,7 @@
           "covered",
           "coverage_reasons",
           "summary",
+          "summary_handles",
           "categories",
           "custom_categories",
           "category_totals",
@@ -1066,6 +1346,17 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handle"
           }
         },
         "additionalProperties": false,

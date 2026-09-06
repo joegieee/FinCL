@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from .analysis import handles
 from .common import category_strings
 from .custom_categories import custom_categories
 from .db import connect_readonly
@@ -18,6 +19,7 @@ from .decision_journal import default_journal_path, read_records
 from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
 from .intervals import DateInterval, covers_date, month_span
+from .money import format_decimal
 from .report import _coverage_contract, _economic_flow
 
 # One shared shaping of a ledger entry for every screen: the raw join, then the
@@ -225,6 +227,134 @@ def transactions_page(
         connection.close()
 
 
+_CONTRIB_KEYS = (
+    'component_id', 'origin_component_id', 'entry_anchor', 'role', 'bucket',
+    'value', 'currency', 'category', 'merchant', 'merchant_key', 'account',
+    'date', 'precision', 'source_location', 'nets',
+)
+
+
+def _contrib_shape(row: Any) -> dict[str, Any]:
+    item = dict(row)
+    item.update(
+        entry_anchor=item['origin_anchor'],
+        value=format_decimal(int(item['signed_coefficient']), int(item['scale'])),
+        currency=item['currency'],
+        category=item['category_key'],
+        merchant=item['merchant_display'],
+        date=item['represented_start'],
+        precision=item['date_precision'],
+        nets=bool(item['nets']),
+    )
+    return {key: item[key] for key in _CONTRIB_KEYS}
+
+
+def contributors_page(
+    database: Path, *, handle: str, cursor: str | None = None, limit: int = 50,
+) -> dict[str, Any]:
+    """One keyset page of the exact components behind a displayed total.
+
+    The ``handle`` is minted alongside a total or ranking row (see
+    :func:`fincl.analysis.handles`); it binds the generation, lens, currency,
+    window and bucket selection. A stale generation is refused, never answered
+    against fresh data.
+    """
+    scope = handles.decode(handle)
+    limit = max(1, min(int(limit), 200))
+    key = _decode_cursor(cursor)
+    connection = connect_readonly(database)
+    try:
+        connection.execute('BEGIN')
+        current = current_generation(connection)
+        if current is None:
+            raise FinCLError('Ledger is not ready. Run fincl refresh first.')
+        token = current['generation_token']
+        if scope['generation'] != token:
+            raise FinCLError('STALE_GENERATION: reopen Analysis')
+
+        where = [
+            'generation_token = :gen', 'lens = :lens', 'currency = :currency',
+            'represented_start >= :start', 'represented_end <= :end',
+        ]
+        params: dict[str, Any] = {
+            'gen': token, 'lens': scope['lens'], 'currency': scope['currency'],
+            'start': scope['start'], 'end': scope['end'],
+        }
+        buckets = list(scope['buckets'])
+        if buckets == ['net']:
+            where.append('nets = 1')
+        else:
+            names = ', '.join(f':b{i}' for i in range(len(buckets)))
+            where.append(f'bucket IN ({names})')
+            params.update({f'b{i}': name for i, name in enumerate(buckets)})
+        if scope.get('category_key') is not None:
+            where.append('category_key = :category_key')
+            params['category_key'] = scope['category_key']
+        if scope.get('merchant_display') is not None:
+            where.append('merchant_display = :merchant_display')
+            params['merchant_display'] = scope['merchant_display']
+        clause = ' AND '.join(where)
+
+        magnitude = 'ABS(CAST(signed_coefficient AS REAL) / power(10.0, scale))'
+        if scope['sort'] == 'amount':
+            order = f'{magnitude} DESC, origin_anchor ASC, component_id ASC'
+            after = (
+                f'({magnitude} < CAST(:k_val AS REAL) OR ({magnitude} = CAST(:k_val AS REAL) '
+                'AND (origin_anchor > :k_anchor OR (origin_anchor = :k_anchor AND component_id > :k_id))))'
+            )
+            key_sql = f'{magnitude}'
+        else:
+            order = 'represented_start DESC, origin_anchor ASC, component_id ASC'
+            after = (
+                '(represented_start < :k_val OR (represented_start = :k_val '
+                'AND (origin_anchor > :k_anchor OR (origin_anchor = :k_anchor AND component_id > :k_id))))'
+            )
+            key_sql = 'represented_start'
+
+        total = connection.execute(
+            f'SELECT count(*) FROM analysis_components WHERE {clause}', params
+        ).fetchone()[0]
+
+        paged = clause
+        if key is not None:
+            paged = f'{clause} AND {after}'
+            params.update(k_val=key['val'], k_anchor=key['anchor'], k_id=key['id'])
+        rows = connection.execute(
+            f'SELECT *, {key_sql} AS _k FROM analysis_components WHERE {paged} '
+            f'ORDER BY {order} LIMIT :limit',
+            {**params, 'limit': limit + 1},
+        ).fetchall()
+
+        has_more = len(rows) > limit
+        window = [dict(row) for row in rows[:limit]]
+        next_cursor = None
+        if has_more and window:
+            last = window[-1]
+            payload = {
+                'val': str(last['_k']),
+                'anchor': last['origin_anchor'],
+                'id': last['component_id'],
+            }
+            next_cursor = base64.urlsafe_b64encode(
+                json.dumps(payload, separators=(',', ':')).encode()
+            ).decode()
+        return {
+            'generation': token,
+            'scope': {
+                'lens': scope['lens'], 'currency': scope['currency'],
+                'start': scope['start'], 'end': scope['end'],
+                'buckets': buckets, 'sort': scope['sort'],
+                'category': scope.get('category_key'),
+                'merchant': scope.get('merchant_display'),
+            },
+            'components': [_contrib_shape(row) for row in window],
+            'next_cursor': next_cursor,
+            'total': int(total),
+        }
+    finally:
+        connection.close()
+
+
 def in_window(entry: dict[str, Any], start: str, end: str) -> bool:
     if entry['precision'] == 'MONTH':
         return DateInterval(start, end).contains_interval(month_span(entry['date'][:7]))
@@ -337,6 +467,26 @@ def dashboard(database: Path, *, start: str | None = None, end: str | None = Non
         analytical = eligible if covered else []
         groups = aggregate(analytical, 'category')
         merchants = aggregate(analytical, 'merchant')
+
+        # A contributor handle names the exact components behind each total. It is
+        # bound to this generation and window; a later request against a changed
+        # generation is refused. Only meaningful when the window is covered.
+        def _handle(buckets: list[str], **narrow: str) -> str | None:
+            if not covered:
+                return None
+            return handles.encode(
+                generation=token, lens='recorded_flow', currency=currency,
+                start=start, end=end, buckets=buckets, sort='amount', **narrow,
+            )
+
+        for row in groups:
+            row['handle'] = _handle(['spending'], category_key=row['name'])
+        for row in merchants:
+            row['handle'] = _handle(['spending'], merchant_display=row['name'])
+        summary_handles = {
+            key: _handle(['net'] if key == 'net_economic_flow' else [key])
+            for key in summary
+        }
         months: list[dict[str, Any]] = []
         # Six calendar months ending in selected month, with explicit nulls for gaps.
         end_date = date.fromisoformat(end)
@@ -378,6 +528,6 @@ def dashboard(database: Path, *, start: str | None = None, end: str | None = Non
                 spent += sum((Decimal(e['fee']) for e in relevant),Decimal(0))
             plan['actual'] = money(spent) if plan['type']=='budget' and covered and full_month and plan['currency']==currency else (plan['saved'] if plan['type']=='goal' else None)
             plan['remaining'] = money(Decimal(plan['target'])-Decimal(plan['actual'])) if plan['actual'] is not None else None
-        return {'generation':token,'freshness':'stale' if stale else 'current','updated_at':generation['completed_at'], 'start':start,'end':end,'currency':currency,'currencies':sorted({e['currency'] for e in entries} | {'SGD'}),'covered':covered,'coverage_reasons':contract.reasons,'summary':summary,'categories':sorted(category_strings()|custom),'custom_categories':sorted(custom),'category_totals':groups,'merchant_totals':merchants,'trend':months,'recurring':recurring,'plans':list(plans.values()),'recent':recent,'review_count':review_count,'accounts':sorted({e['account'] for e in entries}), 'total_entries':len(entries),'transfer_proposals':transfer_proposals(connection)}
+        return {'generation':token,'freshness':'stale' if stale else 'current','updated_at':generation['completed_at'], 'start':start,'end':end,'currency':currency,'currencies':sorted({e['currency'] for e in entries} | {'SGD'}),'covered':covered,'coverage_reasons':contract.reasons,'summary':summary,'summary_handles':summary_handles,'categories':sorted(category_strings()|custom),'custom_categories':sorted(custom),'category_totals':groups,'merchant_totals':merchants,'trend':months,'recurring':recurring,'plans':list(plans.values()),'recent':recent,'review_count':review_count,'accounts':sorted({e['account'] for e in entries}), 'total_entries':len(entries),'transfer_proposals':transfer_proposals(connection)}
     finally:
         connection.close()

@@ -20,11 +20,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from .analysis.components import build_components
+from .analysis.materialize import materialize_components
 from .db import connect_sqlite, initialize_schema
 from .engine import categorize
 from .generation import publish_generation
 from .locking import ledger_writer
 from .reconciliation import link_narrow_transfers
+from .report import _coverage_contract
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +38,7 @@ class RefreshResult:
     categorization_run_id: str | None
     categorized_entries: int
     generation_token: str
+    analysis_components: int = 0
 
 
 class _BatchConnection:
@@ -84,6 +88,10 @@ def rebuild_projection(connection: sqlite3.Connection) -> tuple[str | None, str]
     generation_token)``. On any failure the batch is rolled back whole and the
     exception propagates — the previous generation and its projection stay
     readable.
+
+    The shared economic-component projection (schema 10) is materialized here,
+    after the generation token is known and inside the same transaction, so a
+    reader that pins the generation row always sees the matching components.
     """
     connection.isolation_level = None
     connection.execute("BEGIN IMMEDIATE")
@@ -96,6 +104,16 @@ def rebuild_projection(connection: sqlite3.Connection) -> tuple[str | None, str]
         ).fetchone()
         run_id = categorize(batch) if has_selected is not None else None
         token = publish_generation(batch)
+        covered = _coverage_contract(connection).covered_intervals
+        materialize_components(
+            connection,
+            token,
+            build_components(
+                connection,
+                covered_intervals=covered,
+                analysis_intervals=covered,
+            ),
+        )
         connection.execute("COMMIT")
         return run_id, token
     except BaseException:
@@ -141,6 +159,11 @@ def refresh_ledger(database_path: Path) -> RefreshResult:
                     "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
                 ).fetchone()[0]
             )
+            components = int(
+                connection.execute(
+                    "SELECT count(*) FROM analysis_components"
+                ).fetchone()[0]
+            )
             return RefreshResult(
                 decisions_bound=bound,
                 decisions_dangling=dangling,
@@ -148,6 +171,7 @@ def refresh_ledger(database_path: Path) -> RefreshResult:
                 categorization_run_id=run_id,
                 categorized_entries=categorized,
                 generation_token=token,
+                analysis_components=components,
             )
         finally:
             connection.close()

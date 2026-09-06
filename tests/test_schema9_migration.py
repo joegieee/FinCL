@@ -1,7 +1,7 @@
-"""M1b: the real schema 8 -> 9 migration and its backup/restore round trip.
+"""The real schema 8 -> 9 -> 10 migrations and their backup/restore round trip.
 
-Schema 9 adds two derived tables and nothing else, so a faithful schema-8
-fixture is a fresh schema-9 ledger with those two tables dropped and the version
+Each step adds derived tables and nothing else, so a faithful older-schema
+fixture is a fresh current ledger with the newer tables dropped and the version
 stamp rolled back — the exact pre-upgrade layout, built from the same DDL.
 """
 from __future__ import annotations
@@ -17,7 +17,11 @@ from fincl.backup import backup_ledger, restore_ledger
 from fincl.cli import app
 from fincl.db import SCHEMA_VERSION
 from fincl.errors import SchemaVersionError
-from fincl.migrations import MIGRATION_8_TO_9_CHECKSUM, apply_pending_migrations
+from fincl.migrations import (
+    MIGRATION_8_TO_9_CHECKSUM,
+    MIGRATION_9_TO_10_CHECKSUM,
+    apply_pending_migrations,
+)
 from fincl.refresh import refresh_ledger
 from fincl.report import economic_flow_report_data
 from fincl.service import FinCLService
@@ -29,11 +33,29 @@ _ROWS = [
 ]
 
 
-def _roll_back_to_schema_8(database: Path) -> None:
+_SCHEMA_10_TABLES = ("analysis_components", "component_relationships", "component_source_refs")
+_SCHEMA_9_TABLES = ("projection_generation", "command_receipts")
+
+
+def _roll_back_to_schema_9(database: Path) -> None:
     connection = sqlite3.connect(database)
     try:
-        connection.execute("DROP TABLE projection_generation")
-        connection.execute("DROP TABLE command_receipts")
+        for table in _SCHEMA_10_TABLES:
+            connection.execute(f"DROP TABLE {table}")
+        connection.execute(
+            "UPDATE schema_metadata SET value = '9' WHERE key = 'schema_version'"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def _roll_back_to_schema_8(database: Path) -> None:
+    _roll_back_to_schema_9(database)
+    connection = sqlite3.connect(database)
+    try:
+        for table in _SCHEMA_9_TABLES:
+            connection.execute(f"DROP TABLE {table}")
         connection.execute(
             "UPDATE schema_metadata SET value = '8' WHERE key = 'schema_version'"
         )
@@ -92,24 +114,61 @@ class Schema9MigrationTests(unittest.TestCase):
         result = apply_pending_migrations(self.database, backup_dir=bundle)
 
         self.assertEqual((result.from_version, result.to_version), (8, SCHEMA_VERSION))
-        self.assertEqual(result.steps, [9])
+        self.assertEqual(result.steps, [9, 10])
         self.assertEqual(self._stored_version(), SCHEMA_VERSION)
-        self.assertIn("projection_generation", self._tables(self.database))
-        self.assertIn("command_receipts", self._tables(self.database))
+        for table in (*_SCHEMA_9_TABLES, *_SCHEMA_10_TABLES):
+            self.assertIn(table, self._tables(self.database))
 
         connection = sqlite3.connect(self.database)
         try:
-            row = connection.execute(
-                "SELECT from_version, checksum FROM schema_migrations WHERE to_version = 9"
-            ).fetchone()
+            rows = connection.execute(
+                "SELECT to_version, from_version, checksum FROM schema_migrations "
+                "ORDER BY to_version"
+            ).fetchall()
         finally:
             connection.close()
-        self.assertEqual(row, (8, MIGRATION_8_TO_9_CHECKSUM))
+        self.assertEqual(
+            rows,
+            [
+                (9, 8, MIGRATION_8_TO_9_CHECKSUM),
+                (10, 9, MIGRATION_9_TO_10_CHECKSUM),
+            ],
+        )
 
         # The upgraded ledger opens, refreshes and reads normally.
         token = refresh_ledger(self.database).generation_token
         self.assertTrue(token.startswith("sha256:"))
         self.assertIn("currencies", economic_flow_report_data(self.database))
+
+    def test_migrate_9_to_10_adds_only_the_component_tables(self) -> None:
+        # A faithful schema-9 ledger: refresh once at the current schema, then
+        # drop the schema-10 tables and roll the stamp back.
+        refresh_ledger(self.database)
+        _roll_back_to_schema_9(self.database)
+        for table in _SCHEMA_10_TABLES:
+            self.assertNotIn(table, self._tables(self.database))
+
+        fresh_layout = self._tables(self.database)
+        bundle = self.root / "schema9-bundle"
+        backup_ledger(self.database, self.evidence, bundle, allow_stale_schema=True)
+        result = apply_pending_migrations(self.database, backup_dir=bundle)
+
+        self.assertEqual((result.from_version, result.to_version), (9, SCHEMA_VERSION))
+        self.assertEqual(result.steps, [10])
+        self.assertEqual(
+            self._tables(self.database) - fresh_layout, set(_SCHEMA_10_TABLES)
+        )
+
+        # It opens, refreshes and now carries a committed component projection.
+        refresh_ledger(self.database)
+        connection = sqlite3.connect(self.database)
+        try:
+            components = connection.execute(
+                "SELECT count(*) FROM analysis_components"
+            ).fetchone()[0]
+        finally:
+            connection.close()
+        self.assertGreater(components, 0)
 
     def test_migrate_is_a_no_op_on_a_current_ledger(self) -> None:
         bundle = self.root / "bundle"
