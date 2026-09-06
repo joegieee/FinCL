@@ -8,12 +8,13 @@ the same id after a crash finds the durable prior append and returns its receipt
 instead of appending a duplicate; the same id with a different intent is
 refused.
 
-The HTTP surface that calls this (``api.py``) and the preview endpoint are M2/M3
-work and are not part of this module yet.
+The HTTP surface in ``api.py`` validates previews, generation and domain intent
+before calling this module under the shared writer context.
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,7 +23,7 @@ from .decision_journal import append_decision, default_journal_path
 from .decisions import replay_journal
 from .errors import FinCLError
 from .generation import current_generation
-from .locking import ledger_writer
+from .locking import WriterContext, ledger_writer
 from .refresh import rebuild_projection
 
 
@@ -59,11 +60,12 @@ def record_decision(
     snapshot: str,
     anchor_version: str = "natural-anchor-v1",
     refresh: bool = True,
+    writer: WriterContext | None = None,
 ) -> DecisionReceipt:
     """Append ``decision_kind`` once for ``request_id`` and refresh the projection."""
     if not request_id or not intent_hash:
         raise FinCLError("record_decision needs a request_id and an intent_hash")
-    with ledger_writer(database_path):
+    with ledger_writer(database_path, existing=writer):
         connection = connect_sqlite(database_path)
         try:
             initialize_schema(connection)
@@ -87,6 +89,7 @@ def record_decision(
                     record_hash=existing["record_hash"],
                     decision_kind=existing["decision_kind"],
                     appended=False,
+                    refresh_pending=(generation is None or json.loads(generation["manifest_json"])["journal_seq"] < int(existing["journal_seq"])),
                     generation_token=(
                         generation["generation_token"] if generation is not None else None
                     ),

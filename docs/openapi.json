@@ -1,0 +1,1007 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FastAPI",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/session": {
+      "post": {
+        "summary": "Session",
+        "operationId": "session_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Bootstrap"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Api V1 Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/overview": {
+      "get": {
+        "summary": "Overview",
+        "operationId": "overview_api_v1_overview_get",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SGD",
+              "title": "Currency"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/preview": {
+      "post": {
+        "summary": "Preview",
+        "operationId": "preview_api_v1_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Preview Api V1 Preview Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/commands": {
+      "post": {
+        "summary": "Submit",
+        "operationId": "submit_api_v1_commands_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Submit Api V1 Commands Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history": {
+      "get": {
+        "summary": "History",
+        "operationId": "history_api_v1_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response History Api V1 History Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/receipts/{request_id}": {
+      "get": {
+        "summary": "Receipt Status",
+        "operationId": "receipt_status_api_v1_receipts__request_id__get",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Receipt Status Api V1 Receipts  Request Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evidence/{entry_id}": {
+      "get": {
+        "summary": "Evidence",
+        "operationId": "evidence_api_v1_evidence__entry_id__get",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Evidence Api V1 Evidence  Entry Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/refresh": {
+      "post": {
+        "summary": "Refresh",
+        "operationId": "refresh_api_v1_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Refresh Api V1 Refresh Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Index",
+        "operationId": "index__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Bootstrap": {
+        "properties": {
+          "secret": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Secret"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "secret"
+        ],
+        "title": "Bootstrap"
+      },
+      "Command": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "expected_generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Expected Generation"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "CATEGORY_OVERRIDE",
+              "CATEGORY_CREATE",
+              "PLAN_SET",
+              "INBOUND_CLASSIFICATION",
+              "TRANSFER_DECISION"
+            ],
+            "title": "Kind"
+          },
+          "anchors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Anchors"
+          },
+          "payload": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request_id",
+          "expected_generation",
+          "kind",
+          "anchors",
+          "payload"
+        ],
+        "title": "Command"
+      },
+      "Dashboard": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "freshness": {
+            "type": "string",
+            "title": "Freshness"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "currencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Currencies"
+          },
+          "covered": {
+            "type": "boolean",
+            "title": "Covered"
+          },
+          "coverage_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Coverage Reasons"
+          },
+          "summary": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Summary"
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "custom_categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Custom Categories"
+          },
+          "category_totals": {
+            "items": {
+              "$ref": "#/components/schemas/Total"
+            },
+            "type": "array",
+            "title": "Category Totals"
+          },
+          "merchant_totals": {
+            "items": {
+              "$ref": "#/components/schemas/Total"
+            },
+            "type": "array",
+            "title": "Merchant Totals"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/Trend"
+            },
+            "type": "array",
+            "title": "Trend"
+          },
+          "recurring": {
+            "items": {
+              "$ref": "#/components/schemas/Recurring"
+            },
+            "type": "array",
+            "title": "Recurring"
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/Plan"
+            },
+            "type": "array",
+            "title": "Plans"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accounts"
+          },
+          "total_entries": {
+            "type": "integer",
+            "title": "Total Entries"
+          },
+          "transfer_proposals": {
+            "items": {
+              "$ref": "#/components/schemas/Proposal"
+            },
+            "type": "array",
+            "title": "Transfer Proposals"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "freshness",
+          "updated_at",
+          "start",
+          "end",
+          "currency",
+          "currencies",
+          "covered",
+          "coverage_reasons",
+          "summary",
+          "categories",
+          "custom_categories",
+          "category_totals",
+          "merchant_totals",
+          "trend",
+          "recurring",
+          "plans",
+          "entries",
+          "accounts",
+          "total_entries",
+          "transfer_proposals"
+        ],
+        "title": "Dashboard"
+      },
+      "Entry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "anchor": {
+            "type": "string",
+            "title": "Anchor"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "precision": {
+            "type": "string",
+            "title": "Precision"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "fee": {
+            "type": "string",
+            "title": "Fee"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "merchant": {
+            "type": "string",
+            "title": "Merchant"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "source_location": {
+            "type": "string",
+            "title": "Source Location"
+          },
+          "bucket": {
+            "type": "string",
+            "title": "Bucket"
+          },
+          "eligible": {
+            "type": "boolean",
+            "title": "Eligible"
+          },
+          "review": {
+            "type": "boolean",
+            "title": "Review"
+          },
+          "source_family": {
+            "type": "string",
+            "title": "Source Family"
+          },
+          "lifecycle_state": {
+            "type": "string",
+            "title": "Lifecycle State"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "anchor",
+          "date",
+          "precision",
+          "amount",
+          "fee",
+          "currency",
+          "account",
+          "merchant",
+          "description",
+          "category",
+          "basis",
+          "source_location",
+          "bucket",
+          "eligible",
+          "review",
+          "source_family",
+          "lifecycle_state"
+        ],
+        "title": "Entry"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Plan": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "saved": {
+            "type": "string",
+            "title": "Saved"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "actual": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actual"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "name",
+          "currency",
+          "target",
+          "saved",
+          "category",
+          "reason",
+          "actual",
+          "remaining"
+        ],
+        "title": "Plan"
+      },
+      "Proposal": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "link_kind": {
+            "type": "string",
+            "title": "Link Kind"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "left": {
+            "type": "string",
+            "title": "Left"
+          },
+          "right": {
+            "type": "string",
+            "title": "Right"
+          },
+          "left_account": {
+            "type": "string",
+            "title": "Left Account"
+          },
+          "right_account": {
+            "type": "string",
+            "title": "Right Account"
+          },
+          "left_description": {
+            "type": "string",
+            "title": "Left Description"
+          },
+          "right_description": {
+            "type": "string",
+            "title": "Right Description"
+          },
+          "left_amount": {
+            "type": "string",
+            "title": "Left Amount"
+          },
+          "left_currency": {
+            "type": "string",
+            "title": "Left Currency"
+          },
+          "right_amount": {
+            "type": "string",
+            "title": "Right Amount"
+          },
+          "right_currency": {
+            "type": "string",
+            "title": "Right Currency"
+          },
+          "left_date": {
+            "type": "string",
+            "title": "Left Date"
+          },
+          "right_date": {
+            "type": "string",
+            "title": "Right Date"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "link_kind",
+          "method",
+          "left",
+          "right",
+          "left_account",
+          "right_account",
+          "left_description",
+          "right_description",
+          "left_amount",
+          "left_currency",
+          "right_amount",
+          "right_currency",
+          "left_date",
+          "right_date",
+          "basis"
+        ],
+        "title": "Proposal"
+      },
+      "Recurring": {
+        "properties": {
+          "merchant": {
+            "type": "string",
+            "title": "Merchant"
+          },
+          "cadence": {
+            "type": "string",
+            "title": "Cadence"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "last_date": {
+            "type": "string",
+            "title": "Last Date"
+          },
+          "next_date": {
+            "type": "string",
+            "title": "Next Date"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "merchant",
+          "cadence",
+          "amount",
+          "last_date",
+          "next_date",
+          "count",
+          "status"
+        ],
+        "title": "Recurring"
+      },
+      "Total": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "count"
+        ],
+        "title": "Total"
+      },
+      "Trend": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "spending": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spending"
+          },
+          "income": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Income"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "month",
+          "spending",
+          "income",
+          "complete"
+        ],
+        "title": "Trend"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

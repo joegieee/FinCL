@@ -181,7 +181,7 @@ def validate_alias_patterns(patterns: Any) -> list[dict[str, str]]:
 # --------------------------------------------------------------------------- #
 
 
-def validate_payload(decision_kind: str, anchors: dict[str, str], payload: dict[str, Any]) -> None:
+def validate_payload(decision_kind: str, anchors: dict[str, str], payload: dict[str, Any], custom_categories: frozenset[str] = frozenset()) -> None:
     """Raise ``FinCLError`` unless ``(anchors, payload)`` matches the kind's contract.
 
     Called both when the CLI authors a record and defensively on replay, so a
@@ -202,14 +202,14 @@ def validate_payload(decision_kind: str, anchors: dict[str, str], payload: dict[
         expected = rule_id_for(canonical)
         _require(anchors.get("rule_id") == expected,
                  f"anchors.rule_id must be {expected} for this match predicate")
-        resolve_category(_nonblank_str(payload.get("category"), "category"))
+        resolve_category(_nonblank_str(payload.get("category"), "category"), custom_categories)
         _nonblank_str(payload.get("reason"), "reason")
     elif decision_kind == CATEGORY_RULE_RETIRE:
         _nonblank_str(anchors.get("rule_id"), "anchors.rule_id")
         _nonblank_str(payload.get("reason"), "reason")
     elif decision_kind == CATEGORY_OVERRIDE:
         _nonblank_str(anchors.get("entry"), "anchors.entry")
-        resolve_category(_nonblank_str(payload.get("category"), "category"))
+        resolve_category(_nonblank_str(payload.get("category"), "category"), custom_categories)
         _nonblank_str(payload.get("reason"), "reason")
     else:  # pragma: no cover - guarded by the caller's known-kind check
         raise FinCLError(f"{decision_kind} is not a categorization decision kind")

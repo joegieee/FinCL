@@ -41,6 +41,8 @@ KNOWN_DECISION_KINDS = frozenset(
         "INVARIANT_ESCAPE",
         "INBOUND_CLASSIFICATION",
         "EXTRACTION_REPAIR",
+        "CATEGORY_CREATE",
+        "PLAN_SET",
     }
     | CATEGORIZATION_DECISION_KINDS
 )
@@ -180,8 +182,12 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "category_overrides",
         ):
             connection.execute(f"DELETE FROM {table}")
+        custom: set[str] = set()
         for record in records:
-            _apply_record(connection, record)
+            if record.decision_kind == "CATEGORY_CREATE":
+                from .custom_categories import validate_creation
+                custom.add(validate_creation(record.anchors, record.payload, frozenset(custom)))
+            _apply_record(connection, record, frozenset(custom))
         _rebuild_command_receipts(connection, records)
         connection.execute("UPDATE decision_watermark SET applied_seq = ? WHERE id = 1", (len(records),))
         if verify_association:
@@ -235,13 +241,16 @@ def _rebuild_command_receipts(
         )
 
 
-def _apply_record(connection: sqlite3.Connection, record: JournalRecord) -> None:
+def _apply_record(connection: sqlite3.Connection, record: JournalRecord, custom: frozenset[str] = frozenset()) -> None:
     if record.decision_kind not in KNOWN_DECISION_KINDS:
         raise FinCLError(
             f"decision journal record {record.seq} has an unrecognized "
             f"decision_kind {record.decision_kind!r}; this build cannot replay it "
             "without silently dropping the decision — upgrade fincl"
         )
+    if record.decision_kind == "PLAN_SET":
+        from .plans import validate_plan
+        validate_plan(record.anchors, record.payload)
     override: str | None = None
     if record.anchor_version != NATURAL_ANCHOR_VERSION:
         if record.anchor_version not in SUPERSEDED_ANCHOR_VERSIONS:
@@ -255,7 +264,7 @@ def _apply_record(connection: sqlite3.Connection, record: JournalRecord) -> None
         override = f"anchor recipe {record.anchor_version} superseded; awaiting rebind"
     if record.decision_kind in CATEGORIZATION_DECISION_KINDS:
         try:
-            validate_payload(record.decision_kind, record.anchors, record.payload)
+            validate_payload(record.decision_kind, record.anchors, record.payload, custom)
         except FinCLError as exc:
             raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
     if record.decision_kind in {"LINK_CONFIRM", "LINK_REJECT"}:
@@ -272,14 +281,14 @@ def _apply_record(connection: sqlite3.Connection, record: JournalRecord) -> None
             (record.anchors["canonical"],),
         )
     elif record.decision_kind == CATEGORY_RULE_SET:
-        _apply_rule_set(connection, record)
+        _apply_rule_set(connection, record, custom)
     elif record.decision_kind == CATEGORY_RULE_RETIRE:
         connection.execute(
             "DELETE FROM category_rules WHERE rule_id = ?",
             (record.anchors["rule_id"],),
         )
     elif record.decision_kind == CATEGORY_OVERRIDE:
-        _apply_override(connection, record, override)
+        _apply_override(connection, record, override, custom)
 
 
 def _binding(reason: str | None, override: str | None) -> tuple[int, str | None]:
@@ -366,8 +375,8 @@ def _apply_alias_set(connection: sqlite3.Connection, record: JournalRecord) -> N
     )
 
 
-def _apply_rule_set(connection: sqlite3.Connection, record: JournalRecord) -> None:
-    group, category, migrated_from = resolve_category(str(record.payload["category"]))
+def _apply_rule_set(connection: sqlite3.Connection, record: JournalRecord, custom: frozenset[str] = frozenset()) -> None:
+    group, category, migrated_from = resolve_category(str(record.payload["category"]), custom)
     connection.execute(
         """INSERT INTO category_rules
                (rule_id, match_json, group_name, category, migrated_from, reason,
@@ -391,11 +400,11 @@ def _apply_rule_set(connection: sqlite3.Connection, record: JournalRecord) -> No
     )
 
 
-def _apply_override(connection: sqlite3.Connection, record: JournalRecord, override: str | None) -> None:
+def _apply_override(connection: sqlite3.Connection, record: JournalRecord, override: str | None, custom: frozenset[str] = frozenset()) -> None:
     anchor = record.anchors.get("entry", "")
     reason = _resolve(connection, anchor).dangling_reason
     bound, dangling_reason = _binding(reason, override)
-    group, category, migrated_from = resolve_category(str(record.payload["category"]))
+    group, category, migrated_from = resolve_category(str(record.payload["category"]), custom)
     connection.execute(
         """INSERT INTO category_overrides
                (entry_anchor, anchor_version, group_name, category, migrated_from,

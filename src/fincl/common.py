@@ -21,11 +21,12 @@ LEDGER_EVENT_KINDS = frozenset(
 
 # ---------------------------------------------------------------------------
 # Categorization taxonomy (Phase 4 Track A, Confirmed 28; DESIGN-categorization
-# §3). The taxonomy is a versioned code constant, never a table: editing it is a
+# §3). The built-in taxonomy is a versioned code constant: editing it is a
 # code change plus a ``TAXONOMY_VERSION`` bump, and a changed version restates
 # categorized history on the next ``fincl categorize`` / rebuild, exactly like a
 # parser-profile bump. Rules and overrides name a category by its
-# ``"Group / Category"`` string.
+# ``"Group / Category"`` string. User-created additions are CATEGORY_CREATE
+# journal decisions, passed explicitly to resolution; never global mutable state.
 # ---------------------------------------------------------------------------
 
 TAXONOMY_VERSION = "taxonomy-2026-v1"
@@ -90,7 +91,7 @@ def category_strings() -> frozenset[str]:
     )
 
 
-def resolve_category(name: str) -> tuple[str, str, str | None]:
+def resolve_category(name: str, custom_categories: frozenset[str] = frozenset()) -> tuple[str, str, str | None]:
     """Resolve a ``"Group / Category"`` string to ``(group, category, migrated_from)``.
 
     ``migrated_from`` is ``None`` for a current category and the original string
@@ -98,7 +99,7 @@ def resolve_category(name: str) -> tuple[str, str, str | None]:
     unknown string raises — a typo is refused, never silently dropped.
     """
     current = category_strings()
-    if name in current:
+    if name in current or name in custom_categories:
         group, category = name.split(_CATEGORY_SEPARATOR, 1)
         return group, category, None
     target = CATEGORY_MIGRATIONS.get(name)

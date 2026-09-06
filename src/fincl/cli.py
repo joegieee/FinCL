@@ -1151,5 +1151,42 @@ def _fail(exc: Exception) -> NoReturn:
     raise typer.Exit(1)
 
 
+@app.command("serve")
+def serve_command(
+    database: Path = typer.Option(..., "--database"),
+    port: int = typer.Option(8765, "--port", min=1024, max=65535),
+    open_browser: bool = typer.Option(False, "--open"),
+    evidence_dir: Path | None = typer.Option(None, "--evidence-dir"),
+    demo: bool = typer.Option(False, "--demo", help="Label a synthetic demonstration ledger."),
+) -> None:
+    """Serve the bundled personal finance UI on authenticated loopback HTTP."""
+    import secrets
+    import webbrowser
+
+    import uvicorn
+
+    from .api import create_app
+    from .db import connect_readonly
+
+    try:
+        # Refuse absent/old ledgers before any write or automatic migration.
+        connection = connect_readonly(database)
+        connection.close()
+        assets = Path(__file__).parent / "static"
+        if not (assets / "index.html").exists():
+            raise FinCLError("UI assets are missing. Run npm ci and npm run build in frontend/.")
+        refresh_ledger(database)
+        secret = secrets.token_urlsafe(32)
+        url = f"http://127.0.0.1:{port}/#bootstrap={secret}"
+        console = Console()
+        console.print("Open this private, one-use launch link:")
+        console.print(url, markup=False, highlight=False, soft_wrap=True)
+        if open_browser:
+            webbrowser.open(url)
+        uvicorn.run(create_app(database, port=port, bootstrap_secret=secret, evidence_dir=evidence_dir, demo=demo), host="127.0.0.1", port=port, access_log=False)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
 def main() -> None:
     app()
