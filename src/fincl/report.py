@@ -90,6 +90,7 @@ def _category_warnings(connection: sqlite3.Connection, *, recompute: bool) -> di
 class _EconomicFlowBucket(TypedDict):
     spending: list[ExactMoney]
     income: list[ExactMoney]
+    refunds: list[ExactMoney]
     reimbursements: list[ExactMoney]
     non_income_inflow: list[ExactMoney]
     pending_review: list[ExactMoney]
@@ -386,6 +387,7 @@ def _economic_flow(
     currencies = []
     for currency, values in sorted(by_currency.items()):
         income = _format_money_list(values["income"])
+        refunds = _format_money_list(values["refunds"])
         reimbursements = _format_money_list(values["reimbursements"])
         non_income_inflow = _format_money_list(values["non_income_inflow"])
         spending = _format_money_list(values["spending"])
@@ -396,6 +398,7 @@ def _economic_flow(
                 "entries": values["entries"],
                 "spending": spending,
                 "income": income,
+                "refunds": refunds,
                 "reimbursements": reimbursements,
                 "non_income_inflow": non_income_inflow,
                 "pending_review": _format_money_list(values["pending_review"]),
@@ -404,7 +407,8 @@ def _economic_flow(
                 ),
                 "fees": fees,
                 "net_economic_flow": _net_money(
-                    [income, reimbursements, non_income_inflow], [spending, fees]
+                    [income, refunds, reimbursements, non_income_inflow],
+                    [spending, fees],
                 ),
                 "excluded_confirmed_internal_entries": values["excluded_linked"],
                 "excluded_self_transfer_entries": values["excluded_self_transfer"],
@@ -425,13 +429,16 @@ def _economic_flow(
     coverage_withheld = (
         analysis_window_kind != "EXPLICIT" and contract.status != "COVERED"
     )
+    fx_inputs: dict[tuple[str, str], dict[str, str]] = {}
     if any_incomplete or coverage_withheld:
         consolidated_total, consolidated_status = None, "UNAVAILABLE_COVERAGE_INCOMPLETE"
     else:
-        consolidated_total, consolidated_status = _consolidate_sgd(connection, netting)
+        consolidated_total, consolidated_status = _consolidate_sgd(connection, netting, fx_inputs)
 
     return {
         "kind": "ECONOMIC_FLOW",
+        "fx_selection_policy": "latest-first-import-v1",
+        "fx_inputs": [fx_inputs[key] for key in sorted(fx_inputs)],
         "reporting_currency": _REPORTING_CURRENCY,
         "consolidated_sgd_total": consolidated_total,
         "consolidated_sgd_total_status": consolidated_status,
@@ -457,7 +464,8 @@ def _economic_flow(
 
 
 def _consolidate_sgd(
-    connection: sqlite3.Connection, netting: list[tuple[str, int, int, str]]
+    connection: sqlite3.Connection, netting: list[tuple[str, int, int, str]],
+    fx_inputs: dict[tuple[str, str], dict[str, str]],
 ) -> tuple[str | None, str]:
     """Value every netting entry into SGD at its month's loaded rate.
 
@@ -472,10 +480,16 @@ def _consolidate_sgd(
         if currency == _REPORTING_CURRENCY:
             total += amount
             continue
-        rate = fx.rate_fraction(connection, currency, _REPORTING_CURRENCY, period)
-        if rate is None:
+        key = (currency, period)
+        selected = fx_inputs.get(key) or fx.selected_rate(
+            connection, currency, _REPORTING_CURRENCY, period
+        )
+        if selected is None:
             return None, "UNAVAILABLE_FX_RATES_NOT_IMPORTED"
-        total += amount * rate
+        fx_inputs[key] = selected
+        total += amount * Fraction(
+            int(selected["rate_numerator"]), int(selected["rate_denominator"])
+        )
     cents = total * 100
     rounded = int(cents + Fraction(1, 2)) if cents >= 0 else -int(-cents + Fraction(1, 2))
     return format_decimal(rounded, 2), "AVAILABLE"
@@ -483,7 +497,7 @@ def _consolidate_sgd(
 
 def _empty_bucket() -> _EconomicFlowBucket:
     return {
-        "spending": [], "income": [], "reimbursements": [], "non_income_inflow": [],
+        "spending": [], "income": [], "refunds": [], "reimbursements": [], "non_income_inflow": [],
         "pending_review": [], "other_classified_inbound": [], "fees": [],
         "excluded_linked": 0, "excluded_self_transfer": 0, "entries": 0,
         "outside_covered_window": 0, "outside_analysis_window": 0,
@@ -494,9 +508,13 @@ def _classify_inbound(bucket: _EconomicFlowBucket, row: sqlite3.Row) -> bool:
     """Route an inbound entry by its journaled classification (§15.1).
 
     Returns True when the entry nets into ``net_economic_flow`` (income,
-    reimbursement, gift, family_transfer) and False otherwise.
+    reimbursement, gift, family_transfer, or an unclassified source refund)
+    and False otherwise. Explicit classifications override source-refund defaults.
     """
     classification = row["inbound_classification"]
+    if classification is None and row["event_kind"] == "REFUND":
+        bucket["refunds"].append(_magnitude(row, "amount"))
+        return True
     if classification == "income":
         bucket["income"].append(_magnitude(row, "amount"))
         return True
@@ -718,7 +736,7 @@ def build_economic_flow_report(
     for currency in data["currencies"]:
         lines.append(
             "{currency}: spending={spending} income={income} "
-            "reimbursements={reimbursements} non_income_inflow={non_income_inflow} "
+            "refunds={refunds} reimbursements={reimbursements} non_income_inflow={non_income_inflow} "
             "pending_review={pending_review} "
             "other_classified_inbound={other_classified_inbound} "
             "fees={fees} net={net_economic_flow} "

@@ -5,6 +5,8 @@ import io
 import sqlite3
 import tempfile
 import unittest
+from collections.abc import Iterator
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 
 from fincl.db import (
@@ -26,6 +28,27 @@ from fincl.report import (
 )
 from fincl.revolut import EXPECTED_HEADER
 from fincl.service import FinCLService
+
+
+@contextmanager
+def open_database(
+    path: Path, *, row_factory: object = None
+) -> Iterator[sqlite3.Connection]:
+    """Commit or roll back like ``sqlite3``'s own context manager, then close.
+
+    Using a raw connection as a context manager ends the transaction but leaves
+    the connection open, which is where this suite's unclosed-database
+    ResourceWarnings came from.
+    """
+    connection = sqlite3.connect(path)
+    if row_factory is not None:
+        connection.row_factory = row_factory  # type: ignore[assignment]
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
 
 GOOD_ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "100.00", "0.00", "USD", "COMPLETED", "100.00"],
@@ -83,8 +106,10 @@ class SchemaVersionGateTests(unittest.TestCase):
             "UPDATE schema_metadata SET value = '1' WHERE key = 'schema_version'"
         )
         connection.commit()
-        with self.assertRaises(SchemaVersionError):
+        with self.assertRaisesRegex(SchemaVersionError, "preserve the database") as caught:
             initialize_schema(connection)
+
+        self.assertNotIn("re-import into a fresh database", str(caught.exception))
 
     def test_non_integer_schema_version_is_refused(self):
         connection = connect_sqlite(self.database)
@@ -140,10 +165,8 @@ class RunningExtractionGuardTests(unittest.TestCase):
         self.database = root / "fincl.sqlite3"
         self.service = FinCLService.plaintext_phase1(self.database, root / "evidence")
 
-    def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database)
-        connection.row_factory = sqlite3.Row
-        return connection
+    def _connect(self) -> AbstractContextManager[sqlite3.Connection]:
+        return open_database(self.database, row_factory=sqlite3.Row)
 
     def _stall_extraction(self) -> str:
         with self._connect() as connection:
@@ -229,7 +252,7 @@ class RebuildTests(unittest.TestCase):
 
         self.assertEqual(result.sources_rebuilt, 1)
         self.assertEqual(result.accepted_extractions, 1)
-        with sqlite3.connect(output) as connection:
+        with open_database(output) as connection:
             self.assertEqual(
                 connection.execute(
                     "SELECT count(*) FROM ledger_entries WHERE source_family = 'CSV'"
@@ -266,7 +289,7 @@ class RebuildTests(unittest.TestCase):
         )
         self.service.import_revolut(self.source)
 
-        with sqlite3.connect(self.database) as connection:
+        with open_database(self.database) as connection:
             link = connection.execute(
                 """
                 SELECT link_kind, left_currency, left_amount_text, right_currency,
@@ -286,7 +309,7 @@ class RebuildTests(unittest.TestCase):
         result = self.service.import_revolut(self.source)
 
         self.assertEqual(result.status, "QUARANTINED")
-        with sqlite3.connect(self.database) as connection:
+        with open_database(self.database) as connection:
             self.assertEqual(
                 connection.execute(
                     "SELECT count(*) FROM extraction_issues WHERE code = 'EXCHANGE_PAIRING_INCOMPLETE'"
@@ -317,7 +340,7 @@ class EconomicFlowReportTests(unittest.TestCase):
         self.assertEqual(
             before_link[0]["covered_window"], {"start": "2026-01-01", "end": "2026-01-02"}
         )
-        with sqlite3.connect(self.database) as connection:
+        with open_database(self.database) as connection:
             entries = connection.execute(
                 "SELECT id, amount_text, amount_coefficient, amount_scale, currency_pocket "
                 "FROM ledger_entries ORDER BY effective_at"
@@ -340,7 +363,7 @@ class EconomicFlowReportTests(unittest.TestCase):
         self.assertEqual(data["consolidated_sgd_total"], None)
         self.assertEqual(data["consolidated_sgd_total_status"], "UNAVAILABLE_FX_RATES_NOT_IMPORTED")
         self.assertEqual(data["currencies"], [{
-            "currency": "USD", "entries": 2, "spending": "0", "income": "0",
+            "currency": "USD", "entries": 2, "spending": "0", "income": "0", "refunds": "0",
             "reimbursements": "0", "non_income_inflow": "0", "pending_review": "0",
             "other_classified_inbound": "0", "fees": "1.00", "net_economic_flow": "-1.00",
             "excluded_confirmed_internal_entries": 2,
@@ -372,7 +395,7 @@ class EconomicFlowInboundBucketTests(unittest.TestCase):
         FinCLService.plaintext_phase1(self.database, root / "evidence").import_revolut(self.source)
 
     def _inbound_anchors(self) -> list[str]:
-        with sqlite3.connect(self.database) as connection:
+        with open_database(self.database) as connection:
             return [
                 row[0]
                 for row in connection.execute(

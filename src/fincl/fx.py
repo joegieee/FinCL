@@ -51,7 +51,7 @@ _MAS_MONTHS = {
 
 
 def load_fx_rates(connection: Connection, payload: dict[str, object]) -> int:
-    """Validate and upsert a rate document; return the number of rates written.
+    """Import immutable rates; identical rows are no-ops. Return new row count.
 
     Expected shape::
 
@@ -77,6 +77,13 @@ def load_fx_rates(connection: Connection, payload: dict[str, object]) -> int:
     imported_at = datetime.now(UTC).isoformat(timespec="microseconds")
     written = 0
     with connection:
+        frozen_keys = {
+            tuple(row) for row in connection.execute(
+                "SELECT base_currency, quote_currency, period FROM fx_rates WHERE source_version = ?",
+                (source_version,),
+            )
+        }
+        supplied_keys: set[tuple[str, str, str]] = set()
         for index, entry in enumerate(rates):
             if not isinstance(entry, dict):
                 raise FinCLError(f"fx rate {index} is not an object")
@@ -91,20 +98,29 @@ def load_fx_rates(connection: Connection, payload: dict[str, object]) -> int:
                 raise FinCLError(f"fx rate {index} period is not YYYY-MM: {period!r}")
             if not _DECIMAL.match(rate_text) or Fraction(rate_text) <= 0:
                 raise FinCLError(f"fx rate {index} rate is not a positive decimal: {rate_text!r}")
+            key = (base_currency, quote_currency, period)
+            supplied_keys.add(key)
+            if frozen_keys and key not in frozen_keys:
+                raise FinCLError(f"immutable FX version {source_version!r}: use a new source_version")
             numerator, denominator = _ratio(rate_text)
+            existing = connection.execute(
+                "SELECT rate_text, source FROM fx_rates WHERE base_currency = ? "
+                "AND quote_currency = ? AND period = ? AND source_version = ?",
+                (base_currency, quote_currency, period, source_version),
+            ).fetchone()
+            if existing is not None:
+                if tuple(existing) != (rate_text, source):
+                    raise FinCLError(
+                        f"immutable FX version {source_version!r} conflicts for "
+                        f"{base_currency}/{quote_currency} {period}; use a new source_version"
+                    )
+                continue
             connection.execute(
                 """
                 INSERT INTO fx_rates(
                     base_currency, quote_currency, period, rate_numerator,
                     rate_denominator, rate_text, source, source_version, imported_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(base_currency, quote_currency, period, source_version)
-                DO UPDATE SET
-                    rate_numerator = excluded.rate_numerator,
-                    rate_denominator = excluded.rate_denominator,
-                    rate_text = excluded.rate_text,
-                    source = excluded.source,
-                    imported_at = excluded.imported_at
                 """,
                 (
                     base_currency, quote_currency, period, numerator, denominator,
@@ -112,6 +128,8 @@ def load_fx_rates(connection: Connection, payload: dict[str, object]) -> int:
                 ),
             )
             written += 1
+        if frozen_keys and supplied_keys != frozen_keys:
+            raise FinCLError(f"immutable FX version {source_version!r}: incomplete reimport")
     return written
 
 
@@ -214,17 +232,29 @@ def rate_fraction(
     connection: Connection, base_currency: str, quote_currency: str, period: str
 ) -> Fraction | None:
     """Latest loaded rate for one month, or None if none is loaded."""
-    row = connection.execute(
-        """
-        SELECT rate_numerator, rate_denominator FROM fx_rates
-        WHERE base_currency = ? AND quote_currency = ? AND period = ?
-        ORDER BY imported_at DESC LIMIT 1
-        """,
-        (base_currency, quote_currency, period),
-    ).fetchone()
+    row = selected_rate(connection, base_currency, quote_currency, period)
     if row is None:
         return None
-    return Fraction(int(row[0]), int(row[1]))
+    return Fraction(int(row["rate_numerator"]), int(row["rate_denominator"]))
+
+
+def selected_rate(
+    connection: Connection, base_currency: str, quote_currency: str, period: str
+) -> dict[str, str] | None:
+    """Exact selected input, including provenance, for a report manifest."""
+    cursor = connection.execute(
+        """
+        SELECT base_currency, quote_currency, period, rate_numerator,
+               rate_denominator, rate_text, source, source_version, imported_at FROM fx_rates
+        WHERE base_currency = ? AND quote_currency = ? AND period = ?
+        ORDER BY imported_at DESC, source_version DESC LIMIT 1
+        """,
+        (base_currency, quote_currency, period),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return {column[0]: str(value) for column, value in zip(cursor.description, row, strict=True)}
 
 
 def _ratio(decimal_text: str) -> tuple[int, int]:

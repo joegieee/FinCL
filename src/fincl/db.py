@@ -19,11 +19,9 @@ SCHEMA_VERSION = 8
 # locked".
 BUSY_TIMEOUT_MS = 5000
 
-# In-place upgrade steps keyed by the schema version they upgrade *from*. There
-# is no deployed database older than SCHEMA_VERSION and processed entries are
-# fully derived from the evidence vault, so the registry is intentionally empty:
-# a database that predates SCHEMA_VERSION is refused with a SchemaVersionError
-# that points at `fincl rebuild` rather than being migrated in place.
+# Legacy startup migration registry remains empty. Historical ledgers require
+# a tested reader or the explicit, backup-verified runner in migrations.py;
+# startup must not suggest evidence-only reconstruction of originating state.
 _MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
 
 
@@ -223,9 +221,9 @@ def _run_migrations(connection: sqlite3.Connection, from_version: int) -> None:
         if migration is None:
             raise SchemaVersionError(
                 f"no migration path from schema version {version} to {SCHEMA_VERSION}; "
-                "processed entries are fully derived from the evidence vault, so run "
-                "`fincl rebuild` to regenerate this database, or back up "
-                "var/fincl.sqlite3 and re-import into a fresh database"
+                "preserve the database, evidence vault and journal; use a compatible "
+                "FinCL version or backup until a tested migration or historical reader "
+                "is available. Rebuild currently supports only schema 8"
             )
         with connection:
             migration(connection)

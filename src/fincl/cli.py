@@ -235,14 +235,15 @@ def economic_flow(
     else:
         table = Table(title="Economic flow (per currency)")
         for heading in (
-            "Currency", "Spending", "Income", "Reimb.", "Non-income in",
+            "Currency", "Spending", "Income", "Refunds", "Reimb.", "Non-income in",
             "Pending review", "Other", "Fees", "Net", "Excl. links", "Covered",
         ):
             table.add_column(heading)
         for currency in data["currencies"]:
             table.add_row(
                 str(currency["currency"]), str(currency["spending"]), str(currency["income"]),
-                str(currency["reimbursements"]), str(currency["non_income_inflow"]),
+                str(currency["refunds"]), str(currency["reimbursements"]),
+                str(currency["non_income_inflow"]),
                 str(currency["pending_review"]), str(currency["other_classified_inbound"]),
                 str(currency["fees"]), str(currency["net_economic_flow"]),
                 str(currency["excluded_confirmed_internal_entries"]),

@@ -6,6 +6,7 @@ import io
 import sqlite3
 import tempfile
 import unittest
+from contextlib import AbstractContextManager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,6 +23,7 @@ from fincl.revolut import (
     SOURCE_PROFILE_VERSION,
 )
 from fincl.service import FinCLService
+from tests.test_schema_and_recovery import open_database
 
 GOOD_ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed USD", "100.00", "0.00", "USD", "COMPLETED", "100.00"],
@@ -53,10 +55,8 @@ class RevolutImportTests(unittest.TestCase):
     def tearDown(self):
         self.temporary.cleanup()
 
-    def connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database)
-        connection.row_factory = sqlite3.Row
-        return connection
+    def connect(self) -> AbstractContextManager[sqlite3.Connection]:
+        return open_database(self.database, row_factory=sqlite3.Row)
 
     def test_complete_provenance_lifecycle_pockets_and_timestamps(self):
         source_bytes = csv_bytes()
@@ -443,6 +443,7 @@ class RevolutImportTests(unittest.TestCase):
 
     def test_schema_has_no_real_money_storage(self):
         connection = connect_sqlite(self.database)
+        self.addCleanup(connection.close)
         initialize_schema(connection)
         for table in (
             "raw_records",
