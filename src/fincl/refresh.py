@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .db import connect_sqlite, initialize_schema
-from .document_service import link_narrow_transfers
 from .engine import categorize
+from .reconciliation import link_narrow_transfers
 
 
 @dataclass(frozen=True, slots=True)

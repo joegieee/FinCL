@@ -14,6 +14,7 @@ from .decisions import replay_journal
 from .errors import EvidenceError, FinCLError
 from .evidence import EvidenceCapture, EvidenceStore, PlaintextEvidenceStore
 from .money import MAX_ABS_COEFFICIENT, ExactMoney, exact_sum, format_decimal
+from .reconciliation import link_narrow_transfers
 from .revolut import (
     BALANCE_EQUATION_VERSION,
     EXTRACTION_POLICY_VERSION,
@@ -240,10 +241,6 @@ class FinCLService:
             )
             connection.commit()
             if status == "ACCEPTED":
-                # Kept in the document service for now because the same command
-                # also links DBS and PayLah transfers.
-                from .document_service import link_narrow_transfers
-
                 recompute_selection(connection)
                 link_narrow_transfers(connection)
         except Exception:

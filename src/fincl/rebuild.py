@@ -22,11 +22,12 @@ from .association import copy_association_for_rebuild
 from .db import connect_sqlite, initialize_schema
 from .decision_journal import default_journal_path
 from .decisions import replay_journal as _guarded_replay
-from .document_service import DocumentImportService, link_narrow_transfers
+from .document_service import DocumentImportService
 from .engine import categorize
 from .errors import EvidenceError, FinCLError
 from .evidence import PlaintextEvidenceStore
 from .historical import require_reconstructable_schema
+from .reconciliation import link_narrow_transfers
 from .selection import recompute_selection
 from .service import FinCLService
 

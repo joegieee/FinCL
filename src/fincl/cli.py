@@ -23,13 +23,14 @@ from .common import resolve_category
 from .db import connect_sqlite, initialize_schema
 from .decision_journal import append_decision, default_journal_path
 from .decisions import entry_anchor, invariant_violation_is_live, replay_journal, resolve_anchor
-from .document_service import DocumentImportService, link_narrow_transfers
+from .document_service import DocumentImportService
 from .engine import categorize as run_categorize
 from .engine import summarize_run
 from .errors import FinCLError
 from .fx import load_fx_rates_file, load_mas_weekly_csv_file
 from .money import ExactMoney
 from .rebuild import rebuild_database
+from .reconciliation import link_narrow_transfers
 from .recovery import recover_extraction
 from .refresh import refresh_ledger
 from .report import (
