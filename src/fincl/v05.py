@@ -22,8 +22,8 @@ from .report import coverage_report_data
 
 V05_DECISION_KINDS = frozenset(
     {
-        "CATEGORY_METADATA_SET",
-        "CATEGORY_METADATA_RETIRE",
+        "CATEGORY_DETAILS_SET",
+        "CATEGORY_ARCHIVE_SET",
         "ACCOUNT_SCOPE_SET",
         "ACCOUNT_DETAILS_SET",
         "ACCOUNT_ALIAS_SET",
@@ -32,6 +32,8 @@ V05_DECISION_KINDS = frozenset(
         "REVIEW_DEFER_RETIRE",
     }
 )
+
+_RESERVED_GROUPS = {"internal", "unclassified"}
 
 _SAFE_LABEL = re.compile(r"^[^/\\\x00-\x1f]{1,80}$")
 
@@ -61,21 +63,35 @@ def validate_v05(
         return
     reason = _reason(payload)
     del reason
-    if kind == "CATEGORY_METADATA_SET":
-        _exact_keys(anchors, {"category"}, "category metadata anchors")
-        _exact_keys(payload, {"display_name", "archived", "reason"}, "category metadata")
-        if not _SAFE_LABEL.fullmatch(str(payload["display_name"])):
+    if kind == "CATEGORY_DETAILS_SET":
+        _exact_keys(anchors, {"category"}, "category detail anchors")
+        _exact_keys(payload, {"display_group", "display_name", "reason"}, "category details")
+        group, name = str(payload["display_group"]), str(payload["display_name"])
+        if not _SAFE_LABEL.fullmatch(group):
+            raise FinCLError("Category display group must contain 1–80 safe characters")
+        if not _SAFE_LABEL.fullmatch(name):
             raise FinCLError("Category display name must contain 1–80 safe characters")
-        if payload["archived"] not in {"true", "false"}:
-            raise FinCLError("archived must be true or false")
+        if group.strip().casefold() in _RESERVED_GROUPS:
+            raise FinCLError("Internal and Unclassified are reserved system groups")
+        custom = custom_categories(database)
+        if anchors["category"] not in custom:
+            raise FinCLError("Only a user-created category can be renamed")
+        full = f"{group.strip()} / {name.strip()}".casefold()
+        for other in custom:
+            if other != anchors["category"] and other.casefold() == full:
+                raise FinCLError("Another active category already uses that group and name")
+    elif kind == "CATEGORY_ARCHIVE_SET":
+        _exact_keys(anchors, {"category"}, "category archive anchors")
+        _exact_keys(payload, {"archived", "reason"}, "category archive")
+        if not isinstance(payload["archived"], bool):
+            raise FinCLError("archived must be a boolean")
         if anchors["category"] not in custom_categories(database):
-            raise FinCLError("Only a user-created category can be renamed or archived")
-    elif kind == "CATEGORY_METADATA_RETIRE":
-        _exact_keys(anchors, {"category"}, "category metadata anchors")
-        _exact_keys(payload, {"reason"}, "category metadata")
+            raise FinCLError("Only a user-created category can be archived or restored")
     elif kind == "ACCOUNT_SCOPE_SET":
-        _exact_keys(anchors, {"account"}, "account scope anchors")
+        _exact_keys(anchors, {"account", "pocket"}, "account scope anchors")
         _exact_keys(payload, {"expected_start", "expected_end", "reason"}, "account scope")
+        if not str(anchors["pocket"]).strip():
+            raise FinCLError("A currency pocket is required for account scope")
         start, end = str(payload["expected_start"]), str(payload["expected_end"])
         try:
             from datetime import date
@@ -122,6 +138,18 @@ def _latest(records: list[JournalRecord], set_kind: str, retire_kind: str, key: 
             state[identity] = record
         elif record.decision_kind == retire_kind:
             state.pop(identity, None)
+    return state
+
+
+def _latest_by(records: list[JournalRecord], set_kind: str, keys: tuple[str, ...]) -> dict[tuple[str, ...], JournalRecord]:
+    """Latest set-record per composite anchor tuple. Used for pocket-scoped kinds."""
+    state: dict[tuple[str, ...], JournalRecord] = {}
+    for record in records:
+        if record.decision_kind != set_kind:
+            continue
+        identity = tuple(record.anchors.get(part, "") for part in keys)
+        if all(identity):
+            state[identity] = record
     return state
 
 
@@ -191,36 +219,76 @@ def import_detail(database: Path, import_id: str) -> dict[str, Any]:
 def accounts_page(database: Path) -> dict[str, Any]:
     records = read_records(default_journal_path(database))
     details = _latest(records, "ACCOUNT_DETAILS_SET", "ACCOUNT_DETAILS_RETIRE", "account")
-    scopes = _latest(records, "ACCOUNT_SCOPE_SET", "ACCOUNT_SCOPE_RETIRE", "account")
+    scopes = _latest_by(records, "ACCOUNT_SCOPE_SET", ("account", "pocket"))
     aliases = _latest(records, "ACCOUNT_ALIAS_SET", "ACCOUNT_ALIAS_RETIRE", "source_identity")
     connection = connect_readonly(database)
     try:
         rows = connection.execute(
             """SELECT a.id,a.institution,a.source_type,a.display_name,a.masked_identifier,
+                      e.currency_pocket AS pocket,
                       min(substr(e.effective_at,1,10)) AS observed_start,
                       max(substr(e.effective_at,1,10)) AS observed_end,
-                      count(e.id) AS entry_count,
-                      group_concat(DISTINCT e.currency_pocket) AS currencies
+                      count(e.id) AS entry_count
                FROM accounts a LEFT JOIN ledger_entries e ON e.account_id=a.id
-               GROUP BY a.id ORDER BY a.institution,a.display_name,a.id"""
+               GROUP BY a.id,e.currency_pocket ORDER BY a.institution,a.display_name,a.id"""
         ).fetchall()
-        result: list[dict[str, Any]] = []
+        by_account: dict[str, dict[str, Any]] = {}
         for row in rows:
-            item = dict(row)
+            item = by_account.setdefault(
+                row["id"],
+                {
+                    "id": row["id"],
+                    "institution": row["institution"],
+                    "source_type": row["source_type"],
+                    "display_name": row["display_name"],
+                    "masked_identifier": row["masked_identifier"],
+                    "entry_count": 0,
+                    "pockets": [],
+                },
+            )
             detail = details.get(row["id"])
-            scope = scopes.get(row["id"])
             item["display_name"] = detail.payload["display_name"] if detail else row["display_name"]
             item["archived_on"] = detail.payload["archived_on"] if detail else ""
-            item["expected_start"] = scope.payload["expected_start"] if scope else None
-            item["expected_end"] = scope.payload["expected_end"] if scope else None
-            item["currencies"] = sorted(filter(None, str(row["currencies"] or "").split(",")))
+            item["entry_count"] += row["entry_count"] or 0
+            pocket = row["pocket"]
+            if pocket is None:
+                continue
+            scope = scopes.get((row["id"], pocket))
             expected_start = str(scope.payload["expected_start"]) if scope else ""
             expected_end = str(scope.payload["expected_end"]) if scope else ""
-            item["coverage_status"] = (
-                "unconfigured" if scope is None else
-                "gap" if row["observed_start"] is None or str(row["observed_start"]) > expected_start
-                or (expected_end and str(row["observed_end"] or "") < expected_end)
+            observed_start = str(row["observed_start"]) if row["observed_start"] else ""
+            observed_end = str(row["observed_end"]) if row["observed_end"] else ""
+            status = (
+                "unconfigured" if scope is None
+                else "gap" if not observed_start or observed_start > expected_start
+                or (expected_end and observed_end < expected_end)
                 else "covered"
+            )
+            item["pockets"].append(
+                {
+                    "pocket": pocket,
+                    "expected_start": expected_start or None,
+                    "expected_end": expected_end or None,
+                    "observed_start": observed_start or None,
+                    "observed_end": observed_end or None,
+                    "entry_count": row["entry_count"] or 0,
+                    "coverage_status": status,
+                }
+            )
+        _RANK = {"gap": 0, "unconfigured": 1, "covered": 2}
+        result: list[dict[str, Any]] = []
+        for item in by_account.values():
+            item["pockets"].sort(key=lambda p: p["pocket"])
+            item["currencies"] = [p["pocket"] for p in item["pockets"]]
+            item["coverage_status"] = (
+                "unconfigured" if not item["pockets"]
+                else min((p["coverage_status"] for p in item["pockets"]), key=lambda s: _RANK[s])
+            )
+            item["expected_start"] = next(
+                (p["expected_start"] for p in item["pockets"] if p["expected_start"]), None
+            )
+            item["expected_end"] = next(
+                (p["expected_end"] for p in item["pockets"] if p["expected_end"]), None
             )
             result.append(item)
         return {
@@ -237,20 +305,23 @@ def accounts_page(database: Path) -> dict[str, Any]:
 
 def categories_page(database: Path) -> dict[str, Any]:
     records = read_records(default_journal_path(database))
-    metadata = _latest(records, "CATEGORY_METADATA_SET", "CATEGORY_METADATA_RETIRE", "category")
+    details = _latest(records, "CATEGORY_DETAILS_SET", "CATEGORY_DETAILS_RETIRE", "category")
+    archived = _latest(records, "CATEGORY_ARCHIVE_SET", "CATEGORY_ARCHIVE_RETIRE", "category")
     custom = custom_categories(database)
-    return {
-        "generation": generation_of(database),
-        "categories": [
+    categories: list[dict[str, Any]] = []
+    for key in sorted(custom):
+        group, name = key.split(" / ", 1) if " / " in key else ("", key)
+        detail = details.get(key)
+        categories.append(
             {
                 "key": key,
-                "display_name": metadata[key].payload["display_name"] if key in metadata else key.split(" / ", 1)[-1],
-                "archived": metadata[key].payload["archived"] == "true" if key in metadata else False,
+                "display_group": detail.payload["display_group"] if detail else group,
+                "display_name": detail.payload["display_name"] if detail else name,
+                "archived": bool(archived[key].payload["archived"]) if key in archived else False,
                 "custom": True,
             }
-            for key in sorted(custom)
-        ],
-    }
+        )
+    return {"generation": generation_of(database), "categories": categories}
 
 
 def rules_page(database: Path) -> dict[str, Any]:
@@ -313,7 +384,6 @@ def inverse_preview(database: Path, seq: int) -> dict[str, Any]:
         "CATEGORY_OVERRIDE": "CATEGORY_OVERRIDE_RETIRE",
         "MERCHANT_ALIAS_SET": "MERCHANT_ALIAS_RETIRE",
         "CATEGORY_RULE_SET": "CATEGORY_RULE_RETIRE",
-        "CATEGORY_METADATA_SET": "CATEGORY_METADATA_RETIRE",
         "ACCOUNT_ALIAS_SET": "ACCOUNT_ALIAS_RETIRE",
         "REVIEW_DEFER_SET": "REVIEW_DEFER_RETIRE",
     }

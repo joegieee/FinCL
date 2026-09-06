@@ -55,8 +55,8 @@ NATURAL_ANCHOR_VERSION = "natural-anchor-v1"
 
 V05_DECISION_KINDS = frozenset(
     {
-        "CATEGORY_METADATA_SET",
-        "CATEGORY_METADATA_RETIRE",
+        "CATEGORY_DETAILS_SET",
+        "CATEGORY_ARCHIVE_SET",
         "ACCOUNT_SCOPE_SET",
         "ACCOUNT_DETAILS_SET",
         "ACCOUNT_ALIAS_SET",
