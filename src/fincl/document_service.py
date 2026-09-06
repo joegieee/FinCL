@@ -25,6 +25,7 @@ from .documents import (
 )
 from .errors import EvidenceError, FinCLError
 from .evidence import EvidenceCapture, EvidenceStore, PlaintextEvidenceStore
+from .locking import WriterContext, ledger_writer
 from .money import ExactMoney, format_decimal
 from .reconciliation import (
     SELECTION_LOST,
@@ -86,24 +87,35 @@ class DocumentImportService:
     ) -> DocumentImportService:
         return cls(database_path, PlaintextEvidenceStore(evidence_directory))
 
-    def import_dbs(self, source_path: Path) -> DocumentImportResult:
-        return self._import(source_path, "DBS_CONSOLIDATED")
+    def import_dbs(
+        self, source_path: Path, *, writer: WriterContext | None = None
+    ) -> DocumentImportResult:
+        return self._import(source_path, "DBS_CONSOLIDATED", writer=writer)
 
-    def import_paylah(self, source_path: Path) -> DocumentImportResult:
-        return self._import(source_path, "DBS_PAYLAH")
+    def import_paylah(
+        self, source_path: Path, *, writer: WriterContext | None = None
+    ) -> DocumentImportResult:
+        return self._import(source_path, "DBS_PAYLAH", writer=writer)
 
-    def import_maribank(self, source_path: Path) -> DocumentImportResult:
-        return self._import(source_path, "MARI_SAVINGS")
+    def import_maribank(
+        self, source_path: Path, *, writer: WriterContext | None = None
+    ) -> DocumentImportResult:
+        return self._import(source_path, "MARI_SAVINGS", writer=writer)
 
-    def import_mari_card(self, source_path: Path) -> DocumentImportResult:
-        return self._import(source_path, "MARI_CARD")
+    def import_mari_card(
+        self, source_path: Path, *, writer: WriterContext | None = None
+    ) -> DocumentImportResult:
+        return self._import(source_path, "MARI_CARD", writer=writer)
 
-    def _import(self, source_path: Path, source_type: str) -> DocumentImportResult:
-        connection = self.connection_factory(self.database_path)
-        try:
-            return self._run_import(connection, source_path, source_type)
-        finally:
-            connection.close()
+    def _import(
+        self, source_path: Path, source_type: str, *, writer: WriterContext | None = None
+    ) -> DocumentImportResult:
+        with ledger_writer(self.database_path, existing=writer):
+            connection = self.connection_factory(self.database_path)
+            try:
+                return self._run_import(connection, source_path, source_type)
+            finally:
+                connection.close()
 
     def _run_import(
         self, connection: sqlite3.Connection, source_path: Path, source_type: str

@@ -58,13 +58,22 @@ app = typer.Typer(
 
 @contextmanager
 def _ledger(database: Path) -> Iterator[sqlite3.Connection]:
-    """Open an initialized ledger connection that always closes."""
-    connection = connect_sqlite(database)
-    try:
-        initialize_schema(connection)
-        yield connection
-    finally:
-        connection.close()
+    """A write session: the ledger writer lock plus an initialized connection.
+
+    Everything a CLI write command does — validate current state, append to the
+    journal, refresh the projection — happens inside one of these so it
+    serializes against every other writer and against a backup (lock order:
+    ledger lock -> journal file lock -> SQLite transaction).
+    """
+    with ledger_writer(database):
+        connection = connect_sqlite(database)
+        try:
+            initialize_schema(connection)
+            yield connection
+        finally:
+            connection.close()
+
+
 review_app = typer.Typer(help="Review and record durable transfer decisions.")
 app.add_typer(review_app, name="review")
 rules_app = typer.Typer(help="Author and inspect categorization rules and merchant aliases.")
@@ -762,14 +771,14 @@ def _append_rule(database: Path, match: dict[str, Any], category: str, reason: s
             affected = _preview_rule(connection, canonical)
         _emit_mapping({"dry_run": True, "rule_id": rule_id, "would_match_entries": affected}, True, False)
         return
-    record = append_decision(
-        default_journal_path(database), decision_kind="CATEGORY_RULE_SET",
-        anchors={"rule_id": rule_id},
-        payload={"match": canonical, "category": category, "reason": reason.strip()},
-        policy_version=_CATEGORY_POLICY,
-        snapshot=f"Category rule {rule_id} -> {category}: {reason.strip()}",
-    )
     with _ledger(database) as connection:
+        record = append_decision(
+            default_journal_path(database), decision_kind="CATEGORY_RULE_SET",
+            anchors={"rule_id": rule_id},
+            payload={"match": canonical, "category": category, "reason": reason.strip()},
+            policy_version=_CATEGORY_POLICY,
+            snapshot=f"Category rule {rule_id} -> {category}: {reason.strip()}",
+        )
         run_categorize(connection)
     _emit_mapping({"seq": record.seq, "rule_id": rule_id, "record_hash": record.record_hash}, True, False)
 
@@ -858,12 +867,12 @@ def rules_alias(
         payload: dict[str, Any] = {"patterns": patterns, "reason": (reason or "alias").strip()}
         if display is not None:
             payload["display_name"] = display
-        record = append_decision(
-            default_journal_path(database), decision_kind="MERCHANT_ALIAS_SET",
-            anchors={"canonical": canonical}, payload=payload, policy_version=_CATEGORY_POLICY,
-            snapshot=f"Merchant alias {canonical}: {len(patterns)} pattern(s)",
-        )
         with _ledger(database) as connection:
+            record = append_decision(
+                default_journal_path(database), decision_kind="MERCHANT_ALIAS_SET",
+                anchors={"canonical": canonical}, payload=payload, policy_version=_CATEGORY_POLICY,
+                snapshot=f"Merchant alias {canonical}: {len(patterns)} pattern(s)",
+            )
             run_categorize(connection)
         _emit_mapping({"seq": record.seq, "canonical": canonical, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError) as exc:
@@ -892,12 +901,12 @@ def _append_retire(database: Path, kind: str, anchors: dict[str, str], reason: s
     try:
         if not reason.strip():
             raise FinCLError("a non-empty reason is required")
-        record = append_decision(
-            default_journal_path(database), decision_kind=kind, anchors=anchors,
-            payload={"reason": reason.strip()}, policy_version=_CATEGORY_POLICY,
-            snapshot=f"{kind} {anchors}: {reason.strip()}",
-        )
         with _ledger(database) as connection:
+            record = append_decision(
+                default_journal_path(database), decision_kind=kind, anchors=anchors,
+                payload={"reason": reason.strip()}, policy_version=_CATEGORY_POLICY,
+                snapshot=f"{kind} {anchors}: {reason.strip()}",
+            )
             run_categorize(connection)
         _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError) as exc:
@@ -958,29 +967,29 @@ def rules_rewrite_category(
                 "SELECT entry_anchor FROM category_overrides WHERE migrated_from = ?",
                 (from_category,),
             ).fetchall()
-        if dry_run:
-            _emit_mapping(
-                {"dry_run": True, "rules": len(rules), "overrides": len(overrides)}, True, False
-            )
-            return
-        for row in rules:
-            append_decision(
-                default_journal_path(database), decision_kind="CATEGORY_RULE_SET",
-                anchors={"rule_id": row["rule_id"]},
-                payload={"match": canonical_match(json.loads(row["match_json"])),
-                         "category": to_category, "reason": f"rewrite from {from_category}"},
-                policy_version=_CATEGORY_POLICY,
-                snapshot=f"Rewrite rule {row['rule_id']} -> {to_category}",
-            )
-        for row in overrides:
-            append_decision(
-                default_journal_path(database), decision_kind="CATEGORY_OVERRIDE",
-                anchors={"entry": row["entry_anchor"]},
-                payload={"category": to_category, "reason": f"rewrite from {from_category}"},
-                policy_version=_CATEGORY_POLICY,
-                snapshot=f"Rewrite override {row['entry_anchor']} -> {to_category}",
-            )
-        with _ledger(database) as connection:
+            if dry_run:
+                _emit_mapping(
+                    {"dry_run": True, "rules": len(rules), "overrides": len(overrides)},
+                    True, False,
+                )
+                return
+            for row in rules:
+                append_decision(
+                    default_journal_path(database), decision_kind="CATEGORY_RULE_SET",
+                    anchors={"rule_id": row["rule_id"]},
+                    payload={"match": canonical_match(json.loads(row["match_json"])),
+                             "category": to_category, "reason": f"rewrite from {from_category}"},
+                    policy_version=_CATEGORY_POLICY,
+                    snapshot=f"Rewrite rule {row['rule_id']} -> {to_category}",
+                )
+            for row in overrides:
+                append_decision(
+                    default_journal_path(database), decision_kind="CATEGORY_OVERRIDE",
+                    anchors={"entry": row["entry_anchor"]},
+                    payload={"category": to_category, "reason": f"rewrite from {from_category}"},
+                    policy_version=_CATEGORY_POLICY,
+                    snapshot=f"Rewrite override {row['entry_anchor']} -> {to_category}",
+                )
             run_categorize(connection)
         _emit_mapping({"rewritten_rules": len(rules), "rewritten_overrides": len(overrides)}, True, False)
     except (FinCLError, OSError) as exc:
@@ -1002,14 +1011,13 @@ def review_categorize(
         with _ledger(database) as connection:
             if resolve_anchor(connection, anchor) is None:
                 raise FinCLError("the entry anchor must currently resolve")
-        record = append_decision(
-            default_journal_path(database), decision_kind="CATEGORY_OVERRIDE",
-            anchors={"entry": anchor},
-            payload={"category": category, "reason": reason.strip()},
-            policy_version=_CATEGORY_POLICY,
-            snapshot=f"Category override {anchor} -> {category}: {reason.strip()}",
-        )
-        with _ledger(database) as connection:
+            record = append_decision(
+                default_journal_path(database), decision_kind="CATEGORY_OVERRIDE",
+                anchors={"entry": anchor},
+                payload={"category": category, "reason": reason.strip()},
+                policy_version=_CATEGORY_POLICY,
+                snapshot=f"Category override {anchor} -> {category}: {reason.strip()}",
+            )
             run_categorize(connection)
         _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError) as exc:

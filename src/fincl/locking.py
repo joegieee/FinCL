@@ -92,10 +92,12 @@ def ledger_writer(
     ledger_dir = database_path.parent
 
     if existing is not None:
-        if existing.database_path != database_path:
+        # The lock file is one per ledger directory, so a nested call for a
+        # sibling database (a rebuild staging file) legitimately reuses it.
+        if existing.ledger_dir != ledger_dir:
             raise FinCLError(
-                "nested writer context is for a different ledger: "
-                f"{existing.database_path} vs {database_path}"
+                "nested writer context is for a different ledger directory: "
+                f"{existing.ledger_dir} vs {ledger_dir}"
             )
         existing._depth += 1
         try:

@@ -8,6 +8,7 @@ from pathlib import Path
 from .db import connect_sqlite, initialize_schema
 from .decision_journal import append_decision, default_journal_path
 from .errors import FinCLError
+from .locking import ledger_writer
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +31,19 @@ def recover_extraction(
     """Repair an incomplete generation after recording an originating decision."""
     if not reason.strip():
         raise FinCLError("a non-empty recovery reason is required")
+    with ledger_writer(database_path):
+        return _recover_extraction_locked(
+            database_path, extraction_run_id, reason, allow_running=allow_running
+        )
+
+
+def _recover_extraction_locked(
+    database_path: Path,
+    extraction_run_id: str,
+    reason: str,
+    *,
+    allow_running: bool,
+) -> RecoveryResult:
     connection = connect_sqlite(database_path)
     initialize_schema(connection)
     try:

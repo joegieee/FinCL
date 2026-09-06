@@ -13,6 +13,7 @@ from .db import ConnectionFactory, connect_sqlite, initialize_schema
 from .decisions import replay_journal
 from .errors import EvidenceError, FinCLError
 from .evidence import EvidenceCapture, EvidenceStore, PlaintextEvidenceStore
+from .locking import WriterContext, ledger_writer
 from .money import MAX_ABS_COEFFICIENT, ExactMoney, exact_sum, format_decimal
 from .reconciliation import link_narrow_transfers
 from .revolut import (
@@ -64,7 +65,13 @@ class FinCLService:
     ) -> FinCLService:
         return cls(database_path, PlaintextEvidenceStore(evidence_directory))
 
-    def import_revolut(self, source_path: Path) -> ImportResult:
+    def import_revolut(
+        self, source_path: Path, *, writer: WriterContext | None = None
+    ) -> ImportResult:
+        with ledger_writer(self.database_path, existing=writer):
+            return self._import_revolut_locked(source_path)
+
+    def _import_revolut_locked(self, source_path: Path) -> ImportResult:
         connection = self.connection_factory(self.database_path)
         try:
             initialize_schema(connection)

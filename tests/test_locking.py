@@ -78,10 +78,19 @@ class LedgerWriterLockTests(unittest.TestCase):
             self.assertEqual(outer._depth, 1)
             self.assertTrue(outer.held)
 
-    def test_nested_context_for_a_different_ledger_is_rejected(self) -> None:
+    def test_nested_context_reuses_across_sibling_databases(self) -> None:
+        # The lock is per directory, so a rebuild staging file in the same dir
+        # legitimately reuses an outer context.
+        with ledger_writer(self.database) as outer:  # noqa: SIM117
+            with ledger_writer(self.ledger_dir / ".staging.sqlite3", existing=outer) as inner:
+                self.assertIs(inner, outer)
+
+    def test_nested_context_for_a_different_directory_is_rejected(self) -> None:
+        other_dir = self.ledger_dir / "other"
+        other_dir.mkdir()
         with ledger_writer(self.database) as outer:  # noqa: SIM117
             with self.assertRaises(FinCLError):
-                with ledger_writer(self.ledger_dir / "other.sqlite3", existing=outer):
+                with ledger_writer(other_dir / "fincl.sqlite3", existing=outer):
                     pass
 
 
