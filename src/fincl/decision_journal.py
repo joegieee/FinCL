@@ -31,9 +31,13 @@ class JournalRecord:
     snapshot: str
     prev_hash: str
     record_hash: str
+    # Optional command-API idempotency envelope: {request_id, intent_hash}.
+    # Absent from every pre-M1b record, so it is left out of `as_mapping` when
+    # None and those records' hashes verify unchanged.
+    command: dict[str, str] | None = None
 
     def as_mapping(self) -> dict[str, object]:
-        return {
+        mapping: dict[str, object] = {
             "anchor_version": self.anchor_version,
             "anchors": self.anchors,
             "decided_at": self.decided_at,
@@ -46,6 +50,9 @@ class JournalRecord:
             "seq": self.seq,
             "snapshot": self.snapshot,
         }
+        if self.command is not None:
+            mapping["command"] = self.command
+        return mapping
 
 
 def default_journal_path(database_path: Path) -> Path:
@@ -61,10 +68,18 @@ def append_decision(
     policy_version: str,
     snapshot: str,
     anchor_version: str = "natural-anchor-v1",
+    command: dict[str, str] | None = None,
 ) -> JournalRecord:
-    """Append, fsync the file and directory, then acknowledge a decision."""
+    """Append, fsync the file and directory, then acknowledge a decision.
+
+    ``command`` is an optional ``{request_id, intent_hash}`` idempotency
+    envelope for command-API decisions; it is folded into the hash-chained
+    record and drives ``command_receipts`` on replay.
+    """
     if not decision_kind or not anchors or not snapshot:
         raise FinCLError("decision journal requires kind, anchors, and snapshot")
+    if command is not None and set(command) != {"request_id", "intent_hash"}:
+        raise FinCLError("command envelope must be exactly {request_id, intent_hash}")
     path = Path(journal_path)
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     _chmod_directory(path.parent)
@@ -86,6 +101,8 @@ def append_decision(
             "seq": len(records) + 1,
             "snapshot": snapshot,
         }
+        if command is not None:
+            unsigned["command"] = command
         record = JournalRecord(
             seq=unsigned["seq"],  # type: ignore[arg-type]
             decided_at=unsigned["decided_at"],  # type: ignore[arg-type]
@@ -97,6 +114,7 @@ def append_decision(
             snapshot=snapshot,
             prev_hash=previous,
             record_hash=_record_hash(unsigned),
+            command=command,
         )
         os.write(descriptor, (_canonical_json(record.as_mapping()) + "\n").encode())
         os.fsync(descriptor)
@@ -138,6 +156,7 @@ def read_records(journal_path: Path, *, descriptor: int | None = None) -> list[J
                 snapshot=_string(item, "snapshot"),
                 prev_hash=_string(item, "prev_hash"),
                 record_hash=_string(item, "record_hash"),
+                command=_command(item),
             )
         except (TypeError, ValueError, KeyError) as exc:
             raise FinCLError(f"decision journal record {line_number} is malformed") from exc
@@ -187,6 +206,19 @@ def _objects(item: dict[str, Any], key: str) -> dict[str, object]:
     value = item[key]
     if not isinstance(value, dict):
         raise ValueError(key)
+    return value
+
+
+def _command(item: dict[str, Any]) -> dict[str, str] | None:
+    if "command" not in item:
+        return None
+    value = item["command"]
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"request_id", "intent_hash"}
+        or not all(isinstance(v, str) and v for v in value.values())
+    ):
+        raise ValueError("command")
     return value
 
 

@@ -182,6 +182,7 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             connection.execute(f"DELETE FROM {table}")
         for record in records:
             _apply_record(connection, record)
+        _rebuild_command_receipts(connection, records)
         connection.execute("UPDATE decision_watermark SET applied_seq = ? WHERE id = 1", (len(records),))
         if verify_association:
             assert database_path is not None
@@ -200,6 +201,38 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
         "(SELECT count(*) FROM category_overrides WHERE bound=0)"
     ).fetchone()[0]
     return bound, dangling
+
+
+def _rebuild_command_receipts(
+    connection: sqlite3.Connection, records: list[JournalRecord]
+) -> None:
+    """Rebuild ``command_receipts`` from the journal (schema 9; §3).
+
+    SQL holds no receipt authority: the table is a pure projection of every
+    record that carried a ``command`` envelope, so ``record_decision`` can find
+    a prior durable append after a crash and not append it twice.
+    """
+    exists = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'command_receipts'"
+    ).fetchone()
+    if exists is None:
+        return
+    connection.execute("DELETE FROM command_receipts")
+    for record in records:
+        if record.command is None:
+            continue
+        connection.execute(
+            "INSERT OR REPLACE INTO command_receipts"
+            "(request_id, intent_hash, journal_seq, record_hash, decision_kind) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                record.command["request_id"],
+                record.command["intent_hash"],
+                record.seq,
+                record.record_hash,
+                record.decision_kind,
+            ),
+        )
 
 
 def _apply_record(connection: sqlite3.Connection, record: JournalRecord) -> None:
