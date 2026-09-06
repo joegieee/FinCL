@@ -20,6 +20,7 @@ from fincl.errors import SchemaVersionError
 from fincl.migrations import (
     MIGRATION_8_TO_9_CHECKSUM,
     MIGRATION_9_TO_10_CHECKSUM,
+    MIGRATION_10_TO_11_CHECKSUM,
     apply_pending_migrations,
 )
 from fincl.refresh import refresh_ledger
@@ -33,35 +34,36 @@ _ROWS = [
 ]
 
 
+_SCHEMA_11_TABLES = ("relationship_decisions", "duplicate_suppressions", "refund_allocations")
 _SCHEMA_10_TABLES = ("analysis_components", "component_relationships", "component_source_refs")
 _SCHEMA_9_TABLES = ("projection_generation", "command_receipts")
+# Tables added by each step, keyed by the version it removes to reach.
+_ADDED_AFTER = {8: _SCHEMA_9_TABLES, 9: _SCHEMA_10_TABLES, 10: _SCHEMA_11_TABLES}
+
+
+def _roll_back(database: Path, target: int) -> None:
+    """Drop every table added after ``target`` and stamp the version back."""
+    connection = sqlite3.connect(database)
+    try:
+        for version in sorted(_ADDED_AFTER, reverse=True):
+            if version >= target:
+                for table in _ADDED_AFTER[version]:
+                    connection.execute(f"DROP TABLE IF EXISTS {table}")
+        connection.execute(
+            "UPDATE schema_metadata SET value = ? WHERE key = 'schema_version'",
+            (str(target),),
+        )
+        connection.commit()
+    finally:
+        connection.close()
 
 
 def _roll_back_to_schema_9(database: Path) -> None:
-    connection = sqlite3.connect(database)
-    try:
-        for table in _SCHEMA_10_TABLES:
-            connection.execute(f"DROP TABLE {table}")
-        connection.execute(
-            "UPDATE schema_metadata SET value = '9' WHERE key = 'schema_version'"
-        )
-        connection.commit()
-    finally:
-        connection.close()
+    _roll_back(database, 9)
 
 
 def _roll_back_to_schema_8(database: Path) -> None:
-    _roll_back_to_schema_9(database)
-    connection = sqlite3.connect(database)
-    try:
-        for table in _SCHEMA_9_TABLES:
-            connection.execute(f"DROP TABLE {table}")
-        connection.execute(
-            "UPDATE schema_metadata SET value = '8' WHERE key = 'schema_version'"
-        )
-        connection.commit()
-    finally:
-        connection.close()
+    _roll_back(database, 8)
 
 
 class Schema9MigrationTests(unittest.TestCase):
@@ -114,9 +116,9 @@ class Schema9MigrationTests(unittest.TestCase):
         result = apply_pending_migrations(self.database, backup_dir=bundle)
 
         self.assertEqual((result.from_version, result.to_version), (8, SCHEMA_VERSION))
-        self.assertEqual(result.steps, [9, 10])
+        self.assertEqual(result.steps, [9, 10, 11])
         self.assertEqual(self._stored_version(), SCHEMA_VERSION)
-        for table in (*_SCHEMA_9_TABLES, *_SCHEMA_10_TABLES):
+        for table in (*_SCHEMA_9_TABLES, *_SCHEMA_10_TABLES, *_SCHEMA_11_TABLES):
             self.assertIn(table, self._tables(self.database))
 
         connection = sqlite3.connect(self.database)
@@ -132,6 +134,7 @@ class Schema9MigrationTests(unittest.TestCase):
             [
                 (9, 8, MIGRATION_8_TO_9_CHECKSUM),
                 (10, 9, MIGRATION_9_TO_10_CHECKSUM),
+                (11, 10, MIGRATION_10_TO_11_CHECKSUM),
             ],
         )
 
@@ -140,12 +143,12 @@ class Schema9MigrationTests(unittest.TestCase):
         self.assertTrue(token.startswith("sha256:"))
         self.assertIn("currencies", economic_flow_report_data(self.database))
 
-    def test_migrate_9_to_10_adds_only_the_component_tables(self) -> None:
+    def test_migrate_from_schema_9_adds_only_the_newer_derived_tables(self) -> None:
         # A faithful schema-9 ledger: refresh once at the current schema, then
-        # drop the schema-10 tables and roll the stamp back.
+        # drop every table added after 9 and roll the stamp back.
         refresh_ledger(self.database)
         _roll_back_to_schema_9(self.database)
-        for table in _SCHEMA_10_TABLES:
+        for table in (*_SCHEMA_10_TABLES, *_SCHEMA_11_TABLES):
             self.assertNotIn(table, self._tables(self.database))
 
         fresh_layout = self._tables(self.database)
@@ -154,9 +157,10 @@ class Schema9MigrationTests(unittest.TestCase):
         result = apply_pending_migrations(self.database, backup_dir=bundle)
 
         self.assertEqual((result.from_version, result.to_version), (9, SCHEMA_VERSION))
-        self.assertEqual(result.steps, [10])
+        self.assertEqual(result.steps, [10, 11])
         self.assertEqual(
-            self._tables(self.database) - fresh_layout, set(_SCHEMA_10_TABLES)
+            self._tables(self.database) - fresh_layout,
+            set(_SCHEMA_10_TABLES) | set(_SCHEMA_11_TABLES),
         )
 
         # It opens, refreshes and now carries a committed component projection.

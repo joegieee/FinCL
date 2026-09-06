@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -101,6 +101,50 @@ CREATE TABLE IF NOT EXISTS component_source_refs (
     evidence_sha256 TEXT NOT NULL,
     locator TEXT NOT NULL,
     PRIMARY KEY (component_id, evidence_sha256, locator)
+) STRICT;
+"""
+
+
+# Schema 11 derived tables (v0.2 analysis slices 3-4). The replayable relationship
+# projection: manual duplicate suppressions and refund allocations, each the
+# latest journal record per identity (a RETIRE leaves no row). Rebuilt by every
+# journal replay, never migrated in place. Shared verbatim between a fresh
+# `initialize_schema` and the registered 10->11 migration.
+SCHEMA_11_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS relationship_decisions (
+    kind TEXT NOT NULL,
+    identity TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    batch_index INTEGER,
+    payload_json TEXT NOT NULL,
+    snapshot TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    PRIMARY KEY (kind, identity)
+) STRICT;
+
+-- One row per entry that a bound DUPLICATE_CONFIRM suppresses. A suppressed
+-- entry contributes no amount or fee component to any analysis.
+CREATE TABLE IF NOT EXISTS duplicate_suppressions (
+    suppressed_anchor TEXT PRIMARY KEY,
+    primary_anchor TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    reason TEXT NOT NULL
+) STRICT;
+
+-- One row per (refund, purchase) allocation from a bound REFUND_ALLOCATION_SET.
+-- Amounts are exact in the stated currency, with both sides carried for a
+-- cross-currency allocation.
+CREATE TABLE IF NOT EXISTS refund_allocations (
+    refund_anchor TEXT NOT NULL,
+    purchase_anchor TEXT NOT NULL,
+    refund_coefficient INTEGER NOT NULL,
+    refund_scale INTEGER NOT NULL CHECK (refund_scale BETWEEN 0 AND {MAX_SCALE}),
+    purchase_coefficient INTEGER NOT NULL,
+    purchase_scale INTEGER NOT NULL CHECK (purchase_scale BETWEEN 0 AND {MAX_SCALE}),
+    currency TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    PRIMARY KEY (refund_anchor, purchase_anchor)
 ) STRICT;
 """
 
@@ -253,6 +297,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         """
         + SCHEMA_9_TABLES_SQL
         + SCHEMA_10_TABLES_SQL
+        + SCHEMA_11_TABLES_SQL
     )
 
 

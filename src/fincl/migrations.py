@@ -25,6 +25,7 @@ from .common import utc_now
 from .db import (
     SCHEMA_9_TABLES_SQL,
     SCHEMA_10_TABLES_SQL,
+    SCHEMA_11_TABLES_SQL,
     SCHEMA_VERSION,
     connect_sqlite,
 )
@@ -63,6 +64,15 @@ def _migrate_9_to_10(connection: sqlite3.Connection) -> None:
     _apply_table_ddl(connection, SCHEMA_10_TABLES_SQL)
 
 
+def _migrate_10_to_11(connection: sqlite3.Connection) -> None:
+    """Add the schema-11 relationship projection tables; no data rewrite.
+
+    Populated by the next journal replay (duplicate suppressions, refund
+    allocations); empty until an operator authors those decisions.
+    """
+    _apply_table_ddl(connection, SCHEMA_11_TABLES_SQL)
+
+
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
 # edit to that DDL is a new migration rather than a silent change under one id.
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
@@ -71,11 +81,15 @@ MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
 MIGRATION_9_TO_10_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_10_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_10_TO_11_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_11_TABLES_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
     8: Migration(8, 9, MIGRATION_8_TO_9_CHECKSUM, _migrate_8_to_9),
     9: Migration(9, 10, MIGRATION_9_TO_10_CHECKSUM, _migrate_9_to_10),
+    10: Migration(10, 11, MIGRATION_10_TO_11_CHECKSUM, _migrate_10_to_11),
 }
 
 

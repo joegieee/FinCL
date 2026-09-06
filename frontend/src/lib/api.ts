@@ -1,4 +1,5 @@
 import type { components } from './schema'
+export type { components }
 export type Dashboard = components['schemas']['Dashboard']
 export type Entry = components['schemas']['Entry']
 export type Plan = components['schemas']['Plan']

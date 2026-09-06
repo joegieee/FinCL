@@ -571,6 +571,126 @@
         }
       }
     },
+    "/api/v1/batch": {
+      "post": {
+        "summary": "Batch",
+        "operationId": "batch_api_v1_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Batch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Batch Api V1 Batch Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/relationships/review": {
+      "get": {
+        "summary": "Relationships Review",
+        "operationId": "relationships_review_api_v1_relationships_review_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "duplicate",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelationshipsReview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/history": {
       "get": {
         "summary": "History",
@@ -871,6 +991,83 @@
         ],
         "title": "AnalysisScopeDTO"
       },
+      "Batch": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "expected_generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Expected Generation"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchItem"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Items"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request_id",
+          "expected_generation",
+          "items",
+          "reason"
+        ],
+        "title": "Batch"
+      },
+      "BatchItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "CATEGORY_OVERRIDE",
+              "CATEGORY_OVERRIDE_RETIRE",
+              "INBOUND_CLASSIFICATION",
+              "DUPLICATE_CONFIRM",
+              "DUPLICATE_REJECT",
+              "DUPLICATE_RETIRE"
+            ],
+            "title": "Kind"
+          },
+          "anchors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Anchors"
+          },
+          "payload": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "anchors",
+          "payload"
+        ],
+        "title": "BatchItem"
+      },
       "Bootstrap": {
         "properties": {
           "secret": {
@@ -991,7 +1188,11 @@
               "CATEGORY_CREATE",
               "PLAN_SET",
               "INBOUND_CLASSIFICATION",
-              "TRANSFER_DECISION"
+              "TRANSFER_DECISION",
+              "DUPLICATE_CONFIRM",
+              "DUPLICATE_REJECT",
+              "DUPLICATE_RETIRE",
+              "CATEGORY_OVERRIDE_RETIRE"
             ],
             "title": "Kind"
           },
@@ -1823,6 +2024,104 @@
           "status"
         ],
         "title": "Recurring"
+      },
+      "RelationshipsReview": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewProposal"
+            },
+            "type": "array",
+            "title": "Proposals"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "kind",
+          "proposals",
+          "next_cursor",
+          "total"
+        ],
+        "title": "RelationshipsReview"
+      },
+      "ReviewProposal": {
+        "properties": {
+          "primary": {
+            "type": "string",
+            "title": "Primary"
+          },
+          "candidate": {
+            "type": "string",
+            "title": "Candidate"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "merchant": {
+            "type": "string",
+            "title": "Merchant"
+          },
+          "event_kind": {
+            "type": "string",
+            "title": "Event Kind"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "primary",
+          "candidate",
+          "account",
+          "currency",
+          "amount",
+          "date",
+          "merchant",
+          "event_kind",
+          "basis"
+        ],
+        "title": "ReviewProposal"
       },
       "SummaryCell": {
         "properties": {

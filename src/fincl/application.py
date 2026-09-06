@@ -18,6 +18,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from .custom_categories import custom_categories
 from .db import connect_sqlite, initialize_schema
 from .decision_journal import append_decision, default_journal_path
 from .decisions import replay_journal
@@ -25,6 +26,7 @@ from .errors import FinCLError
 from .generation import current_generation
 from .locking import WriterContext, ledger_writer
 from .refresh import rebuild_projection
+from .relationships import preview_batch
 
 
 class RequestIdConflict(FinCLError):
@@ -129,3 +131,44 @@ def record_decision(
             )
         finally:
             connection.close()
+
+
+def record_batch(
+    database_path: Path,
+    *,
+    request_id: str,
+    intent_hash: str,
+    items: list[dict[str, object]],
+    reason: str,
+    policy_version: str = "relationship-batch-v1",
+    writer: WriterContext | None = None,
+) -> DecisionReceipt:
+    """Append one atomic ``DECISION_BATCH`` after an isolated final-state preview.
+
+    The whole batch is validated against the current projection before a single
+    byte is appended (Operations §1: no partial success, no durable record that
+    cannot fully replay). The children then replay in array order inside the one
+    refresh transaction.
+    """
+    with ledger_writer(database_path, existing=writer) as held:
+        connection = connect_sqlite(database_path)
+        try:
+            initialize_schema(connection)
+            replay_journal(connection)
+            preview_batch(
+                connection, items,
+                custom_categories=frozenset(custom_categories(database_path)),
+            )
+        finally:
+            connection.close()
+        return record_decision(
+            database_path,
+            request_id=request_id,
+            intent_hash=intent_hash,
+            decision_kind="DECISION_BATCH",
+            anchors={"batch": request_id},
+            payload={"items": items, "reason": reason},
+            policy_version=policy_version,
+            snapshot=f"DECISION_BATCH: {len(items)} item(s)",
+            writer=held,
+        )

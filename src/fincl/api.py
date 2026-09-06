@@ -14,11 +14,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from .application import record_decision
+from .application import record_batch, record_decision
 from .common import canonical_json, resolve_category
 from .custom_categories import custom_categories, validate_creation
 from .db import connect_readonly
 from .decision_journal import default_journal_path, read_records
+from .decisions import resolve_anchor
 from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
 from .locking import LedgerBusyError, ledger_writer
@@ -34,9 +35,29 @@ class StrictModel(BaseModel):
 class Command(StrictModel):
     request_id: UUID
     expected_generation: str = Field(min_length=1,max_length=100)
-    kind: Literal['CATEGORY_OVERRIDE','CATEGORY_CREATE','PLAN_SET','INBOUND_CLASSIFICATION','TRANSFER_DECISION']
+    kind: Literal[
+        'CATEGORY_OVERRIDE','CATEGORY_CREATE','PLAN_SET','INBOUND_CLASSIFICATION',
+        'TRANSFER_DECISION','DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE',
+        'CATEGORY_OVERRIDE_RETIRE',
+    ]
     anchors: dict[str,str]
     payload: dict[str,str]
+
+
+class BatchItem(StrictModel):
+    kind: Literal[
+        'CATEGORY_OVERRIDE','CATEGORY_OVERRIDE_RETIRE','INBOUND_CLASSIFICATION',
+        'DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE',
+    ]
+    anchors: dict[str,str]
+    payload: dict[str,str]
+
+
+class Batch(StrictModel):
+    request_id: UUID
+    expected_generation: str = Field(min_length=1,max_length=100)
+    items: list[BatchItem] = Field(min_length=1,max_length=200)
+    reason: str = Field(min_length=1,max_length=2000)
 
 
 class Bootstrap(StrictModel):
@@ -251,6 +272,26 @@ class MerchantRank(StrictModel):
     handle: str | None
 
 
+class ReviewProposal(StrictModel):
+    primary: str
+    candidate: str
+    account: str
+    currency: str
+    amount: str
+    date: str
+    merchant: str
+    event_kind: str
+    basis: str
+
+
+class RelationshipsReview(StrictModel):
+    generation: str
+    kind: str
+    proposals: list[ReviewProposal]
+    next_cursor: str | None
+    total: int
+
+
 class Analysis(StrictModel):
     generation: str
     freshness: str
@@ -304,6 +345,17 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
             if row is None:
                 raise FinCLError('This transfer proposal is no longer open')
             extra = {'link_kind':row['link_kind'],'policy_version':row['method_version']}
+        elif command.kind in {'DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE'}:
+            from .relationships import validate_duplicate
+            validate_duplicate(command.kind, command.anchors, command.payload)
+            for role in ('primary','candidate'):
+                if resolve_anchor(connection, command.anchors[role]) is None:
+                    raise FinCLError(f'The {role} transaction no longer resolves')
+        elif command.kind == 'CATEGORY_OVERRIDE_RETIRE':
+            from .relationships import validate_override_retire
+            validate_override_retire(command.anchors, command.payload)
+            if resolve_anchor(connection, command.anchors['entry']) is None:
+                raise FinCLError('The transaction no longer resolves')
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -456,6 +508,40 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                     policy = extra.get('policy_version',policy)
             receipt = record_decision(database,request_id=str(command.request_id),intent_hash=intent,decision_kind=kind,anchors=anchors,payload=payload,policy_version=policy,snapshot=f'{kind}: {payload}',writer=writer)
             return JSONResponse({**asdict(receipt),'status':'recorded_refresh_pending' if receipt.refresh_pending else 'applied'},status_code=202 if receipt.refresh_pending else 200)
+
+    @app.post('/api/v1/batch')
+    def batch(body: Batch) -> Any:
+        items: list[dict[str,object]] = [
+            {'kind':i.kind,'anchors':dict(i.anchors),'payload':dict(i.payload)} for i in body.items
+        ]
+        intent = hashlib.sha256(canonical_json({'items':items,'reason':body.reason}).encode()).hexdigest()
+        with ledger_writer(database) as writer:
+            records = read_records(default_journal_path(database))
+            prior = next((r for r in records if r.command and r.command['request_id']==str(body.request_id)),None)
+            if prior:
+                if prior.command and prior.command['intent_hash'] != intent:
+                    raise HTTPException(409,'REQUEST_ID_CONFLICT')
+            else:
+                connection = connect_readonly(database)
+                try:
+                    generation = current_generation(connection)
+                    if generation is None or generation['generation_token'] != body.expected_generation:
+                        raise HTTPException(409,'STALE_GENERATION: reload and preview again. Your draft is preserved.')
+                finally:
+                    connection.close()
+            receipt = record_batch(database,request_id=str(body.request_id),intent_hash=intent,items=items,reason=body.reason,writer=writer)
+            return JSONResponse({**asdict(receipt),'status':'recorded_refresh_pending' if receipt.refresh_pending else 'applied'},status_code=202 if receipt.refresh_pending else 200)
+
+    @app.get('/api/v1/relationships/review',response_model=RelationshipsReview)
+    def relationships_review(kind: str = 'duplicate', generation: str | None = None, cursor: str | None = None, limit: int = 50) -> Any:
+        from .queries import relationships_review as _review
+        with ledger_writer(database):
+            try:
+                return _review(database, kind=kind, generation=generation, cursor=cursor, limit=limit)
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise
 
     @app.get('/api/v1/history')
     def history() -> Any:

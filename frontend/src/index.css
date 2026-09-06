@@ -53,3 +53,8 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .empty-line{font-size:11px;color:var(--muted);padding:14px 25px}
 @media(max-width:900px){.comparison-grid{grid-template-columns:1fr 1fr}.change-ranking .change-columns{grid-template-columns:1fr}}
 @media(max-width:600px){.comparison-grid{grid-template-columns:1fr}.analysis-filters select,.analysis-filters input{min-width:0;flex:1}}
+
+/* v0.2 analysis slice 3 — duplicate review */
+.proposal-decide{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.proposal-decide select,.proposal-decide input{height:34px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:12px;padding:0 9px}
+.proposal-legs .anchor{font-family:ui-monospace,monospace;font-size:9px;color:var(--muted);word-break:break-all;margin-top:4px}

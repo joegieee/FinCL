@@ -78,6 +78,8 @@ review_app = typer.Typer(help="Review and record durable transfer decisions.")
 app.add_typer(review_app, name="review")
 rules_app = typer.Typer(help="Author and inspect categorization rules and merchant aliases.")
 app.add_typer(rules_app, name="rules")
+duplicates_app = typer.Typer(help="Review and record manual duplicate-transaction decisions.")
+app.add_typer(duplicates_app, name="duplicates")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -406,6 +408,104 @@ def contributors(
         )
     console.print(table)
     console.print(f"{len(rows)} component(s).")
+
+
+def _record_duplicate(database: Path, kind: str, primary: str, candidate: str, reason: str) -> None:
+    import hashlib
+    import uuid as _uuid
+
+    from .application import record_decision
+    from .common import canonical_json
+    from .relationships import validate_duplicate
+
+    try:
+        anchors = {"primary": primary, "candidate": candidate}
+        payload: dict[str, object] = {"reason": reason.strip()}
+        validate_duplicate(kind, anchors, payload)
+        with _ledger(database) as connection:
+            for role, anchor in anchors.items():
+                if resolve_anchor(connection, anchor) is None:
+                    raise FinCLError(f"the {role} transaction does not resolve")
+        request_id = str(_uuid.uuid4())
+        intent = hashlib.sha256(
+            canonical_json({"kind": kind, "anchors": anchors, "payload": payload}).encode()
+        ).hexdigest()
+        receipt = record_decision(
+            database, request_id=request_id, intent_hash=intent, decision_kind=kind,
+            anchors=anchors, payload=payload, policy_version="dedupe-v1",
+            snapshot=f"{kind}: {reason.strip()}",
+        )
+        _emit_mapping(
+            {"seq": receipt.journal_seq, "record_hash": receipt.record_hash,
+             "status": "recorded_refresh_pending" if receipt.refresh_pending else "applied"},
+            True, False,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@duplicates_app.command("list")
+def duplicates_list(
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """Automatic duplicate proposals across distinct imports awaiting a decision."""
+    from .queries import relationships_review
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        data = relationships_review(database, kind="duplicate", limit=200)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+        return
+    if not data["proposals"]:
+        console.print("No cross-import duplicate proposals.")
+        return
+    table = Table(title=f"Duplicate proposals ({data['total']})")
+    for heading in ("Primary", "Candidate", "Account", "Date", "Amount", "Merchant"):
+        table.add_column(heading)
+    for proposal in data["proposals"]:
+        table.add_row(
+            proposal["primary"], proposal["candidate"], proposal["account"],
+            proposal["date"], f"{proposal['amount']} {proposal['currency']}", proposal["merchant"],
+        )
+    console.print(table)
+
+
+@duplicates_app.command("confirm")
+def duplicates_confirm(
+    primary: str = typer.Option(..., "--primary"),
+    candidate: str = typer.Option(..., "--candidate"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Record that ``candidate`` is the same transaction as ``primary`` (suppresses it)."""
+    _record_duplicate(database, "DUPLICATE_CONFIRM", primary, candidate, reason)
+
+
+@duplicates_app.command("reject")
+def duplicates_reject(
+    primary: str = typer.Option(..., "--primary"),
+    candidate: str = typer.Option(..., "--candidate"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Record that the pair are distinct real purchases."""
+    _record_duplicate(database, "DUPLICATE_REJECT", primary, candidate, reason)
+
+
+@duplicates_app.command("retire")
+def duplicates_retire(
+    primary: str = typer.Option(..., "--primary"),
+    candidate: str = typer.Option(..., "--candidate"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Remove a prior confirm/reject so the pair can be proposed again."""
+    _record_duplicate(database, "DUPLICATE_RETIRE", primary, candidate, reason)
 
 
 @app.command("link-transfers")

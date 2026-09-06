@@ -22,8 +22,31 @@ from .categorization import (
 from .common import canonical_json, resolve_category
 from .decision_journal import GENESIS_HASH, JournalRecord, default_journal_path, read_records
 from .errors import FinCLError
+from .relationships import (
+    DECISION_BATCH,
+    RELATIONSHIP_DECISION_KINDS,
+    apply_relationship,
+    validate_batch,
+    validate_relationship_payload,
+)
+from .relationships import (
+    resolve as resolve_relationships,
+)
 
 NATURAL_ANCHOR_VERSION = "natural-anchor-v1"
+
+V05_DECISION_KINDS = frozenset(
+    {
+        "CATEGORY_METADATA_SET",
+        "CATEGORY_METADATA_RETIRE",
+        "ACCOUNT_SCOPE_SET",
+        "ACCOUNT_DETAILS_SET",
+        "ACCOUNT_ALIAS_SET",
+        "ACCOUNT_ALIAS_RETIRE",
+        "REVIEW_DEFER_SET",
+        "REVIEW_DEFER_RETIRE",
+    }
+)
 
 # The decision-journal kind vocabulary is closed (Confirmed 32, ARCHITECTURE.md
 # §14.2). Replay refuses an ``decision_kind`` it does not recognize rather than
@@ -43,8 +66,11 @@ KNOWN_DECISION_KINDS = frozenset(
         "EXTRACTION_REPAIR",
         "CATEGORY_CREATE",
         "PLAN_SET",
+        DECISION_BATCH,
     }
     | CATEGORIZATION_DECISION_KINDS
+    | RELATIONSHIP_DECISION_KINDS
+    | V05_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -74,6 +100,12 @@ def entry_anchor(connection: sqlite3.Connection, entry_id: str) -> str:
     if row is None:
         raise FinCLError("entry does not resolve to a natural anchor")
     return str(row[0])
+
+
+def _table_exists(connection: sqlite3.Connection, name: str) -> bool:
+    return connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
+    ).fetchone() is not None
 
 
 class _AnchorResolution(NamedTuple):
@@ -180,14 +212,20 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "merchant_aliases",
             "category_rules",
             "category_overrides",
+            "relationship_decisions",
+            "duplicate_suppressions",
+            "refund_allocations",
         ):
-            connection.execute(f"DELETE FROM {table}")
+            if _table_exists(connection, table):
+                connection.execute(f"DELETE FROM {table}")
         custom: set[str] = set()
         for record in records:
             if record.decision_kind == "CATEGORY_CREATE":
                 from .custom_categories import validate_creation
                 custom.add(validate_creation(record.anchors, record.payload, frozenset(custom)))
             _apply_record(connection, record, frozenset(custom))
+        if _table_exists(connection, "relationship_decisions"):
+            resolve_relationships(connection)
         _rebuild_command_receipts(connection, records)
         connection.execute("UPDATE decision_watermark SET applied_seq = ? WHERE id = 1", (len(records),))
         if verify_association:
@@ -241,13 +279,40 @@ def _rebuild_command_receipts(
         )
 
 
-def _apply_record(connection: sqlite3.Connection, record: JournalRecord, custom: frozenset[str] = frozenset()) -> None:
+def _apply_record(
+    connection: sqlite3.Connection,
+    record: JournalRecord,
+    custom: frozenset[str] = frozenset(),
+    *,
+    batch_index: int | None = None,
+) -> None:
     if record.decision_kind not in KNOWN_DECISION_KINDS:
         raise FinCLError(
             f"decision journal record {record.seq} has an unrecognized "
             f"decision_kind {record.decision_kind!r}; this build cannot replay it "
             "without silently dropping the decision — upgrade fincl"
         )
+    if record.decision_kind == DECISION_BATCH:
+        if batch_index is not None:
+            raise FinCLError(
+                f"decision journal record {record.seq}: a decision batch cannot nest"
+            )
+        items = validate_batch(record.anchors, record.payload)
+        for index, item in enumerate(items):
+            child = JournalRecord(
+                seq=record.seq,
+                decided_at=record.decided_at,
+                decision_kind=str(item["kind"]),
+                anchor_version=record.anchor_version,
+                anchors=dict(item["anchors"]),
+                payload=dict(item["payload"]),
+                policy_version=record.policy_version,
+                snapshot=record.snapshot,
+                prev_hash=record.prev_hash,
+                record_hash=record.record_hash,
+            )
+            _apply_record(connection, child, custom, batch_index=index)
+        return
     if record.decision_kind == "PLAN_SET":
         from .plans import validate_plan
         validate_plan(record.anchors, record.payload)
@@ -289,6 +354,38 @@ def _apply_record(connection: sqlite3.Connection, record: JournalRecord, custom:
         )
     elif record.decision_kind == CATEGORY_OVERRIDE:
         _apply_override(connection, record, override, custom)
+    elif record.decision_kind in RELATIONSHIP_DECISION_KINDS:
+        try:
+            validate_relationship_payload(
+                record.decision_kind, record.anchors, record.payload
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
+        apply_relationship(
+            connection,
+            decision_kind=record.decision_kind,
+            anchors=record.anchors,
+            payload=record.payload,
+            journal_seq=record.seq,
+            snapshot=record.snapshot,
+            override=override,
+            batch_index=batch_index,
+            resolve_anchor=lambda anchor: resolve_anchor(connection, anchor),
+        )
+    elif record.decision_kind in V05_DECISION_KINDS:
+        # v0.5 metadata is projected from the journal by v05.py. Validate here
+        # so replay still fails closed on a malformed record.
+        from .v05 import validate_v05
+
+        try:
+            validate_v05(
+                record.decision_kind,
+                record.anchors,
+                record.payload,
+                database=database_path_of(connection),
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
 
 
 def _binding(reason: str | None, override: str | None) -> tuple[int, str | None]:

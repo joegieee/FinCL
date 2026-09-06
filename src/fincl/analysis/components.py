@@ -74,6 +74,7 @@ WITH entries AS (
     WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'
       AND x.selection_state = 'SELECTED'
       AND (e.source_family = 'CSV' OR s.selection_state = 'SELECTED')
+      AND e.natural_anchor NOT IN (SELECT suppressed_anchor FROM duplicate_suppressions)
 ), linked AS (
     SELECT left_entry_id AS id FROM transfer_links WHERE status = 'CONFIRMED'
     UNION

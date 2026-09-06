@@ -356,6 +356,107 @@ def contributors_page(
         connection.close()
 
 
+def relationships_review(
+    database: Path, *, kind: str = 'duplicate', generation: str | None = None,
+    cursor: str | None = None, limit: int = 50,
+) -> dict[str, Any]:
+    """Automatic relationship proposals awaiting a durable decision.
+
+    ``duplicate``: entry pairs that match on account, currency, exact amount,
+    event kind, fee, date and normalized merchant across *distinct* evidence
+    blobs, and are not already confirmed, rejected or suppressed. Similarity
+    alone never suppresses a row — this is a review queue, not an action.
+    """
+    if kind != 'duplicate':
+        raise FinCLError('Only duplicate review is available')
+    limit = max(1, min(int(limit), 200))
+    offset = 0
+    if cursor:
+        try:
+            offset = max(0, int(base64.urlsafe_b64decode(cursor.encode()).decode()))
+        except (binascii.Error, ValueError):
+            raise FinCLError('The review cursor is not valid; reload the queue') from None
+    connection = connect_readonly(database)
+    try:
+        connection.execute('BEGIN')
+        current = current_generation(connection)
+        if current is None:
+            raise FinCLError('Ledger is not ready. Run fincl refresh first.')
+        token = current['generation_token']
+        if generation and generation != token:
+            raise FinCLError('STALE_GENERATION: reload the queue')
+        rows = connection.execute("""
+          WITH shaped AS (
+            SELECT e.id, e.natural_anchor AS anchor, e.evidence_sha256,
+                   e.account_id, e.currency_pocket AS currency,
+                   e.amount_text, e.amount_coefficient, e.amount_scale,
+                   e.event_kind, COALESCE(e.fee_coefficient, 0) AS fee_coefficient,
+                   substr(e.effective_at, 1, 10) AS posted_date,
+                   COALESCE(mo.merchant_canonical, mo.merchant_normalized, r.description_raw,
+                            d.description_raw, '') AS merchant,
+                   a.display_name AS account
+            FROM ledger_entries e
+            JOIN extraction_runs x ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+            JOIN accounts a ON a.id = e.account_id
+            LEFT JOIN merchant_observations mo ON mo.entry_id = e.id
+            LEFT JOIN raw_records r ON r.id = e.raw_record_id
+            LEFT JOIN document_records d ON d.id = e.document_record_id
+            WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'
+          )
+          SELECT * FROM shaped WHERE (account_id, currency, amount_coefficient, amount_scale,
+                 event_kind, fee_coefficient, posted_date, merchant) IN (
+            SELECT account_id, currency, amount_coefficient, amount_scale, event_kind,
+                   fee_coefficient, posted_date, merchant
+            FROM shaped GROUP BY 1, 2, 3, 4, 5, 6, 7, 8
+            HAVING count(*) > 1 AND count(DISTINCT evidence_sha256) > 1
+          )
+          ORDER BY posted_date, amount_coefficient, anchor
+        """).fetchall()
+        decided = {
+            row[0] for row in connection.execute(
+                "SELECT identity FROM relationship_decisions WHERE kind = 'DUPLICATE'"
+            )
+        }
+        suppressed = {
+            row[0] for row in connection.execute(
+                "SELECT suppressed_anchor FROM duplicate_suppressions"
+            )
+        }
+        groups: dict[tuple[Any, ...], list[Any]] = defaultdict(list)
+        for row in rows:
+            groups[(
+                row['account_id'], row['currency'], row['amount_coefficient'],
+                row['amount_scale'], row['event_kind'], row['fee_coefficient'],
+                row['posted_date'], row['merchant'],
+            )].append(row)
+        proposals: list[dict[str, Any]] = []
+        for members in groups.values():
+            members = sorted(members, key=lambda r: r['anchor'])
+            for first, second in zip(members, members[1:], strict=False):
+                identity = '\x1f'.join(sorted((first['anchor'], second['anchor'])))
+                if identity in decided or first['anchor'] in suppressed or second['anchor'] in suppressed:
+                    continue
+                proposals.append({
+                    'primary': first['anchor'], 'candidate': second['anchor'],
+                    'account': first['account'], 'currency': first['currency'],
+                    'amount': money(abs(Decimal(first['amount_text']))),
+                    'date': first['posted_date'], 'merchant': first['merchant'] or 'Unknown merchant',
+                    'event_kind': first['event_kind'],
+                    'basis': 'Same account, amount, date and merchant across two imports',
+                })
+        window = proposals[offset:offset + limit]
+        next_cursor = (
+            base64.urlsafe_b64encode(str(offset + limit).encode()).decode()
+            if offset + limit < len(proposals) else None
+        )
+        return {
+            'generation': token, 'kind': 'duplicate', 'proposals': window,
+            'next_cursor': next_cursor, 'total': len(proposals),
+        }
+    finally:
+        connection.close()
+
+
 def in_window(entry: dict[str, Any], start: str, end: str) -> bool:
     if entry['precision'] == 'MONTH':
         return DateInterval(start, end).contains_interval(month_span(entry['date'][:7]))

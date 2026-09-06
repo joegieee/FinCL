@@ -140,6 +140,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch */
+        post: operations["batch_api_v1_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/relationships/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Relationships Review */
+        get: operations["relationships_review_api_v1_relationships_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/history": {
         parameters: {
             query?: never;
@@ -276,6 +310,36 @@ export interface components {
             /** Merchant */
             merchant: string | null;
         };
+        /** Batch */
+        Batch: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Expected Generation */
+            expected_generation: string;
+            /** Items */
+            items: components["schemas"]["BatchItem"][];
+            /** Reason */
+            reason: string;
+        };
+        /** BatchItem */
+        BatchItem: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE";
+            /** Anchors */
+            anchors: {
+                [key: string]: string;
+            };
+            /** Payload */
+            payload: {
+                [key: string]: string;
+            };
+        };
         /** Bootstrap */
         Bootstrap: {
             /** Secret */
@@ -317,7 +381,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE";
             /** Anchors */
             anchors: {
                 [key: string]: string;
@@ -592,6 +656,40 @@ export interface components {
             count: number;
             /** Status */
             status: string;
+        };
+        /** RelationshipsReview */
+        RelationshipsReview: {
+            /** Generation */
+            generation: string;
+            /** Kind */
+            kind: string;
+            /** Proposals */
+            proposals: components["schemas"]["ReviewProposal"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
+        /** ReviewProposal */
+        ReviewProposal: {
+            /** Primary */
+            primary: string;
+            /** Candidate */
+            candidate: string;
+            /** Account */
+            account: string;
+            /** Currency */
+            currency: string;
+            /** Amount */
+            amount: string;
+            /** Date */
+            date: string;
+            /** Merchant */
+            merchant: string;
+            /** Event Kind */
+            event_kind: string;
+            /** Basis */
+            basis: string;
         };
         /** SummaryCell */
         SummaryCell: {
@@ -921,6 +1019,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_api_v1_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Batch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    relationships_review_api_v1_relationships_review_get: {
+        parameters: {
+            query?: {
+                kind?: string;
+                generation?: string | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipsReview"];
                 };
             };
             /** @description Validation Error */
