@@ -22,7 +22,6 @@ from pathlib import Path
 
 from fincl import migrations
 from fincl.backup import (
-    WRITER_LOCK_NAME,
     backup_ledger,
     restore_ledger,
     verify_backup_bundle,
@@ -31,6 +30,7 @@ from fincl.db import SCHEMA_VERSION, connect_sqlite, initialize_schema
 from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import entry_anchor, replay_journal
 from fincl.errors import FinCLError, SchemaVersionError
+from fincl.locking import WRITER_LOCK_NAME
 from fincl.migrations import Migration, apply_pending_migrations
 from fincl.report import economic_flow_report_data
 from fincl.revolut import EXPECTED_HEADER

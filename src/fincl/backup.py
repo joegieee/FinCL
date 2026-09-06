@@ -11,7 +11,6 @@ publishes into a new directory without overwriting anything.
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -28,10 +27,10 @@ from .db import SCHEMA_VERSION, connect_sqlite, initialize_schema
 from .decision_journal import JOURNAL_FILENAME, default_journal_path, read_records
 from .decisions import replay_journal
 from .errors import FinCLError, SchemaVersionError
+from .locking import ledger_writer
 
 MANIFEST_NAME = "manifest.json"
 MANIFEST_VERSION = "backup-v1"
-WRITER_LOCK_NAME = ".fincl.writer.lock"
 _CHUNK = 1024 * 1024
 
 
@@ -153,15 +152,8 @@ def backup_ledger(database: Path, evidence_directory: Path, output: Path) -> Bac
     if output.exists():
         raise FinCLError(f"backup output already exists: {output}")
 
-    ledger_dir = database.parent
-    lock_path = ledger_dir / WRITER_LOCK_NAME
-    lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
-    try:
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    with ledger_writer(database):
         return _capture_backup(database, evidence_directory, output)
-    finally:
-        fcntl.flock(lock_fd, fcntl.LOCK_UN)
-        os.close(lock_fd)
 
 
 def _capture_backup(database: Path, evidence_directory: Path, output: Path) -> BackupResult:
