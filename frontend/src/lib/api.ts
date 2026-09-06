@@ -21,6 +21,16 @@ export async function api<T>(path:string, body?:unknown):Promise<T> {
   if (!response.ok) throw new ApiError(typeof value.detail==='string'?value.detail:'Please check the entered values.',response.status)
   return value as T
 }
+// The one multipart write. Same Origin/session/CSRF boundary as JSON writes.
+export async function uploadFiles<T>(path:string, adapter:string, files:File[]):Promise<T> {
+  const form = new FormData()
+  form.append('adapter', adapter)
+  for (const file of files) form.append('files', file, file.name)
+  const response = await fetch(`/api/v1/${path}`,{method:'POST',headers:{'X-CSRF-Token':csrf},body:form})
+  const value = await response.json()
+  if (!response.ok) throw new ApiError(typeof value.detail==='string'?value.detail:'That upload could not be accepted.',response.status)
+  return value as T
+}
 let boot: Promise<{csrf:string;demo:boolean;label:string}> | undefined
 export function bootstrap() { return boot ??= doBootstrap() }
 async function doBootstrap() {

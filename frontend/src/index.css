@@ -137,3 +137,24 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .card-lenses>div{border:1px solid var(--border);border-radius:6px;padding:10px 12px}
 .card-lenses h4{margin:0 0 4px;font-size:12px}
 .card-lenses small{font-size:10px;color:var(--muted)}
+/* v0.5 slice 1 — setup, import wizard and history */
+.setup-view{display:flex;flex-direction:column;gap:20px}
+.setup-view .mono,.mono{font-family:ui-monospace,monospace;font-size:11px;word-break:break-all}
+.setup-summary,.import-wizard,.import-history{padding:22px!important}
+.import-wizard form{display:flex;flex-direction:column;margin-top:14px}
+.import-wizard input[type=file]{font-size:11px;margin-top:6px}
+.file-chips{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px;padding:0}
+.file-chips li{display:flex;gap:7px;align-items:baseline;border:1px solid var(--border);border-radius:6px;padding:5px 9px;font-size:11px;background:var(--card)}
+.file-chips li.over{border-color:#a64136;color:#a64136}
+.file-chips small{color:var(--muted)}
+.upload-result{margin-top:16px;border-top:1px solid var(--border);padding-top:14px;font-size:12px}
+.upload-result>p:first-child{display:flex;align-items:center;gap:7px;font-weight:500}
+.issue-list{list-style:none;display:flex;flex-direction:column;gap:9px;margin:12px 0;padding:0}
+.issue-list li{border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-size:12px}
+.issue-list li p{color:var(--muted);margin-top:4px}
+.issue-list li strong{margin-left:7px}
+.issue-count{color:#977c3d;font-weight:500}
+.import-table{font-size:11px;min-width:640px;width:100%}
+.import-table th{background:var(--background);font-size:10px;text-align:left}
+.import-table td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:top}
+.import-table td small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
