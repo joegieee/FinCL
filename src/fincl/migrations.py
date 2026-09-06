@@ -6,12 +6,13 @@ only after a verified backup: each step is one transaction, integrity and
 foreign-key checks run before commit, and the new version is stamped only at
 commit. There is no lossy down-migration; reversal restores the backup.
 
-The registry is empty: schema 8 is the only deployed layout. A migration is
-added here with an immutable checksum together with its historical fixture.
+The registry holds the 8->9 upgrade (MVP M1b): it adds the two derived schema-9
+tables and nothing else, so a migrated ledger and a fresh one are identical.
 """
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -19,8 +20,9 @@ from pathlib import Path
 
 from .backup import verify_backup_bundle
 from .common import utc_now
-from .db import SCHEMA_VERSION, connect_sqlite
+from .db import SCHEMA_9_TABLES_SQL, SCHEMA_VERSION, connect_sqlite
 from .errors import FinCLError, SchemaVersionError
+from .locking import WriterContext, ledger_writer
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,9 +33,26 @@ class Migration:
     apply: Callable[[sqlite3.Connection], None]
 
 
-# Keyed by the version each migration upgrades *from*. Immutable checksums are
-# committed alongside each real migration.
-MIGRATIONS: dict[int, Migration] = {}
+def _migrate_8_to_9(connection: sqlite3.Connection) -> None:
+    """Add `projection_generation` and `command_receipts`; no data is rewritten.
+
+    Each statement runs on its own so the migration stays inside the caller's
+    ``BEGIN IMMEDIATE`` transaction — ``executescript`` would commit it first.
+    """
+    for statement in filter(None, (s.strip() for s in SCHEMA_9_TABLES_SQL.split(";"))):
+        connection.execute(statement)
+
+
+# The checksum is an immutable hash of the exact DDL the step applies, so a later
+# edit to that DDL is a new migration rather than a silent change under one id.
+MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_9_TABLES_SQL.encode()
+).hexdigest()
+
+# Keyed by the version each migration upgrades *from*.
+MIGRATIONS: dict[int, Migration] = {
+    8: Migration(8, 9, MIGRATION_8_TO_9_CHECKSUM, _migrate_8_to_9),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,16 +71,24 @@ def _stored_version(connection: sqlite3.Connection) -> int:
     return int(row[0])
 
 
-def apply_pending_migrations(database: Path, *, backup_dir: Path) -> MigrationResult:
+def apply_pending_migrations(
+    database: Path, *, backup_dir: Path, writer: WriterContext | None = None
+) -> MigrationResult:
     """Upgrade ``database`` to the current schema version after a verified backup.
 
     ``backup_dir`` must be a bundle produced by ``fincl backup`` for this same
-    ledger; it is verified in full before a single table is touched.
+    ledger; it is verified in full before a single table is touched. Runs under
+    the one ledger writer lock; pass ``writer`` from an outer lock holder.
     """
     database = Path(database).resolve()
     if not database.is_file():
         raise FinCLError(f"database does not exist: {database}")
 
+    with ledger_writer(database, existing=writer):
+        return _apply_pending_migrations(database, backup_dir)
+
+
+def _apply_pending_migrations(database: Path, backup_dir: Path) -> MigrationResult:
     connection = connect_sqlite(database)
     # Manage each migration's transaction explicitly so that a step which only
     # issues DDL before failing is still fully rolled back.

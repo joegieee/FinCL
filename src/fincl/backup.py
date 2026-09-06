@@ -27,7 +27,7 @@ from .db import SCHEMA_VERSION, connect_sqlite, initialize_schema
 from .decision_journal import JOURNAL_FILENAME, default_journal_path, read_records
 from .decisions import replay_journal
 from .errors import FinCLError, SchemaVersionError
-from .locking import ledger_writer
+from .locking import WriterContext, ledger_writer
 
 MANIFEST_NAME = "manifest.json"
 MANIFEST_VERSION = "backup-v1"
@@ -141,7 +141,14 @@ def _fx_versions(connection: sqlite3.Connection) -> list[str]:
 # --------------------------------------------------------------------------- #
 
 
-def backup_ledger(database: Path, evidence_directory: Path, output: Path) -> BackupResult:
+def backup_ledger(
+    database: Path,
+    evidence_directory: Path,
+    output: Path,
+    *,
+    writer: WriterContext | None = None,
+    allow_stale_schema: bool = False,
+) -> BackupResult:
     database = Path(database).resolve()
     evidence_directory = Path(evidence_directory).resolve()
     output = Path(output).resolve()
@@ -152,14 +159,26 @@ def backup_ledger(database: Path, evidence_directory: Path, output: Path) -> Bac
     if output.exists():
         raise FinCLError(f"backup output already exists: {output}")
 
-    with ledger_writer(database):
-        return _capture_backup(database, evidence_directory, output)
+    with ledger_writer(database, existing=writer):
+        return _capture_backup(
+            database, evidence_directory, output, allow_stale_schema=allow_stale_schema
+        )
 
 
-def _capture_backup(database: Path, evidence_directory: Path, output: Path) -> BackupResult:
+def _capture_backup(
+    database: Path,
+    evidence_directory: Path,
+    output: Path,
+    *,
+    allow_stale_schema: bool = False,
+) -> BackupResult:
     source = connect_sqlite(database)
     try:
-        initialize_schema(source)
+        # A migration backup must capture the *pre-upgrade* layout, so it skips
+        # the schema check that would refuse an out-of-date but otherwise valid
+        # ledger. Every other caller upgrades-or-refuses as before.
+        if not allow_stale_schema:
+            initialize_schema(source)
         association = require_valid_association(source, database)
         replay_journal(source)
         schema_version = int(
@@ -380,7 +399,19 @@ def restore_ledger(backup_dir: Path, output: Path) -> RestoreResult:
 
         candidate = connect_sqlite(staging / "fincl.sqlite3")
         try:
-            initialize_schema(candidate)
+            # A bundle captured at an older schema (e.g. the pre-upgrade backup
+            # `fincl migrate` takes) restores as-is: initialize_schema would
+            # refuse it. The operator runs `fincl migrate` on the restored copy.
+            if manifest.schema_version == SCHEMA_VERSION:
+                initialize_schema(candidate)
+            else:
+                stored = candidate.execute(
+                    "SELECT value FROM schema_metadata WHERE key = 'schema_version'"
+                ).fetchone()
+                if stored is None or int(stored[0]) != manifest.schema_version:
+                    raise FinCLError(
+                        "restored database schema version does not match the manifest"
+                    )
             association = require_valid_association(candidate, staging / "fincl.sqlite3")
             if association.ledger_id != manifest.ledger_id:
                 raise FinCLError("restored association does not match the manifest ledger id")

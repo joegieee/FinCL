@@ -28,6 +28,8 @@ from .engine import categorize as run_categorize
 from .engine import summarize_run
 from .errors import FinCLError
 from .fx import load_fx_rates_file, load_mas_weekly_csv_file
+from .locking import ledger_writer
+from .migrations import apply_pending_migrations
 from .money import ExactMoney
 from .rebuild import rebuild_database
 from .reconciliation import link_narrow_transfers
@@ -175,6 +177,7 @@ def refresh_command(
     _emit_mapping(
         {
             "status": "REFRESHED",
+            "generation": result.generation_token,
             "decisions_bound": result.decisions_bound,
             "decisions_dangling": result.decisions_dangling,
             "confirmed_transfer_links": result.confirmed_transfer_links,
@@ -527,6 +530,41 @@ def restore_command(
         )
     except (FinCLError, OSError) as exc:
         _fail(exc)
+
+
+@app.command("migrate")
+def migrate_command(
+    database: Path = typer.Option(..., "--database"),
+    evidence_dir: Path = typer.Option(..., "--evidence-dir"),
+    backup_output: Path = typer.Option(
+        ..., "--backup-output", help="New verified backup bundle directory; must not exist."
+    ),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Upgrade the ledger schema after capturing and verifying a fresh backup."""
+    try:
+        with ledger_writer(database) as writer:
+            backup_ledger(
+                database, evidence_dir, backup_output,
+                writer=writer, allow_stale_schema=True,
+            )
+            result = apply_pending_migrations(
+                database, backup_dir=backup_output, writer=writer
+            )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    _emit_mapping(
+        {
+            "status": "MIGRATED" if result.steps else "ALREADY_CURRENT",
+            "from_version": result.from_version,
+            "to_version": result.to_version,
+            "steps": ",".join(str(step) for step in result.steps) or "none",
+            "verified_backup": str(backup_output),
+        },
+        plain,
+        json_output,
+    )
 
 
 @app.command("repair")

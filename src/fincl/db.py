@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -23,6 +23,26 @@ BUSY_TIMEOUT_MS = 5000
 # a tested reader or the explicit, backup-verified runner in migrations.py;
 # startup must not suggest evidence-only reconstruction of originating state.
 _MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
+
+# Schema 9 derived tables (MVP M1b, DESIGN-application-contract.md §3). Shared
+# verbatim between a fresh `initialize_schema` and the registered 8->9 migration
+# so a migrated ledger and a fresh one have byte-identical layout.
+SCHEMA_9_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS projection_generation (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    generation_token TEXT NOT NULL UNIQUE,
+    manifest_json TEXT NOT NULL,
+    completed_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS command_receipts (
+    request_id TEXT PRIMARY KEY,
+    intent_hash TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    record_hash TEXT NOT NULL,
+    decision_kind TEXT NOT NULL
+) STRICT;
+"""
 
 
 def _create_decision_projection(connection: sqlite3.Connection) -> None:
@@ -169,7 +189,9 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             norm_version TEXT NOT NULL,
             projection_version TEXT NOT NULL
         ) STRICT;
+
         """
+        + SCHEMA_9_TABLES_SQL
     )
 
 
