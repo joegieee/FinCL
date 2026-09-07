@@ -686,6 +686,23 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                     raise HTTPException(409, str(exc)) from exc
                 raise
 
+    @app.get('/api/v1/transactions/anchors')
+    def transaction_anchors_route(generation: str, start: str, end: str, currency: str = 'SGD',
+                                  search: str = '', category: str = '', account: str = '', kind: str = '',
+                                  include_excluded: bool = False) -> Any:
+        from .queries import transaction_anchors
+        with ledger_writer(database):
+            try:
+                return transaction_anchors(
+                    database, generation=generation, start=start, end=end, currency=currency,
+                    search=search, category=category, account=account, kind=kind,
+                    include_excluded=include_excluded,
+                )
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise
+
     @app.get('/api/v1/analysis',response_model=Analysis)
     def analysis(
         start: str, end: str, currency: str = 'SGD',

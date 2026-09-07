@@ -155,6 +155,81 @@ def _window_sql(param_start: str, param_end: str) -> str:
     )
 
 
+def _tx_filter(
+    *, currency: str, start: str, end: str, include_excluded: bool,
+    account: str, category: str, search: str, kind: str,
+) -> tuple[str, dict[str, Any]]:
+    """The shared WHERE clause + bound params for the transaction list and its
+    bulk-selection anchor materialization, so both select exactly the same rows."""
+    where = ['currency_pocket = :currency', _window_sql(':start', ':end')]
+    params: dict[str, Any] = {'currency': currency, 'start': start, 'end': end}
+    if not include_excluded:
+        where.append('eligible')
+    if account:
+        where.append('account = :account')
+        params['account'] = account
+    if category:
+        where.append('category = :category')
+        params['category'] = category
+    if search.strip():
+        where.append("instr(lower(merchant || ' ' || description), lower(:search)) > 0")
+        params['search'] = search.strip()
+    if kind == 'fees':
+        where.append('fee_nonzero')
+    elif kind == 'review':
+        where.append('review')
+    elif kind:
+        where.append('bucket = :kind')
+        params['kind'] = kind
+    return ' AND '.join(where), params
+
+
+# Bounded materialization for "select all matching": a bulk correction beyond
+# this needs a narrower filter. Chunked into <=200-item atomic batches by the UI.
+BULK_SELECT_CAP = 1000
+
+
+def transaction_anchors(
+    database: Path, *, generation: str, start: str, end: str, currency: str = 'SGD',
+    search: str = '', category: str = '', account: str = '', kind: str = '',
+    include_excluded: bool = False,
+) -> dict[str, Any]:
+    """Every natural anchor matching the current transaction filter, pinned to
+    ``generation`` and capped at ``BULK_SELECT_CAP``. The caller freezes this
+    list; later filter changes do not change what a bulk commit touches."""
+    connection = connect_readonly(database)
+    try:
+        connection.execute('BEGIN')
+        current = current_generation(connection)
+        if current is None:
+            raise FinCLError('Ledger is not ready. Run fincl refresh first.')
+        if generation != current['generation_token']:
+            raise FinCLError('STALE_GENERATION: reload the list')
+        for value in (start, end):
+            try:
+                date.fromisoformat(value)
+            except ValueError as exc:
+                raise FinCLError('Dates must use YYYY-MM-DD') from exc
+        clause, params = _tx_filter(
+            currency=currency, start=start, end=end, include_excluded=include_excluded,
+            account=account, category=category, search=search, kind=kind,
+        )
+        rows = connection.execute(
+            f"SELECT natural_anchor FROM ({_ENTRY_VIEW}) WHERE {clause} "
+            f"ORDER BY effective_at DESC, natural_anchor, id LIMIT :cap",
+            {**params, 'cap': BULK_SELECT_CAP + 1},
+        ).fetchall()
+        anchors = [row['natural_anchor'] for row in rows[:BULK_SELECT_CAP]]
+        return {
+            'generation': generation,
+            'anchors': anchors,
+            'truncated': len(rows) > BULK_SELECT_CAP,
+            'cap': BULK_SELECT_CAP,
+        }
+    finally:
+        connection.close()
+
+
 def transactions_page(
     database: Path, *, generation: str, start: str, end: str, currency: str = 'SGD',
     search: str = '', category: str = '', account: str = '', kind: str = '',
@@ -180,27 +255,10 @@ def transactions_page(
             except ValueError as exc:
                 raise FinCLError('Dates must use YYYY-MM-DD') from exc
 
-        where = ['currency_pocket = :currency', _window_sql(':start', ':end')]
-        params: dict[str, Any] = {'currency': currency, 'start': start, 'end': end}
-        if not include_excluded:
-            where.append('eligible')
-        if account:
-            where.append('account = :account')
-            params['account'] = account
-        if category:
-            where.append('category = :category')
-            params['category'] = category
-        if search.strip():
-            where.append("instr(lower(merchant || ' ' || description), lower(:search)) > 0")
-            params['search'] = search.strip()
-        if kind == 'fees':
-            where.append('fee_nonzero')
-        elif kind == 'review':
-            where.append('review')
-        elif kind:
-            where.append('bucket = :kind')
-            params['kind'] = kind
-        clause = ' AND '.join(where)
+        clause, params = _tx_filter(
+            currency=currency, start=start, end=end, include_excluded=include_excluded,
+            account=account, category=category, search=search, kind=kind,
+        )
 
         total = connection.execute(
             f"SELECT count(*) FROM ({_ENTRY_VIEW}) WHERE {clause}", params
