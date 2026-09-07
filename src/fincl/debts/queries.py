@@ -8,6 +8,7 @@ Decimal strings are authoritative.
 from __future__ import annotations
 
 from datetime import date
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,8 @@ from ..db import connect_readonly
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..money import format_decimal
+from .models import events_for_direction
+from .projection import expected_bank_direction
 
 _DATE_RE_LEN = 10
 
@@ -252,6 +255,95 @@ def debt_events(
                 }
                 for row in rows
             ],
+            "next_cursor": next_cursor,
+        }
+    finally:
+        connection.close()
+
+
+def allocation_candidates(
+    database: Path,
+    *,
+    debt_id: str,
+    event_kind: str | None = None,
+    cursor: str | None = None,
+    limit: int = 50,
+    expected: str | None = None,
+) -> dict[str, Any]:
+    """Selected entries that could back a source allocation for one debt event.
+
+    Scoped to the debt's currency and to the bank direction the chosen event kind
+    requires (increase kind by default). Each row carries the component magnitude
+    and the amount still unclaimed by any domain. No fuzzy ranking: newest first,
+    keyset by ``natural_anchor``.
+    """
+    from ..analysis.allocations import open_residual
+
+    limit = max(1, min(int(limit), 200))
+    connection = connect_readonly(database)
+    try:
+        connection.execute("BEGIN")
+        token = _generation(connection, expected)
+        debt = connection.execute(
+            "SELECT direction, currency FROM personal_debts WHERE debt_id = ?",
+            (debt_id,),
+        ).fetchone()
+        if debt is None:
+            raise FinCLError("that debt does not exist")
+        kinds = events_for_direction(str(debt["direction"]))
+        if event_kind is None:
+            event_kind = next(k for k, sign in kinds.items() if sign > 0)
+        if event_kind not in kinds:
+            raise FinCLError(f"{event_kind!r} is not a {debt['direction']} event kind")
+        want = expected_bank_direction(str(debt["direction"]), kinds[event_kind])
+
+        params: list[Any] = [str(debt["currency"]), want]
+        cursor_clause = ""
+        if cursor is not None:
+            cursor_clause = " AND e.natural_anchor > ?"
+            params.append(cursor)
+        rows = connection.execute(
+            f"""
+            SELECT e.natural_anchor, e.effective_at, e.economic_direction,
+                   e.amount_coefficient, e.amount_scale, e.currency_pocket
+            FROM ledger_entries e
+            JOIN extraction_runs x
+              ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+            WHERE e.currency_pocket = ? AND e.economic_direction = ?{cursor_clause}
+            ORDER BY e.natural_anchor
+            LIMIT ?
+            """,
+            (*params, limit + 1),
+        ).fetchall()
+        next_cursor = str(rows[limit]["natural_anchor"]) if len(rows) > limit else None
+        rows = rows[:limit]
+
+        def _decimal(fraction: Fraction, scale: int) -> str:
+            scaled = fraction * (10**scale)
+            return format_decimal(int(scaled), scale) if scaled.denominator == 1 else str(fraction)
+
+        candidates = []
+        for row in rows:
+            scale = int(row["amount_scale"])
+            magnitude = Fraction(abs(int(row["amount_coefficient"])), 10**scale)
+            remaining = open_residual(connection, str(row["natural_anchor"]), role="amount")
+            candidates.append(
+                {
+                    "entry_anchor": str(row["natural_anchor"]),
+                    "effective_at": str(row["effective_at"]),
+                    "economic_direction": str(row["economic_direction"]),
+                    "currency": str(row["currency_pocket"]),
+                    "amount": _decimal(magnitude, scale),
+                    "open_amount": _decimal(remaining, scale),
+                }
+            )
+        return {
+            "generation": token,
+            "debt_id": debt_id,
+            "event_kind": event_kind,
+            "required_direction": want,
+            "currency": str(debt["currency"]),
+            "candidates": candidates,
             "next_cursor": next_cursor,
         }
     finally:

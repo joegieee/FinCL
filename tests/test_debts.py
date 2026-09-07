@@ -329,6 +329,81 @@ class DebtApiTests(ApiTestBase):
             self.client.get("/api/v1/debts?generation=sha256:nope").status_code, 409
         )
 
+    def _anchor(self, coefficient: int, direction: str) -> str:
+        connection = sqlite3.connect(self.database)
+        try:
+            return connection.execute(
+                "SELECT natural_anchor FROM ledger_entries "
+                "WHERE abs(amount_coefficient) = ? AND economic_direction = ?",
+                (coefficient, direction),
+            ).fetchone()[0]
+        finally:
+            connection.close()
+
+    def test_allocation_candidates_scoped_to_currency_and_direction(self) -> None:
+        debt_id = str(uuid.uuid4())
+        self._command(
+            "PERSONAL_DEBT_OPEN",
+            {"debt": debt_id},
+            {"direction": "RECEIVABLE", "currency": "SGD", "counterparty_label": "Ana",
+             "opened_on": "2026-01-01", "due_on": None, "reason": "Ana owes me"},
+        )
+        page = self.client.get(f"/api/v1/debts/allocation-candidates?debt={debt_id}").json()
+        self.assertEqual(page["required_direction"], "OUT")
+        self.assertEqual(page["event_kind"], "LENT")
+        got = {c["entry_anchor"]: c for c in page["candidates"]}
+        self.assertEqual(len(got), 3)  # the three SGD OUT entries, no inflow
+        for candidate in got.values():
+            self.assertEqual(candidate["open_amount"], candidate["amount"])
+
+    def test_source_linked_command_consumes_the_candidate_component(self) -> None:
+        debt_id = str(uuid.uuid4())
+        self._command(
+            "PERSONAL_DEBT_OPEN",
+            {"debt": debt_id},
+            {"direction": "RECEIVABLE", "currency": "SGD", "counterparty_label": "Ana",
+             "opened_on": "2026-01-01", "due_on": None, "reason": "Ana owes me"},
+        )
+        anchor = self._anchor(1900, "OUT")
+        self._command(
+            "PERSONAL_DEBT_EVENT_SET",
+            {"debt": debt_id, "event": str(uuid.uuid4())},
+            {"event_kind": "LENT", "direction": "RECEIVABLE", "principal_amount": "19.00",
+             "effective_on": "2026-01-03", "opening_balance": False, "expense_category": None,
+             "entry_allocations": [{"entry_anchor": anchor, "principal_amount": "19.00",
+                                    "interest_amount": "0.00", "fee_amount": "0.00",
+                                    "separate_fee_amount": "0.00"}],
+             "reason": "Lent Ana the price of the book"},
+        )
+        page = self.client.get(f"/api/v1/debts/allocation-candidates?debt={debt_id}").json()
+        consumed = next(c for c in page["candidates"] if c["entry_anchor"] == anchor)
+        self.assertEqual(consumed["open_amount"], "0.00")
+        detail = self.client.get(f"/api/v1/debts/{debt_id}").json()
+        self.assertEqual(detail["debt"]["remaining_principal"]["value"], "19.00")
+
+    def test_chronology_violation_is_refused_without_appending(self) -> None:
+        debt_id = str(uuid.uuid4())
+        self._command(
+            "PERSONAL_DEBT_OPEN",
+            {"debt": debt_id},
+            {"direction": "PAYABLE", "currency": "SGD", "counterparty_label": "Bo",
+             "opened_on": "2026-01-10", "due_on": None, "reason": "Owe Bo"},
+        )
+        before = self.journal_len()
+        body = {
+            "request_id": str(uuid.uuid4()),
+            "expected_generation": self.overview()["generation"],
+            "kind": "PERSONAL_DEBT_EVENT_SET",
+            "anchors": {"debt": debt_id, "event": str(uuid.uuid4())},
+            "payload": {"event_kind": "BORROWED", "direction": "PAYABLE",
+                        "principal_amount": "5.00", "effective_on": "2026-01-05",
+                        "entry_allocations": [], "opening_balance": True,
+                        "expense_category": None, "reason": "Dated before the debt opened"},
+        }
+        self.assertEqual(self.post("/api/v1/preview", body, self.csrf).status_code, 422)
+        self.assertEqual(self.post("/api/v1/commands", body, self.csrf).status_code, 422)
+        self.assertEqual(self.journal_len(), before)
+
     def test_as_of_before_the_opening_event_reads_zero(self) -> None:
         debt_id = str(uuid.uuid4())
         self._command(

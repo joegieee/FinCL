@@ -409,19 +409,22 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                 if account_id and not connection.execute('SELECT 1 FROM accounts WHERE id=?',(account_id,)).fetchone():
                     raise FinCLError('The selected account no longer exists')
         elif command.kind in _DEBT_KINDS:
-            from .debts.validation import validate_debt_payload
-            validate_debt_payload(command.kind, command.anchors, command.payload)
-            if command.kind == 'PERSONAL_DEBT_OPEN' and connection.execute(
-                'SELECT 1 FROM personal_debts WHERE debt_id=?', (command.anchors['debt'],)
-            ).fetchone():
-                raise FinCLError('That debt id is already open')
-            if command.kind in {
-                'PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
-                'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
-            } and not connection.execute(
-                'SELECT 1 FROM personal_debts WHERE debt_id=?', (command.anchors['debt'],)
-            ).fetchone():
-                raise FinCLError('That debt does not exist')
+            from .db import connect_sqlite, initialize_schema
+            from .debts.preview import preview_debt
+            from .decisions import replay_journal
+            # The full-state check needs a writable connection for its SAVEPOINT
+            # dry-run; the caller already holds the ledger writer lock.
+            preview_connection = connect_sqlite(database)
+            try:
+                initialize_schema(preview_connection)
+                replay_journal(preview_connection)
+                preview_debt(
+                    preview_connection, command.kind, dict(command.anchors),
+                    dict(command.payload),
+                    resolve_anchor=lambda a: resolve_anchor(preview_connection, a),
+                )
+            finally:
+                preview_connection.close()
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -651,6 +654,20 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(422, str(exc)) from exc
+
+    @app.get('/api/v1/debts/allocation-candidates')
+    def debt_allocation_candidates(debt: str, event_kind: str | None = None,
+                                   cursor: str | None = None, limit: int = 50,
+                                   generation: str | None = None) -> Any:
+        from .debts.queries import allocation_candidates
+        with ledger_writer(database):
+            try:
+                return allocation_candidates(database, debt_id=debt, event_kind=event_kind,
+                                             cursor=cursor, limit=limit, expected=generation)
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
 
     @app.get('/api/v1/debts/{debt_id}')
     def debt(debt_id: str, as_of: str | None = None, generation: str | None = None) -> Any:

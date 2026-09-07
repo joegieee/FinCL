@@ -312,7 +312,7 @@ def apply_debt(
     raise FinCLError(f"{decision_kind} is not a personal-debt decision")  # pragma: no cover
 
 
-def _expected_direction(debt_direction: str, signed: int) -> str:
+def expected_bank_direction(debt_direction: str, signed: int) -> str:
     """The bank direction a bound principal allocation must carry (§2)."""
     if (debt_direction == "PAYABLE" and signed > 0) or (
         debt_direction == "RECEIVABLE" and signed < 0
@@ -350,7 +350,7 @@ def _check_allocation_binding(connection: sqlite3.Connection) -> None:
             )
         if int(row["principal_coefficient"]) == 0:
             continue
-        expected = _expected_direction(str(row["direction"]), int(row["signed"]))
+        expected = expected_bank_direction(str(row["direction"]), int(row["signed"]))
         if str(entry["economic_direction"]) != expected:
             raise FinCLError(
                 f"debt allocation against {row['entry_anchor']} needs a bank "
