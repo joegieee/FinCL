@@ -84,6 +84,8 @@ refunds_app = typer.Typer(help="Record and inspect refund allocations against pu
 app.add_typer(refunds_app, name="refunds")
 debt_app = typer.Typer(help="Open and inspect personal debts and shared expenses (v0.3).")
 app.add_typer(debt_app, name="debt")
+cards_app = typer.Typer(help="Inspect credit cards and their observed statements (v0.4).")
+app.add_typer(cards_app, name="cards")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -1811,6 +1813,141 @@ def debt_show(
             ("−" if event["signed"] < 0 else "+") + event["principal"]["value"],
             "yes" if event["bound"] else "no", event["reason"],
         )
+    console.print(table)
+
+
+@cards_app.command("list")
+def cards_list(
+    database: Path = typer.Option(..., "--database"),
+    as_of: str | None = typer.Option(None, "--as-of", help="YYYY-MM-DD; defaults to today."),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """List each card account with its latest observed statement and coverage."""
+    from .cards.queries import cards_page
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        data = cards_page(database, as_of=as_of, limit=200)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+        return
+    table = Table(title=f"Cards — as of {data['as_of']}")
+    for column in (
+        "Account", "Currency", "Latest statement", "Closing liability",
+        "Payment due", "Due date", "Reconciliation", "Gaps",
+    ):
+        table.add_column(column)
+    for card in data["cards"]:
+        latest = card["latest_statement"]
+        closing = latest and latest["closing_liability"]
+        due = latest and latest["payment_due"]
+        table.add_row(
+            card["account"]["display_name"],
+            (closing["currency"] if closing else ""),
+            (latest["statement_date"] if latest else "—"),
+            (closing["value"] if closing else "—"),
+            (due["value"] if due else "—"),
+            (latest["payment_due_date"]["value"] if latest and latest["payment_due_date"] else "—"),
+            (latest["reconciliation_status"] if latest else "—"),
+            str(len(card["coverage_gaps"])),
+        )
+    console.print(table)
+
+
+@cards_app.command("show")
+def cards_show(
+    account: str = typer.Option(..., "--account", help="The card account id."),
+    database: Path = typer.Option(..., "--database"),
+    as_of: str | None = typer.Option(None, "--as-of"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """Show one card: limit basis, statement activity and coverage gaps."""
+    from .cards.queries import card_detail
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        data = card_detail(database, account, as_of=as_of)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+        return
+    account_shape = data["account"]
+    limit = data["limit_basis"]
+    console.print(
+        f"{account_shape['display_name']} ({account_shape['masked_identifier']}) — "
+        f"as of {data['as_of']}"
+        + (f", limit basis {limit['value']} {limit['currency']}" if limit else "")
+    )
+    table = Table(title="Statement activity")
+    for column in (
+        "Period", "Statement date", "Currency", "Opening", "Closing",
+        "Payment due", "Reconciliation",
+    ):
+        table.add_column(column)
+    for view in data["statement_activity"]:
+        for pocket in view["pockets"]:
+            opening = pocket["opening_liability"]
+            closing = pocket["closing_liability"]
+            due = pocket["due_fields"].get("payment_due")
+            period = (
+                f"{view['period_start']}…{view['period_end']}"
+                if view["period_start"] and view["period_end"]
+                else "(period missing)"
+            )
+            table.add_row(
+                period,
+                view["statement_date"],
+                pocket["currency"],
+                (opening["value"] if opening else "—"),
+                (closing["value"] if closing else "—"),
+                (due["value"] if due else "—"),
+                pocket["reconciliation"]["status"],
+            )
+    console.print(table)
+    for gap in data["coverage_gaps"]:
+        console.print(f"[yellow]missing statement period {gap['from']} … {gap['to']}[/yellow]")
+
+
+@cards_app.command("statements")
+def cards_statements(
+    account: str = typer.Option(..., "--account", help="The card account id."),
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """List the selected statements for one card with their source equations."""
+    from .cards.queries import card_statements
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        data = card_statements(database, account, limit=200)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+        return
+    table = Table(title=f"{data['account']['display_name']} — statements")
+    for column in ("Statement date", "Period", "Currency", "Closing", "Equation", "Status"):
+        table.add_column(column)
+    for view in data["statements"]:
+        for pocket in view["pockets"]:
+            closing = pocket["closing_liability"]
+            recon = pocket["reconciliation"]
+            period = (
+                f"{view['period_start']}…{view['period_end']}"
+                if view["period_start"] and view["period_end"]
+                else "(period missing)"
+            )
+            table.add_row(
+                view["statement_date"], period, pocket["currency"],
+                (closing["value"] if closing else "—"),
+                (recon["printed_equation"] or "—"), recon["status"],
+            )
     console.print(table)
 
 

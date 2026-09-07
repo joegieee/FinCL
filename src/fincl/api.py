@@ -801,6 +801,9 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
         refresh_ledger(database)
         return {'status':'refreshed'}
 
+    from .api_cards import register_card_reads
+    register_card_reads(app, database)
+
     if assets.exists():
         if (assets / 'assets').exists():
             app.mount('/assets',StaticFiles(directory=assets / 'assets'),name='assets')

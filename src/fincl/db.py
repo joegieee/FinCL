@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -340,6 +340,40 @@ CREATE TABLE IF NOT EXISTS entry_residuals (
     dangling_reason TEXT,
     reason TEXT NOT NULL
 ) STRICT;
+"""
+
+
+# Schema 14 derived table (v0.4 credit cards, slice 1;
+# docs/releases/v0.4-cards.md §0, §2). `card_statement_facts` is an
+# extraction-derived projection — written in `document_service._persist_document`
+# alongside `document_records` / `document_reconciliation_checks` and rebuilt by
+# `fincl rebuild`, never a journal-replay projection. One row per
+# (statement, currency pocket, versioned field role) carrying the exact printed
+# value or date, a source locator, and the parser version that read it. The
+# printed summary equation and its reconciliation status are NOT duplicated here;
+# the cards projection folds those from `document_reconciliation_checks`. Shared
+# verbatim between a fresh `initialize_schema` and the registered 13->14
+# migration so a migrated ledger and a fresh one have byte-identical layout.
+SCHEMA_14_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS card_statement_facts (
+    statement_id TEXT NOT NULL REFERENCES statements(id),
+    extraction_run_id TEXT NOT NULL REFERENCES extraction_runs(id),
+    currency_pocket TEXT NOT NULL,
+    field_role TEXT NOT NULL,
+    value_kind TEXT NOT NULL CHECK (value_kind IN ('money', 'date')),
+    value_text TEXT NOT NULL,
+    value_coefficient INTEGER
+        CHECK (value_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    value_scale INTEGER CHECK (value_scale BETWEEN 0 AND {MAX_SCALE}),
+    source_locator TEXT NOT NULL,
+    parser_version TEXT NOT NULL,
+    role_version TEXT NOT NULL,
+    CHECK ((value_kind = 'money') = (value_coefficient IS NOT NULL AND value_scale IS NOT NULL)),
+    PRIMARY KEY (statement_id, currency_pocket, field_role)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS card_statement_facts_by_extraction
+    ON card_statement_facts(extraction_run_id);
 """
 
 
@@ -979,6 +1013,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             WHERE status = 'CONFIRMED';
 
         """
+        + SCHEMA_14_TABLES_SQL
     )
     _create_decision_projection(connection)
     connection.execute(

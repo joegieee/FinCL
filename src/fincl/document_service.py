@@ -434,6 +434,11 @@ class DocumentImportService:
                 ),
             )
 
+        if parsed.card_summary is not None:
+            _persist_card_statement_facts(
+                connection, extraction_run_id, statement_id, parsed
+            )
+
         blocking_issues = connection.execute(
             "SELECT count(*) FROM extraction_issues WHERE extraction_run_id = ? AND severity = 'BLOCKING'",
             (extraction_run_id,),
@@ -529,6 +534,96 @@ class DocumentImportService:
             checks["passed"] or 0,
             checks["total"] or 0,
             links_created,
+        )
+
+
+# The versioned semantic role vocabulary for `card_statement_facts`. A change to
+# what a role means, or a new role backed by a different field of the printed
+# evidence, bumps this and re-extracts; it never mutates a stored row.
+CARD_STATEMENT_ROLE_VERSION = "mari-card-summary-roles-v1"
+
+
+def _persist_card_statement_facts(
+    connection: sqlite3.Connection,
+    extraction_run_id: str,
+    statement_id: str,
+    parsed: ParsedDocument,
+) -> None:
+    """Project the parsed card-statement summary into `card_statement_facts`.
+
+    One row per (statement, currency pocket, field role) with the exact printed
+    money or date, a coarse source locator, and the parser version. The printed
+    summary equation and its pass/fail are NOT copied here — the cards
+    projection folds those from `document_reconciliation_checks`.
+    """
+    summary = parsed.card_summary
+    assert summary is not None
+    pocket = "SGD"  # Mari card summary buckets and outstanding are SGD.
+    rows: list[tuple[str, str, ExactMoney | None, str | None, str]] = []
+
+    def money(role: str, value: ExactMoney | None, locator: str) -> None:
+        if value is not None:
+            rows.append((role, "money", value, None, locator))
+
+    def calendar(role: str, value: str | None, locator: str) -> None:
+        if value is not None:
+            rows.append((role, "date", None, value, locator))
+
+    calendar("statement_date", summary.statement_date, "mari-card:account-summary")
+    calendar("payment_due_date", summary.payment_due_date, "mari-card:account-summary")
+    calendar("statement_period_start", parsed.period_start, "mari-card:statement-period")
+    calendar("statement_period_end", parsed.period_end, "mari-card:statement-period")
+    money("credit_limit", summary.credit_limit, "mari-card:account-summary")
+    money("payment_due", summary.statement_due, "mari-card:account-summary")
+    money("minimum_payment", summary.minimum_payment, "mari-card:account-summary")
+    money(
+        "closing_liability",
+        summary.current_outstanding,
+        "mari-card:statement-summary:current-outstanding",
+    )
+    money(
+        "opening_liability",
+        summary.buckets.get("A"),
+        "mari-card:statement-summary:bucket-A",
+    )
+    for letter, value in sorted(summary.buckets.items()):
+        money(
+            f"summary_bucket_{letter}",
+            value,
+            f"mari-card:statement-summary:bucket-{letter}",
+        )
+
+    for role, kind, money_value, text, locator in rows:
+        connection.execute(
+            """
+            INSERT INTO card_statement_facts(
+                statement_id, extraction_run_id, currency_pocket, field_role,
+                value_kind, value_text, value_coefficient, value_scale,
+                source_locator, parser_version, role_version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(statement_id, currency_pocket, field_role) DO UPDATE SET
+                extraction_run_id = excluded.extraction_run_id,
+                value_kind = excluded.value_kind,
+                value_text = excluded.value_text,
+                value_coefficient = excluded.value_coefficient,
+                value_scale = excluded.value_scale,
+                source_locator = excluded.source_locator,
+                parser_version = excluded.parser_version,
+                role_version = excluded.role_version
+            """,
+            (
+                statement_id,
+                extraction_run_id,
+                pocket,
+                role,
+                kind,
+                money_value.text if money_value is not None else text,
+                money_value.coefficient if money_value is not None else None,
+                money_value.scale if money_value is not None else None,
+                locator,
+                PDF_PARSER_VERSION,
+                CARD_STATEMENT_ROLE_VERSION,
+            ),
         )
 
 

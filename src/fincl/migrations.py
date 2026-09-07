@@ -11,10 +11,11 @@ tables), the 9->10 upgrade (v0.2 analysis slice 1, the `analysis_components`
 projection tables), the 10->11 upgrade (v0.2 analysis slices 3-4, the
 relationship projection tables), the 11->12 upgrade (v0.5 bulk actions,
 dropping the pre-batch `journal_seq UNIQUE` from the six categorization
-projection tables) and the 12->13 upgrade (v0.3 personal debts, the four debt
-projection tables). Every step either adds derived tables or relaxes a
-constraint on one, rewriting no rows, so a migrated ledger and a fresh one stay
-byte-identical.
+projection tables), the 12->13 upgrade (v0.3 personal debts, the four debt
+projection tables) and the 13->14 upgrade (v0.4 credit cards, the
+`card_statement_facts` extraction-derived table). Every step either adds derived
+tables or relaxes a constraint on one, rewriting no rows, so a migrated ledger
+and a fresh one stay byte-identical.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from .db import (
     SCHEMA_11_TABLES_SQL,
     SCHEMA_12_MIGRATION_SQL,
     SCHEMA_13_TABLES_SQL,
+    SCHEMA_14_TABLES_SQL,
     SCHEMA_VERSION,
     connect_sqlite,
 )
@@ -101,6 +103,16 @@ def _migrate_12_to_13(connection: sqlite3.Connection) -> None:
     _apply_table_ddl(connection, SCHEMA_13_TABLES_SQL)
 
 
+def _migrate_13_to_14(connection: sqlite3.Connection) -> None:
+    """Add the schema-14 `card_statement_facts` extraction-derived table; no
+    data rewrite.
+
+    Populated on the next `fincl rebuild` or re-import of a card statement, the
+    same way schema 10/11/13 tables fill; empty until then.
+    """
+    _apply_table_ddl(connection, SCHEMA_14_TABLES_SQL)
+
+
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
 # edit to that DDL is a new migration rather than a silent change under one id.
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
@@ -118,6 +130,9 @@ MIGRATION_11_TO_12_CHECKSUM = "sha256:" + hashlib.sha256(
 MIGRATION_12_TO_13_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_13_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_13_TO_14_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_14_TABLES_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
@@ -126,6 +141,7 @@ MIGRATIONS: dict[int, Migration] = {
     10: Migration(10, 11, MIGRATION_10_TO_11_CHECKSUM, _migrate_10_to_11),
     11: Migration(11, 12, MIGRATION_11_TO_12_CHECKSUM, _migrate_11_to_12),
     12: Migration(12, 13, MIGRATION_12_TO_13_CHECKSUM, _migrate_12_to_13),
+    13: Migration(13, 14, MIGRATION_13_TO_14_CHECKSUM, _migrate_13_to_14),
 }
 
 

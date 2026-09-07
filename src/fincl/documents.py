@@ -158,6 +158,12 @@ class ParsedDocument:
     pages: list[PageCoverage]
     checks: list[DocumentCheck]
     problems: list[DocumentProblem]
+    # Additive optional field (v0.4 slice 1): the full parsed credit-card
+    # statement summary. `parse_mari_card` fills it; every other parser leaves it
+    # `None`. Persisted into `card_statement_facts` by
+    # `document_service._persist_document`. Not part of the profile version — a
+    # richer summary is an additive read of the same evidence, not a re-parse.
+    card_summary: _MariCardSummary | None = None
 
     @property
     def accepted(self) -> bool:
@@ -1493,6 +1499,7 @@ def parse_mari_card(data: bytes) -> ParsedDocument:
         pages=coverage,
         checks=checks,
         problems=problems,
+        card_summary=summary,
     )
 
 
