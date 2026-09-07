@@ -13,8 +13,8 @@ from typer.testing import CliRunner
 
 from fincl.application import record_card_decision
 from fincl.cli import app
-from fincl.errors import FinCLError
 from fincl.document_service import DocumentImportService
+from fincl.errors import FinCLError
 from fincl.refresh import refresh_ledger
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "mari_card.pdf"
@@ -81,7 +81,7 @@ class CardFacilityTests(unittest.TestCase):
     # -- projection ------------------------------------------------------- #
 
     def test_facility_and_membership_project_and_bind(self) -> None:
-        facility_id = self._facility()
+        self._facility()
         facilities = self._rows("card_facilities")
         self.assertEqual(len(facilities), 1)
         self.assertEqual(facilities[0]["currency"], "SGD")

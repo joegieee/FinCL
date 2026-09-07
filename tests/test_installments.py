@@ -4,7 +4,6 @@ purchase / spread lenses and early settlement."""
 from __future__ import annotations
 
 import hashlib
-import json
 import sqlite3
 import tempfile
 import unittest
@@ -120,7 +119,7 @@ class InstallmentTests(unittest.TestCase):
     # -- projection ------------------------------------------------------- #
 
     def test_plan_occurrences_and_schedule_project(self) -> None:
-        plan_id = self._plan()
+        self._plan()
         plans = self._rows("installment_plans")
         self.assertEqual(len(plans), 1)
         self.assertEqual(plans[0]["principal_coefficient"], 1500)
