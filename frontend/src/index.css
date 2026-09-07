@@ -114,3 +114,7 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .debt-alloc-foot button{display:inline-flex;align-items:center;gap:4px;font-size:11px;border:1px solid var(--border);border-radius:6px;padding:3px 8px;background:var(--bg);color:inherit;cursor:pointer}
 .debt-alloc-foot .ok{color:var(--muted)}
 .debt-alloc-foot .warn{color:#b23b3b}
+.debt-lifecycle{border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px}
+.debt-lifecycle summary{cursor:pointer;font-weight:600}
+.debt-lifecycle-row{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.debt-lifecycle-row input{font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:inherit}

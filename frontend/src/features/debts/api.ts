@@ -68,11 +68,13 @@ export const EVENT_KINDS = {
     { kind: 'BORROWED', label: 'Borrowed', sign: 1, offLedger: false, opening: true },
     { kind: 'PRINCIPAL_REPAID', label: 'Repaid principal', sign: -1, offLedger: false, opening: false },
     { kind: 'EXPENSE_PAID_FOR_ME', label: 'Someone paid an expense for me', sign: 1, offLedger: true, opening: false },
+    { kind: 'PAYABLE_FORGIVEN', label: 'Balance forgiven', sign: -1, offLedger: true, opening: false },
   ],
   RECEIVABLE: [
     { kind: 'LENT', label: 'Lent', sign: 1, offLedger: false, opening: true },
     { kind: 'PRINCIPAL_RETURNED', label: 'Principal returned to me', sign: -1, offLedger: false, opening: false },
     { kind: 'EXPENSE_PAID_FOR_OTHER', label: 'I paid an expense for someone', sign: 1, offLedger: false, opening: false },
+    { kind: 'RECEIVABLE_WRITTEN_OFF', label: 'Written off as a loss', sign: -1, offLedger: true, opening: false },
   ],
 } as const
 
@@ -126,6 +128,22 @@ export type DebtCommandBody = {
 export async function previewThenCommit(body: DebtCommandBody): Promise<{ status: string }> {
   await api('preview', body)
   return api<{ status: string }>('commands', body)
+}
+
+export function lifecycleCommand(opts: {
+  kind: 'PERSONAL_DEBT_CLOSE' | 'PERSONAL_DEBT_REOPEN'
+  debtId: string
+  generation: string
+  effectiveOn: string
+  reason: string
+}): Promise<{ status: string }> {
+  return previewThenCommit({
+    request_id: crypto.randomUUID(),
+    expected_generation: opts.generation,
+    kind: opts.kind,
+    anchors: { debt: opts.debtId },
+    payload: { effective_on: opts.effectiveOn, reason: opts.reason },
+  })
 }
 
 export const RECONCILIATION_LABEL: Record<string, string> = {

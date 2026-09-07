@@ -6,6 +6,7 @@ import { ApiError, money } from '@/lib/api'
 import { EventForm } from './EventForm'
 import {
   RECONCILIATION_LABEL,
+  lifecycleCommand,
   loadDebtDetail,
   loadDebts,
   type DebtCard,
@@ -61,6 +62,58 @@ function DebtList({
   )
 }
 
+function LifecycleControls({
+  detail, generation, onSaved,
+}: {
+  detail: DebtDetail
+  generation: string
+  onSaved: (status: string) => void | Promise<void>
+}) {
+  const debt = detail.debt
+  const closing = debt.status === 'OPEN'
+  const [effectiveOn, setEffectiveOn] = useState(detail.as_of)
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function submit() {
+    if (busy || !reason.trim()) { setError('A reason is required.'); return }
+    setBusy(true); setError('')
+    try {
+      const result = await lifecycleCommand({
+        kind: closing ? 'PERSONAL_DEBT_CLOSE' : 'PERSONAL_DEBT_REOPEN',
+        debtId: debt.debt_id, generation, effectiveOn, reason: reason.trim(),
+      })
+      await onSaved(result.status)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not update the debt.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <details className="debt-lifecycle">
+      <summary>{closing ? 'Close this debt' : 'Reopen this debt'}</summary>
+      <p className="muted-note">
+        {closing
+          ? 'Close is allowed only when the principal is zero as of this date and no event is dated after it.'
+          : 'Reopen before recording any further events; the principal is unchanged.'}
+      </p>
+      <div className="debt-lifecycle-row">
+        <input aria-label="Lifecycle date" type="date" value={effectiveOn}
+          min={debt.opened_on} onChange={(e) => setEffectiveOn(e.target.value)} disabled={busy} />
+        <input aria-label="Lifecycle reason" placeholder="Reason" value={reason}
+          onChange={(e) => setReason(e.target.value)} disabled={busy} />
+        <Button size="sm" onClick={submit} disabled={busy}>
+          {busy ? 'Saving…' : closing ? 'Close' : 'Reopen'}
+        </Button>
+      </div>
+      {error ? <p className="debt-event-error">{error}</p> : null}
+    </details>
+  )
+}
+
 function DebtDetailView({
   detail, generation, onBack, onSaved,
 }: {
@@ -91,7 +144,7 @@ function DebtDetailView({
       <p className="debt-detail-status">
         {RECONCILIATION_LABEL[debt.reconciliation_status] ?? debt.reconciliation_status}
       </p>
-      {debt.status === 'OPEN' ? (
+      {debt.status === 'OPEN' && (
         recording ? (
           <EventForm
             detail={detail}
@@ -104,7 +157,10 @@ function DebtDetailView({
             <Plus size={14} /> Record an event
           </Button>
         )
-      ) : null}
+      )}
+      {!recording && (
+        <LifecycleControls detail={detail} generation={generation} onSaved={onSaved} />
+      )}
       <table className="debt-history">
         <thead>
           <tr><th>Date</th><th>Event</th><th>Principal</th><th>Note</th></tr>

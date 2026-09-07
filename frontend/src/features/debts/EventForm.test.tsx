@@ -62,6 +62,20 @@ describe('EventForm', () => {
     expect(commit.payload.entry_allocations).toEqual([])
   })
 
+  it('records a forgiveness with no allocations and no category', async () => {
+    await mount()
+    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'RECEIVABLE_WRITTEN_OFF' } })
+    fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '70.00' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Jo will not repay' } })
+    fireEvent.click(screen.getByText('Preview and save'))
+
+    await waitFor(() => expect(calls.some((c) => c.path === 'commands')).toBe(true))
+    const commit = calls.find((c) => c.path === 'commands')!.body as { payload: Record<string, unknown> }
+    expect(commit.payload.event_kind).toBe('RECEIVABLE_WRITTEN_OFF')
+    expect(commit.payload.entry_allocations).toEqual([])
+    expect(commit.payload.expense_category).toBeNull()
+  })
+
   it('requires the source allocations to sum to the event principal', async () => {
     await mount()
     fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
