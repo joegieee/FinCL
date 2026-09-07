@@ -209,3 +209,26 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .bulk-form label{margin-bottom:0;font-size:11px}
 .bulk-form label:nth-child(2){flex:1;min-width:200px}
 @media(max-width:700px){.bulk-form{flex-direction:column;align-items:stretch}}
+
+/* v0.6 planning — dated budgets, goals, recurring */
+.planning-view{display:flex;flex-direction:column;gap:18px}
+.planning-section{padding:20px!important}
+.month-pick{flex-direction:row;align-items:center;gap:8px;font-size:11px;margin:0}
+.month-pick input{height:31px}
+.budget-row{border-top:1px solid var(--border);padding:14px 0}
+.budget-head{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:10px}
+.budget-head small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.budget-head strong{display:inline-flex;align-items:center;gap:6px}
+.budget-values{display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;justify-content:space-between;margin-top:12px}
+.budget-values strong{font-size:18px;letter-spacing:-.4px}
+.budget-values>span{font-size:11px;color:var(--muted)}
+.budget-row>small{display:block;color:var(--muted);font-size:10px;margin-top:6px}
+.planning-form{border-top:1px dashed var(--border);margin-top:12px;padding-top:12px}
+.planning-form label{margin-bottom:8px}
+.history-panel{margin-top:10px;font-size:11px;color:var(--muted)}
+.history-panel ul{margin:4px 0 10px 16px}
+.history-panel .eyebrow{margin-top:6px}
+.occurrence-table{width:100%;font-size:11px;margin-top:10px;border-collapse:collapse}
+.occurrence-table th{text-align:left;font-size:10px;color:var(--muted);border-bottom:1px solid var(--border);padding:5px 8px}
+.occurrence-table td{padding:6px 8px;border-bottom:1px solid var(--border)}
+@media(max-width:700px){.occurrence-table{display:block;overflow-x:auto}}

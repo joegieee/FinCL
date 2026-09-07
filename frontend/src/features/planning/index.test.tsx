@@ -1,0 +1,126 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+
+const apiMock = vi.fn()
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>()
+  return { ...actual, api: (path: string, body?: unknown) => apiMock(path, body) }
+})
+
+const loadBudgets = vi.fn()
+const loadBudgetHistory = vi.fn()
+const loadGoals = vi.fn()
+const loadRecurring = vi.fn()
+const loadOccurrences = vi.fn()
+vi.mock('./api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./api')>()
+  return {
+    ...actual,
+    loadBudgets: (...a: unknown[]) => loadBudgets(...a),
+    loadBudgetHistory: (...a: unknown[]) => loadBudgetHistory(...a),
+    loadGoals: (...a: unknown[]) => loadGoals(...a),
+    loadRecurring: () => loadRecurring(),
+    loadOccurrences: (...a: unknown[]) => loadOccurrences(...a),
+  }
+})
+
+const { PlanningView } = await import('./index')
+const CATEGORIES = ['Food & Dining / Groceries', 'Internal / Transfer']
+
+function budgetsPage(over: Record<string, unknown> = {}) {
+  return {
+    generation: 'g1', month: '2026-03', currency: 'SGD', month_covered: true, month_complete: false,
+    budgets: [{
+      plan: 'b1', name: 'Dining', currency: 'SGD', category_key: 'Food & Dining / Groceries',
+      effective_month: '2026-01', limit: '300.00', actual: '120.00', remaining: null,
+      archived: false, status: 'observed_so_far',
+    }],
+    ...over,
+  }
+}
+const goalsPage = {
+  generation: 'g1', as_of: '2026-03-01',
+  goals: [{
+    plan: 'gg1', name: 'Trip', currency: 'SGD', target: '2000.00', target_on: '2026-12-01',
+    observed_on: '2026-02-01', saved: '500.00', remaining: '1500.00', dated_progress_known: true,
+    archived: false, overdue: false,
+  }],
+}
+const recurringPage = { generation: 'g1', confirmed: [], paused_or_ended: [], dismissed_candidate_keys: [] }
+
+function setup() {
+  loadBudgets.mockResolvedValue(budgetsPage())
+  loadGoals.mockResolvedValue(goalsPage)
+  loadRecurring.mockResolvedValue(recurringPage)
+}
+
+afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+describe('PlanningView', () => {
+  it('shows a budget with its actual and an incomplete-month note instead of a remaining', async () => {
+    setup()
+    render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={() => {}} />)
+    expect(await screen.findByText('Dining')).toBeInTheDocument()
+    expect(screen.getByText('SGD 120.00')).toBeInTheDocument()
+    expect(screen.getByText(/no confident remaining for an incomplete month/i)).toBeInTheDocument()
+  })
+
+  it('revises a budget through preview then commit with a fresh revision id', async () => {
+    setup()
+    const onSaved = vi.fn()
+    render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={onSaved} />)
+    await screen.findByText('Dining')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revise' }))
+    const form = within(document.querySelector('.budget-row .planning-form') as HTMLElement)
+    fireEvent.change(form.getByLabelText('Monthly limit'), { target: { value: '350.00' } })
+    fireEvent.change(form.getByLabelText('Reason'), { target: { value: 'raise it' } })
+
+    apiMock.mockResolvedValueOnce({})
+    fireEvent.click(form.getByRole('button', { name: 'Preview' }))
+    await screen.findByText(/Applies from that month until the next revision/i)
+
+    apiMock.mockResolvedValueOnce({ status: 'recorded' })
+    fireEvent.click(form.getByRole('button', { name: 'Save revision' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('recorded'))
+
+    const preview = apiMock.mock.calls[0][1] as { kind: string; anchors: { plan: string; revision: string } }
+    expect(preview.kind).toBe('BUDGET_REVISION_SET')
+    expect(preview.anchors.plan).toBe('b1')
+    expect(preview.anchors.revision).toMatch(/[0-9a-f-]{36}/)
+  })
+
+  it('records an absolute goal observation', async () => {
+    setup()
+    const onSaved = vi.fn()
+    render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={onSaved} />)
+    await screen.findByText('Trip')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add progress' }))
+    const form = within([...document.querySelectorAll('.budget-row .planning-form')].at(-1) as HTMLElement)
+    fireEvent.change(form.getByLabelText('Observed on'), { target: { value: '2026-03-01' } })
+    fireEvent.change(form.getByLabelText('Amount saved'), { target: { value: '750.00' } })
+    fireEvent.change(form.getByLabelText('Reason'), { target: { value: 'monthly top-up' } })
+
+    apiMock.mockResolvedValueOnce({})
+    fireEvent.click(form.getByRole('button', { name: 'Preview' }))
+    await screen.findByText(/absolute amount, not a change/i)
+
+    apiMock.mockResolvedValueOnce({ status: 'recorded' })
+    fireEvent.click(form.getByRole('button', { name: 'Record progress' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('recorded'))
+    const commit = apiMock.mock.calls.find(c => c[0] === 'commands')?.[1] as { kind: string; payload: { saved: string } }
+    expect(commit.kind).toBe('GOAL_OBSERVATION_SET')
+    expect(commit.payload.saved).toBe('750.00')
+  })
+
+  it('freezes edits when the ledger is stale', async () => {
+    setup()
+    render(<PlanningView generation="g1" freshness="stale" categories={CATEGORIES} onSaved={() => {}} />)
+    await screen.findByText('Dining')
+    expect(screen.getByText(/Refresh before editing plans/i)).toBeInTheDocument()
+    for (const b of screen.getAllByRole('button', { name: /New budget|New goal|Revise|Add progress/ })) {
+      expect((b as HTMLButtonElement).disabled).toBe(true)
+    }
+  })
+})
