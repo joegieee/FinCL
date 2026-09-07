@@ -40,6 +40,7 @@ from .installments import (
     resolve_installments,
     validate_installment_payload,
 )
+from .planning import PLANNING_DECISION_KINDS, apply_planning
 from .relationships import (
     DECISION_BATCH,
     RELATIONSHIP_DECISION_KINDS,
@@ -92,6 +93,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | DEBT_DECISION_KINDS
     | CARD_DECISION_KINDS
     | INSTALLMENT_DECISION_KINDS
+    | PLANNING_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -474,6 +476,8 @@ def _apply_record(
             )
         except FinCLError as exc:
             raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
+    elif record.decision_kind in PLANNING_DECISION_KINDS:
+        apply_planning(connection, record, batch_index=batch_index)
 
 
 def _binding(reason: str | None, override: str | None) -> tuple[int, str | None]:

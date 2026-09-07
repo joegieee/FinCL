@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -145,6 +145,101 @@ CREATE TABLE IF NOT EXISTS refund_allocations (
     currency TEXT NOT NULL,
     journal_seq INTEGER NOT NULL,
     PRIMARY KEY (refund_anchor, purchase_anchor)
+) STRICT;
+"""
+
+
+# ---------------------------------------------------------------------------
+# v0.6 planning projection tables.
+#
+# Schema 18 follows v0.3 debts (13) and v0.4 cards/installments (14–17).
+#
+# All three v0.6 sub-domains' tables are created here in one step (like schema
+# 10/11); goals and recurring rows are populated by the slices that follow.
+SCHEMA_18_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS budget_revisions (
+    plan TEXT NOT NULL,
+    revision TEXT NOT NULL,
+    effective_month TEXT NOT NULL,
+    name TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    category_key TEXT,
+    limit_coefficient INTEGER NOT NULL,
+    limit_scale INTEGER NOT NULL CHECK (limit_scale BETWEEN 0 AND {MAX_SCALE}),
+    journal_seq INTEGER NOT NULL,
+    batch_index INTEGER,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    PRIMARY KEY (plan, revision)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS budget_archive_periods (
+    plan TEXT NOT NULL,
+    effective_month TEXT NOT NULL,
+    archived INTEGER NOT NULL CHECK (archived IN (0, 1)),
+    journal_seq INTEGER NOT NULL,
+    PRIMARY KEY (plan, effective_month)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS goal_details (
+    plan TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    target_coefficient INTEGER NOT NULL,
+    target_scale INTEGER NOT NULL CHECK (target_scale BETWEEN 0 AND {MAX_SCALE}),
+    currency TEXT NOT NULL,
+    target_on TEXT,
+    journal_seq INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS goal_observations (
+    plan TEXT NOT NULL,
+    observation TEXT NOT NULL,
+    observed_on TEXT NOT NULL,
+    saved_coefficient INTEGER NOT NULL,
+    saved_scale INTEGER NOT NULL CHECK (saved_scale BETWEEN 0 AND {MAX_SCALE}),
+    journal_seq INTEGER NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    PRIMARY KEY (plan, observation)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS goal_archive (
+    plan TEXT PRIMARY KEY,
+    archived INTEGER NOT NULL CHECK (archived IN (0, 1)),
+    journal_seq INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS recurring_commitments (
+    commitment TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    merchant_key TEXT NOT NULL,
+    account_ids_json TEXT NOT NULL,
+    seed_anchors_json TEXT NOT NULL,
+    schedule_json TEXT NOT NULL,
+    expected_coefficient INTEGER NOT NULL,
+    expected_scale INTEGER NOT NULL CHECK (expected_scale BETWEEN 0 AND {MAX_SCALE}),
+    tolerance_coefficient INTEGER NOT NULL,
+    tolerance_scale INTEGER NOT NULL CHECK (tolerance_scale BETWEEN 0 AND {MAX_SCALE}),
+    status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'ended')),
+    ended_on TEXT,
+    journal_seq INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS recurring_candidate_dismissals (
+    candidate TEXT PRIMARY KEY,
+    journal_seq INTEGER NOT NULL,
+    reason TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS recurring_occurrences (
+    commitment TEXT NOT NULL,
+    scheduled_on TEXT NOT NULL,
+    entry_anchor TEXT,
+    journal_seq INTEGER NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    PRIMARY KEY (commitment, scheduled_on)
 ) STRICT;
 """
 
@@ -734,6 +829,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_15_TABLES_SQL
         + SCHEMA_16_TABLES_SQL
         + SCHEMA_17_TABLES_SQL
+        + SCHEMA_18_TABLES_SQL
     )
 
 
