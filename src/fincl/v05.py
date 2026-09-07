@@ -308,6 +308,16 @@ def categories_page(database: Path) -> dict[str, Any]:
     details = _latest(records, "CATEGORY_DETAILS_SET", "CATEGORY_DETAILS_RETIRE", "category")
     archived = _latest(records, "CATEGORY_ARCHIVE_SET", "CATEGORY_ARCHIVE_RETIRE", "category")
     custom = custom_categories(database)
+    connection = connect_readonly(database)
+    try:
+        rule_counts = {
+            f"{row['group_name']} / {row['category']}": row["n"]
+            for row in connection.execute(
+                "SELECT group_name, category, count(*) AS n FROM category_rules GROUP BY group_name, category"
+            )
+        }
+    finally:
+        connection.close()
     categories: list[dict[str, Any]] = []
     for key in sorted(custom):
         group, name = key.split(" / ", 1) if " / " in key else ("", key)
@@ -318,6 +328,7 @@ def categories_page(database: Path) -> dict[str, Any]:
                 "display_group": detail.payload["display_group"] if detail else group,
                 "display_name": detail.payload["display_name"] if detail else name,
                 "archived": bool(archived[key].payload["archived"]) if key in archived else False,
+                "active_rule_count": rule_counts.get(key, 0),
                 "custom": True,
             }
         )

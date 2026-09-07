@@ -11,7 +11,7 @@ const { CustomCategoryManager } = await import('./CustomCategoryManager')
 
 const PAGE = {
   generation: 'g1',
-  categories: [{ key: 'Lifestyle / Board Games', display_group: 'Lifestyle', display_name: 'Tabletop', archived: false, custom: true }],
+  categories: [{ key: 'Lifestyle / Board Games', display_group: 'Lifestyle', display_name: 'Tabletop', archived: false, active_rule_count: 2, custom: true }],
 }
 
 afterEach(() => { cleanup(); vi.clearAllMocks() })
@@ -23,12 +23,13 @@ describe('CustomCategoryManager', () => {
     render(<CustomCategoryManager freshness="current" onSaved={onSaved} />)
     expect(await screen.findByText('Lifestyle / Tabletop')).toBeInTheDocument()
 
+    expect(screen.getByText('2 active rules')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Archive/ }))
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'not in use' } })
 
     apiMock.mockResolvedValueOnce({}) // preview
     fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
-    expect(await screen.findByText(/Hides this category from new assignments/)).toBeInTheDocument()
+    expect(await screen.findByText(/its 2 rules keep applying until retired/)).toBeInTheDocument()
 
     apiMock.mockResolvedValueOnce({ status: 'recorded' }) // commit
     apiMock.mockResolvedValueOnce(PAGE) // reload

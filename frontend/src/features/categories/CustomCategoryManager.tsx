@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { api } from '@/lib/api'
 import { useLedgerCommand } from '@/lib/command'
 
-type CustomCategory = { key: string; display_group: string; display_name: string; archived: boolean; custom: boolean }
+type CustomCategory = { key: string; display_group: string; display_name: string; archived: boolean; active_rule_count: number; custom: boolean }
 type CategoriesPage = { generation: string; categories: CustomCategory[] }
 
 /**
@@ -62,6 +62,7 @@ function CustomCategoryRow({ category, generation, disabled, onSaved }: {
       <div>
         <strong>{category.display_group} / {category.display_name}</strong>
         {category.archived && <Badge variant="outline"> archived</Badge>}
+        {category.active_rule_count > 0 && <Badge variant="outline"> {category.active_rule_count} active rule{category.active_rule_count === 1 ? '' : 's'}</Badge>}
         <small className="mono">{category.key}</small>
       </div>
       {mode === 'idle' && (
@@ -93,7 +94,7 @@ function CustomCategoryRow({ category, generation, disabled, onSaved }: {
         <form onChange={cmd.reset} onSubmit={e => { e.preventDefault(); void cmd.act({ kind: 'CATEGORY_ARCHIVE_SET', anchors: { category: category.key }, payload: { archived: !category.archived, reason } }) }}>
           <label>Reason<Input required maxLength={2000} value={reason} disabled={cmd.attempted} onChange={e => setReason(e.target.value)} placeholder={category.archived ? 'Why restore it?' : 'Why archive it?'} /></label>
           {cmd.error && <p className="form-error" role="alert">{cmd.error}</p>}
-          {cmd.previewed && <div className="preview" role="status"><Check size={15} /><p>{category.archived ? 'Restores this category for new assignments.' : 'Hides this category from new assignments. Existing decisions and reports are unaffected.'}</p></div>}
+          {cmd.previewed && <div className="preview" role="status"><Check size={15} /><p>{category.archived ? 'Restores this category for new assignments.' : `Hides this category from new assignments. Existing decisions and reports are unaffected${category.active_rule_count > 0 ? `, and its ${category.active_rule_count} rule${category.active_rule_count === 1 ? '' : 's'} keep applying until retired` : ''}.`}</p></div>}
           <div className="dialog-actions">
             <Button type="button" variant="ghost" size="sm" onClick={() => setMode('idle')}>Cancel</Button>
             <Button type="submit" disabled={cmd.busy}>{cmd.busy ? 'Working…' : cmd.previewed ? (cmd.attempted ? 'Retry same save' : category.archived ? 'Restore' : 'Archive') : 'Preview'}</Button>
