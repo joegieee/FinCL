@@ -13,10 +13,10 @@ import sqlite3
 from ..decision_journal import JournalRecord
 from ..errors import FinCLError
 from .budgets import BUDGET_DECISION_KINDS, apply_budget, validate_budget
+from .goals import GOAL_DECISION_KINDS, apply_goal, validate_goal
 
-PLANNING_DECISION_KINDS = BUDGET_DECISION_KINDS
-# Extended by the goals and recurring slices:
-#   | GOAL_DECISION_KINDS | RECURRING_DECISION_KINDS
+PLANNING_DECISION_KINDS = BUDGET_DECISION_KINDS | GOAL_DECISION_KINDS
+# Extended by the recurring slice: | RECURRING_DECISION_KINDS
 
 
 def apply_planning(
@@ -31,6 +31,10 @@ def apply_planning(
         if record.decision_kind in BUDGET_DECISION_KINDS:
             validate_budget(record.decision_kind, record.anchors, record.payload)
             apply_budget(connection, record, batch_index=batch_index)
+            return
+        if record.decision_kind in GOAL_DECISION_KINDS:
+            validate_goal(record.decision_kind, record.anchors, record.payload)
+            apply_goal(connection, record)
             return
     except FinCLError as exc:
         raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
