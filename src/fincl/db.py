@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -431,6 +431,125 @@ CREATE INDEX IF NOT EXISTS card_limit_observations_timeline
 """
 
 
+# Schema 16 derived tables (v0.4 credit cards slice 3; docs/releases/v0.4-cards.md
+# §3). The disposable installment projection replayed from the
+# `INSTALLMENT_PLAN_SET` / `INSTALLMENT_ALLOCATION_SET` /
+# `INSTALLMENT_SETTLEMENT_SET` (+ RETIRE) kinds: plan identity and known/unknown
+# principal / term in `installment_plans`, the evidence-anchored source
+# occurrences in `installment_occurrences`, the (projected) schedule in
+# `installment_schedule` with a disclosed rounding remainder, the original
+# purchase component claims in `installment_purchase_allocations` (anchors
+# resolved here so `analysis.allocations` can read `bound = 1` rows), and early
+# settlements partitioned into principal / fees / waivers in
+# `installment_settlements`. Occurrence identity is an evidence anchor, not list
+# position. No mutable remaining-liability is stored. Shared verbatim between a
+# fresh `initialize_schema` and the registered 15->16 migration.
+SCHEMA_16_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS installment_plans (
+    plan_id TEXT PRIMARY KEY,
+    card_account_id TEXT,
+    currency TEXT NOT NULL,
+    plan_reference TEXT,
+    merchant_label TEXT NOT NULL,
+    term_months INTEGER CHECK (term_months IS NULL OR term_months > 0),
+    principal_coefficient INTEGER
+        CHECK (principal_coefficient IS NULL OR
+               principal_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    principal_scale INTEGER CHECK (principal_scale IS NULL OR principal_scale BETWEEN 0 AND {MAX_SCALE}),
+    financing_fee_coefficient INTEGER
+        CHECK (financing_fee_coefficient IS NULL OR
+               financing_fee_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    financing_fee_scale INTEGER
+        CHECK (financing_fee_scale IS NULL OR financing_fee_scale BETWEEN 0 AND {MAX_SCALE}),
+    opened_on TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('PROPOSED', 'CONFIRMED', 'SETTLED')),
+    journal_seq INTEGER NOT NULL,
+    batch_index INTEGER,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    reason TEXT NOT NULL,
+    CHECK ((principal_coefficient IS NULL) = (principal_scale IS NULL)),
+    CHECK ((financing_fee_coefficient IS NULL) = (financing_fee_scale IS NULL))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS installment_plans_scope
+    ON installment_plans(card_account_id, status, currency);
+
+CREATE TABLE IF NOT EXISTS installment_occurrences (
+    plan_id TEXT NOT NULL REFERENCES installment_plans(plan_id),
+    occurrence_id TEXT NOT NULL,
+    occurrence_index INTEGER CHECK (occurrence_index IS NULL OR occurrence_index > 0),
+    occurrence_count INTEGER CHECK (occurrence_count IS NULL OR occurrence_count > 0),
+    entry_anchor TEXT NOT NULL,
+    entry_id TEXT,
+    effective_on TEXT NOT NULL,
+    amount_coefficient INTEGER NOT NULL
+        CHECK (amount_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
+    date_precision TEXT NOT NULL DEFAULT 'DAY' CHECK (date_precision IN ('DAY', 'MONTH', 'UNKNOWN')),
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    PRIMARY KEY (plan_id, occurrence_id)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS installment_occurrences_by_anchor
+    ON installment_occurrences(entry_anchor);
+
+CREATE TABLE IF NOT EXISTS installment_schedule (
+    plan_id TEXT NOT NULL REFERENCES installment_plans(plan_id),
+    schedule_index INTEGER NOT NULL CHECK (schedule_index > 0),
+    due_on TEXT NOT NULL,
+    principal_coefficient INTEGER NOT NULL
+        CHECK (principal_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    principal_scale INTEGER NOT NULL CHECK (principal_scale BETWEEN 0 AND {MAX_SCALE}),
+    fee_coefficient INTEGER NOT NULL DEFAULT 0
+        CHECK (fee_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    fee_scale INTEGER NOT NULL DEFAULT 0 CHECK (fee_scale BETWEEN 0 AND {MAX_SCALE}),
+    rounding_remainder_coefficient INTEGER NOT NULL DEFAULT 0,
+    rounding_remainder_scale INTEGER NOT NULL DEFAULT 0
+        CHECK (rounding_remainder_scale BETWEEN 0 AND {MAX_SCALE}),
+    is_projected INTEGER NOT NULL DEFAULT 1 CHECK (is_projected IN (0, 1)),
+    PRIMARY KEY (plan_id, schedule_index)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS installment_purchase_allocations (
+    plan_id TEXT NOT NULL REFERENCES installment_plans(plan_id),
+    seq_in_plan INTEGER NOT NULL,
+    entry_anchor TEXT NOT NULL,
+    entry_id TEXT,
+    component_role TEXT NOT NULL CHECK (component_role IN ('principal', 'fee')),
+    amount_coefficient INTEGER NOT NULL
+        CHECK (amount_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
+    currency TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    PRIMARY KEY (plan_id, seq_in_plan)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS installment_purchase_allocations_source
+    ON installment_purchase_allocations(entry_anchor);
+
+CREATE TABLE IF NOT EXISTS installment_settlements (
+    plan_id TEXT NOT NULL REFERENCES installment_plans(plan_id),
+    settlement_id TEXT NOT NULL,
+    settled_on TEXT NOT NULL,
+    source_entry_anchor TEXT NOT NULL,
+    source_entry_id TEXT,
+    principal_coefficient INTEGER NOT NULL,
+    principal_scale INTEGER NOT NULL CHECK (principal_scale BETWEEN 0 AND {MAX_SCALE}),
+    fee_coefficient INTEGER NOT NULL,
+    fee_scale INTEGER NOT NULL CHECK (fee_scale BETWEEN 0 AND {MAX_SCALE}),
+    waiver_coefficient INTEGER NOT NULL,
+    waiver_scale INTEGER NOT NULL CHECK (waiver_scale BETWEEN 0 AND {MAX_SCALE}),
+    currency TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    PRIMARY KEY (plan_id, settlement_id)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS installment_settlements_source
+    ON installment_settlements(source_entry_anchor);
+"""
+
+
 def _create_decision_projection(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
@@ -584,6 +703,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_11_TABLES_SQL
         + SCHEMA_13_TABLES_SQL
         + SCHEMA_15_TABLES_SQL
+        + SCHEMA_16_TABLES_SQL
     )
 
 

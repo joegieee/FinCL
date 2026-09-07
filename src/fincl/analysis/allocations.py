@@ -13,7 +13,8 @@ bound.
 Slice 1 wires the two live claim sources that already have projection tables —
 personal-debt allocations (empty until v0.3 slice 2) and refund attributions —
 plus the owner residual. Adding a claim source later means adding a term to
-:func:`_claimed_minor`, never a parallel checker.
+:func:`_claimed_minor`, never a parallel checker. v0.4 adds the installment
+term: original-purchase component claims and early-settlement cash components.
 """
 
 from __future__ import annotations
@@ -94,6 +95,42 @@ def _refund_claim_minor(connection: sqlite3.Connection, entry_anchor: str, role:
     return total
 
 
+def _installment_claim_minor(
+    connection: sqlite3.Connection, entry_anchor: str, role: str
+) -> Fraction:
+    """Installment claims against one source component.
+
+    An original-purchase allocation with ``component_role = 'principal'`` claims
+    the purchase entry's ``amount``; ``'fee'`` claims its ``fee``. An early
+    settlement's principal and fee components consume the settlement source
+    repayment's ``amount`` (cash); a waived amount is not a cash claim.
+    """
+    total = Fraction(0)
+    for row in connection.execute(
+        "SELECT component_role, amount_coefficient, amount_scale "
+        "FROM installment_purchase_allocations WHERE entry_anchor = ? AND bound = 1",
+        (entry_anchor,),
+    ):
+        wants = "amount" if row["component_role"] == "principal" else "fee"
+        if wants == role:
+            total += Fraction(
+                int(row["amount_coefficient"]), 10 ** int(row["amount_scale"])
+            )
+    if role == "amount":
+        for row in connection.execute(
+            "SELECT principal_coefficient, principal_scale, fee_coefficient, fee_scale "
+            "FROM installment_settlements WHERE source_entry_anchor = ? AND bound = 1",
+            (entry_anchor,),
+        ):
+            total += Fraction(
+                int(row["principal_coefficient"]), 10 ** int(row["principal_scale"])
+            )
+            total += Fraction(
+                int(row["fee_coefficient"]), 10 ** int(row["fee_scale"])
+            )
+    return total
+
+
 def _table_exists(connection: sqlite3.Connection, name: str) -> bool:
     return (
         connection.execute(
@@ -111,6 +148,8 @@ def _claimed_minor(connection: sqlite3.Connection, entry_anchor: str, role: str)
         total += _residual_claim_minor(connection, entry_anchor, role)
     if _table_exists(connection, "refund_allocations"):
         total += _refund_claim_minor(connection, entry_anchor, role)
+    if _table_exists(connection, "installment_purchase_allocations"):
+        total += _installment_claim_minor(connection, entry_anchor, role)
     return total
 
 

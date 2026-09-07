@@ -34,6 +34,12 @@ from .debts import (
 )
 from .decision_journal import GENESIS_HASH, JournalRecord, default_journal_path, read_records
 from .errors import FinCLError
+from .installments import (
+    INSTALLMENT_DECISION_KINDS,
+    apply_installment,
+    resolve_installments,
+    validate_installment_payload,
+)
 from .relationships import (
     DECISION_BATCH,
     RELATIONSHIP_DECISION_KINDS,
@@ -85,6 +91,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | V05_DECISION_KINDS
     | DEBT_DECISION_KINDS
     | CARD_DECISION_KINDS
+    | INSTALLMENT_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -236,6 +243,11 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "card_limit_observations",
             "card_facility_accounts",
             "card_facilities",
+            "installment_settlements",
+            "installment_purchase_allocations",
+            "installment_schedule",
+            "installment_occurrences",
+            "installment_plans",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -251,6 +263,8 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             resolve_debts(connection)
         if _table_exists(connection, "card_facilities"):
             resolve_cards(connection)
+        if _table_exists(connection, "installment_plans"):
+            resolve_installments(connection)
         _rebuild_command_receipts(connection, records)
         connection.execute("UPDATE decision_watermark SET applied_seq = ? WHERE id = 1", (len(records),))
         if verify_association:
@@ -421,6 +435,22 @@ def _apply_record(
         except FinCLError as exc:
             raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
         apply_card(
+            connection,
+            decision_kind=record.decision_kind,
+            anchors=record.anchors,
+            payload=record.payload,
+            journal_seq=record.seq,
+            batch_index=batch_index,
+            resolve_anchor=lambda anchor: resolve_anchor(connection, anchor),
+        )
+    elif record.decision_kind in INSTALLMENT_DECISION_KINDS:
+        try:
+            validate_installment_payload(
+                record.decision_kind, record.anchors, record.payload
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
+        apply_installment(
             connection,
             decision_kind=record.decision_kind,
             anchors=record.anchors,

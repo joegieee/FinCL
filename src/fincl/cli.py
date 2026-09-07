@@ -86,6 +86,8 @@ debt_app = typer.Typer(help="Open and inspect personal debts and shared expenses
 app.add_typer(debt_app, name="debt")
 cards_app = typer.Typer(help="Inspect credit cards and their observed statements (v0.4).")
 app.add_typer(cards_app, name="cards")
+installments_app = typer.Typer(help="Confirm and inspect credit-card installment plans (v0.4).")
+app.add_typer(installments_app, name="installments")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -2065,6 +2067,212 @@ def cards_statements(
                 (recon["printed_equation"] or "—"), recon["status"],
             )
     console.print(table)
+
+
+def _record_installment(
+    database: Path, kind: str, anchors: dict[str, str], payload: dict[str, object],
+    *, json_output: bool = False, plain: bool = False,
+) -> None:
+    import hashlib
+    import uuid as _uuid
+
+    from .application import record_installment_decision
+    from .common import canonical_json
+
+    try:
+        request_id = str(_uuid.uuid4())
+        intent = hashlib.sha256(
+            canonical_json({"kind": kind, "anchors": anchors, "payload": payload}).encode()
+        ).hexdigest()
+        receipt = record_installment_decision(
+            database, request_id=request_id, intent_hash=intent,
+            decision_kind=kind, anchors=anchors, payload=payload,
+        )
+        _emit_mapping(
+            {"seq": receipt.journal_seq, "record_hash": receipt.record_hash,
+             "plan": anchors.get("plan", ""),
+             "settlement": anchors.get("settlement", ""),
+             "status": "recorded_refresh_pending" if receipt.refresh_pending else "applied"},
+            plain, json_output,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@installments_app.command("confirm-plan")
+def installments_confirm_plan(
+    spec: Path = typer.Option(..., "--spec", help="JSON file: the INSTALLMENT_PLAN_SET payload."),
+    database: Path = typer.Option(..., "--database"),
+    plan: str | None = typer.Option(None, "--plan", help="Existing plan id to revise."),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Confirm an installment chain from a JSON payload spec (INSTALLMENT_PLAN_SET)."""
+    import json as _json
+    import uuid as _uuid
+
+    try:
+        payload = _json.loads(spec.read_text())
+    except (OSError, ValueError) as exc:
+        _fail(exc)
+    _record_installment(
+        database, "INSTALLMENT_PLAN_SET", {"plan": plan or str(_uuid.uuid4())},
+        payload, json_output=json_output, plain=plain,
+    )
+
+
+@installments_app.command("allocate")
+def installments_allocate(
+    plan: str = typer.Option(..., "--plan"),
+    spec: Path = typer.Option(..., "--spec", help="JSON file: the INSTALLMENT_ALLOCATION_SET payload."),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Link original purchase component(s) to a plan (INSTALLMENT_ALLOCATION_SET)."""
+    import json as _json
+
+    try:
+        payload = _json.loads(spec.read_text())
+    except (OSError, ValueError) as exc:
+        _fail(exc)
+    _record_installment(
+        database, "INSTALLMENT_ALLOCATION_SET", {"plan": plan.strip()},
+        payload, json_output=json_output, plain=plain,
+    )
+
+
+@installments_app.command("settle")
+def installments_settle(
+    plan: str = typer.Option(..., "--plan"),
+    settled_on: str = typer.Option(..., "--settled-on", help="YYYY-MM-DD."),
+    source_entry: str = typer.Option(..., "--source-entry", help="Settlement repayment entry anchor."),
+    principal: str = typer.Option("0", "--principal"),
+    fee: str = typer.Option("0", "--fee"),
+    waiver: str = typer.Option("0", "--waiver"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Record an early settlement, partitioning principal / fees / waivers."""
+    import uuid as _uuid
+
+    _record_installment(
+        database, "INSTALLMENT_SETTLEMENT_SET",
+        {"plan": plan.strip(), "settlement": str(_uuid.uuid4())},
+        {
+            "settled_on": settled_on.strip(),
+            "source_entry_anchor": source_entry.strip(),
+            "principal_amount": principal.strip(),
+            "fee_amount": fee.strip(),
+            "waiver_amount": waiver.strip(),
+            "reason": reason.strip(),
+        },
+        json_output=json_output, plain=plain,
+    )
+
+
+@installments_app.command("retire-plan")
+def installments_retire_plan(
+    plan: str = typer.Option(..., "--plan"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Retire a plan and its dependent allocations / settlement atomically."""
+    _record_installment(
+        database, "INSTALLMENT_PLAN_RETIRE", {"plan": plan.strip()},
+        {"reason": reason.strip()}, json_output=json_output, plain=plain,
+    )
+
+
+@installments_app.command("list")
+def installments_list(
+    database: Path = typer.Option(..., "--database"),
+    card: str | None = typer.Option(None, "--card"),
+    status: str | None = typer.Option(None, "--status"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """List installment plans with known/unknown principal and observed progress."""
+    from .installments.queries import installments_page
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        data = installments_page(database, card=card, status=status, limit=200)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+        return
+    table = Table(title="Installment plans")
+    for column in (
+        "Plan", "Merchant", "Currency", "Status", "Known principal",
+        "Observed paid", "Remaining", "Occurrences",
+    ):
+        table.add_column(column)
+    for plan in data["plans"]:
+        progress = plan["progress"]
+        known = progress["known_principal"]
+        remaining = progress["remaining_obligation"]
+        table.add_row(
+            plan["plan_id"], plan["merchant_label"], plan["currency"],
+            plan["effective_status"],
+            (known["value"] if known else "unknown"),
+            progress["observed_principal_paid"]["value"],
+            (remaining["value"] if remaining else "—"),
+            f"{progress['occurrences_bound']}/{progress['occurrence_count']}",
+        )
+    console.print(table)
+
+
+@installments_app.command("show")
+def installments_show(
+    plan: str = typer.Option(..., "--plan"),
+    database: Path = typer.Option(..., "--database"),
+    as_of: str | None = typer.Option(None, "--as-of"),
+    json_output: bool = typer.Option(False, "--json"),
+    no_refresh: bool = typer.Option(False, "--no-refresh", help=_NO_REFRESH_HELP),
+) -> None:
+    """Show one plan: source occurrences, schedule, allocations, settlement, lenses."""
+    from .installments.queries import installment_detail
+
+    try:
+        _prepare_for_query(database, no_refresh)
+        data = installment_detail(database, plan, as_of=as_of)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+    if json_output:
+        typer.echo(json_report(data))
+        return
+    body = data["plan"]
+    console.print(
+        f"{body['merchant_label']} — {body['effective_status']} "
+        f"({body['currency']}, opened {body['opened_on']})"
+    )
+    occ = Table(title="Source occurrences (evidence anchors, not list position)")
+    for column in ("Occurrence", "n/of", "Effective", "Amount", "Bound"):
+        occ.add_column(column)
+    for row in data["source_occurrences"]:
+        occ.add_row(
+            row["occurrence_id"][:8],
+            f"{row['occurrence_index'] or '?'}/{row['occurrence_count'] or '?'}",
+            row["effective_on"], row["amount"]["value"],
+            "yes" if row["bound"] else "no",
+        )
+    console.print(occ)
+    if data["schedule"]:
+        sched = Table(title="Projected schedule (distinct from observed occurrences)")
+        for column in ("#", "Due", "Principal", "Fee", "Rounding remainder"):
+            sched.add_column(column)
+        for row in data["schedule"]:
+            sched.add_row(
+                str(row["schedule_index"]), row["due_on"], row["principal"]["value"],
+                row["fee"]["value"], row["rounding_remainder"]["value"],
+            )
+        console.print(sched)
 
 
 def main() -> None:

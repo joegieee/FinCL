@@ -49,6 +49,10 @@ _SINGLE_KINDS = Literal[
     # v0.4 credit-card facilities and dated limit observations
     'CARD_FACILITY_SET','CARD_FACILITY_RETIRE','CARD_LIMIT_OBSERVATION_SET',
     'CARD_LIMIT_OBSERVATION_RETIRE',
+    # v0.4 installment plans, purchase allocations and early settlement
+    'INSTALLMENT_PLAN_SET','INSTALLMENT_PLAN_RETIRE','INSTALLMENT_ALLOCATION_SET',
+    'INSTALLMENT_ALLOCATION_RETIRE','INSTALLMENT_SETTLEMENT_SET',
+    'INSTALLMENT_SETTLEMENT_RETIRE',
 ]
 
 _DEBT_KINDS = frozenset({
@@ -60,6 +64,12 @@ _DEBT_KINDS = frozenset({
 _CARD_KINDS = frozenset({
     'CARD_FACILITY_SET','CARD_FACILITY_RETIRE','CARD_LIMIT_OBSERVATION_SET',
     'CARD_LIMIT_OBSERVATION_RETIRE',
+})
+
+_INSTALLMENT_KINDS = frozenset({
+    'INSTALLMENT_PLAN_SET','INSTALLMENT_PLAN_RETIRE','INSTALLMENT_ALLOCATION_SET',
+    'INSTALLMENT_ALLOCATION_RETIRE','INSTALLMENT_SETTLEMENT_SET',
+    'INSTALLMENT_SETTLEMENT_RETIRE',
 })
 
 
@@ -433,19 +443,27 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                 )
             finally:
                 preview_connection.close()
-        elif command.kind in _CARD_KINDS:
-            from .cards.preview import preview_card
+        elif command.kind in _CARD_KINDS or command.kind in _INSTALLMENT_KINDS:
             from .db import connect_sqlite, initialize_schema
             from .decisions import replay_journal
             preview_connection = connect_sqlite(database)
             try:
                 initialize_schema(preview_connection)
                 replay_journal(preview_connection)
-                preview_card(
-                    preview_connection, command.kind, dict(command.anchors),
-                    dict(command.payload),
-                    resolve_anchor=lambda a: resolve_anchor(preview_connection, a),
-                )
+                if command.kind in _CARD_KINDS:
+                    from .cards.preview import preview_card
+                    preview_card(
+                        preview_connection, command.kind, dict(command.anchors),
+                        dict(command.payload),
+                        resolve_anchor=lambda a: resolve_anchor(preview_connection, a),
+                    )
+                else:
+                    from .installments.preview import preview_installment
+                    preview_installment(
+                        preview_connection, command.kind, dict(command.anchors),
+                        dict(command.payload),
+                        resolve_anchor=lambda a: resolve_anchor(preview_connection, a),
+                    )
             finally:
                 preview_connection.close()
         else:
@@ -754,6 +772,8 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                     policy = 'personal-debt-v1'
                 elif command.kind in _CARD_KINDS:
                     policy = 'card-facility-v1'
+                elif command.kind in _INSTALLMENT_KINDS:
+                    policy = 'installment-v1'
             receipt = record_decision(database,request_id=str(command.request_id),intent_hash=intent,decision_kind=kind,anchors=anchors,payload=payload,policy_version=policy,snapshot=f'{kind}: {payload}',writer=writer)
             return JSONResponse({**asdict(receipt),'status':'recorded_refresh_pending' if receipt.refresh_pending else 'applied'},status_code=202 if receipt.refresh_pending else 200)
 

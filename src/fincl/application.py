@@ -273,6 +273,56 @@ def record_card_decision(
         )
 
 
+def record_installment_decision(
+    database_path: Path,
+    *,
+    request_id: str,
+    intent_hash: str,
+    decision_kind: str,
+    anchors: dict[str, str],
+    payload: dict[str, object],
+    policy_version: str = "installment-v1",
+    writer: WriterContext | None = None,
+) -> DecisionReceipt:
+    """Append one ``INSTALLMENT_*`` record.
+
+    Shape validation runs in ``installments.validation``; the full-state
+    ``preview_installment`` below applies the pending decision against the
+    current projection inside a savepoint and runs the real
+    ``resolve_installments`` pass, so a durable record is never made for a
+    decision that could not fully replay (plan existence, occurrence resolution,
+    one active plan per occurrence, component partition against v0.2/v0.3).
+    """
+    from .decisions import resolve_anchor
+    from .installments.preview import preview_installment
+
+    with ledger_writer(database_path, existing=writer) as held:
+        connection = connect_sqlite(database_path)
+        try:
+            initialize_schema(connection)
+            replay_journal(connection)
+            preview_installment(
+                connection,
+                decision_kind,
+                anchors,
+                payload,
+                resolve_anchor=lambda a: resolve_anchor(connection, a),
+            )
+        finally:
+            connection.close()
+        return record_decision(
+            database_path,
+            request_id=request_id,
+            intent_hash=intent_hash,
+            decision_kind=decision_kind,
+            anchors=anchors,
+            payload=payload,
+            policy_version=policy_version,
+            snapshot=f"{decision_kind}: {anchors}",
+            writer=held,
+        )
+
+
 def record_refund_allocation(
     database_path: Path,
     *,

@@ -87,5 +87,44 @@ def register_card_reads(app: FastAPI, database: Path) -> None:
             except FinCLError as exc:
                 raise _map_error(exc) from exc
 
+    @app.get("/api/v1/installments")
+    def installments(
+        card: str | None = None,
+        status: str | None = None,
+        cursor: str | None = None,
+        limit: int = 50,
+        generation: str | None = None,
+    ) -> Any:
+        from .installments.queries import installments_page
+
+        with ledger_writer(database):
+            try:
+                return installments_page(
+                    database,
+                    card=card,
+                    status=status,
+                    cursor=cursor,
+                    limit=limit,
+                    expected=generation,
+                )
+            except FinCLError as exc:
+                raise _map_error(exc) from exc
+
+    @app.get("/api/v1/installments/{plan_id}")
+    def installment_detail_route(
+        plan_id: str,
+        as_of: str | None = None,
+        generation: str | None = None,
+    ) -> Any:
+        from .installments.queries import installment_detail
+
+        with ledger_writer(database):
+            try:
+                return installment_detail(
+                    database, plan_id, as_of=as_of, expected=generation
+                )
+            except FinCLError as exc:
+                raise _map_error(exc) from exc
+
 
 __all__ = ["register_card_reads"]
