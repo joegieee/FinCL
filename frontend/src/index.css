@@ -118,3 +118,22 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .debt-lifecycle summary{cursor:pointer;font-weight:600}
 .debt-lifecycle-row{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
 .debt-lifecycle-row input{font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:inherit}
+
+/* v0.4 cards + installments */
+.card-statement{border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-top:8px}
+.card-statement>header{font-size:11px;color:var(--muted);margin-bottom:6px}
+.card-source{margin-top:6px}
+.card-source-head{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted)}
+.card-source-table,.card-source-checks{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+.card-source-table th,.card-source-checks th{text-align:left;font-weight:500;color:var(--muted)}
+.card-source-table td,.card-source-checks td{text-align:right;font-variant-numeric:tabular-nums}
+.card-source-total th,.card-source-total td{border-top:1px solid var(--border);font-weight:600}
+.card-util{margin:4px 0 10px}
+.card-util-bar{height:7px;border-radius:4px;background:var(--secondary);overflow:hidden}
+.card-util-bar>span{display:block;height:100%;background:var(--primary)}
+.card-manual{border:1px solid var(--border);border-radius:6px;padding:8px 10px}
+.card-manual ul{margin:6px 0 0;padding-left:18px;font-size:12px}
+.card-lenses{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.card-lenses>div{border:1px solid var(--border);border-radius:6px;padding:10px 12px}
+.card-lenses h4{margin:0 0 4px;font-size:12px}
+.card-lenses small{font-size:10px;color:var(--muted)}
