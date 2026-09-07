@@ -69,6 +69,28 @@ class V05CliTests(unittest.TestCase):
         item = next(row for row in categories_page(self.database)["categories"] if row["key"] == key)
         self.assertFalse(item["archived"])
 
+    def test_v05_metadata_survives_a_cold_rebuild(self) -> None:
+        from fincl.rebuild import rebuild_database
+
+        key = "Lifestyle / Board Games"
+        account = accounts_page(self.database)["accounts"][0]
+        self._cli("categories", "create", key, "--reason", "seed")
+        self._cli("categories", "details", key, "--group", "Lifestyle", "--name", "Tabletop", "--reason", "label")
+        self._cli("categories", "archive", key, "--reason", "unused")
+        self._cli("accounts", "scope", account["id"], "--pocket", "SGD", "--start", "2026-01-01", "--end", "2026-01-20", "--reason", "window")
+        self._cli("accounts", "details", account["id"], "--name", "Daily", "--reason", "label")
+
+        before_categories = categories_page(self.database)["categories"]
+        before_accounts = accounts_page(self.database)["accounts"]
+
+        output = self.database.parent / "rebuilt.sqlite3"
+        rebuild_database(self.database, self.database.parent / "evidence", output)
+        outcome = self.runner.invoke(app, ["refresh", "--database", str(output)])
+        self.assertEqual(outcome.exit_code, 0, outcome.output)
+
+        self.assertEqual(categories_page(output)["categories"], before_categories)
+        self.assertEqual(accounts_page(output)["accounts"], before_accounts)
+
     def test_scope_rejects_missing_pocket_anchor(self) -> None:
         account = accounts_page(self.database)["accounts"][0]
         outcome = self.runner.invoke(app, [

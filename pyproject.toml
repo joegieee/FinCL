@@ -48,6 +48,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]
+# The demo generator is a deliberately dense single-file dev script, like the UI.
+"scripts/create_demo.py" = ["E701", "E702"]
 
 [tool.mypy]
 python_version = "3.13"
