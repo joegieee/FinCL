@@ -11,7 +11,8 @@ from fractions import Fraction
 from pathlib import Path
 
 from fincl.analysis.allocations import claimed_amount, open_residual
-from fincl.application import record_debt_decision
+from fincl.application import record_batch, record_debt_decision
+from fincl.decision_journal import default_journal_path, read_records
 from fincl.decisions import replay_journal
 from fincl.errors import FinCLError
 from fincl.refresh import refresh_ledger
@@ -276,6 +277,75 @@ class OffLedgerAndRebuildTests(Slice2Base):
             connection.close()
         self.assertEqual([tuple(r) for r in self.rows("personal_debt_allocations")], before)
         self.assertEqual([tuple(r) for r in self.rows("entry_residuals")], residual_before)
+
+    def _journal_len(self) -> int:
+        return len(read_records(default_journal_path(self.database)))
+
+    def test_coupled_batch_opens_debt_event_and_residual_atomically(self) -> None:
+        anchor = self.anchor_for(coefficient=12000, direction="OUT")
+        debt_id = str(uuid.uuid4())
+        event_id = str(uuid.uuid4())
+        items = [
+            {"kind": "PERSONAL_DEBT_OPEN", "anchors": {"debt": debt_id},
+             "payload": {"direction": "RECEIVABLE", "currency": "SGD",
+                         "counterparty_label": "Alex", "opened_on": "2026-03-01",
+                         "due_on": None, "reason": "shared flat"}},
+            {"kind": "PERSONAL_DEBT_EVENT_SET",
+             "anchors": {"debt": debt_id, "event": event_id},
+             "payload": {"event_kind": "EXPENSE_PAID_FOR_OTHER", "direction": "RECEIVABLE",
+                         "principal_amount": "80.00", "effective_on": "2026-03-05",
+                         "entry_allocations": [self._alloc(anchor, "80.00")],
+                         "opening_balance": False, "expense_category": None,
+                         "reason": "Alex's share"}},
+            {"kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": anchor},
+             "payload": {"expense_amount": "40.00", "expense_category": "Housing",
+                         "reason": "my share"}},
+        ]
+        before = self._journal_len()
+        record_batch(
+            self.database, request_id=str(uuid.uuid4()),
+            intent_hash=_intent("DECISION_BATCH", {}, {"items": items}),
+            items=items, reason="Record the shared flat bill",
+        )
+        self.assertEqual(self._journal_len(), before + 1)
+        connection = sqlite3.connect(self.database)
+        connection.row_factory = sqlite3.Row
+        try:
+            self.assertEqual(open_residual(connection, anchor), Fraction(0))
+        finally:
+            connection.close()
+        self.assertEqual(len(self.rows("personal_debts")), 1)
+        self.assertEqual(len(self.rows("personal_debt_allocations")), 1)
+        self.assertEqual(len(self.rows("entry_residuals")), 1)
+
+    def test_over_claiming_batch_is_rejected_whole(self) -> None:
+        anchor = self.anchor_for(coefficient=12000, direction="OUT")
+        debt_id = str(uuid.uuid4())
+        items = [
+            {"kind": "PERSONAL_DEBT_OPEN", "anchors": {"debt": debt_id},
+             "payload": {"direction": "RECEIVABLE", "currency": "SGD",
+                         "counterparty_label": "Alex", "opened_on": "2026-03-01",
+                         "due_on": None, "reason": "shared flat"}},
+            {"kind": "PERSONAL_DEBT_EVENT_SET",
+             "anchors": {"debt": debt_id, "event": str(uuid.uuid4())},
+             "payload": {"event_kind": "EXPENSE_PAID_FOR_OTHER", "direction": "RECEIVABLE",
+                         "principal_amount": "100.00", "effective_on": "2026-03-05",
+                         "entry_allocations": [self._alloc(anchor, "100.00")],
+                         "opening_balance": False, "expense_category": None,
+                         "reason": "Alex's share"}},
+            {"kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": anchor},
+             "payload": {"expense_amount": "40.00", "expense_category": "Housing",
+                         "reason": "my share"}},
+        ]
+        before = self._journal_len()
+        with self.assertRaisesRegex(FinCLError, "exceeds the component magnitude"):
+            record_batch(
+                self.database, request_id=str(uuid.uuid4()),
+                intent_hash=_intent("DECISION_BATCH", {}, {"items": items}),
+                items=items, reason="100 + 40 > 120",
+            )
+        self.assertEqual(self._journal_len(), before)
+        self.assertEqual(self.rows("personal_debts"), [])
 
     def test_residual_retire_frees_the_component(self) -> None:
         anchor = self.anchor_for(coefficient=4000, direction="OUT")

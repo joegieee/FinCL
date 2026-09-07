@@ -21,6 +21,7 @@ from fractions import Fraction
 from typing import Any
 
 from .common import canonical_json
+from .debts.models import DEBT_DECISION_KINDS
 from .errors import FinCLError
 from .money import ExactMoney, format_decimal
 
@@ -51,6 +52,10 @@ BATCH_CHILD_KINDS = frozenset(
         CATEGORY_OVERRIDE_RETIRE,
         "INBOUND_CLASSIFICATION",
         *DUPLICATE_KINDS,
+        # v0.3: a coupled correction batch opens a debt, its initial event and
+        # shared residual atomically, and may retire a conflicting inbound
+        # classification in the same record.
+        *DEBT_DECISION_KINDS,
     }
 )
 
@@ -310,12 +315,14 @@ def preview_batch(
 
     Mirrors exactly the checks that could raise during replay (payload shape,
     category existence, inbound direction) plus anchor resolution, which replay
-    only projects as dangling. Runs read-only. Returns a small preview summary.
-    Raises :class:`FinCLError` on the first invalid item so a durable append is
-    never made for a batch that cannot fully replay.
+    only projects as dangling. Debt children are dry-run applied inside a
+    SAVEPOINT and rolled back, so the projection is left untouched. Raises
+    :class:`FinCLError` on the first invalid item so a durable append is never
+    made for a batch that cannot fully replay.
     """
     from .categorization import CATEGORIZATION_DECISION_KINDS, validate_payload
     from .common import resolve_category
+    from .debts.validation import validate_debt_payload
     from .decisions import resolve_anchor
 
     def _entry(anchor: str) -> str:
@@ -325,9 +332,14 @@ def preview_batch(
         return entry_id
 
     suppress_pairs: list[tuple[str, str]] = []
+    debt_items: list[tuple[int, str, dict[str, Any], dict[str, Any]]] = []
     for index, item in enumerate(items):
         kind, anchors, payload = item["kind"], dict(item["anchors"]), dict(item["payload"])
         try:
+            if kind in DEBT_DECISION_KINDS:
+                validate_debt_payload(kind, anchors, payload)
+                debt_items.append((index, kind, anchors, payload))
+                continue
             if kind in DUPLICATE_KINDS:
                 validate_duplicate(kind, anchors, payload)
                 _entry(anchors["primary"])
@@ -375,6 +387,30 @@ def preview_batch(
     }
     if confirmed_candidates & prior:
         raise FinCLError("a candidate in this batch is already a duplicate primary elsewhere")
+
+    if debt_items:
+        from .debts.projection import apply_debt, resolve_debts
+
+        connection.execute("SAVEPOINT batch_debt_preview")
+        try:
+            for index, kind, anchors, payload in debt_items:
+                try:
+                    apply_debt(
+                        connection,
+                        decision_kind=kind,
+                        anchors=anchors,
+                        payload=payload,
+                        journal_seq=(1 << 40) + index,
+                        batch_index=index,
+                        resolve_anchor=lambda a: resolve_anchor(connection, a),
+                    )
+                except FinCLError as exc:
+                    raise FinCLError(f"batch item {index}: {exc}") from exc
+            resolve_debts(connection)
+        finally:
+            connection.execute("ROLLBACK TO batch_debt_preview")
+            connection.execute("RELEASE batch_debt_preview")
+
     return {"items": len(items), "duplicate_confirms": len(suppress_pairs)}
 
 
