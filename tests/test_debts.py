@@ -475,21 +475,51 @@ class DebtCliTests(unittest.TestCase):
         self.assertEqual(len(detail["debt"]["principal_history"]), 1)
         self.assertTrue(detail["debt"]["principal_history"][0]["opening_balance"])
 
-    def test_source_linked_event_is_refused_at_the_cli(self) -> None:
+    def test_source_linked_cash_event_needs_an_allocation(self) -> None:
         opened = self._run(
             "debt", "open", "--direction", "payable", "--currency", "SGD",
             "--counterparty", "Dana", "--opened-on", "2026-01-02",
             "--reason", "Owe Dana", "--json",
         )
         debt_id = json.loads(opened.output)["debt"]
-        # add-event without --opening-balance and BORROWED still needs allocations,
-        # which slice 1 refuses.
         result = self._run(
             "debt", "add-event", "--debt", debt_id, "--kind", "BORROWED",
             "--direction", "payable", "--principal", "20.00",
-            "--effective-on", "2026-01-03", "--reason", "Cash borrow, source-linked",
+            "--effective-on", "2026-01-03", "--reason", "Cash borrow, no source given",
         )
         self.assertNotEqual(result.exit_code, 0)
-        # The slice-1 CLI cannot express source allocations, so a non-opening
-        # cash event is refused for want of an allocation.
         self.assertIn("entry allocation", result.output)
+
+    def _coffee_anchor(self) -> str:
+        connection = sqlite3.connect(self.database)
+        try:
+            return connection.execute(
+                "SELECT natural_anchor FROM ledger_entries WHERE economic_direction = 'OUT'"
+            ).fetchone()[0]
+        finally:
+            connection.close()
+
+    def test_shared_expense_split_via_allocation_and_residual(self) -> None:
+        anchor = self._coffee_anchor()
+        opened = self._run(
+            "debt", "open", "--direction", "receivable", "--currency", "SGD",
+            "--counterparty", "Sam", "--opened-on", "2026-01-01",
+            "--reason", "Covered Sam's coffee", "--json",
+        )
+        debt_id = json.loads(opened.output)["debt"]
+        event = self._run(
+            "debt", "add-event", "--debt", debt_id, "--kind", "EXPENSE_PAID_FOR_OTHER",
+            "--direction", "receivable", "--principal", "3.00",
+            "--effective-on", "2026-01-02", "--allocation", f"{anchor}=3.00",
+            "--reason", "Sam's share of the coffee", "--json",
+        )
+        self.assertEqual(event.exit_code, 0, event.output)
+        residual = self._run(
+            "debt", "residual-set", "--entry", anchor, "--expense", "1.00",
+            "--category", "Dining", "--reason", "My own coffee", "--json",
+        )
+        self.assertEqual(residual.exit_code, 0, residual.output)
+        shown = json.loads(
+            self._run("debt", "show", "--debt", debt_id, "--as-of", "2026-01-31", "--json").output
+        )
+        self.assertEqual(shown["debt"]["remaining_principal"]["value"], "3.00")

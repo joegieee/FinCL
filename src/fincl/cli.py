@@ -1580,14 +1580,42 @@ def debt_details(
     )
 
 
+def _parse_allocation(spec: str) -> dict[str, str]:
+    """``anchor=principal[:interest[:fee[:separate_fee]]]`` -> allocation item.
+
+    The anchor is separated with ``=`` because a natural anchor itself contains
+    ``:``; the (up to four) amounts after it are ``:``-separated.
+    """
+    anchor, _, amounts = spec.partition("=")
+    if not _ or not anchor.strip() or not amounts.strip():
+        raise FinCLError(
+            "an --allocation is anchor=principal[:interest[:fee[:separate_fee]]]"
+        )
+    values = [p.strip() for p in amounts.split(":")] + ["0.00", "0.00", "0.00"]
+    return {
+        "entry_anchor": anchor.strip(),
+        "principal_amount": values[0],
+        "interest_amount": values[1],
+        "fee_amount": values[2],
+        "separate_fee_amount": values[3],
+    }
+
+
 @debt_app.command("add-event")
 def debt_add_event(
     debt: str = typer.Option(..., "--debt"),
-    kind: str = typer.Option(..., "--kind", help="BORROWED or LENT (slice 1: opening balance)."),
+    kind: str = typer.Option(..., "--kind", help="BORROWED / LENT / PRINCIPAL_REPAID / ..."),
     direction: str = typer.Option(..., "--direction", help="payable or receivable."),
     principal: str = typer.Option(..., "--principal", help="Exact amount in the debt currency."),
     effective_on: str = typer.Option(..., "--effective-on", help="YYYY-MM-DD."),
     reason: str = typer.Option(..., "--reason"),
+    allocation: list[str] = typer.Option(
+        [], "--allocation",
+        help="Source split anchor=principal[:interest[:fee[:separate_fee]]] (repeatable).",
+    ),
+    expense_category: str | None = typer.Option(
+        None, "--expense-category", help="Required for an EXPENSE_PAID_FOR_ME event."
+    ),
     opening_balance: bool = typer.Option(
         False, "--opening-balance", help="Record a pre-existing obligation with no observed funding."
     ),
@@ -1597,10 +1625,17 @@ def debt_add_event(
 ) -> None:
     """Add a debt principal event (PERSONAL_DEBT_EVENT_SET).
 
-    Slice 1 accepts explicit opening balances only; source-linked repayments and
-    shared-expense splits arrive in v0.3 slice 2.
+    An opening balance and the off-ledger EXPENSE_PAID_FOR_ME carry no
+    ``--allocation``; every other cash event needs one or more that sum to
+    ``--principal``.
     """
     import uuid as _uuid
+
+    try:
+        allocations = [_parse_allocation(spec) for spec in allocation]
+    except FinCLError as exc:
+        _fail(exc)
+        return
 
     _record_debt(
         database, "PERSONAL_DEBT_EVENT_SET",
@@ -1610,11 +1645,46 @@ def debt_add_event(
             "direction": direction.strip().upper(),
             "principal_amount": principal.strip(),
             "effective_on": effective_on.strip(),
-            "entry_allocations": [],
+            "entry_allocations": allocations,
             "opening_balance": bool(opening_balance),
-            "expense_category": None,
+            "expense_category": expense_category.strip() if expense_category else None,
             "reason": reason.strip(),
         },
+        json_output=json_output, plain=plain,
+    )
+
+
+@debt_app.command("residual-set")
+def debt_residual_set(
+    entry: str = typer.Option(..., "--entry", help="The source transaction anchor."),
+    expense: str = typer.Option(..., "--expense", help="The owner's own share, exact amount."),
+    category: str = typer.Option(..., "--category", help="Expense category key for the owner share."),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Classify the source amount left after every debt allocation (ENTRY_RESIDUAL_SET)."""
+    _record_debt(
+        database, "ENTRY_RESIDUAL_SET", {"entry": entry.strip()},
+        {"expense_amount": expense.strip(), "expense_category": category.strip(),
+         "reason": reason.strip()},
+        json_output=json_output, plain=plain,
+    )
+
+
+@debt_app.command("residual-retire")
+def debt_residual_retire(
+    entry: str = typer.Option(..., "--entry"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Remove the owner-share residual for an entry (ENTRY_RESIDUAL_RETIRE)."""
+    _record_debt(
+        database, "ENTRY_RESIDUAL_RETIRE", {"entry": entry.strip()},
+        {"reason": reason.strip()},
         json_output=json_output, plain=plain,
     )
 
