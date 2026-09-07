@@ -390,6 +390,9 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
             validate_plan(command.anchors,command.payload)
             if command.payload['category']:
                 resolve_category(command.payload['category'],custom)
+            from .planning import plan_has_dated_records
+            if plan_has_dated_records(connection, command.anchors['plan']):
+                raise FinCLError('This budget/goal now uses dated revisions. Edit it there instead of the legacy plan form.')
         elif command.kind == 'TRANSFER_DECISION':
             if set(command.anchors) != {'left','right'}:
                 raise FinCLError('A transfer decision needs a left and right transaction')

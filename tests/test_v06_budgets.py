@@ -123,6 +123,16 @@ class BudgetProjectionTests(unittest.TestCase):
         with self.assertRaises(FinCLError):
             replay_journal(self.connection)
 
+    def test_replay_refuses_a_legacy_plan_set_after_a_dated_revision(self) -> None:
+        self._revision("2026-01", "300.00")
+        self._append(
+            "PLAN_SET", {"plan": self.plan},
+            {"type": "budget", "name": "legacy", "currency": "SGD", "target": "50.00",
+             "saved": "0", "category": "", "reason": "legacy update"},
+        )
+        with self.assertRaises(FinCLError):
+            replay_journal(self.connection)
+
     def test_a_zero_limit_is_rejected(self) -> None:
         self._append(
             "BUDGET_REVISION_SET",

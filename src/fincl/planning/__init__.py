@@ -21,6 +21,23 @@ PLANNING_DECISION_KINDS = (
 )
 
 
+_DATED_PLAN_TABLES = (
+    "budget_revisions", "budget_archive_periods",
+    "goal_details", "goal_observations", "goal_archive",
+)
+
+
+def plan_has_dated_records(connection: sqlite3.Connection, plan_id: str) -> bool:
+    """True once any v0.6 dated budget / goal decision has been projected for
+    this plan id. A legacy ``PLAN_SET`` for the same entity is then refused —
+    old ``PLAN_SET`` records already in the journal still replay
+    (DESIGN-personal-finance §§5–6)."""
+    for table in _DATED_PLAN_TABLES:
+        if connection.execute(f"SELECT 1 FROM {table} WHERE plan = ? LIMIT 1", (plan_id,)).fetchone():
+            return True
+    return False
+
+
 def validate_planning(kind: str, anchors: dict[str, str], payload: dict[str, object]) -> None:
     """Structural validation for the command API (authoring boundary). Cross-record
     invariants — currency immutability, one revision per month, unknown-commitment —

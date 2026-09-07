@@ -356,8 +356,15 @@ def _apply_record(
             _apply_record(connection, child, custom, batch_index=index)
         return
     if record.decision_kind == "PLAN_SET":
+        from .planning import plan_has_dated_records
         from .plans import validate_plan
         validate_plan(record.anchors, record.payload)
+        if plan_has_dated_records(connection, record.anchors["plan"]):
+            raise FinCLError(
+                f"decision journal record {record.seq}: plan {record.anchors['plan']} "
+                "has adopted dated budget/goal revisions; legacy PLAN_SET updates for it "
+                "are refused"
+            )
     override: str | None = None
     if record.anchor_version != NATURAL_ANCHOR_VERSION:
         if record.anchor_version not in SUPERSEDED_ANCHOR_VERSIONS:
