@@ -1828,13 +1828,11 @@ def rules_rewrite_category(
 def review_categorize(
     anchor: str = typer.Argument(...),
     category: str = typer.Option(..., "--as"),
-    reason: str = typer.Option(..., "--reason"),
+    reason: str = typer.Option("", "--reason"),
     database: Path = typer.Option(..., "--database"),
 ) -> None:
     """Append a CATEGORY_OVERRIDE — precedence tier 1, beats every rule."""
     try:
-        if not reason.strip():
-            raise FinCLError("a non-empty reason is required")
         resolve_category(category)
         with _ledger(database) as connection:
             if resolve_anchor(connection, anchor) is None:

@@ -25,6 +25,19 @@ function base(over: Record<string, unknown> = {}) {
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('BulkAssign', () => {
+  it('allows recategorizing without a reason', async () => {
+    const props = base()
+    render(<BulkAssign {...props} />)
+    apiMock.mockResolvedValueOnce({ status: 'applied' })
+
+    fireEvent.click(screen.getByRole('button', { name: /Apply to 2/ }))
+
+    await waitFor(() => expect(props.onSaved).toHaveBeenCalledWith('applied'))
+    const body = apiMock.mock.calls[0][1] as { reason: string; items: { payload: { reason: string } }[] }
+    expect(body.reason).toBe('')
+    expect(body.items.every(item => item.payload.reason === '')).toBe(true)
+  })
+
   it('commits an explicit selection as one CATEGORY_OVERRIDE batch', async () => {
     const props = base()
     render(<BulkAssign {...props} />)

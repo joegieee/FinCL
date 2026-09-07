@@ -108,4 +108,13 @@ describe('AnalysisView', () => {
       expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('comparison=none')),
     )
   })
+
+  it('refetches with the requested chart history', async () => {
+    await mount()
+    await screen.findAllByText('SGD 27.50')
+    fireEvent.change(screen.getByLabelText('Chart history'), { target: { value: '12' } })
+    await waitFor(() =>
+      expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('trend_range=12')),
+    )
+  })
 })

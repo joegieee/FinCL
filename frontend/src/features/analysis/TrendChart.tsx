@@ -7,13 +7,19 @@ const FEE = '#c8aa70'
 const INCOME = '#809ba6'
 
 /**
- * Six complete calendar months ending at the most recent complete month whose
- * end does not exceed the selected end. Gross-spending bars carry a separate,
+ * A selected number of complete calendar months ending at the most recent
+ * complete month whose end does not exceed the selected end. Gross-spending bars carry a separate,
  * labelled fees series; income is its own series. Gaps are explicit nulls, not
  * zero. The full range is shown so it cannot be read as the selected-period
  * total.
  */
-export function TrendChart({ trend, currency }: { trend: TrendPoint[]; currency: string }) {
+export function TrendChart({
+  trend, currency, range,
+}: {
+  trend: TrendPoint[]
+  currency: string
+  range: '6' | '12' | 'all'
+}) {
   const data = trend.map(t => ({
     month: t.month,
     spending: t.spending ? Number(t.spending.value) : null,
@@ -21,11 +27,14 @@ export function TrendChart({ trend, currency }: { trend: TrendPoint[]; currency:
     income: t.income ? Number(t.income.value) : null,
     complete: t.complete,
   }))
+  const historyLabel = range === '6' ? 'SIX-MONTH VIEW'
+    : range === '12' ? 'TWELVE-MONTH VIEW' : 'ALL COVERED HISTORY'
+  const chartWidth = Math.max(520, data.length * 68)
   return (
     <Card className="chart-card">
       <div className="panel-title">
         <div>
-          <p className="eyebrow">SIX-MONTH VIEW</p>
+          <p className="eyebrow">{historyLabel}</p>
           <h2>Am I spending more than I earn?</h2>
         </div>
       </div>
@@ -35,8 +44,9 @@ export function TrendChart({ trend, currency }: { trend: TrendPoint[]; currency:
         <span><i style={{ background: FEE }} />Fees</span>
         <span><i style={{ background: INCOME }} />Income</span>
       </div>
-      <div className="trend-chart">
-        <ResponsiveContainer width="100%" height={270}>
+      <div className="trend-chart" aria-label={`${historyLabel.toLowerCase()} spending, fees, and income chart`}>
+        <div style={{ minWidth: chartWidth }}>
+          <ResponsiveContainer width="100%" height={270}>
           <BarChart data={data} barGap={3} accessibilityLayer>
             <CartesianGrid vertical={false} stroke="var(--border)" />
             <XAxis
@@ -54,7 +64,8 @@ export function TrendChart({ trend, currency }: { trend: TrendPoint[]; currency:
             <Bar dataKey="fees" name="Fees" stackId="out" fill={FEE} maxBarSize={30} isAnimationActive={false} />
             <Bar dataKey="income" name="Income" fill={INCOME} radius={[4, 4, 0, 0]} maxBarSize={30} isAnimationActive={false} />
           </BarChart>
-        </ResponsiveContainer>
+          </ResponsiveContainer>
+        </div>
       </div>
       <details className="chart-data">
         <summary>Exact values and coverage</summary>

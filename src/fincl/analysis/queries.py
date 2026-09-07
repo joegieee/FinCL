@@ -1,7 +1,7 @@
 """The `GET /api/v1/analysis` panel assembly (v0.2 slice 2).
 
 One generation-coherent read over the committed component projection: the
-spending / fees / refunds summaries, the six-month spending-versus-income bars,
+spending / fees / refunds summaries, the selectable spending-versus-income bars,
 the ranked category changes, the ranked merchants, and the handles that page the
 exact components behind each of them. Every panel is computed from the same
 `analysis_components` rows, so a total and its drill-down cannot disagree.
@@ -128,8 +128,11 @@ def analysis_page(
     category_keys: list[str] | None = None,
     merchant: str | None = None,
     comparison: str | None = None,
+    trend_range: str = "6",
     expected: str | None = None,
 ) -> dict[str, Any]:
+    if trend_range not in {"6", "12", "all"}:
+        raise FinCLError("trend_range must be one of: 6, 12, all")
     scope = normalize_scope(
         start=start, end=end, currency=currency, accounts=accounts or (),
         category_keys=category_keys or (), merchant=merchant,
@@ -290,15 +293,24 @@ def analysis_page(
                 "net_cost": _money(net_str, currency),
             })
 
-        # Six calendar months ending at the most recent complete calendar month
-        # whose end does not exceed the selected end.
+        # Complete calendar months ending at the most recent complete month whose
+        # end does not exceed the selected end. "all" begins at the first month
+        # in the ledger's coverage contract, retaining any gaps as unavailable.
         end_date = date.fromisoformat(scope.end)
         if end_date.day != calendar.monthrange(end_date.year, end_date.month)[1]:
             anchor_index = end_date.year * 12 + end_date.month - 2
         else:
             anchor_index = end_date.year * 12 + end_date.month - 1
+        if trend_range == "all" and contract.covered_intervals:
+            first = min(interval.start for interval in contract.covered_intervals)
+            first_date = date.fromisoformat(first)
+            first_index = first_date.year * 12 + first_date.month - 1
+            months = max(1, anchor_index - first_index + 1)
+        else:
+            months = int(trend_range)
+
         trend: list[dict[str, Any]] = []
-        for offset in range(5, -1, -1):
+        for offset in range(months - 1, -1, -1):
             year, month = divmod(anchor_index - offset, 12)
             month += 1
             ym = f"{year:04d}-{month:02d}"

@@ -108,7 +108,7 @@ class Batch(StrictModel):
     request_id: UUID
     expected_generation: str = Field(min_length=1,max_length=100)
     items: list[BatchItem] = Field(min_length=1,max_length=200)
-    reason: str = Field(min_length=1,max_length=2000)
+    reason: str = Field(max_length=2000)
 
 
 class Bootstrap(StrictModel):
@@ -379,7 +379,10 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         manifest = json.loads(generation['manifest_json'])
         if generation_token(build_manifest(connection)) != generation['generation_token'] or (records[-1].record_hash if records else '0'*64) != manifest['journal_head']:
             raise HTTPException(409, 'STALE_GENERATION: refresh before editing.')
-        if not command.payload.get('reason','').strip() or len(command.payload['reason']) > 2000:
+        reason = command.payload.get('reason', '')
+        if not isinstance(reason, str) or len(reason) > 2000 or (
+            command.kind != 'CATEGORY_OVERRIDE' and not reason.strip()
+        ):
             raise FinCLError('A reason of 1–2,000 characters is required')
         custom = custom_categories(database)
         if command.kind == 'CATEGORY_CREATE':
@@ -719,6 +722,7 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
     def analysis(
         start: str, end: str, currency: str = 'SGD',
         comparison: str | None = None,
+        trend_range: str = '6',
         accounts: list[str] | None = Query(default=None),
         category_keys: list[str] | None = Query(default=None),
         merchant: str | None = None,
@@ -729,7 +733,8 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                 return analysis_page(
                     database, start=start, end=end, currency=currency,
                     accounts=accounts, category_keys=category_keys, merchant=merchant,
-                    comparison=comparison, expected=expected_generation,
+                    comparison=comparison, trend_range=trend_range,
+                    expected=expected_generation,
                 )
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):

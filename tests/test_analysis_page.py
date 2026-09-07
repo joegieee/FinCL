@@ -141,6 +141,20 @@ class AnalysisPageTests(unittest.TestCase):
         self.assertEqual(months[-1], "2026-02")
         self.assertTrue(all(p["spending"] is None for p in page["trend"] if not p["complete"]))
 
+    def test_trend_can_show_twelve_months(self) -> None:
+        page = analysis_page(
+            self.database, start="2026-02-01", end="2026-02-28", trend_range="12"
+        )
+        months = [p["month"] for p in page["trend"]]
+        self.assertEqual(len(months), 12)
+        self.assertEqual((months[0], months[-1]), ("2025-03", "2026-02"))
+
+    def test_trend_range_must_be_supported(self) -> None:
+        with self.assertRaisesRegex(FinCLError, "trend_range"):
+            analysis_page(
+                self.database, start="2026-02-01", end="2026-02-28", trend_range="24"
+            )
+
     def test_an_uncovered_window_withholds_values_but_still_answers(self) -> None:
         page = analysis_page(self.database, start="2000-01-01", end="2000-01-31")
         self.assertFalse(page["covered"])

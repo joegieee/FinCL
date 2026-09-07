@@ -280,7 +280,6 @@ def validate_batch(anchors: dict[str, str], payload: dict[str, Any]) -> list[dic
         raise FinCLError("a decision batch needs a single batch anchor")
     if set(payload) != {"items", "reason"}:
         raise FinCLError("a decision batch payload is exactly {items, reason}")
-    _reason(payload)
     items = payload["items"]
     if not isinstance(items, list) or not items:
         raise FinCLError("a decision batch needs at least one item")
@@ -302,6 +301,11 @@ def validate_batch(anchors: dict[str, str], payload: dict[str, Any]) -> list[dic
             raise FinCLError(f"batch item {index} anchors must be a string map")
         if not isinstance(item["payload"], dict):
             raise FinCLError(f"batch item {index} payload must be an object")
+    reason = payload["reason"]
+    if not isinstance(reason, str) or len(reason) > 2000:
+        raise FinCLError("a decision batch reason must be text up to 2,000 characters")
+    if not reason.strip() and any(item["kind"] != "CATEGORY_OVERRIDE" for item in items):
+        raise FinCLError("a non-empty reason is required for this decision batch")
     return items
 
 
@@ -352,7 +356,8 @@ def preview_batch(
             elif kind == "CATEGORY_OVERRIDE":
                 if set(anchors) != {"entry"} or set(payload) != {"category", "reason"}:
                     raise FinCLError("a category override is {entry} / {category, reason}")
-                _reason(payload)
+                if not isinstance(payload["reason"], str) or len(payload["reason"]) > 2000:
+                    raise FinCLError("a category override reason must be text up to 2,000 characters")
                 _entry(anchors["entry"])
                 group, _, _ = resolve_category(str(payload["category"]), custom_categories)
                 if group == "Internal":

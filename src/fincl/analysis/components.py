@@ -57,7 +57,7 @@ WITH entries AS (
            COALESCE(ec.group_name || ' / ' || ec.category,
                     'Unclassified / Unclassified') AS category_key,
            COALESCE(mo.merchant_canonical, mo.merchant_normalized) AS merchant_key,
-           COALESCE(mo.merchant_canonical, mo.merchant_normalized,
+           COALESCE(ma.display_name, mo.merchant_canonical, mo.merchant_normalized,
                     r.description_raw, d.description_raw,
                     'Unknown merchant') AS merchant_display,
            COALESCE('Page ' || d.page_number,
@@ -69,6 +69,7 @@ WITH entries AS (
     LEFT JOIN statements s ON s.id = e.statement_id
     LEFT JOIN entry_categories ec ON ec.entry_id = e.id
     LEFT JOIN merchant_observations mo ON mo.entry_id = e.id
+    LEFT JOIN merchant_aliases ma ON ma.canonical = mo.merchant_canonical
     LEFT JOIN raw_records r ON r.id = e.raw_record_id
     LEFT JOIN document_records d ON d.id = e.document_record_id
     WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'

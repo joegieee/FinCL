@@ -39,6 +39,7 @@ describe('RelationshipEditor', () => {
     expect(await screen.findByText('1 pair across imports')).toBeInTheDocument()
     expect(screen.getByText('anchor-a')).toBeInTheDocument()
     expect(screen.getByText('anchor-b')).toBeInTheDocument()
+    expect(screen.getByText(/Same account, amount, date and merchant/)).toBeInTheDocument()
   })
 
   it('previews then commits a DUPLICATE_CONFIRM', async () => {

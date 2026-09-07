@@ -99,7 +99,7 @@ export function AnalysisView({
       {analysis && analysis.covered && (
         <>
           <ComparisonCards analysis={analysis} currency={currency} />
-          <TrendChart trend={analysis.trend} currency={currency} />
+          <TrendChart trend={analysis.trend} currency={currency} range={filters.trendRange} />
           <div className="analysis-grid">
             <ChangeRanking
               analysis={analysis}
@@ -107,9 +107,9 @@ export function AnalysisView({
               onDrill={row => row.handle && setSelected({ title: `${shortCategory(row.category)} — spending`, handle: row.handle })}
             />
             <Card className="ranking">
-              <h2>Who gets most of my money?</h2>
+              <h2>Spending by merchant</h2>
               {analysis.merchant_ranking.length
-                ? analysis.merchant_ranking.slice(0, 12).map((m, i) => (
+                ? analysis.merchant_ranking.map((m, i) => (
                     <button
                       className="rank-row"
                       key={m.merchant}

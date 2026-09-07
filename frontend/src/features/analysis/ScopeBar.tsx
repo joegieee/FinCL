@@ -41,6 +41,18 @@ export function ScopeBar({
         </select>
       </label>
       <label>
+        Chart history
+        <select
+          aria-label="Chart history"
+          value={filters.trendRange}
+          onChange={e => setFilters({ ...filters, trendRange: e.target.value as AnalysisFilters['trendRange'] })}
+        >
+          <option value="6">Last 6 months</option>
+          <option value="12">Last 12 months</option>
+          <option value="all">All covered history</option>
+        </select>
+      </label>
+      <label>
         Account
         <select aria-label="Account scope" value={filters.account} onChange={e => setFilters({ ...filters, account: e.target.value })}>
           <option value="">All accounts</option>

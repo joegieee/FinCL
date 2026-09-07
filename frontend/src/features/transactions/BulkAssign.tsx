@@ -64,7 +64,7 @@ export function BulkAssign({
   }
 
   async function apply() {
-    if (disabled || !anchors.length || !reason.trim() || busy) return
+    if (disabled || !anchors.length || busy) return
     setBusy(true); setError(''); setProgress({ done: 0, total: chunks })
     let pending = false
     let committed = 0
@@ -110,8 +110,8 @@ export function BulkAssign({
             {categories.filter(c => !c.startsWith('Internal')).map(c => <option key={c}>{c}</option>)}
           </select>
         </label>
-        <label>Reason<Input required maxLength={2000} value={reason} disabled={busy} onChange={e => setReason(e.target.value)} placeholder="Why this bulk correction?" /></label>
-        <Button type="button" disabled={disabled || busy || !anchors.length || !reason.trim()} onClick={apply}>
+        <label>Reason <small>(optional)</small><Input aria-label="Reason" maxLength={2000} value={reason} disabled={busy} onChange={e => setReason(e.target.value)} placeholder="Optional note for your history" /></label>
+        <Button type="button" disabled={disabled || busy || !anchors.length} onClick={apply}>
           {busy ? `Applying ${progress?.done ?? 0}/${progress?.total ?? chunks}…` : `Apply to ${anchors.length}${chunks > 1 ? ` in ${chunks} batches` : ''}`}
           {!busy && <Check size={15} />}
         </Button>

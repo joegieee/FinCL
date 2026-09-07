@@ -30,7 +30,7 @@ from .report import _coverage_contract, _economic_flow
 _ENTRY_VIEW = """
 WITH base AS (
   SELECT e.*, a.display_name AS account,
-    coalesce(m.merchant_canonical, m.merchant_normalized, r.description_raw, d.description_raw, 'Unknown merchant') AS merchant,
+    coalesce(ma.display_name, m.merchant_canonical, m.merchant_normalized, r.description_raw, d.description_raw, 'Unknown merchant') AS merchant,
     coalesce(r.description_raw, d.description_raw, '') AS description,
     coalesce(c.group_name || ' / ' || c.category, 'Unclassified / Unclassified') AS category,
     coalesce(c.basis, 'Not categorized') AS basis,
@@ -46,6 +46,7 @@ WITH base AS (
   LEFT JOIN raw_records r ON r.id=e.raw_record_id
   LEFT JOIN document_records d ON d.id=e.document_record_id
   LEFT JOIN merchant_observations m ON m.entry_id=e.id
+  LEFT JOIN merchant_aliases ma ON ma.canonical=m.merchant_canonical
   LEFT JOIN entry_categories c ON c.entry_id=e.id
   LEFT JOIN inbound_classifications i ON i.anchor=e.natural_anchor AND i.bound=1
 ),
@@ -450,13 +451,14 @@ def relationships_review(
                    e.amount_text, e.amount_coefficient, e.amount_scale,
                    e.event_kind, COALESCE(e.fee_coefficient, 0) AS fee_coefficient,
                    substr(e.effective_at, 1, 10) AS posted_date,
-                   COALESCE(mo.merchant_canonical, mo.merchant_normalized, r.description_raw,
+                   COALESCE(ma.display_name, mo.merchant_canonical, mo.merchant_normalized, r.description_raw,
                             d.description_raw, '') AS merchant,
                    a.display_name AS account
             FROM ledger_entries e
             JOIN extraction_runs x ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
             JOIN accounts a ON a.id = e.account_id
             LEFT JOIN merchant_observations mo ON mo.entry_id = e.id
+            LEFT JOIN merchant_aliases ma ON ma.canonical = mo.merchant_canonical
             LEFT JOIN raw_records r ON r.id = e.raw_record_id
             LEFT JOIN document_records d ON d.id = e.document_record_id
             WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'
@@ -500,7 +502,8 @@ def relationships_review(
                     'amount': money(abs(Decimal(first['amount_text']))),
                     'date': first['posted_date'], 'merchant': first['merchant'] or 'Unknown merchant',
                     'event_kind': first['event_kind'],
-                    'basis': 'Same account, amount, date and merchant across two imports',
+                    'basis': ('Manual review: same account, amount, date and merchant, '
+                              'but recorded in two different imported statements'),
                 })
         window = proposals[offset:offset + limit]
         next_cursor = (
@@ -540,8 +543,8 @@ def transfer_proposals(connection: Any) -> list[dict[str, Any]]:
              le.natural_anchor AS left_anchor, re.natural_anchor AS right_anchor,
              le.effective_at AS left_at, re.effective_at AS right_at,
              la.display_name AS left_account, ra.display_name AS right_account,
-             coalesce(lm.merchant_canonical, lm.merchant_normalized, lr.description_raw, ld.description_raw, '') AS left_description,
-             coalesce(rm.merchant_canonical, rm.merchant_normalized, rr.description_raw, rd.description_raw, '') AS right_description
+             coalesce(lma.display_name, lm.merchant_canonical, lm.merchant_normalized, lr.description_raw, ld.description_raw, '') AS left_description,
+             coalesce(rma.display_name, rm.merchant_canonical, rm.merchant_normalized, rr.description_raw, rd.description_raw, '') AS right_description
       FROM transfer_links t
       JOIN ledger_entries le ON le.id = t.left_entry_id
       JOIN ledger_entries re ON re.id = t.right_entry_id
@@ -549,6 +552,8 @@ def transfer_proposals(connection: Any) -> list[dict[str, Any]]:
       JOIN accounts ra ON ra.id = re.account_id
       LEFT JOIN merchant_observations lm ON lm.entry_id = le.id
       LEFT JOIN merchant_observations rm ON rm.entry_id = re.id
+      LEFT JOIN merchant_aliases lma ON lma.canonical = lm.merchant_canonical
+      LEFT JOIN merchant_aliases rma ON rma.canonical = rm.merchant_canonical
       LEFT JOIN raw_records lr ON lr.id = le.raw_record_id
       LEFT JOIN raw_records rr ON rr.id = re.raw_record_id
       LEFT JOIN document_records ld ON ld.id = le.document_record_id
@@ -560,6 +565,28 @@ def transfer_proposals(connection: Any) -> list[dict[str, Any]]:
     for row in rows:
         evidence = json.loads(row['evidence_json'])
         rejection = evidence.get('rejection') if isinstance(evidence.get('rejection'), dict) else None
+        same_date = row['left_at'][:10] == row['right_at'][:10]
+        same_amount = (
+            row['left_currency'] == row['right_currency']
+            and Decimal(row['left_amount_text']).copy_abs()
+            == Decimal(row['right_amount_text']).copy_abs()
+        )
+        time_differs = same_date and row['left_at'][11:19] != row['right_at'][11:19]
+        similarities = []
+        if same_amount:
+            similarities.append('amount')
+        if same_date:
+            similarities.append('date')
+        difference = (
+            f"transaction times differ ({row['left_at'][11:19]} vs {row['right_at'][11:19]})"
+            if time_differs else 'the automatic match was not confidently unique'
+        )
+        basis = (
+            f"Manual review: {' and '.join(similarities)} match, but {difference}"
+            if similarities else f"Manual review: {difference}"
+        )
+        if rejection:
+            basis += f" ({rejection['code']})"
         result.append({
             'id': row['id'], 'link_kind': row['link_kind'], 'method': row['method_version'],
             'left': row['left_anchor'], 'right': row['right_anchor'],
@@ -568,7 +595,7 @@ def transfer_proposals(connection: Any) -> list[dict[str, Any]]:
             'left_amount': money(abs(Decimal(row['left_amount_text']))), 'left_currency': row['left_currency'],
             'right_amount': money(abs(Decimal(row['right_amount_text']))), 'right_currency': row['right_currency'],
             'left_date': row['left_at'][:10], 'right_date': row['right_at'][:10],
-            'basis': str(rejection['code']) if rejection else 'Matched by description and date across accounts',
+            'basis': basis,
         })
     return result
 

@@ -210,6 +210,7 @@ def validate_payload(decision_kind: str, anchors: dict[str, str], payload: dict[
     elif decision_kind == CATEGORY_OVERRIDE:
         _nonblank_str(anchors.get("entry"), "anchors.entry")
         resolve_category(_nonblank_str(payload.get("category"), "category"), custom_categories)
-        _nonblank_str(payload.get("reason"), "reason")
+        _require(isinstance(payload.get("reason"), str), "reason must be a string")
+        _require(len(payload["reason"]) <= 2000, "reason must be at most 2,000 characters")
     else:  # pragma: no cover - guarded by the caller's known-kind check
         raise FinCLError(f"{decision_kind} is not a categorization decision kind")
