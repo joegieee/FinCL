@@ -13,11 +13,12 @@ from datetime import date
 from typing import Any
 
 from ..errors import FinCLError
-from ..money import ExactMoney
+from ..money import ExactMoney, exact_sum, format_decimal
 from .models import (
     DIRECTIONS,
     ENTRY_RESIDUAL_RETIRE,
     ENTRY_RESIDUAL_SET,
+    EXCEPTIONAL_EVENTS,
     EXPENSE_CATEGORY_EVENTS,
     INBOUND_CLASSIFICATION_RETIRE,
     OFF_LEDGER_EVENTS,
@@ -38,10 +39,9 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _REASON_MAX = 2000
 _LABEL_MAX = 200
 
-# Slice 1 accepts identity, details, opening balances and lifecycle only. Source
-# -linked allocations and shared-expense residuals are slice 2; flip this to
-# False in that change.
-_SLICE1_ONLY = True
+# Slice 2 lands source-linked events and shared-expense residuals. Forgiveness /
+# write-off and close / reopen stay refused until slice 3.
+_SLICE3_PENDING = True
 
 
 def _reason(payload: dict[str, Any]) -> None:
@@ -190,8 +190,15 @@ def _validate_event(anchors: dict[str, str], payload: dict[str, Any]) -> None:
     allocations = payload["entry_allocations"]
     if not isinstance(allocations, list):
         raise FinCLError("entry_allocations must be a list")
+    seen_anchors: set[str] = set()
+    principals: list[ExactMoney] = []
     for index, item in enumerate(allocations):
         _validate_allocation_item(item, index)
+        anchor = item["entry_anchor"]
+        if anchor in seen_anchors:
+            raise FinCLError(f"allocation {index} repeats entry anchor {anchor!r}")
+        seen_anchors.add(anchor)
+        principals.append(ExactMoney.parse(str(item["principal_amount"])))
 
     off_ledger = payload["event_kind"] in OFF_LEDGER_EVENTS or payload["opening_balance"]
     if off_ledger and allocations:
@@ -200,8 +207,21 @@ def _validate_event(anchors: dict[str, str], payload: dict[str, Any]) -> None:
         )
     if not off_ledger and not allocations:
         raise FinCLError(
-            "a normal cash debt event needs at least one entry allocation"
+            "a source-linked debt event needs at least one entry allocation"
         )
+    if not off_ledger:
+        # §2: each event's allocated principal sums to the event principal.
+        event_principal = ExactMoney.parse(str(payload["principal_amount"]))
+        total_coeff, total_scale = exact_sum(*principals) if principals else (0, 0)
+        common = max(total_scale, event_principal.scale)
+        if total_coeff * 10 ** (common - total_scale) != event_principal.coefficient * 10 ** (
+            common - event_principal.scale
+        ):
+            raise FinCLError(
+                "the allocation principals must sum to the event principal "
+                f"({format_decimal(total_coeff, total_scale)} != "
+                f"{format_decimal(event_principal.coefficient, event_principal.scale)})"
+            )
 
     if payload["expense_category"] is not None:
         if payload["event_kind"] not in EXPENSE_CATEGORY_EVENTS:
@@ -215,15 +235,9 @@ def _validate_event(anchors: dict[str, str], payload: dict[str, Any]) -> None:
 
     _reason(payload)
 
-    if _SLICE1_ONLY and not off_ledger:
+    if _SLICE3_PENDING and payload["event_kind"] in EXCEPTIONAL_EVENTS:
         raise FinCLError(
-            "source-linked debt events arrive in v0.3 slice 2; slice 1 records "
-            "explicit opening balances and off-ledger adjustments only"
-        )
-    if _SLICE1_ONLY and payload["event_kind"] in OFF_LEDGER_EVENTS:
-        raise FinCLError(
-            "off-ledger expense, forgiveness and write-off events arrive in v0.3 "
-            "slice 2/3; slice 1 records opening balances only"
+            "forgiveness and write-off events arrive in v0.3 slice 3"
         )
 
 
@@ -245,7 +259,7 @@ def _validate_lifecycle(kind: str, anchors: dict[str, str], payload: dict[str, A
         raise FinCLError(f"{kind} payload is exactly {{effective_on, reason}}")
     _calendar_date(payload["effective_on"], "effective_on")
     _reason(payload)
-    if _SLICE1_ONLY:
+    if _SLICE3_PENDING:
         raise FinCLError(
             "close / reopen arrive in v0.3 slice 3"
         )
@@ -267,8 +281,6 @@ def _validate_residual(kind: str, anchors: dict[str, str], payload: dict[str, An
     if not isinstance(payload["expense_category"], str) or not payload["expense_category"]:
         raise FinCLError("expense_category must be a category key")
     _reason(payload)
-    if _SLICE1_ONLY:
-        raise FinCLError("shared-expense residuals arrive in v0.3 slice 2")
 
 
 def _validate_inbound_retire(anchors: dict[str, str], payload: dict[str, Any]) -> None:
@@ -277,11 +289,6 @@ def _validate_inbound_retire(anchors: dict[str, str], payload: dict[str, Any]) -
     if set(payload) != {"reason"}:
         raise FinCLError("INBOUND_CLASSIFICATION_RETIRE payload is exactly {reason}")
     _reason(payload)
-    if _SLICE1_ONLY:
-        raise FinCLError(
-            "INBOUND_CLASSIFICATION_RETIRE is authored inside a v0.3 slice 2 "
-            "coupled correction batch"
-        )
 
 
 def validate_debt_payload(

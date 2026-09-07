@@ -151,9 +151,36 @@ class DebtJournalTests(ApiTestBase):
                 },
             )
 
-    def test_source_linked_event_is_deferred_to_slice_2(self) -> None:
+    def test_source_linked_event_with_unresolved_anchor_is_dangling(self) -> None:
+        # §3: a dangling anchor keeps the intended debt event with unverified
+        # status; it is not refused.
         debt_id = self._open_payable()
-        with self.assertRaisesRegex(FinCLError, "slice 2"):
+        event_id = str(uuid.uuid4())
+        self._record(
+            "PERSONAL_DEBT_EVENT_SET",
+            {"debt": debt_id, "event": event_id},
+            {
+                "event_kind": "BORROWED", "direction": "PAYABLE",
+                "principal_amount": "10.00", "effective_on": "2026-01-06",
+                "entry_allocations": [
+                    {"entry_anchor": "no-such-anchor", "principal_amount": "10.00",
+                     "interest_amount": "0.00", "fee_amount": "0.00",
+                     "separate_fee_amount": "0.00"}
+                ],
+                "opening_balance": False,
+                "expense_category": None, "reason": "Source-linked, source not yet imported",
+            },
+        )
+        event = self._rows("personal_debt_events")[0]
+        self.assertEqual(event["bound"], 0)
+        self.assertIsNotNone(event["dangling_reason"])
+        allocation = self._rows("personal_debt_allocations")[0]
+        self.assertEqual(allocation["bound"], 0)
+        self.assertIsNone(allocation["entry_id"])
+
+    def test_allocation_principals_must_sum_to_event_principal(self) -> None:
+        debt_id = self._open_payable()
+        with self.assertRaisesRegex(FinCLError, "sum to the event principal"):
             self._record(
                 "PERSONAL_DEBT_EVENT_SET",
                 {"debt": debt_id, "event": str(uuid.uuid4())},
@@ -161,12 +188,12 @@ class DebtJournalTests(ApiTestBase):
                     "event_kind": "BORROWED", "direction": "PAYABLE",
                     "principal_amount": "10.00", "effective_on": "2026-01-06",
                     "entry_allocations": [
-                        {"entry_anchor": "x", "principal_amount": "10.00",
+                        {"entry_anchor": "a", "principal_amount": "7.00",
                          "interest_amount": "0.00", "fee_amount": "0.00",
                          "separate_fee_amount": "0.00"}
                     ],
                     "opening_balance": False,
-                    "expense_category": None, "reason": "Source-linked, not yet supported",
+                    "expense_category": None, "reason": "Principals do not add up",
                 },
             )
 

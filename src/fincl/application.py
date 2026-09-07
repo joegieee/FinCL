@@ -187,24 +187,40 @@ def record_debt_decision(
 ) -> DecisionReceipt:
     """Append one ``PERSONAL_DEBT_*`` / ``ENTRY_RESIDUAL_*`` record.
 
-    Shape validation runs in ``debts.validation`` (called by the HTTP/CLI
-    preview and again during replay). Slice 2 adds a full-state ``preview_debt``
-    here for chronology and component-partition checks before the append.
+    Shape validation runs in ``debts.validation``; the full-state ``preview_debt``
+    below applies the pending decision against the current projection inside a
+    savepoint and runs the real ``resolve_debts`` pass, so a durable record is
+    never made for a decision that could not fully replay (chronology, allocation
+    direction / currency, component partition).
     """
-    from .debts.validation import validate_debt_payload
+    from .debts.preview import preview_debt
+    from .decisions import resolve_anchor
 
-    validate_debt_payload(decision_kind, anchors, payload)
-    return record_decision(
-        database_path,
-        request_id=request_id,
-        intent_hash=intent_hash,
-        decision_kind=decision_kind,
-        anchors=anchors,
-        payload=payload,
-        policy_version=policy_version,
-        snapshot=f"{decision_kind}: {anchors}",
-        writer=writer,
-    )
+    with ledger_writer(database_path, existing=writer) as held:
+        connection = connect_sqlite(database_path)
+        try:
+            initialize_schema(connection)
+            replay_journal(connection)
+            preview_debt(
+                connection,
+                decision_kind,
+                anchors,
+                payload,
+                resolve_anchor=lambda a: resolve_anchor(connection, a),
+            )
+        finally:
+            connection.close()
+        return record_decision(
+            database_path,
+            request_id=request_id,
+            intent_hash=intent_hash,
+            decision_kind=decision_kind,
+            anchors=anchors,
+            payload=payload,
+            policy_version=policy_version,
+            snapshot=f"{decision_kind}: {anchors}",
+            writer=held,
+        )
 
 
 def record_refund_allocation(

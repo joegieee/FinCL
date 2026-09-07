@@ -1,14 +1,19 @@
 """Replay the ``PERSONAL_DEBT_*`` / ``ENTRY_RESIDUAL_*`` kinds into schema 13.
 
-``apply_debt`` projects one record; ``resolve_debts`` runs once after the record
-loop to rebuild ``personal_debt_allocations`` from the event payloads, fold
-``entry_residuals``, and revalidate each debt's full chronology (day-end
-non-negative principal, event dates within the debt's open window).
+``apply_debt`` projects one record: identity and details into ``personal_debts``,
+the dated principal timeline into ``personal_debt_events``, the per-source
+component claims into ``personal_debt_allocations`` (anchors resolved here so the
+shared registry can read ``bound = 1`` rows), and the one-per-entry owner share
+into ``entry_residuals``. ``INBOUND_CLASSIFICATION_RETIRE`` removes a prior
+inbound classification so a coupled correction can re-adjudicate the inflow.
 
-Slice 1 accepts only identity, details, and explicit opening-balance events, so
-the allocation rebuild is a no-op here; it becomes load-bearing in slice 2 when
-source-linked events land. The as-of balance is always computed from the event
-rows — no mutable authoritative balance is stored.
+``resolve_debts`` runs once after the record loop to revalidate every debt's
+full chronology (day-end non-negative principal, event dates inside the open
+window), the direction / currency of each bound source allocation, and — through
+``analysis.allocations`` — that claims never over-partition a bank component.
+
+The as-of balance is always computed from the event rows; no mutable
+authoritative balance is stored.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from .models import (
     ENTRY_RESIDUAL_RETIRE,
     ENTRY_RESIDUAL_SET,
     INBOUND_CLASSIFICATION_RETIRE,
+    OFF_LEDGER_EVENTS,
     PERSONAL_DEBT_CLOSE,
     PERSONAL_DEBT_DETAILS_SET,
     PERSONAL_DEBT_EVENT_RETIRE,
@@ -39,6 +45,74 @@ def _debt_row(connection: sqlite3.Connection, debt_id: str) -> sqlite3.Row:
     if row is None:
         raise FinCLError(f"debt {debt_id} was referenced before it was opened")
     return row
+
+
+def _entry_row(connection: sqlite3.Connection, entry_anchor: str) -> sqlite3.Row | None:
+    """One SELECTED ledger entry for ``entry_anchor``, or ``None`` when unbound."""
+    return connection.execute(
+        """
+        SELECT e.economic_direction, e.currency_pocket,
+               e.amount_coefficient, e.amount_scale
+        FROM ledger_entries e
+        JOIN extraction_runs x
+          ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+        WHERE e.natural_anchor = ?
+        LIMIT 1
+        """,
+        (entry_anchor,),
+    ).fetchone()
+
+
+def _component(payload_value: object) -> tuple[int, int]:
+    money = ExactMoney.parse(str(payload_value))
+    return money.coefficient, money.scale
+
+
+def _write_allocations(
+    connection: sqlite3.Connection,
+    *,
+    debt_id: str,
+    event_id: str,
+    currency: str,
+    allocations: list[dict[str, Any]],
+    resolve_anchor: Any,
+) -> tuple[bool, str | None]:
+    """Rebuild ``personal_debt_allocations`` for one event; return (bound, reason)."""
+    connection.execute(
+        "DELETE FROM personal_debt_allocations WHERE debt_id = ? AND event_id = ?",
+        (debt_id, event_id),
+    )
+    unresolved = 0
+    for seq, item in enumerate(allocations):
+        anchor = str(item["entry_anchor"])
+        entry_id = resolve_anchor(anchor)
+        bound = 1 if entry_id is not None else 0
+        if not bound:
+            unresolved += 1
+        principal_c, principal_s = _component(item["principal_amount"])
+        interest_c, interest_s = _component(item["interest_amount"])
+        fee_c, fee_s = _component(item["fee_amount"])
+        sep_c, sep_s = _component(item["separate_fee_amount"])
+        connection.execute(
+            """
+            INSERT INTO personal_debt_allocations
+                (debt_id, event_id, seq_in_event, entry_anchor, entry_id,
+                 principal_coefficient, principal_scale,
+                 interest_coefficient, interest_scale,
+                 fee_coefficient, fee_scale,
+                 separate_fee_coefficient, separate_fee_scale,
+                 currency, bound)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                debt_id, event_id, seq, anchor, entry_id,
+                principal_c, principal_s, interest_c, interest_s,
+                fee_c, fee_s, sep_c, sep_s, currency, bound,
+            ),
+        )
+    if unresolved:
+        return False, f"{unresolved} source allocation(s) do not resolve to a selected entry"
+    return True, None
 
 
 def apply_debt(
@@ -107,6 +181,11 @@ def apply_debt(
             )
         signed = events_for_direction(str(debt["direction"]))[str(payload["event_kind"])]
         principal = ExactMoney.parse(str(payload["principal_amount"]))
+        allocations = list(payload["entry_allocations"])
+        off_ledger = (
+            str(payload["event_kind"]) in OFF_LEDGER_EVENTS
+            or bool(payload["opening_balance"])
+        )
         connection.execute(
             """
             INSERT INTO personal_debt_events
@@ -125,8 +204,8 @@ def apply_debt(
                 expense_category = excluded.expense_category,
                 journal_seq = excluded.journal_seq,
                 batch_index = excluded.batch_index,
-                bound = excluded.bound,
-                dangling_reason = excluded.dangling_reason,
+                bound = 1,
+                dangling_reason = NULL,
                 reason = excluded.reason
             """,
             (
@@ -144,12 +223,68 @@ def apply_debt(
                 payload["reason"],
             ),
         )
+
+        if off_ledger:
+            connection.execute(
+                "DELETE FROM personal_debt_allocations WHERE debt_id = ? AND event_id = ?",
+                (debt_id, event_id),
+            )
+        else:
+            bound, dangling = _write_allocations(
+                connection,
+                debt_id=debt_id,
+                event_id=event_id,
+                currency=str(debt["currency"]),
+                allocations=allocations,
+                resolve_anchor=resolve_anchor,
+            )
+            connection.execute(
+                "UPDATE personal_debt_events SET bound = ?, dangling_reason = ? "
+                "WHERE debt_id = ? AND event_id = ?",
+                (1 if bound else 0, dangling, debt_id, event_id),
+            )
         return
 
     if decision_kind == PERSONAL_DEBT_EVENT_RETIRE:
         connection.execute(
+            "DELETE FROM personal_debt_allocations WHERE debt_id = ? AND event_id = ?",
+            (anchors["debt"], anchors["event"]),
+        )
+        connection.execute(
             "DELETE FROM personal_debt_events WHERE debt_id = ? AND event_id = ?",
             (anchors["debt"], anchors["event"]),
+        )
+        return
+
+    if decision_kind == ENTRY_RESIDUAL_SET:
+        entry_anchor = anchors["entry"]
+        entry = _entry_row(connection, entry_anchor)
+        coefficient, scale = _component(payload["expense_amount"])
+        bound = entry is not None
+        currency = str(entry["currency_pocket"]) if entry is not None else ""
+        dangling = None if bound else "the source entry does not resolve to a selected entry"
+        connection.execute(
+            """
+            INSERT INTO entry_residuals
+                (entry_anchor, expense_coefficient, expense_scale, expense_category,
+                 currency, journal_seq, batch_index, bound, dangling_reason, reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(entry_anchor) DO UPDATE SET
+                expense_coefficient = excluded.expense_coefficient,
+                expense_scale = excluded.expense_scale,
+                expense_category = excluded.expense_category,
+                currency = excluded.currency,
+                journal_seq = excluded.journal_seq,
+                batch_index = excluded.batch_index,
+                bound = excluded.bound,
+                dangling_reason = excluded.dangling_reason,
+                reason = excluded.reason
+            """,
+            (
+                entry_anchor, coefficient, scale, payload["expense_category"],
+                currency, journal_seq, batch_index,
+                1 if bound else 0, dangling, payload["reason"],
+            ),
         )
         return
 
@@ -159,26 +294,96 @@ def apply_debt(
         )
         return
 
+    if decision_kind == INBOUND_CLASSIFICATION_RETIRE:
+        # Return the inflow to its source default; a coupled correction batch may
+        # then re-classify it. A later INBOUND_CLASSIFICATION re-adds the row.
+        connection.execute(
+            "DELETE FROM inbound_classifications WHERE anchor = ?",
+            (anchors["entry"],),
+        )
+        return
+
     if decision_kind in {
         PERSONAL_DEBT_CLOSE,
         PERSONAL_DEBT_REOPEN,
-        ENTRY_RESIDUAL_SET,
-        INBOUND_CLASSIFICATION_RETIRE,
-    }:  # pragma: no cover - validation refuses these in slice 1
-        raise FinCLError(f"{decision_kind} projection arrives in a later v0.3 slice")
+    }:  # pragma: no cover - validation refuses these until slice 3
+        raise FinCLError(f"{decision_kind} projection arrives in v0.3 slice 3")
 
     raise FinCLError(f"{decision_kind} is not a personal-debt decision")  # pragma: no cover
 
 
+def _expected_direction(debt_direction: str, signed: int) -> str:
+    """The bank direction a bound principal allocation must carry (§2)."""
+    if (debt_direction == "PAYABLE" and signed > 0) or (
+        debt_direction == "RECEIVABLE" and signed < 0
+    ):
+        return "IN"
+    return "OUT"
+
+
+def _check_allocation_binding(connection: sqlite3.Connection) -> None:
+    """Direction and currency of every bound source allocation (§1, §2)."""
+    rows = connection.execute(
+        """
+        SELECT a.entry_anchor, a.currency AS debt_currency,
+               a.principal_coefficient, e.signed, d.direction
+        FROM personal_debt_allocations a
+        JOIN personal_debt_events e
+          ON e.debt_id = a.debt_id AND e.event_id = a.event_id
+        JOIN personal_debts d ON d.debt_id = a.debt_id
+        WHERE a.bound = 1
+        """
+    ).fetchall()
+    for row in rows:
+        entry = _entry_row(connection, str(row["entry_anchor"]))
+        if entry is None:
+            # A row marked bound whose entry vanished this replay: treat as a
+            # hard inconsistency rather than silently trusting the flag.
+            raise FinCLError(
+                f"debt allocation against {row['entry_anchor']} lost its entry on replay"
+            )
+        if str(entry["currency_pocket"]) != str(row["debt_currency"]):
+            raise FinCLError(
+                f"debt allocation against {row['entry_anchor']} is "
+                f"{entry['currency_pocket']} but the debt is {row['debt_currency']}; "
+                "cross-currency debt allocation is not supported"
+            )
+        if int(row["principal_coefficient"]) == 0:
+            continue
+        expected = _expected_direction(str(row["direction"]), int(row["signed"]))
+        if str(entry["economic_direction"]) != expected:
+            raise FinCLError(
+                f"debt allocation against {row['entry_anchor']} needs a bank "
+                f"{expected} movement but the entry is {entry['economic_direction']}"
+            )
+
+
+def _check_partitions(connection: sqlite3.Connection) -> None:
+    """No bank component is over-claimed across debts, residuals and refunds."""
+    from ..analysis.allocations import assert_partition
+
+    anchors: set[str] = set()
+    for (anchor,) in connection.execute(
+        "SELECT DISTINCT entry_anchor FROM personal_debt_allocations WHERE bound = 1"
+    ):
+        anchors.add(str(anchor))
+    for (anchor,) in connection.execute(
+        "SELECT DISTINCT entry_anchor FROM entry_residuals WHERE bound = 1"
+    ):
+        anchors.add(str(anchor))
+    for anchor in anchors:
+        assert_partition(connection, anchor, role="amount")
+        assert_partition(connection, anchor, role="fee")
+
+
 def resolve_debts(connection: sqlite3.Connection) -> None:
-    """Rebuild derived debt tables and revalidate every debt's chronology.
+    """Revalidate every debt's chronology, allocation binding and partitions.
 
-    Slice 1: the allocation rebuild has nothing to do (opening events carry no
-    allocations); the day-end non-negative check still runs so a retroactive
-    edit that would drive principal negative is caught at replay time.
+    Allocation rows are written by :func:`apply_debt`; this pass does not rebuild
+    them. It runs the day-end non-negative check, the direction / currency check
+    for bound source allocations, and the shared component-partition check so a
+    retroactive edit that breaks any invariant is caught at replay time.
     """
-    connection.execute("DELETE FROM personal_debt_allocations")
-
     for debt in connection.execute("SELECT * FROM personal_debts").fetchall():
         events = connection.execute(
             "SELECT effective_on, principal_coefficient, principal_scale, signed "
@@ -186,10 +391,10 @@ def resolve_debts(connection: sqlite3.Connection) -> None:
             "ORDER BY effective_on, signed DESC, event_id",
             (debt["debt_id"],),
         ).fetchall()
-        running_by_day: dict[str, int] = {}
         scale = 0
         for event in events:
             scale = max(scale, int(event["principal_scale"]))
+        running_by_day: dict[str, int] = {}
         running = 0
         current_day = None
         for event in events:
@@ -212,3 +417,6 @@ def resolve_debts(connection: sqlite3.Connection) -> None:
                 raise FinCLError(
                     f"debt {debt['debt_id']} ends {day} with negative principal"
                 )
+
+    _check_allocation_binding(connection)
+    _check_partitions(connection)

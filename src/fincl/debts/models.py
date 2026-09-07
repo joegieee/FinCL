@@ -50,15 +50,23 @@ RECEIVABLE_EVENTS: dict[str, int] = {
 
 # Events whose principal is not backed by a resolved bank movement: they carry an
 # empty ``entry_allocations`` list and are the only place an off-ledger amount
-# enters a debt (DESIGN-debts-and-context.md §1).
+# enters a debt (DESIGN-debts-and-context.md §1, §3).
+#
+# ``EXPENSE_PAID_FOR_OTHER`` is *not* here: someone-else's-bill-I-paid is funded
+# by my own bank outflow, so it carries source allocations against that entry and
+# the owner's share is recorded once through an ``ENTRY_RESIDUAL_SET`` (§3, the
+# "shared restaurant bill 120, owner's portion 40" example).
 OFF_LEDGER_EVENTS = frozenset(
     {
         "EXPENSE_PAID_FOR_ME",
-        "EXPENSE_PAID_FOR_OTHER",
         "PAYABLE_FORGIVEN",
         "RECEIVABLE_WRITTEN_OFF",
     }
 )
+
+# Exceptional off-ledger reductions (forgiveness / write-off). Distinct actions
+# with their own analytical disclosure; they land in v0.3 slice 3.
+EXCEPTIONAL_EVENTS = frozenset({"PAYABLE_FORGIVEN", "RECEIVABLE_WRITTEN_OFF"})
 
 # The two kinds that may additionally carry ``opening_balance: true`` to record a
 # pre-existing obligation with no observed funding.
