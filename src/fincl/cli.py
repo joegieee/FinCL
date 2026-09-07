@@ -1816,6 +1816,122 @@ def debt_show(
     console.print(table)
 
 
+def _record_card(
+    database: Path, kind: str, anchors: dict[str, str], payload: dict[str, object],
+    *, json_output: bool = False, plain: bool = False,
+) -> None:
+    import hashlib
+    import uuid as _uuid
+
+    from .application import record_card_decision
+    from .common import canonical_json
+
+    try:
+        request_id = str(_uuid.uuid4())
+        intent = hashlib.sha256(
+            canonical_json({"kind": kind, "anchors": anchors, "payload": payload}).encode()
+        ).hexdigest()
+        receipt = record_card_decision(
+            database, request_id=request_id, intent_hash=intent,
+            decision_kind=kind, anchors=anchors, payload=payload,
+        )
+        _emit_mapping(
+            {"seq": receipt.journal_seq, "record_hash": receipt.record_hash,
+             "facility": anchors.get("facility", ""),
+             "observation": anchors.get("observation", ""),
+             "status": "recorded_refresh_pending" if receipt.refresh_pending else "applied"},
+            plain, json_output,
+        )
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@cards_app.command("facility-set")
+def cards_facility_set(
+    label: str = typer.Option(..., "--label"),
+    currency: str = typer.Option(..., "--currency"),
+    account: list[str] = typer.Option(..., "--account", help="Repeat for each member account id."),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    facility: str | None = typer.Option(None, "--facility", help="Existing facility id to revise."),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Record an issuer's explicit shared-limit scope (CARD_FACILITY_SET)."""
+    import uuid as _uuid
+
+    _record_card(
+        database, "CARD_FACILITY_SET",
+        {"facility": facility or str(_uuid.uuid4())},
+        {
+            "label": label.strip(),
+            "account_ids": [a.strip() for a in account],
+            "currency": currency.strip().upper(),
+            "reason": reason.strip(),
+        },
+        json_output=json_output, plain=plain,
+    )
+
+
+@cards_app.command("facility-retire")
+def cards_facility_retire(
+    facility: str = typer.Option(..., "--facility"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Retire a card facility (CARD_FACILITY_RETIRE); its limit observations must be gone first."""
+    _record_card(
+        database, "CARD_FACILITY_RETIRE", {"facility": facility.strip()},
+        {"reason": reason.strip()}, json_output=json_output, plain=plain,
+    )
+
+
+@cards_app.command("limit-observe")
+def cards_limit_observe(
+    facility: str = typer.Option(..., "--facility"),
+    observed_on: str = typer.Option(..., "--observed-on", help="YYYY-MM-DD."),
+    limit: str = typer.Option(..., "--limit", help="Decimal amount in the facility currency."),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    source_ref: str | None = typer.Option(None, "--source-ref", help="Statement id / identity / evidence sha256."),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Record a dated credit-limit observation (CARD_LIMIT_OBSERVATION_SET)."""
+    import uuid as _uuid
+
+    _record_card(
+        database, "CARD_LIMIT_OBSERVATION_SET",
+        {"facility": facility.strip(), "observation": str(_uuid.uuid4())},
+        {
+            "observed_on": observed_on.strip(),
+            "limit": limit.strip(),
+            "source_ref": source_ref.strip() if source_ref else None,
+            "reason": reason.strip(),
+        },
+        json_output=json_output, plain=plain,
+    )
+
+
+@cards_app.command("limit-retire")
+def cards_limit_retire(
+    facility: str = typer.Option(..., "--facility"),
+    observation: str = typer.Option(..., "--observation"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Retire a limit observation (CARD_LIMIT_OBSERVATION_RETIRE)."""
+    _record_card(
+        database, "CARD_LIMIT_OBSERVATION_RETIRE",
+        {"facility": facility.strip(), "observation": observation.strip()},
+        {"reason": reason.strip()}, json_output=json_output, plain=plain,
+    )
+
+
 @cards_app.command("list")
 def cards_list(
     database: Path = typer.Option(..., "--database"),

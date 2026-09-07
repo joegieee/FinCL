@@ -50,6 +50,22 @@ def register_card_reads(app: FastAPI, database: Path) -> None:
             except FinCLError as exc:
                 raise _map_error(exc) from exc
 
+    @app.get("/api/v1/cards/{account_id}")
+    def card_detail_route(
+        account_id: str,
+        as_of: str | None = None,
+        generation: str | None = None,
+    ) -> Any:
+        from .cards.queries import card_detail
+
+        with ledger_writer(database):
+            try:
+                return card_detail(
+                    database, account_id, as_of=as_of, expected=generation
+                )
+            except FinCLError as exc:
+                raise _map_error(exc) from exc
+
     @app.get("/api/v1/cards/{account_id}/statements")
     def card_statements_route(
         account_id: str,

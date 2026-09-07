@@ -46,12 +46,20 @@ _SINGLE_KINDS = Literal[
     'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
     'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
     'ENTRY_RESIDUAL_SET','ENTRY_RESIDUAL_RETIRE','INBOUND_CLASSIFICATION_RETIRE',
+    # v0.4 credit-card facilities and dated limit observations
+    'CARD_FACILITY_SET','CARD_FACILITY_RETIRE','CARD_LIMIT_OBSERVATION_SET',
+    'CARD_LIMIT_OBSERVATION_RETIRE',
 ]
 
 _DEBT_KINDS = frozenset({
     'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
     'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
     'ENTRY_RESIDUAL_SET','ENTRY_RESIDUAL_RETIRE','INBOUND_CLASSIFICATION_RETIRE',
+})
+
+_CARD_KINDS = frozenset({
+    'CARD_FACILITY_SET','CARD_FACILITY_RETIRE','CARD_LIMIT_OBSERVATION_SET',
+    'CARD_LIMIT_OBSERVATION_RETIRE',
 })
 
 
@@ -425,6 +433,21 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                 )
             finally:
                 preview_connection.close()
+        elif command.kind in _CARD_KINDS:
+            from .cards.preview import preview_card
+            from .db import connect_sqlite, initialize_schema
+            from .decisions import replay_journal
+            preview_connection = connect_sqlite(database)
+            try:
+                initialize_schema(preview_connection)
+                replay_journal(preview_connection)
+                preview_card(
+                    preview_connection, command.kind, dict(command.anchors),
+                    dict(command.payload),
+                    resolve_anchor=lambda a: resolve_anchor(preview_connection, a),
+                )
+            finally:
+                preview_connection.close()
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -729,6 +752,8 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
                     policy = extra.get('policy_version',policy)
                 elif command.kind in _DEBT_KINDS:
                     policy = 'personal-debt-v1'
+                elif command.kind in _CARD_KINDS:
+                    policy = 'card-facility-v1'
             receipt = record_decision(database,request_id=str(command.request_id),intent_hash=intent,decision_kind=kind,anchors=anchors,payload=payload,policy_version=policy,snapshot=f'{kind}: {payload}',writer=writer)
             return JSONResponse({**asdict(receipt),'status':'recorded_refresh_pending' if receipt.refresh_pending else 'applied'},status_code=202 if receipt.refresh_pending else 200)
 

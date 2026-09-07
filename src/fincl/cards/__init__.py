@@ -13,17 +13,34 @@ land in slice 2 (`CARD_FACILITY_SET`, `CARD_LIMIT_OBSERVATION_SET`,
 """
 
 from .models import (
+    CARD_DECISION_KINDS,
+    CARD_FACILITY_RETIRE,
+    CARD_FACILITY_SET,
+    CARD_LIMIT_OBSERVATION_RETIRE,
+    CARD_LIMIT_OBSERVATION_SET,
     CARD_SOURCE_TYPES,
     CardStatementFact,
     ReconciliationStatus,
 )
-from .queries import card_detail, card_statements, cards_page
+from .projection import apply_card, resolve_cards
+from .validation import validate_card_payload
+
+# NOTE: `cards.queries` (the read surface) is intentionally not imported here.
+# `decisions.py` imports this package during module init, and the queries module
+# pulls in `generation` which pulls in `decisions` — a cycle. API and CLI import
+# `fincl.cards.queries` directly and lazily instead, exactly as the debts module
+# does.
 
 __all__ = [
     "CARD_SOURCE_TYPES",
+    "CARD_DECISION_KINDS",
+    "CARD_FACILITY_SET",
+    "CARD_FACILITY_RETIRE",
+    "CARD_LIMIT_OBSERVATION_SET",
+    "CARD_LIMIT_OBSERVATION_RETIRE",
     "CardStatementFact",
     "ReconciliationStatus",
-    "cards_page",
-    "card_statements",
-    "card_detail",
+    "apply_card",
+    "resolve_cards",
+    "validate_card_payload",
 ]

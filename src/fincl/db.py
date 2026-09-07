@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -377,6 +377,60 @@ CREATE INDEX IF NOT EXISTS card_statement_facts_by_extraction
 """
 
 
+# Schema 15 derived tables (v0.4 credit cards slice 2; docs/releases/v0.4-cards.md
+# §2). The disposable card-facility projection replayed from the
+# `CARD_FACILITY_*` / `CARD_LIMIT_OBSERVATION_*` decision kinds: an issuer's
+# explicit shared-limit scope in `card_facilities` (+ the account membership in
+# `card_facility_accounts`), and the dated limit timeline in
+# `card_limit_observations`. No guessed default limit is ever stored, and no
+# figure is FX-converted to another facility currency. All rebuilt by every
+# journal replay; a RETIRE leaves no row. Shared verbatim between a fresh
+# `initialize_schema` and the registered 14->15 migration.
+SCHEMA_15_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS card_facilities (
+    facility_id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    batch_index INTEGER,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    reason TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS card_facility_accounts (
+    facility_id TEXT NOT NULL REFERENCES card_facilities(facility_id),
+    account_id TEXT NOT NULL,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    PRIMARY KEY (facility_id, account_id)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS card_facility_accounts_by_account
+    ON card_facility_accounts(account_id);
+
+CREATE TABLE IF NOT EXISTS card_limit_observations (
+    facility_id TEXT NOT NULL REFERENCES card_facilities(facility_id),
+    observation_id TEXT NOT NULL,
+    observed_on TEXT NOT NULL,
+    limit_coefficient INTEGER NOT NULL
+        CHECK (limit_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    limit_scale INTEGER NOT NULL CHECK (limit_scale BETWEEN 0 AND {MAX_SCALE}),
+    currency TEXT NOT NULL,
+    source_ref TEXT,
+    source_kind TEXT NOT NULL CHECK (source_kind IN ('statement-evidence', 'operator-declared')),
+    journal_seq INTEGER NOT NULL,
+    batch_index INTEGER,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    reason TEXT NOT NULL,
+    PRIMARY KEY (facility_id, observation_id)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS card_limit_observations_timeline
+    ON card_limit_observations(facility_id, observed_on, observation_id);
+"""
+
+
 def _create_decision_projection(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
@@ -529,6 +583,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_10_TABLES_SQL
         + SCHEMA_11_TABLES_SQL
         + SCHEMA_13_TABLES_SQL
+        + SCHEMA_15_TABLES_SQL
     )
 
 

@@ -16,7 +16,13 @@ import sqlite3
 from datetime import date, timedelta
 from typing import Any
 
+from ..errors import FinCLError
+from ..money import ExactMoney
 from .models import (
+    CARD_FACILITY_RETIRE,
+    CARD_FACILITY_SET,
+    CARD_LIMIT_OBSERVATION_RETIRE,
+    CARD_LIMIT_OBSERVATION_SET,
     CARD_SOURCE_TYPES,
     DATE_ROLES,
     ROLE_CLOSING_LIABILITY,
@@ -357,6 +363,307 @@ def _first_pocket(connection: sqlite3.Connection, statement: sqlite3.Row) -> str
     return str(row["currency_pocket"]) if row is not None else "SGD"
 
 
+# --------------------------------------------------------------------------- #
+# Slice 2: facility / limit-observation journal projection.
+# --------------------------------------------------------------------------- #
+
+
+def _is_card_account(connection: sqlite3.Connection, account_id: str) -> bool:
+    row = connection.execute(
+        "SELECT source_type FROM accounts WHERE id = ?", (account_id,)
+    ).fetchone()
+    if row is None:
+        return False
+    if str(row["source_type"]) in CARD_SOURCE_TYPES:
+        return True
+    return (
+        connection.execute(
+            """
+            SELECT 1 FROM statements s
+            JOIN card_statement_facts f ON f.statement_id = s.id
+            WHERE s.account_id = ? LIMIT 1
+            """,
+            (account_id,),
+        ).fetchone()
+        is not None
+    )
+
+
+def _source_ref_is_statement_evidence(
+    connection: sqlite3.Connection, source_ref: str
+) -> bool:
+    """True when ``source_ref`` names preserved statement evidence.
+
+    Accepts a `statements.id`, a `statement_identity`, or a 64-hex evidence
+    sha256 that a selected statement carries.
+    """
+    return (
+        connection.execute(
+            """
+            SELECT 1 FROM statements
+            WHERE id = ?1 OR statement_identity = ?1 OR evidence_sha256 = ?1
+            LIMIT 1
+            """,
+            (source_ref,),
+        ).fetchone()
+        is not None
+    )
+
+
+def apply_card(
+    connection: sqlite3.Connection,
+    *,
+    decision_kind: str,
+    anchors: dict[str, str],
+    payload: dict[str, Any],
+    journal_seq: int,
+    batch_index: int | None,
+    resolve_anchor: Any,
+) -> None:
+    """Project one ``CARD_FACILITY_*`` / ``CARD_LIMIT_OBSERVATION_*`` record."""
+    if decision_kind == CARD_FACILITY_SET:
+        facility_id = anchors["facility"]
+        account_ids = list(payload["account_ids"])
+        missing = [a for a in account_ids if not _is_card_account(connection, a)]
+        bound = 0 if missing else 1
+        dangling = (
+            None
+            if bound
+            else "account(s) are not credit-liability card accounts: "
+            + ", ".join(sorted(missing))
+        )
+        connection.execute(
+            """
+            INSERT INTO card_facilities
+                (facility_id, label, currency, journal_seq, batch_index, bound,
+                 dangling_reason, reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(facility_id) DO UPDATE SET
+                label = excluded.label,
+                currency = excluded.currency,
+                journal_seq = excluded.journal_seq,
+                batch_index = excluded.batch_index,
+                bound = excluded.bound,
+                dangling_reason = excluded.dangling_reason,
+                reason = excluded.reason
+            """,
+            (
+                facility_id,
+                payload["label"],
+                payload["currency"],
+                journal_seq,
+                batch_index,
+                bound,
+                dangling,
+                payload["reason"],
+            ),
+        )
+        connection.execute(
+            "DELETE FROM card_facility_accounts WHERE facility_id = ?", (facility_id,)
+        )
+        for account_id in account_ids:
+            connection.execute(
+                "INSERT INTO card_facility_accounts(facility_id, account_id, bound) "
+                "VALUES (?, ?, ?)",
+                (facility_id, account_id, 1 if _is_card_account(connection, account_id) else 0),
+            )
+        return
+
+    if decision_kind == CARD_FACILITY_RETIRE:
+        facility_id = anchors["facility"]
+        remaining = connection.execute(
+            "SELECT count(*) FROM card_limit_observations WHERE facility_id = ?",
+            (facility_id,),
+        ).fetchone()[0]
+        if remaining:
+            raise FinCLError(
+                f"card facility {facility_id} still has {remaining} limit "
+                "observation(s); retire those first"
+            )
+        connection.execute(
+            "DELETE FROM card_facility_accounts WHERE facility_id = ?", (facility_id,)
+        )
+        connection.execute(
+            "DELETE FROM card_facilities WHERE facility_id = ?", (facility_id,)
+        )
+        return
+
+    if decision_kind == CARD_LIMIT_OBSERVATION_SET:
+        facility_id, observation_id = anchors["facility"], anchors["observation"]
+        facility = connection.execute(
+            "SELECT currency FROM card_facilities WHERE facility_id = ?",
+            (facility_id,),
+        ).fetchone()
+        if facility is None:
+            raise FinCLError(
+                f"limit observation {observation_id} references facility "
+                f"{facility_id} before it was set"
+            )
+        limit = ExactMoney.parse(str(payload["limit"]))
+        source_ref = payload["source_ref"]
+        source_kind = (
+            "statement-evidence"
+            if source_ref is not None
+            and _source_ref_is_statement_evidence(connection, str(source_ref))
+            else "operator-declared"
+        )
+        connection.execute(
+            """
+            INSERT INTO card_limit_observations
+                (facility_id, observation_id, observed_on, limit_coefficient,
+                 limit_scale, currency, source_ref, source_kind, journal_seq,
+                 batch_index, bound, dangling_reason, reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL, ?)
+            ON CONFLICT(facility_id, observation_id) DO UPDATE SET
+                observed_on = excluded.observed_on,
+                limit_coefficient = excluded.limit_coefficient,
+                limit_scale = excluded.limit_scale,
+                currency = excluded.currency,
+                source_ref = excluded.source_ref,
+                source_kind = excluded.source_kind,
+                journal_seq = excluded.journal_seq,
+                batch_index = excluded.batch_index,
+                bound = 1,
+                dangling_reason = NULL,
+                reason = excluded.reason
+            """,
+            (
+                facility_id,
+                observation_id,
+                payload["observed_on"],
+                limit.coefficient,
+                limit.scale,
+                str(facility["currency"]),
+                source_ref,
+                source_kind,
+                journal_seq,
+                batch_index,
+                payload["reason"],
+            ),
+        )
+        return
+
+    if decision_kind == CARD_LIMIT_OBSERVATION_RETIRE:
+        connection.execute(
+            "DELETE FROM card_limit_observations WHERE facility_id = ? AND observation_id = ?",
+            (anchors["facility"], anchors["observation"]),
+        )
+        return
+
+    raise FinCLError(f"{decision_kind} is not a credit-card decision")  # pragma: no cover
+
+
+def resolve_cards(connection: sqlite3.Connection) -> None:
+    """Revalidate facility membership exclusivity after every replay (§2).
+
+    One account / pocket belongs to at most one active facility. Facility bound
+    status is recomputed from current account existence and kind so a retroactive
+    account removal is caught at replay time rather than trusting a stale flag.
+    """
+    seen: dict[str, str] = {}
+    for row in connection.execute(
+        """
+        SELECT fa.account_id, fa.facility_id
+        FROM card_facility_accounts fa
+        JOIN card_facilities f ON f.facility_id = fa.facility_id
+        ORDER BY fa.facility_id, fa.account_id
+        """
+    ).fetchall():
+        account_id = str(row["account_id"])
+        facility_id = str(row["facility_id"])
+        if account_id in seen and seen[account_id] != facility_id:
+            raise FinCLError(
+                f"account {account_id} is claimed by more than one active card "
+                f"facility ({seen[account_id]}, {facility_id})"
+            )
+        seen[account_id] = facility_id
+
+    for row in connection.execute(
+        "SELECT facility_id FROM card_facilities"
+    ).fetchall():
+        facility_id = str(row["facility_id"])
+        accounts = [
+            str(r["account_id"])
+            for r in connection.execute(
+                "SELECT account_id FROM card_facility_accounts WHERE facility_id = ?",
+                (facility_id,),
+            )
+        ]
+        missing = [a for a in accounts if not _is_card_account(connection, a)]
+        connection.execute(
+            "UPDATE card_facilities SET bound = ?, dangling_reason = ? "
+            "WHERE facility_id = ?",
+            (
+                0 if missing else 1,
+                (
+                    None
+                    if not missing
+                    else "account(s) are not credit-liability card accounts: "
+                    + ", ".join(sorted(missing))
+                ),
+                facility_id,
+            ),
+        )
+        for account_id in accounts:
+            connection.execute(
+                "UPDATE card_facility_accounts SET bound = ? "
+                "WHERE facility_id = ? AND account_id = ?",
+                (1 if _is_card_account(connection, account_id) else 0, facility_id, account_id),
+            )
+
+
+def facility_for_account(
+    connection: sqlite3.Connection, account_id: str
+) -> sqlite3.Row | None:
+    return connection.execute(
+        """
+        SELECT f.facility_id, f.label, f.currency, f.bound
+        FROM card_facilities f
+        JOIN card_facility_accounts fa ON fa.facility_id = f.facility_id
+        WHERE fa.account_id = ?
+        ORDER BY f.facility_id LIMIT 1
+        """,
+        (account_id,),
+    ).fetchone()
+
+
+def limit_as_of(
+    connection: sqlite3.Connection, facility_id: str, as_of: str
+) -> dict[str, Any] | None:
+    """The latest non-retired limit observation on/before ``as_of``.
+
+    Its observation date is carried so the caller can display exactly when the
+    limit was read. No FX conversion is ever applied.
+    """
+    row = connection.execute(
+        """
+        SELECT observation_id, observed_on, limit_coefficient, limit_scale,
+               currency, source_ref, source_kind
+        FROM card_limit_observations
+        WHERE facility_id = ? AND observed_on <= ? AND bound = 1
+        ORDER BY observed_on DESC, observation_id DESC
+        LIMIT 1
+        """,
+        (facility_id, as_of),
+    ).fetchone()
+    if row is None:
+        return None
+    from ..money import format_decimal
+
+    return {
+        "observation_id": str(row["observation_id"]),
+        "observed_on": str(row["observed_on"]),
+        "limit": {
+            "value": format_decimal(
+                int(row["limit_coefficient"]), int(row["limit_scale"])
+            ),
+            "currency": str(row["currency"]),
+        },
+        "source_ref": row["source_ref"],
+        "source_kind": str(row["source_kind"]),
+    }
+
+
 __all__ = [
     "selected_card_accounts",
     "selected_statements",
@@ -366,6 +673,10 @@ __all__ = [
     "statement_view",
     "coverage_gaps",
     "latest_statement_summary",
+    "apply_card",
+    "resolve_cards",
+    "facility_for_account",
+    "limit_as_of",
     "DATE_ROLES",
     "ROLE_PERIOD_START",
     "ROLE_PERIOD_END",

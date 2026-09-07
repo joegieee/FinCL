@@ -8,6 +8,12 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .association import advance_checkpoint, require_valid_association
+from .cards import (
+    CARD_DECISION_KINDS,
+    apply_card,
+    resolve_cards,
+    validate_card_payload,
+)
 from .categorization import (
     CATEGORIZATION_DECISION_KINDS,
     CATEGORY_OVERRIDE,
@@ -78,6 +84,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | RELATIONSHIP_DECISION_KINDS
     | V05_DECISION_KINDS
     | DEBT_DECISION_KINDS
+    | CARD_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -226,6 +233,9 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "personal_debt_events",
             "entry_residuals",
             "personal_debts",
+            "card_limit_observations",
+            "card_facility_accounts",
+            "card_facilities",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -239,6 +249,8 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             resolve_relationships(connection)
         if _table_exists(connection, "personal_debts"):
             resolve_debts(connection)
+        if _table_exists(connection, "card_facilities"):
+            resolve_cards(connection)
         _rebuild_command_receipts(connection, records)
         connection.execute("UPDATE decision_watermark SET applied_seq = ? WHERE id = 1", (len(records),))
         if verify_association:
@@ -393,6 +405,22 @@ def _apply_record(
         except FinCLError as exc:
             raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
         apply_debt(
+            connection,
+            decision_kind=record.decision_kind,
+            anchors=record.anchors,
+            payload=record.payload,
+            journal_seq=record.seq,
+            batch_index=batch_index,
+            resolve_anchor=lambda anchor: resolve_anchor(connection, anchor),
+        )
+    elif record.decision_kind in CARD_DECISION_KINDS:
+        try:
+            validate_card_payload(
+                record.decision_kind, record.anchors, record.payload
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
+        apply_card(
             connection,
             decision_kind=record.decision_kind,
             anchors=record.anchors,

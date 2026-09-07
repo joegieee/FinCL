@@ -9,12 +9,14 @@ partial export never reads as a complete picture.
 from __future__ import annotations
 
 from datetime import date
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 from ..db import connect_readonly
 from ..errors import FinCLError
 from ..generation import current_generation
+from ..money import format_decimal
 from . import projection
 
 
@@ -53,6 +55,66 @@ def _missing_period_statements(statements: list[Any]) -> list[str]:
         for s in statements
         if s["period_start"] is None or s["period_end"] is None
     ]
+
+
+def _money_fraction(shape: dict[str, Any] | None) -> Fraction | None:
+    if shape is None or shape.get("kind") != "money":
+        return None
+    try:
+        return Fraction(shape["value"])
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+def _utilization(
+    *,
+    limit: dict[str, Any] | None,
+    liability: dict[str, Any] | None,
+    limit_currency: str | None,
+    liability_currency: str | None,
+    basis_label: str,
+) -> dict[str, Any]:
+    """Utilization only for a positive limit and a same-currency liability basis.
+
+    An unknown or mismatched limit currency means "unavailable". A credit
+    balance (negative liability) is shown distinctly, never as a negative amount
+    owed. The ratio may be capped for a bar width by the caller, but the text
+    preserves an over-limit amount.
+    """
+    limit_value = _money_fraction(limit)
+    liability_value = _money_fraction(liability)
+    if limit_value is None or liability_value is None:
+        return {"available": False, "reason": "limit or liability basis not evidenced"}
+    if limit_currency is None or limit_currency != liability_currency:
+        return {"available": False, "reason": "limit and liability currency do not match"}
+    if limit_value <= 0:
+        return {"available": False, "reason": "limit is not positive"}
+    if liability_value < 0:
+        return {
+            "available": True,
+            "basis": basis_label,
+            "currency": limit_currency,
+            "credit_balance": True,
+            "credit_balance_amount": format_decimal(int(-liability_value * 100), 2),
+            "ratio": "0.0000",
+            "over_limit": False,
+        }
+    ratio = liability_value / limit_value
+    headroom = limit_value - liability_value
+    return {
+        "available": True,
+        "basis": basis_label,
+        "currency": limit_currency,
+        "credit_balance": False,
+        "ratio": format_decimal(int(ratio * 10000), 4),
+        "over_limit": liability_value > limit_value,
+        "over_limit_amount": (
+            format_decimal(int((liability_value - limit_value) * 100), 2)
+            if liability_value > limit_value
+            else None
+        ),
+        "headroom": format_decimal(int(headroom * 100), 2),
+    }
 
 
 def cards_page(
@@ -156,10 +218,12 @@ def card_detail(
     as_of: str | None = None,
     expected: str | None = None,
 ) -> dict[str, Any]:
-    """Facility/limit basis, statement activity and due fields for one card.
+    """Facility/limit basis, statement activity, due fields and utilization.
 
-    Slice 1 has no facility or limit-observation journal kinds, so the limit
-    basis is whatever the latest statement printed, stamped with its period end.
+    The limit basis is a dated `CARD_LIMIT_OBSERVATION_SET` on/before the as-of
+    date when a facility exists; otherwise it falls back to what the latest
+    statement printed, and utilization is then labelled "statement utilization".
+    A limit is never FX-converted to another currency.
     """
     as_of = _check_as_of(as_of)
     connection = connect_readonly(database)
@@ -182,13 +246,57 @@ def card_detail(
             projection.statement_view(connection, account_id, s) for s in statements
         ]
         summary = projection.latest_statement_summary(connection, statements)
+
+        facility_row = projection.facility_for_account(connection, account_id)
+        facility: dict[str, Any] | None = None
+        limit_observation: dict[str, Any] | None = None
+        if facility_row is not None:
+            facility = {
+                "facility_id": str(facility_row["facility_id"]),
+                "label": str(facility_row["label"]),
+                "currency": str(facility_row["currency"]),
+                "bound": bool(facility_row["bound"]),
+            }
+            limit_observation = projection.limit_as_of(
+                connection, str(facility_row["facility_id"]), as_of
+            )
+
+        printed_limit = summary["credit_limit"] if summary is not None else None
+        closing = summary["closing_liability"] if summary is not None else None
+        limit_basis: dict[str, Any] | None
+        if limit_observation is not None:
+            limit_basis = {
+                "kind": "money",
+                "value": limit_observation["limit"]["value"],
+                "currency": limit_observation["limit"]["currency"],
+                "observed_on": limit_observation["observed_on"],
+                "source_kind": limit_observation["source_kind"],
+            }
+            util = _utilization(
+                limit=limit_basis,
+                liability=closing,
+                limit_currency=limit_observation["limit"]["currency"],
+                liability_currency=(closing or {}).get("currency"),
+                basis_label="observed limit + statement-close liability",
+            )
+        else:
+            limit_basis = printed_limit
+            util = _utilization(
+                limit=printed_limit,
+                liability=closing,
+                limit_currency=(printed_limit or {}).get("currency"),
+                liability_currency=(closing or {}).get("currency"),
+                basis_label="statement utilization",
+            )
+
         return {
             "generation": token,
             "as_of": as_of,
             "account": _account_shape(account),
-            "limit_basis": (
-                summary["credit_limit"] if summary is not None else None
-            ),
+            "facility": facility,
+            "limit_basis": limit_basis,
+            "limit_observation": limit_observation,
+            "utilization": util,
             "latest_statement": summary,
             "statement_activity": views,
             "coverage_gaps": projection.coverage_gaps(statements),
