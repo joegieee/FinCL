@@ -94,6 +94,12 @@ categories_app = typer.Typer(help="Inspect custom categories and record display 
 app.add_typer(categories_app, name="categories")
 imports_app = typer.Typer(help="Inspect in-app import history and per-file outcomes.")
 app.add_typer(imports_app, name="imports")
+budgets_app = typer.Typer(help="Dated budget revisions and month-boundary archive state.")
+app.add_typer(budgets_app, name="budgets")
+goals_app = typer.Typer(help="Savings goal details, absolute observations and archive state.")
+app.add_typer(goals_app, name="goals")
+recurring_app = typer.Typer(help="Recurring commitments, candidate dismissals and occurrence links.")
+app.add_typer(recurring_app, name="recurring")
 console = Console()
 error_console = Console(stderr=True)
 
@@ -1252,6 +1258,276 @@ def _append_v05(
         _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
     except (FinCLError, OSError, ValueError) as exc:
         _fail(exc)
+
+
+def _append_planning(
+    database: Path, kind: str, anchors: dict[str, str], payload: dict[str, Any]
+) -> None:
+    """Validate a v0.6 planning decision at authoring, then append and re-project.
+
+    Cross-record invariants (currency lock, one revision per month, unknown
+    commitment) surface here as a replay failure, not silently.
+    """
+    from .planning import validate_planning
+
+    try:
+        validate_planning(kind, anchors, payload)
+        with _ledger(database) as connection:
+            record = append_decision(
+                default_journal_path(database), decision_kind=kind, anchors=anchors,
+                payload=payload, policy_version="planning-v1",
+                snapshot=f"{kind} {anchors}",
+            )
+            replay_journal(connection)
+        _emit_mapping({"seq": record.seq, "record_hash": record.record_hash}, True, False)
+    except (FinCLError, OSError, ValueError) as exc:
+        _fail(exc)
+
+
+def _planning_read(database: Path, loader: Any, plain: bool, json_output: bool) -> None:
+    try:
+        _emit_mapping(loader(), plain, json_output)
+    except (FinCLError, OSError) as exc:
+        _fail(exc)
+
+
+@budgets_app.command("list")
+def budgets_list(
+    database: Path = typer.Option(..., "--database"),
+    month: str = typer.Option(..., "--month", help="YYYY-MM"),
+    currency: str = typer.Option("SGD", "--currency"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """Budgets active in a month with their computed actual and remaining."""
+    from .planning.queries import budgets_page
+    _planning_read(database, lambda: budgets_page(database, month=month, currency=currency), plain, json_output)
+
+
+@budgets_app.command("history")
+def budgets_history_cmd(
+    plan: str = typer.Argument(...),
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """Every dated revision and archive period for one budget."""
+    from .planning.queries import budget_history
+    _planning_read(database, lambda: budget_history(database, plan), plain, json_output)
+
+
+@budgets_app.command("revise")
+def budgets_revise(
+    plan: str = typer.Argument(..., help="Budget id; a new id creates the budget"),
+    month: str = typer.Option(..., "--month", help="Effective month, YYYY-MM"),
+    name: str = typer.Option(..., "--name"),
+    currency: str = typer.Option("SGD", "--currency"),
+    limit: str = typer.Option(..., "--limit", help="Positive amount, e.g. 350.00"),
+    category: str | None = typer.Option(None, "--category", help="Category key; omit for all purchases + fees"),
+    revision: str | None = typer.Option(None, "--revision", help="Revision id; a new id is minted if omitted"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a BUDGET_REVISION_SET effective from a month."""
+    import uuid as _uuid
+    _append_planning(
+        database, "BUDGET_REVISION_SET",
+        {"plan": plan, "revision": revision or str(_uuid.uuid4())},
+        {"effective_month": month, "name": name, "currency": currency,
+         "category_key": category, "limit": limit, "reason": reason},
+    )
+
+
+@budgets_app.command("archive")
+def budgets_archive(
+    plan: str = typer.Argument(...),
+    month: str = typer.Option(..., "--month", help="Effective month, YYYY-MM"),
+    restore: bool = typer.Option(False, "--restore", help="Restore instead of archive"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a BUDGET_ARCHIVE_SET effective at a month boundary."""
+    _append_planning(
+        database, "BUDGET_ARCHIVE_SET", {"plan": plan},
+        {"effective_month": month, "archived": not restore, "reason": reason},
+    )
+
+
+@goals_app.command("list")
+def goals_list(
+    database: Path = typer.Option(..., "--database"),
+    as_of: str | None = typer.Option(None, "--as-of", help="YYYY-MM-DD; defaults to today"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """Savings goals with the latest observation on or before an as-of date."""
+    from .planning.queries import goals_page
+    _planning_read(database, lambda: goals_page(database, as_of=as_of), plain, json_output)
+
+
+@goals_app.command("set")
+def goals_set(
+    plan: str = typer.Argument(..., help="Goal id; a new id creates the goal"),
+    name: str = typer.Option(..., "--name"),
+    currency: str = typer.Option("SGD", "--currency"),
+    target: str = typer.Option(..., "--target", help="Positive amount"),
+    target_on: str | None = typer.Option(None, "--target-on", help="YYYY-MM-DD or omit"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a GOAL_DETAILS_SET (latest settings win)."""
+    _append_planning(
+        database, "GOAL_DETAILS_SET", {"plan": plan},
+        {"name": name, "currency": currency, "target": target,
+         "target_on": target_on, "reason": reason},
+    )
+
+
+@goals_app.command("observe")
+def goals_observe(
+    plan: str = typer.Argument(...),
+    on: str = typer.Option(..., "--on", help="Observed date, YYYY-MM-DD"),
+    saved: str = typer.Option(..., "--saved", help="Absolute saved amount (not a delta)"),
+    observation: str | None = typer.Option(None, "--observation"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a GOAL_OBSERVATION_SET — an absolute saved amount, never a delta."""
+    import uuid as _uuid
+    _append_planning(
+        database, "GOAL_OBSERVATION_SET",
+        {"plan": plan, "observation": observation or str(_uuid.uuid4())},
+        {"observed_on": on, "saved": saved, "reason": reason},
+    )
+
+
+@goals_app.command("observe-retire")
+def goals_observe_retire(
+    plan: str = typer.Argument(...),
+    observation: str = typer.Option(..., "--observation"),
+    reason: str = typer.Option("retired", "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a GOAL_OBSERVATION_RETIRE for one observation."""
+    _append_planning(
+        database, "GOAL_OBSERVATION_RETIRE",
+        {"plan": plan, "observation": observation}, {"reason": reason},
+    )
+
+
+@goals_app.command("archive")
+def goals_archive(
+    plan: str = typer.Argument(...),
+    restore: bool = typer.Option(False, "--restore"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a GOAL_ARCHIVE_SET (hides the goal without erasing history)."""
+    _append_planning(
+        database, "GOAL_ARCHIVE_SET", {"plan": plan},
+        {"archived": not restore, "reason": reason},
+    )
+
+
+@recurring_app.command("list")
+def recurring_list_cmd(
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """Confirmed and paused/ended recurring commitments."""
+    from .planning.queries import recurring_page
+    _planning_read(database, lambda: recurring_page(database), plain, json_output)
+
+
+@recurring_app.command("occurrences")
+def recurring_occurrences_cmd(
+    commitment: str = typer.Argument(...),
+    start: str = typer.Option(..., "--start", help="YYYY-MM-DD"),
+    end: str = typer.Option(..., "--end", help="YYYY-MM-DD"),
+    database: Path = typer.Option(..., "--database"),
+    json_output: bool = typer.Option(False, "--json"),
+    plain: bool = typer.Option(False, "--plain"),
+) -> None:
+    """Scheduled occurrences in a window with their state."""
+    from .planning.queries import recurring_occurrences
+    _planning_read(
+        database, lambda: recurring_occurrences(database, commitment, start=start, end=end),
+        plain, json_output,
+    )
+
+
+@recurring_app.command("commit")
+def recurring_commit(
+    commitment: str = typer.Argument(..., help="Commitment id; a new id creates it"),
+    name: str = typer.Option(..., "--name"),
+    currency: str = typer.Option("SGD", "--currency"),
+    merchant_key: str = typer.Option(..., "--merchant-key"),
+    account: list[str] = typer.Option([], "--account", help="Owned account id, repeatable"),
+    seed: list[str] = typer.Option([], "--seed", help="Seed entry anchor, repeatable"),
+    schedule_kind: str = typer.Option(..., "--schedule", help="weekly or monthly"),
+    day: int | None = typer.Option(None, "--day", help="Monthly day 1–31"),
+    weekday: int | None = typer.Option(None, "--weekday", help="Weekly weekday 0–6 (Mon=0)"),
+    anchor_on: str = typer.Option(..., "--anchor-on", help="Schedule anchor date YYYY-MM-DD"),
+    expected: str = typer.Option(..., "--expected", help="Positive expected amount"),
+    tolerance: str = typer.Option("0.00", "--tolerance", help="Non-negative absolute tolerance"),
+    status: str = typer.Option("active", "--status", help="active | paused | ended"),
+    ended_on: str | None = typer.Option(None, "--ended-on", help="Required when status is ended"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a RECURRING_COMMITMENT_SET (reviewed, not merchant-name-only)."""
+    if schedule_kind == "weekly":
+        schedule: dict[str, Any] = {"kind": "weekly", "weekday": weekday, "anchor_on": anchor_on}
+    else:
+        schedule = {"kind": "monthly", "day": day, "anchor_on": anchor_on}
+    _append_planning(
+        database, "RECURRING_COMMITMENT_SET", {"commitment": commitment},
+        {"name": name, "currency": currency, "merchant_key": merchant_key,
+         "account_ids": list(account), "seed_entry_anchors": list(seed),
+         "schedule": schedule, "expected_amount": expected, "amount_tolerance": tolerance,
+         "status": status, "ended_on": ended_on, "reason": reason},
+    )
+
+
+@recurring_app.command("dismiss")
+def recurring_dismiss(
+    candidate: str = typer.Argument(..., help="Deterministic candidate key"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a RECURRING_CANDIDATE_DISMISS for one candidate identity."""
+    _append_planning(database, "RECURRING_CANDIDATE_DISMISS", {"candidate": candidate}, {"reason": reason})
+
+
+@recurring_app.command("occurrence-set")
+def recurring_occurrence_set(
+    commitment: str = typer.Argument(...),
+    scheduled_on: str = typer.Option(..., "--on", help="Scheduled date YYYY-MM-DD"),
+    entry: str | None = typer.Option(None, "--entry", help="Transaction anchor; omit to mark skipped"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a RECURRING_OCCURRENCE_SET; no --entry marks the date explicitly skipped."""
+    _append_planning(
+        database, "RECURRING_OCCURRENCE_SET",
+        {"commitment": commitment, "scheduled_on": scheduled_on},
+        {"entry": entry, "reason": reason},
+    )
+
+
+@recurring_app.command("occurrence-retire")
+def recurring_occurrence_retire(
+    commitment: str = typer.Argument(...),
+    scheduled_on: str = typer.Option(..., "--on"),
+    reason: str = typer.Option("back to detection", "--reason"),
+    database: Path = typer.Option(..., "--database"),
+) -> None:
+    """Append a RECURRING_OCCURRENCE_RETIRE, returning the date to detection."""
+    _append_planning(
+        database, "RECURRING_OCCURRENCE_RETIRE",
+        {"commitment": commitment, "scheduled_on": scheduled_on}, {"reason": reason},
+    )
 
 
 @app.command("setup")
