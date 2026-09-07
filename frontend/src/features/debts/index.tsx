@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Plus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
+import { EventForm } from './EventForm'
 import {
   RECONCILIATION_LABEL,
   loadDebtDetail,
@@ -61,9 +62,15 @@ function DebtList({
 }
 
 function DebtDetailView({
-  detail, onBack,
-}: { detail: DebtDetail; onBack: () => void }) {
+  detail, generation, onBack, onSaved,
+}: {
+  detail: DebtDetail
+  generation: string
+  onBack: () => void
+  onSaved: (status: string) => void | Promise<void>
+}) {
   const debt = detail.debt
+  const [recording, setRecording] = useState(false)
   return (
     <Card className="debt-detail">
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={14} /> All debts</Button>
@@ -84,6 +91,20 @@ function DebtDetailView({
       <p className="debt-detail-status">
         {RECONCILIATION_LABEL[debt.reconciliation_status] ?? debt.reconciliation_status}
       </p>
+      {debt.status === 'OPEN' ? (
+        recording ? (
+          <EventForm
+            detail={detail}
+            generation={generation}
+            onCancel={() => setRecording(false)}
+            onSaved={async (status) => { setRecording(false); await onSaved(status) }}
+          />
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => setRecording(true)}>
+            <Plus size={14} /> Record an event
+          </Button>
+        )
+      ) : null}
       <table className="debt-history">
         <thead>
           <tr><th>Date</th><th>Event</th><th>Principal</th><th>Note</th></tr>
@@ -114,7 +135,9 @@ function DebtDetailView({
   )
 }
 
-export function DebtsView({ generation }: { generation: string }) {
+export function DebtsView({
+  generation, onSaved,
+}: { generation: string; onSaved?: (status: string) => void | Promise<void> }) {
   const [page, setPage] = useState<DebtsPage | null>(null)
   const [detail, setDetail] = useState<DebtDetail | null>(null)
   const [error, setError] = useState('')
@@ -136,7 +159,17 @@ export function DebtsView({ generation }: { generation: string }) {
   }
 
   if (error) return <Card className="debt-list"><p className="debt-empty">{error}</p></Card>
-  if (detail) return <DebtDetailView detail={detail} onBack={() => setDetail(null)} />
+  if (detail) return (
+    <DebtDetailView
+      detail={detail}
+      generation={generation}
+      onBack={() => setDetail(null)}
+      onSaved={async (status) => {
+        setDetail(null)
+        await onSaved?.(status)
+      }}
+    />
+  )
   if (!page) return <Card className="debt-list"><p className="debt-empty">Loading debts…</p></Card>
 
   return (

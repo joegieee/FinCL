@@ -1,0 +1,88 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+
+const money = (v: string) => ({ value: v, currency: 'SGD' })
+
+const receivableDetail = {
+  generation: 'sha256:abc',
+  as_of: '2026-03-31',
+  debt: {
+    debt_id: 'd-2', direction: 'RECEIVABLE', currency: 'SGD', counterparty_label: 'Jo',
+    opened_on: '2026-03-01', due_on: null, status: 'OPEN', closed_on: null,
+    remaining_principal: money('0'), last_event: null,
+    reconciliation_status: 'no_events', event_count: 0,
+    reason: 'Jo owes me', principal_history: [],
+  },
+}
+
+const candidates = {
+  generation: 'sha256:abc', debt_id: 'd-2', event_kind: 'EXPENSE_PAID_FOR_OTHER',
+  required_direction: 'OUT', currency: 'SGD', next_cursor: null,
+  candidates: [
+    { entry_anchor: 'anchor-120', effective_at: '2026-03-05T10:00:00', economic_direction: 'OUT',
+      currency: 'SGD', amount: '120.00', open_amount: '120.00' },
+  ],
+}
+
+const calls: Array<{ path: string; body?: unknown }> = []
+const apiMock = vi.fn(async (path: string, body?: unknown) => {
+  calls.push({ path, body })
+  if (path.startsWith('debts/allocation-candidates')) return candidates
+  if (path === 'preview') return { valid: true }
+  if (path === 'commands') return { status: 'applied' }
+  throw new Error(`unmocked ${path}`)
+})
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>()
+  return { ...actual, api: (path: string, body?: unknown) => apiMock(path, body) }
+})
+
+afterEach(() => { cleanup(); apiMock.mockClear(); calls.length = 0 })
+
+async function mount(detail = receivableDetail) {
+  const { EventForm } = await import('./EventForm')
+  return render(
+    <EventForm detail={detail as never} generation="sha256:abc" onSaved={vi.fn()} onCancel={vi.fn()} />,
+  )
+}
+
+describe('EventForm', () => {
+  it('records an opening balance with no source allocations', async () => {
+    await mount()
+    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'LENT' } })
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '500.00' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Opening balance lent to Jo' } })
+    fireEvent.click(screen.getByText('Preview and save'))
+
+    await waitFor(() => expect(calls.some((c) => c.path === 'commands')).toBe(true))
+    const commit = calls.find((c) => c.path === 'commands')!.body as { payload: Record<string, unknown> }
+    expect(commit.payload.event_kind).toBe('LENT')
+    expect(commit.payload.opening_balance).toBe(true)
+    expect(commit.payload.entry_allocations).toEqual([])
+  })
+
+  it('requires the source allocations to sum to the event principal', async () => {
+    await mount()
+    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
+    fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '80.00' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: "Jo's share of the flat" } })
+
+    await screen.findByText(/120.00/)  // candidate loaded
+    fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'anchor-120' } })
+
+    // principal field still 0.00 -> unbalanced -> blocked
+    fireEvent.click(screen.getByText('Preview and save'))
+    await screen.findByText(/must sum to the event principal/)
+    expect(calls.some((c) => c.path === 'commands')).toBe(false)
+
+    fireEvent.change(screen.getByLabelText('Allocation 1 principal'), { target: { value: '80.00' } })
+    fireEvent.click(screen.getByText('Preview and save'))
+    await waitFor(() => expect(calls.some((c) => c.path === 'commands')).toBe(true))
+    const commit = calls.find((c) => c.path === 'commands')!.body as { payload: Record<string, unknown> }
+    expect(commit.payload.entry_allocations).toEqual([
+      { entry_anchor: 'anchor-120', principal_amount: '80.00', interest_amount: '0.00',
+        fee_amount: '0.00', separate_fee_amount: '0.00' },
+    ])
+  })
+})
