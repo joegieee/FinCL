@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -550,6 +550,35 @@ CREATE INDEX IF NOT EXISTS installment_settlements_source
 """
 
 
+# Schema 17 derived table (v0.4 credit cards slice 4; docs/releases/v0.4-cards.md
+# §2). Optional operator-entered bill allocation: which observed statement(s) a
+# selected card repayment component was applied to. Replayed from
+# `CARD_PAYMENT_ALLOCATION_SET` / `_RETIRE`. Every row is manual by construction
+# — it annotates an observed repayment component only, never the bank and card
+# legs twice, and never alters a printed minimum / due. Shared verbatim between a
+# fresh `initialize_schema` and the registered 16->17 migration.
+SCHEMA_17_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS card_payment_allocations (
+    card_entry_anchor TEXT NOT NULL,
+    seq_in_entry INTEGER NOT NULL,
+    statement_id TEXT NOT NULL REFERENCES statements(id),
+    entry_id TEXT,
+    amount_coefficient INTEGER NOT NULL
+        CHECK (amount_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
+    currency TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    batch_index INTEGER,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1)),
+    dangling_reason TEXT,
+    PRIMARY KEY (card_entry_anchor, seq_in_entry)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS card_payment_allocations_by_statement
+    ON card_payment_allocations(statement_id);
+"""
+
+
 def _create_decision_projection(connection: sqlite3.Connection) -> None:
     connection.executescript(
         """
@@ -704,6 +733,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_13_TABLES_SQL
         + SCHEMA_15_TABLES_SQL
         + SCHEMA_16_TABLES_SQL
+        + SCHEMA_17_TABLES_SQL
     )
 
 

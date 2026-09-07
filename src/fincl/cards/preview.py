@@ -14,11 +14,14 @@ import sqlite3
 from typing import Any
 
 from ..errors import FinCLError
+from ..money import ExactMoney, exact_sum
 from .models import (
     CARD_FACILITY_RETIRE,
     CARD_FACILITY_SET,
     CARD_LIMIT_OBSERVATION_RETIRE,
     CARD_LIMIT_OBSERVATION_SET,
+    CARD_PAYMENT_ALLOCATION_RETIRE,
+    CARD_PAYMENT_ALLOCATION_SET,
 )
 from .projection import _is_card_account, apply_card, resolve_cards
 from .validation import validate_card_payload
@@ -76,6 +79,14 @@ def preview_card(
     ):
         raise FinCLError("that card facility does not exist")
 
+    if decision_kind == CARD_PAYMENT_ALLOCATION_SET:
+        _preview_payment_allocation(connection, anchors, payload)
+    if decision_kind == CARD_PAYMENT_ALLOCATION_RETIRE and not connection.execute(
+        "SELECT 1 FROM card_payment_allocations WHERE card_entry_anchor = ? LIMIT 1",
+        (anchors["card_entry"],),
+    ).fetchone():
+        raise FinCLError("no manual bill allocation exists for that card repayment")
+
     connection.execute("SAVEPOINT card_preview")
     try:
         apply_card(
@@ -91,3 +102,42 @@ def preview_card(
     finally:
         connection.execute("ROLLBACK TO card_preview")
         connection.execute("RELEASE card_preview")
+
+
+def _preview_payment_allocation(
+    connection: sqlite3.Connection, anchors: dict[str, Any], payload: dict[str, Any]
+) -> None:
+    anchor = anchors["card_entry"]
+    entry = connection.execute(
+        """
+        SELECT e.economic_direction, e.currency_pocket,
+               e.amount_coefficient, e.amount_scale
+        FROM ledger_entries e
+        JOIN extraction_runs x
+          ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+        WHERE e.natural_anchor = ?
+        LIMIT 1
+        """,
+        (anchor,),
+    ).fetchone()
+    if entry is None:
+        raise FinCLError("the source repayment does not resolve to one selected entry")
+    if str(entry["economic_direction"]) == "ZERO":
+        raise FinCLError("the source entry has no repayment component to allocate")
+    for item in payload["allocations"]:
+        if connection.execute(
+            "SELECT 1 FROM statements WHERE id = ?", (item["statement_id"],)
+        ).fetchone() is None:
+            raise FinCLError(
+                f"statement {item['statement_id']} is not a preserved statement identity"
+            )
+    amounts = [ExactMoney.parse(str(item["amount"])) for item in payload["allocations"]]
+    total_coeff, total_scale = exact_sum(*amounts)
+    repayment = abs(int(entry["amount_coefficient"]))
+    common = max(total_scale, int(entry["amount_scale"]))
+    if total_coeff * 10 ** (common - total_scale) > repayment * 10 ** (
+        common - int(entry["amount_scale"])
+    ):
+        raise FinCLError(
+            "the manual bill allocations sum to more than the source repayment"
+        )

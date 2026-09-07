@@ -131,6 +131,24 @@ def _installment_claim_minor(
     return total
 
 
+def _card_payment_claim_minor(
+    connection: sqlite3.Connection, entry_anchor: str, role: str
+) -> Fraction:
+    """A manual card bill allocation claims the source repayment's ``amount``."""
+    if role != "amount":
+        return Fraction(0)
+    total = Fraction(0)
+    for row in connection.execute(
+        "SELECT amount_coefficient, amount_scale FROM card_payment_allocations "
+        "WHERE card_entry_anchor = ? AND bound = 1",
+        (entry_anchor,),
+    ):
+        total += Fraction(
+            int(row["amount_coefficient"]), 10 ** int(row["amount_scale"])
+        )
+    return total
+
+
 def _table_exists(connection: sqlite3.Connection, name: str) -> bool:
     return (
         connection.execute(
@@ -150,6 +168,8 @@ def _claimed_minor(connection: sqlite3.Connection, entry_anchor: str, role: str)
         total += _refund_claim_minor(connection, entry_anchor, role)
     if _table_exists(connection, "installment_purchase_allocations"):
         total += _installment_claim_minor(connection, entry_anchor, role)
+    if _table_exists(connection, "card_payment_allocations"):
+        total += _card_payment_claim_minor(connection, entry_anchor, role)
     return total
 
 

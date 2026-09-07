@@ -23,6 +23,8 @@ from .models import (
     CARD_FACILITY_SET,
     CARD_LIMIT_OBSERVATION_RETIRE,
     CARD_LIMIT_OBSERVATION_SET,
+    CARD_PAYMENT_ALLOCATION_RETIRE,
+    CARD_PAYMENT_ALLOCATION_SET,
     CARD_SOURCE_TYPES,
     DATE_ROLES,
     ROLE_CLOSING_LIABILITY,
@@ -368,6 +370,11 @@ def _first_pocket(connection: sqlite3.Connection, statement: sqlite3.Row) -> str
 # --------------------------------------------------------------------------- #
 
 
+def _component_money(value: object) -> tuple[int, int]:
+    money = ExactMoney.parse(str(value))
+    return money.coefficient, money.scale
+
+
 def _is_card_account(connection: sqlite3.Connection, account_id: str) -> bool:
     row = connection.execute(
         "SELECT source_type FROM accounts WHERE id = ?", (account_id,)
@@ -550,6 +557,72 @@ def apply_card(
         )
         return
 
+    if decision_kind == CARD_PAYMENT_ALLOCATION_SET:
+        anchor = anchors["card_entry"]
+        entry = connection.execute(
+            """
+            SELECT e.id, e.economic_direction, e.currency_pocket
+            FROM ledger_entries e
+            JOIN extraction_runs x
+              ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+            WHERE e.natural_anchor = ?
+            LIMIT 1
+            """,
+            (anchor,),
+        ).fetchone()
+        connection.execute(
+            "DELETE FROM card_payment_allocations WHERE card_entry_anchor = ?", (anchor,)
+        )
+        missing_statements = [
+            str(item["statement_id"])
+            for item in payload["allocations"]
+            if connection.execute(
+                "SELECT 1 FROM statements WHERE id = ?", (item["statement_id"],)
+            ).fetchone()
+            is None
+        ]
+        bound = 1
+        dangling = None
+        if entry is None:
+            bound, dangling = 0, "the source repayment does not resolve to one selected entry"
+        elif str(entry["economic_direction"]) == "ZERO":
+            bound, dangling = 0, "the source entry has no repayment component"
+        elif missing_statements:
+            bound, dangling = 0, "statement(s) not preserved: " + ", ".join(missing_statements)
+        currency = str(entry["currency_pocket"]) if entry is not None else ""
+        for seq, item in enumerate(payload["allocations"]):
+            coefficient, scale = _component_money(item["amount"])
+            connection.execute(
+                """
+                INSERT INTO card_payment_allocations
+                    (card_entry_anchor, seq_in_entry, statement_id, entry_id,
+                     amount_coefficient, amount_scale, currency, journal_seq,
+                     batch_index, bound, dangling_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    anchor,
+                    seq,
+                    item["statement_id"],
+                    entry["id"] if entry is not None else None,
+                    coefficient,
+                    scale,
+                    currency,
+                    journal_seq,
+                    batch_index,
+                    bound,
+                    dangling,
+                ),
+            )
+        return
+
+    if decision_kind == CARD_PAYMENT_ALLOCATION_RETIRE:
+        connection.execute(
+            "DELETE FROM card_payment_allocations WHERE card_entry_anchor = ?",
+            (anchors["card_entry"],),
+        )
+        return
+
     raise FinCLError(f"{decision_kind} is not a credit-card decision")  # pragma: no cover
 
 
@@ -610,6 +683,62 @@ def resolve_cards(connection: sqlite3.Connection) -> None:
                 "WHERE facility_id = ? AND account_id = ?",
                 (1 if _is_card_account(connection, account_id) else 0, facility_id, account_id),
             )
+
+    _check_payment_allocation_partitions(connection)
+
+
+def _check_payment_allocation_partitions(connection: sqlite3.Connection) -> None:
+    """A manual bill allocation annotates an observed repayment component only.
+
+    Its allocations sum against the same source entry as installment settlements
+    and debt allocations, so it flows through the shared component-claim
+    registry — the bank and card legs are never counted twice.
+    """
+    from ..analysis.allocations import assert_partition
+
+    for (anchor,) in connection.execute(
+        "SELECT DISTINCT card_entry_anchor FROM card_payment_allocations WHERE bound = 1"
+    ).fetchall():
+        assert_partition(connection, str(anchor), role="amount")
+
+
+def manual_payment_allocations(
+    connection: sqlite3.Connection, account_id: str
+) -> list[dict[str, Any]]:
+    """Operator-entered bill allocations for the card's repayments (§2).
+
+    Shown as "manually allocated payments", separate from any issuer-stated
+    remaining due — an issuer-confirmed remaining due needs new source evidence.
+    """
+    from ..money import format_decimal
+
+    rows = connection.execute(
+        """
+        SELECT p.card_entry_anchor, p.statement_id, p.amount_coefficient,
+               p.amount_scale, p.currency, p.bound, p.dangling_reason
+        FROM card_payment_allocations p
+        JOIN statements s ON s.id = p.statement_id
+        WHERE s.account_id = ?
+        ORDER BY p.card_entry_anchor, p.seq_in_entry
+        """,
+        (account_id,),
+    ).fetchall()
+    return [
+        {
+            "card_entry_anchor": str(r["card_entry_anchor"]),
+            "statement_id": str(r["statement_id"]),
+            "amount": {
+                "value": format_decimal(
+                    int(r["amount_coefficient"]), int(r["amount_scale"])
+                ),
+                "currency": str(r["currency"]),
+            },
+            "manual": True,
+            "bound": bool(r["bound"]),
+            "dangling_reason": r["dangling_reason"],
+        }
+        for r in rows
+    ]
 
 
 def facility_for_account(
@@ -676,6 +805,7 @@ __all__ = [
     "apply_card",
     "resolve_cards",
     "facility_for_account",
+    "manual_payment_allocations",
     "limit_as_of",
     "DATE_ROLES",
     "ROLE_PERIOD_START",

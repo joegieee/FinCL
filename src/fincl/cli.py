@@ -1934,6 +1934,44 @@ def cards_limit_retire(
     )
 
 
+@cards_app.command("allocate-payment")
+def cards_allocate_payment(
+    card_entry: str = typer.Option(..., "--card-entry", help="Source card repayment entry anchor."),
+    to: list[str] = typer.Option(..., "--to", help="Repeat: statement_id=amount."),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Record an operator bill allocation for a card repayment (CARD_PAYMENT_ALLOCATION_SET)."""
+    allocations: list[dict[str, str]] = []
+    for item in to:
+        if "=" not in item:
+            _fail(FinCLError(f"--to must be statement_id=amount, got {item!r}"))
+        statement_id, amount = item.split("=", 1)
+        allocations.append({"statement_id": statement_id.strip(), "amount": amount.strip()})
+    _record_card(
+        database, "CARD_PAYMENT_ALLOCATION_SET", {"card_entry": card_entry.strip()},
+        {"allocations": allocations, "reason": reason.strip()},
+        json_output=json_output, plain=plain,
+    )
+
+
+@cards_app.command("allocate-payment-retire")
+def cards_allocate_payment_retire(
+    card_entry: str = typer.Option(..., "--card-entry"),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Retire a manual bill allocation (CARD_PAYMENT_ALLOCATION_RETIRE)."""
+    _record_card(
+        database, "CARD_PAYMENT_ALLOCATION_RETIRE", {"card_entry": card_entry.strip()},
+        {"reason": reason.strip()}, json_output=json_output, plain=plain,
+    )
+
+
 @cards_app.command("list")
 def cards_list(
     database: Path = typer.Option(..., "--database"),

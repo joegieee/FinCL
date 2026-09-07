@@ -14,15 +14,18 @@ from dataclasses import dataclass
 # must all be one of these (credit-liability accounts, §2).
 CARD_SOURCE_TYPES = frozenset({"MARI_CARD"})
 
-# v0.4 credit-card decision-journal kinds (slice 2). `CARD_FACILITY_SET` records
-# an issuer's explicit shared-limit scope; `CARD_LIMIT_OBSERVATION_SET` records a
-# dated limit reading against a facility. Each has a RETIRE. A kind is only added
-# here in the same change that teaches the projection to replay it (Confirmed
-# 32) — manual bill allocation lands with its own kinds in slice 4.
+# v0.4 credit-card decision-journal kinds. `CARD_FACILITY_SET` records an
+# issuer's explicit shared-limit scope and `CARD_LIMIT_OBSERVATION_SET` a dated
+# limit reading against a facility (slice 2); `CARD_PAYMENT_ALLOCATION_SET`
+# records an optional operator-entered bill allocation against an observed card
+# repayment (slice 4). Each has a RETIRE. A kind is only added here in the same
+# change that teaches the projection to replay it (Confirmed 32).
 CARD_FACILITY_SET = "CARD_FACILITY_SET"
 CARD_FACILITY_RETIRE = "CARD_FACILITY_RETIRE"
 CARD_LIMIT_OBSERVATION_SET = "CARD_LIMIT_OBSERVATION_SET"
 CARD_LIMIT_OBSERVATION_RETIRE = "CARD_LIMIT_OBSERVATION_RETIRE"
+CARD_PAYMENT_ALLOCATION_SET = "CARD_PAYMENT_ALLOCATION_SET"
+CARD_PAYMENT_ALLOCATION_RETIRE = "CARD_PAYMENT_ALLOCATION_RETIRE"
 
 CARD_DECISION_KINDS = frozenset(
     {
@@ -30,6 +33,8 @@ CARD_DECISION_KINDS = frozenset(
         CARD_FACILITY_RETIRE,
         CARD_LIMIT_OBSERVATION_SET,
         CARD_LIMIT_OBSERVATION_RETIRE,
+        CARD_PAYMENT_ALLOCATION_SET,
+        CARD_PAYMENT_ALLOCATION_RETIRE,
     }
 )
 

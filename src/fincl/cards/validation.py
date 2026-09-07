@@ -19,6 +19,8 @@ from .models import (
     CARD_FACILITY_SET,
     CARD_LIMIT_OBSERVATION_RETIRE,
     CARD_LIMIT_OBSERVATION_SET,
+    CARD_PAYMENT_ALLOCATION_RETIRE,
+    CARD_PAYMENT_ALLOCATION_SET,
 )
 
 _UUID_RE = re.compile(
@@ -140,6 +142,45 @@ def _validate_limit_retire(anchors: dict[str, str], payload: dict[str, Any]) -> 
     _reason(payload)
 
 
+def _validate_payment_allocation(anchors: dict[str, str], payload: dict[str, Any]) -> None:
+    if set(anchors) != {"card_entry"}:
+        raise FinCLError("CARD_PAYMENT_ALLOCATION_SET needs a single card_entry anchor")
+    if not isinstance(anchors["card_entry"], str) or not anchors["card_entry"]:
+        raise FinCLError("the card_entry anchor must be a source entry anchor")
+    if set(payload) != {"allocations", "reason"}:
+        raise FinCLError(
+            "CARD_PAYMENT_ALLOCATION_SET payload is exactly {allocations, reason}"
+        )
+    allocations = payload["allocations"]
+    if not isinstance(allocations, list) or not allocations:
+        raise FinCLError("allocations must be a non-empty list")
+    seen: set[str] = set()
+    for index, item in enumerate(allocations):
+        if not isinstance(item, dict) or set(item) != {"statement_id", "amount"}:
+            raise FinCLError(f"allocation {index} must be exactly {{statement_id, amount}}")
+        if not isinstance(item["statement_id"], str) or not item["statement_id"]:
+            raise FinCLError(f"allocation {index} needs a statement id")
+        if item["statement_id"] in seen:
+            raise FinCLError(f"allocation {index} repeats statement {item['statement_id']}")
+        seen.add(item["statement_id"])
+        _positive_money(item["amount"], f"allocation {index} amount")
+    _reason(payload)
+
+
+def _validate_payment_allocation_retire(
+    anchors: dict[str, str], payload: dict[str, Any]
+) -> None:
+    if set(anchors) != {"card_entry"}:
+        raise FinCLError(
+            "CARD_PAYMENT_ALLOCATION_RETIRE needs a single card_entry anchor"
+        )
+    if not isinstance(anchors["card_entry"], str) or not anchors["card_entry"]:
+        raise FinCLError("the card_entry anchor must be a source entry anchor")
+    if set(payload) != {"reason"}:
+        raise FinCLError("CARD_PAYMENT_ALLOCATION_RETIRE payload is exactly {reason}")
+    _reason(payload)
+
+
 def validate_card_payload(
     kind: str, anchors: dict[str, str], payload: dict[str, Any]
 ) -> None:
@@ -151,5 +192,9 @@ def validate_card_payload(
         _validate_limit(anchors, payload)
     elif kind == CARD_LIMIT_OBSERVATION_RETIRE:
         _validate_limit_retire(anchors, payload)
+    elif kind == CARD_PAYMENT_ALLOCATION_SET:
+        _validate_payment_allocation(anchors, payload)
+    elif kind == CARD_PAYMENT_ALLOCATION_RETIRE:
+        _validate_payment_allocation_retire(anchors, payload)
     else:  # pragma: no cover - guarded by the dispatcher
         raise FinCLError(f"{kind} is not a credit-card decision")

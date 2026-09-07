@@ -301,6 +301,9 @@ def card_detail(
             "statement_activity": views,
             "coverage_gaps": projection.coverage_gaps(statements),
             "statements_missing_period": _missing_period_statements(statements),
+            "manually_allocated_payments": projection.manual_payment_allocations(
+                connection, account_id
+            ),
         }
     finally:
         connection.close()
