@@ -21,6 +21,20 @@ PLANNING_DECISION_KINDS = (
 )
 
 
+def validate_planning(kind: str, anchors: dict[str, str], payload: dict[str, object]) -> None:
+    """Structural validation for the command API (authoring boundary). Cross-record
+    invariants — currency immutability, one revision per month, unknown-commitment —
+    are enforced by ``apply_*`` at replay."""
+    if kind in BUDGET_DECISION_KINDS:
+        validate_budget(kind, anchors, payload)
+    elif kind in GOAL_DECISION_KINDS:
+        validate_goal(kind, anchors, payload)
+    elif kind in RECURRING_DECISION_KINDS:
+        validate_recurring(kind, anchors, payload)
+    else:  # pragma: no cover - guarded by the caller's kind check
+        raise FinCLError(f"{kind} is not a planning decision kind")
+
+
 def apply_planning(
     connection: sqlite3.Connection,
     record: JournalRecord,

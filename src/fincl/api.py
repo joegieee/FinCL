@@ -23,6 +23,7 @@ from .decisions import resolve_anchor
 from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
 from .locking import LedgerBusyError, ledger_writer
+from .planning import PLANNING_DECISION_KINDS
 from .plans import validate_plan
 from .queries import analysis_page, contributors_page, dashboard, transactions_page
 from .refresh import refresh_ledger
@@ -54,6 +55,11 @@ _SINGLE_KINDS = Literal[
     'INSTALLMENT_PLAN_SET','INSTALLMENT_PLAN_RETIRE','INSTALLMENT_ALLOCATION_SET',
     'INSTALLMENT_ALLOCATION_RETIRE','INSTALLMENT_SETTLEMENT_SET',
     'INSTALLMENT_SETTLEMENT_RETIRE',
+    # v0.6 planning kinds
+    'BUDGET_REVISION_SET','BUDGET_ARCHIVE_SET','GOAL_DETAILS_SET',
+    'GOAL_OBSERVATION_SET','GOAL_OBSERVATION_RETIRE','GOAL_ARCHIVE_SET',
+    'RECURRING_COMMITMENT_SET','RECURRING_CANDIDATE_DISMISS',
+    'RECURRING_OCCURRENCE_SET','RECURRING_OCCURRENCE_RETIRE',
 ]
 
 _DEBT_KINDS = frozenset({
@@ -474,6 +480,9 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                     )
             finally:
                 preview_connection.close()
+        elif command.kind in PLANNING_DECISION_KINDS:
+            from .planning import validate_planning
+            validate_planning(command.kind, command.anchors, command.payload)
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -901,6 +910,8 @@ def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None
 
     from .api_cards import register_card_reads
     register_card_reads(app, database)
+    from .api_budgets import register_planning_routes
+    register_planning_routes(app, database)
 
     if assets.exists():
         if (assets / 'assets').exists():
