@@ -16,6 +16,7 @@ from fincl.decision_journal import default_journal_path, read_records
 from fincl.decisions import replay_journal
 from fincl.errors import FinCLError
 from fincl.refresh import refresh_ledger
+from fincl.report import economic_flow_report_data
 from fincl.service import FinCLService
 from tests.test_revolut_import import csv_bytes
 
@@ -356,3 +357,86 @@ class OffLedgerAndRebuildTests(Slice2Base):
         )
         self.record("ENTRY_RESIDUAL_RETIRE", {"entry": anchor}, {"reason": "misclassified"})
         self.assertEqual(self.rows("entry_residuals"), [])
+
+
+class AnalyticalEffectsTests(Slice2Base):
+    """v0.3 §3: principal has zero spending; residuals / EXPENSE_PAID_FOR_ME are spending."""
+
+    def _spending(self) -> str:
+        return economic_flow_report_data(self.database)["currencies"][0]["spending"]
+
+    def test_baseline_spending(self) -> None:
+        # -120 + -110 + -40 outflows in the seed.
+        self.assertEqual(self._spending(), "270.00")
+
+    def test_repayment_principal_leaves_only_interest_as_spending(self) -> None:
+        debt = self.open_debt("PAYABLE")
+        self.record(
+            "PERSONAL_DEBT_EVENT_SET",
+            {"debt": debt, "event": str(uuid.uuid4())},
+            {"event_kind": "BORROWED", "direction": "PAYABLE",
+             "principal_amount": "100.00", "effective_on": "2026-03-02",
+             "entry_allocations": [], "opening_balance": True,
+             "expense_category": None, "reason": "Opening balance owed to Alex"},
+        )
+        anchor = self.anchor_for(coefficient=11000, direction="OUT")
+        self.record(
+            "PERSONAL_DEBT_EVENT_SET",
+            {"debt": debt, "event": str(uuid.uuid4())},
+            {"event_kind": "PRINCIPAL_REPAID", "direction": "PAYABLE",
+             "principal_amount": "100.00", "effective_on": "2026-03-09",
+             "entry_allocations": [self._alloc(anchor, "100.00", interest="10.00")],
+             "opening_balance": False, "expense_category": None,
+             "reason": "100 principal + 10 interest"},
+        )
+        # 270 - 100 principal excluded; the 10 interest stays inside spending.
+        self.assertEqual(self._spending(), "170.00")
+
+    def test_shared_bill_leaves_only_the_owner_share_as_spending(self) -> None:
+        anchor = self.anchor_for(coefficient=12000, direction="OUT")
+        debt = self.open_debt("RECEIVABLE")
+        self.record(
+            "PERSONAL_DEBT_EVENT_SET",
+            {"debt": debt, "event": str(uuid.uuid4())},
+            {"event_kind": "EXPENSE_PAID_FOR_OTHER", "direction": "RECEIVABLE",
+             "principal_amount": "80.00", "effective_on": "2026-03-05",
+             "entry_allocations": [self._alloc(anchor, "80.00")],
+             "opening_balance": False, "expense_category": None,
+             "reason": "Alex's 80 share"},
+        )
+        self.record(
+            "ENTRY_RESIDUAL_SET", {"entry": anchor},
+            {"expense_amount": "40.00", "expense_category": "Housing / Rent",
+             "reason": "my 40 share"},
+        )
+        # 270 - 80 receivable principal; the 40 residual stays as spending.
+        self.assertEqual(self._spending(), "190.00")
+        from fincl.analysis.components import build_components
+        from fincl.db import connect_readonly
+        from fincl.intervals import DateInterval
+        connection = connect_readonly(self.database)
+        try:
+            window = [DateInterval("2026-03-01", "2026-03-31")]
+            projection = build_components(
+                connection, covered_intervals=window, analysis_intervals=window
+            )
+        finally:
+            connection.close()
+        housing = [
+            c for c in projection.components
+            if c.category_key == "Housing / Rent" and c.bucket == "spending"
+        ]
+        self.assertEqual(len(housing), 1)
+        self.assertEqual(housing[0].coefficient, -4000)
+
+    def test_expense_paid_for_me_adds_synthetic_spending(self) -> None:
+        debt = self.open_debt("PAYABLE")
+        self.record(
+            "PERSONAL_DEBT_EVENT_SET",
+            {"debt": debt, "event": str(uuid.uuid4())},
+            {"event_kind": "EXPENSE_PAID_FOR_ME", "direction": "PAYABLE",
+             "principal_amount": "25.00", "effective_on": "2026-03-06",
+             "entry_allocations": [], "opening_balance": False,
+             "expense_category": "Dining / Restaurants", "reason": "Alex covered dinner"},
+        )
+        self.assertEqual(self._spending(), "295.00")

@@ -99,7 +99,7 @@ ORDER BY entries.currency, entries.posted_date, entries.source_family, entries.e
 class Component:
     """One signed exact economic contribution of a single ledger entry."""
 
-    origin_kind: Literal["ENTRY"]
+    origin_kind: Literal["ENTRY", "DEBT_EVENT"]
     origin_anchor: str
     entry_id: str
     role: Literal["amount", "fee"]
@@ -206,6 +206,113 @@ def _classify_amount(
     return "internal", False  # ZERO direction contributes no amount
 
 
+def _table_exists(connection: sqlite3.Connection, name: str) -> bool:
+    return (
+        connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)
+        ).fetchone()
+        is not None
+    )
+
+
+def _rescaled(coefficient: int, scale: int, target_scale: int) -> int:
+    return coefficient * (10 ** (target_scale - scale))
+
+
+@dataclass(frozen=True, slots=True)
+class _Residual:
+    coefficient: int
+    scale: int
+    category: str
+    journal_seq: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ExpensePaidForMe:
+    event_id: str
+    coefficient: int
+    scale: int
+    effective_on: str
+    category: str
+    currency: str
+    journal_seq: int
+
+
+@dataclass(frozen=True, slots=True)
+class _DebtEffects:
+    """v0.3 §3: how personal-debt decisions bend the economic view.
+
+    ``amount_off_by_anchor`` is the exact minor amount removed from a source
+    entry's own amount component — the bound debt *principal* it funds (never
+    income or spending) plus the bound owner-share residual, which is re-added
+    as its own categorised spending. ``residual_by_anchor`` and
+    ``expense_paid_for_me`` are spending with no bank movement.
+    """
+
+    amount_off_by_anchor: dict[str, tuple[int, int]]
+    residual_by_anchor: dict[str, _Residual]
+    expense_paid_for_me: list[_ExpensePaidForMe]
+
+
+def _debt_economic_effects(connection: sqlite3.Connection) -> _DebtEffects:
+    if not _table_exists(connection, "personal_debt_allocations"):
+        return _DebtEffects({}, {}, [])
+
+    principal: dict[str, list[tuple[int, int]]] = {}
+    for row in connection.execute(
+        "SELECT entry_anchor, principal_coefficient, principal_scale "
+        "FROM personal_debt_allocations WHERE bound = 1"
+    ):
+        principal.setdefault(str(row["entry_anchor"]), []).append(
+            (int(row["principal_coefficient"]), int(row["principal_scale"]))
+        )
+
+    residual_by_anchor: dict[str, _Residual] = {}
+    if _table_exists(connection, "entry_residuals"):
+        for row in connection.execute(
+            "SELECT entry_anchor, expense_coefficient, expense_scale, "
+            "expense_category, journal_seq FROM entry_residuals WHERE bound = 1"
+        ):
+            residual_by_anchor[str(row["entry_anchor"])] = _Residual(
+                coefficient=int(row["expense_coefficient"]),
+                scale=int(row["expense_scale"]),
+                category=str(row["expense_category"]),
+                journal_seq=int(row["journal_seq"]),
+            )
+
+    amount_off: dict[str, tuple[int, int]] = {}
+    for anchor in set(principal) | set(residual_by_anchor):
+        terms = list(principal.get(anchor, []))
+        residual = residual_by_anchor.get(anchor)
+        if residual is not None:
+            terms.append((residual.coefficient, residual.scale))
+        if not terms:
+            continue
+        scale = max(s for _, s in terms)
+        total = sum(_rescaled(c, s, scale) for c, s in terms)
+        amount_off[anchor] = (total, scale)
+
+    expense_paid_for_me: list[_ExpensePaidForMe] = []
+    for row in connection.execute(
+        "SELECT e.event_id, e.principal_coefficient, e.principal_scale, "
+        "e.effective_on, e.expense_category, e.journal_seq, d.currency "
+        "FROM personal_debt_events e JOIN personal_debts d ON d.debt_id = e.debt_id "
+        "WHERE e.event_kind = 'EXPENSE_PAID_FOR_ME' AND e.bound = 1"
+    ):
+        expense_paid_for_me.append(
+            _ExpensePaidForMe(
+                event_id=str(row["event_id"]),
+                coefficient=int(row["principal_coefficient"]),
+                scale=int(row["principal_scale"]),
+                effective_on=str(row["effective_on"]),
+                category=str(row["expense_category"] or "Unclassified / Unclassified"),
+                currency=str(row["currency"]),
+                journal_seq=int(row["journal_seq"]),
+            )
+        )
+    return _DebtEffects(amount_off, residual_by_anchor, expense_paid_for_me)
+
+
 def build_components(
     connection: sqlite3.Connection,
     *,
@@ -221,6 +328,7 @@ def build_components(
     fits.
     """
     rows = connection.execute(_ENTRY_SELECT).fetchall()
+    debt = _debt_economic_effects(connection)
 
     components: list[Component] = []
     stats: dict[str, dict[str, int]] = {}
@@ -306,6 +414,21 @@ def build_components(
 
         magnitude = abs(int(row["amount_coefficient"]))
         amount_scale = int(row["amount_scale"])
+
+        # v0.3 §3: remove the bound debt principal (and the owner-share residual,
+        # re-added below in its own category) from this entry's economic amount.
+        # `assert_partition` guarantees the claims never exceed the magnitude.
+        debt_off = debt.amount_off_by_anchor.get(row["entry_anchor"])
+        if debt_off is not None:
+            off_coefficient, off_scale = debt_off
+            common = max(amount_scale, off_scale)
+            magnitude = max(
+                _rescaled(magnitude, amount_scale, common)
+                - _rescaled(off_coefficient, off_scale, common),
+                0,
+            )
+            amount_scale = common
+
         if amount_bucket in _POSITIVE_NET_BUCKETS:
             amount_coefficient = magnitude
         elif amount_bucket == "spending":
@@ -327,6 +450,24 @@ def build_components(
                 )
             )
 
+        residual = debt.residual_by_anchor.get(row["entry_anchor"])
+        if residual is not None and amount_bucket == "spending":
+            components.append(
+                Component(
+                    role="amount",
+                    bucket="spending",
+                    coefficient=-residual.coefficient,
+                    scale=residual.scale,
+                    nets=True,
+                    **{
+                        **shared,
+                        "origin_anchor": f'{row["entry_anchor"]}#owner-residual',
+                        "category_key": residual.category,
+                        "decision_seqs": (residual.journal_seq,),
+                    },
+                )
+            )
+
         fee_coefficient = int(row["fee_coefficient"])
         if fee_coefficient:
             components.append(
@@ -339,6 +480,51 @@ def build_components(
                     **shared,
                 )
             )
+
+    # v0.3 §3: EXPENSE_PAID_FOR_ME is a synthetic owner expense with no bank
+    # movement. Emit it once, dated on the event, inside the analysis window.
+    for event in debt.expense_paid_for_me:
+        day = event.effective_on
+        if not covers_date(analysis_intervals, day):
+            continue
+        currency = event.currency
+        if currency not in seen_currencies:
+            seen_currencies.append(currency)
+        stats.setdefault(
+            currency,
+            {
+                "entries": 0,
+                "outside_covered_window": 0,
+                "outside_analysis_window": 0,
+                "excluded_confirmed_internal_entries": 0,
+                "excluded_self_transfer_entries": 0,
+            },
+        )
+        components.append(
+            Component(
+                origin_kind="DEBT_EVENT",
+                origin_anchor=event.event_id,
+                entry_id="",
+                role="amount",
+                lens=lens,
+                bucket="spending",
+                coefficient=-event.coefficient,
+                scale=event.scale,
+                currency=currency,
+                represented_start=day,
+                represented_end=day,
+                precision="DAY",
+                period=day[:7],
+                category_key=event.category,
+                merchant_key=None,
+                merchant_display="Expense paid on my behalf",
+                account="(off-ledger)",
+                source_location="Personal debt event",
+                evidence_sha256="",
+                decision_seqs=(event.journal_seq,),
+                nets=True,
+            )
+        )
 
     per_currency = {
         currency: CurrencyStats(**values) for currency, values in stats.items()
