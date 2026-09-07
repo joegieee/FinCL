@@ -61,6 +61,343 @@
         }
       }
     },
+    "/api/v1/setup/options": {
+      "get": {
+        "summary": "Setup Read",
+        "operationId": "setup_read_api_v1_setup_options_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Setup Read Api V1 Setup Options Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/imports": {
+      "get": {
+        "summary": "Imports Read",
+        "operationId": "imports_read_api_v1_imports_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Imports Read Api V1 Imports Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Imports Create",
+        "operationId": "imports_create_api_v1_imports_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_imports_create_api_v1_imports_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Imports Create Api V1 Imports Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/imports/{import_id}": {
+      "get": {
+        "summary": "Import Read",
+        "operationId": "import_read_api_v1_imports__import_id__get",
+        "parameters": [
+          {
+            "name": "import_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Import Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Import Read Api V1 Imports  Import Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounts": {
+      "get": {
+        "summary": "Accounts Read",
+        "operationId": "accounts_read_api_v1_accounts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Accounts Read Api V1 Accounts Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounts/{account_id}/coverage": {
+      "get": {
+        "summary": "Account Coverage",
+        "operationId": "account_coverage_api_v1_accounts__account_id__coverage_get",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Account Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Account Coverage Api V1 Accounts  Account Id  Coverage Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "summary": "Categories Read",
+        "operationId": "categories_read_api_v1_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Categories Read Api V1 Categories Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rules": {
+      "get": {
+        "summary": "Rules Read",
+        "operationId": "rules_read_api_v1_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rules Read Api V1 Rules Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rules/preview": {
+      "post": {
+        "summary": "Rules Preview",
+        "operationId": "rules_preview_api_v1_rules_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Command"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rules Preview Api V1 Rules Preview Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rules/compile": {
+      "post": {
+        "summary": "Rules Compile",
+        "operationId": "rules_compile_api_v1_rules_compile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Rules Compile Api V1 Rules Compile Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review": {
+      "get": {
+        "summary": "Unified Review",
+        "operationId": "unified_review_api_v1_review_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Unified Review Api V1 Review Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history/{sequence}/inverse-preview": {
+      "get": {
+        "summary": "History Inverse",
+        "operationId": "history_inverse_api_v1_history__sequence__inverse_preview_get",
+        "parameters": [
+          {
+            "name": "sequence",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sequence"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response History Inverse Api V1 History  Sequence  Inverse Preview Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/overview": {
       "get": {
         "summary": "Overview",
@@ -269,6 +606,123 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TransactionsPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/transactions/anchors": {
+      "get": {
+        "summary": "Transaction Anchors Route",
+        "operationId": "transaction_anchors_route_api_v1_transactions_anchors_get",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Generation"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "End"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SGD",
+              "title": "Currency"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Search"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Category"
+            }
+          },
+          {
+            "name": "account",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Account"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "include_excluded",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Excluded"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Transaction Anchors Route Api V1 Transactions Anchors Get"
                 }
               }
             }
@@ -815,6 +1269,500 @@
         }
       }
     },
+    "/api/v1/budgets": {
+      "get": {
+        "summary": "Budgets",
+        "operationId": "budgets_api_v1_budgets_get",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SGD",
+              "title": "Currency"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Budgets Api V1 Budgets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets/{plan}/history": {
+      "get": {
+        "summary": "Budgets History",
+        "operationId": "budgets_history_api_v1_budgets__plan__history_get",
+        "parameters": [
+          {
+            "name": "plan",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Budgets History Api V1 Budgets  Plan  History Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/budgets/{plan}/backdate-preview": {
+      "get": {
+        "summary": "Budgets Backdate",
+        "operationId": "budgets_backdate_api_v1_budgets__plan__backdate_preview_get",
+        "parameters": [
+          {
+            "name": "plan",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan"
+            }
+          },
+          {
+            "name": "effective_month",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Effective Month"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "SGD",
+              "title": "Currency"
+            }
+          },
+          {
+            "name": "category_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Budgets Backdate Api V1 Budgets  Plan  Backdate Preview Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/goals": {
+      "get": {
+        "summary": "Goals",
+        "operationId": "goals_api_v1_goals_get",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Goals Api V1 Goals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/goals/{plan}": {
+      "get": {
+        "summary": "Goal",
+        "operationId": "goal_api_v1_goals__plan__get",
+        "parameters": [
+          {
+            "name": "plan",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Goal Api V1 Goals  Plan  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/goals/{plan}/observations": {
+      "get": {
+        "summary": "Observations",
+        "operationId": "observations_api_v1_goals__plan__observations_get",
+        "parameters": [
+          {
+            "name": "plan",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Observations Api V1 Goals  Plan  Observations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/goals/{plan}/scenario": {
+      "get": {
+        "summary": "Goal Scenario Route",
+        "operationId": "goal_scenario_route_api_v1_goals__plan__scenario_get",
+        "parameters": [
+          {
+            "name": "plan",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan"
+            }
+          },
+          {
+            "name": "dates",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Dates"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Goal Scenario Route Api V1 Goals  Plan  Scenario Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring": {
+      "get": {
+        "summary": "Recurring",
+        "operationId": "recurring_api_v1_recurring_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Recurring Api V1 Recurring Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/candidates": {
+      "get": {
+        "summary": "Recurring Candidates",
+        "operationId": "recurring_candidates_api_v1_recurring_candidates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Recurring Candidates Api V1 Recurring Candidates Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/commitments": {
+      "get": {
+        "summary": "Recurring Commitments",
+        "operationId": "recurring_commitments_api_v1_recurring_commitments_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Recurring Commitments Api V1 Recurring Commitments Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recurring/{commitment}/occurrences": {
+      "get": {
+        "summary": "Recurring Occ",
+        "operationId": "recurring_occ_api_v1_recurring__commitment__occurrences_get",
+        "parameters": [
+          {
+            "name": "commitment",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commitment"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "End"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Recurring Occ Api V1 Recurring  Commitment  Occurrences Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Index",
@@ -1076,6 +2024,28 @@
         ],
         "title": "BatchItem"
       },
+      "Body_imports_create_api_v1_imports_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "adapter": {
+            "type": "string",
+            "title": "Adapter"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files",
+          "adapter"
+        ],
+        "title": "Body_imports_create_api_v1_imports_post"
+      },
       "Bootstrap": {
         "properties": {
           "secret": {
@@ -1229,7 +2199,29 @@
               "CATEGORY_OVERRIDE_RETIRE",
               "REFUND_ALLOCATION_SET",
               "REFUND_ALLOCATION_RETIRE",
-              "REFUND_LINK_REJECT"
+              "REFUND_LINK_REJECT",
+              "CATEGORY_DETAILS_SET",
+              "CATEGORY_ARCHIVE_SET",
+              "ACCOUNT_SCOPE_SET",
+              "ACCOUNT_DETAILS_SET",
+              "ACCOUNT_ALIAS_SET",
+              "ACCOUNT_ALIAS_RETIRE",
+              "REVIEW_DEFER_SET",
+              "REVIEW_DEFER_RETIRE",
+              "MERCHANT_ALIAS_SET",
+              "MERCHANT_ALIAS_RETIRE",
+              "CATEGORY_RULE_SET",
+              "CATEGORY_RULE_RETIRE",
+              "BUDGET_REVISION_SET",
+              "BUDGET_ARCHIVE_SET",
+              "GOAL_DETAILS_SET",
+              "GOAL_OBSERVATION_SET",
+              "GOAL_OBSERVATION_RETIRE",
+              "GOAL_ARCHIVE_SET",
+              "RECURRING_COMMITMENT_SET",
+              "RECURRING_CANDIDATE_DISMISS",
+              "RECURRING_OCCURRENCE_SET",
+              "RECURRING_OCCURRENCE_RETIRE"
             ],
             "title": "Kind"
           },
@@ -2157,6 +3149,35 @@
           "basis"
         ],
         "title": "ReviewProposal"
+      },
+      "RuleDraft": {
+        "properties": {
+          "match": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Match"
+          },
+          "category": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Category"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "match",
+          "category",
+          "reason"
+        ],
+        "title": "RuleDraft"
       },
       "SummaryCell": {
         "properties": {

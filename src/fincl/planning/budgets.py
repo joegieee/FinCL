@@ -124,6 +124,9 @@ def apply_budget(
             ),
         )
     elif record.decision_kind == BUDGET_ARCHIVE_SET:
+        if connection.execute("SELECT 1 FROM budget_revisions WHERE plan = ?",
+                              (record.anchors["plan"],)).fetchone() is None:
+            raise FinCLError(f"decision journal record {record.seq}: archive references unknown budget {record.anchors['plan']}")
         connection.execute(
             "INSERT OR REPLACE INTO budget_archive_periods(plan, effective_month, "
             "archived, journal_seq) VALUES (?,?,?,?)",

@@ -172,6 +172,14 @@ def apply_recurring(connection: sqlite3.Connection, record: JournalRecord) -> No
                 f"decision journal record {record.seq}: occurrence references unknown "
                 f"commitment {commitment}"
             )
+        entry = payload["entry"]
+        if entry is not None:
+            conflict = connection.execute(
+                "SELECT commitment FROM recurring_occurrences WHERE entry_anchor=? AND commitment!=?",
+                (entry, commitment),
+            ).fetchone()
+            if conflict is not None:
+                raise FinCLError(f"decision journal record {record.seq}: entry already satisfies commitment {conflict['commitment']}")
         connection.execute(
             "INSERT OR REPLACE INTO recurring_occurrences(commitment, scheduled_on, "
             "entry_anchor, journal_seq, bound, dangling_reason) VALUES (?,?,?,?,1,NULL)",

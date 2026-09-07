@@ -9,12 +9,16 @@ spending so far with no confident remaining allowance.
 from __future__ import annotations
 
 import calendar
+import hashlib
 import json
+from collections import defaultdict
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from ..db import connect_readonly
+from ..decision_journal import default_journal_path, read_records
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..intervals import DateInterval
@@ -79,6 +83,23 @@ def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]
                 archived_for[row["plan"]] = bool(row["archived"])
 
         budgets: list[dict[str, Any]] = []
+        legacy = {}
+        for record in read_records(default_journal_path(database)):
+            if record.decision_kind == "PLAN_SET" and record.payload.get("type") == "budget":
+                legacy[record.anchors["plan"]] = record.payload
+        for plan, payload in legacy.items():
+            if plan in by_plan or payload["currency"] != currency:
+                continue
+            legacy_category = payload.get("category")
+            category_key = legacy_category if isinstance(legacy_category, str) and legacy_category else None
+            actual = _budget_actual_cents(connection, category_key=category_key,
+                                          currency=currency, start=start, end=end)
+            limit = _to_cents(str(payload["target"]))
+            budgets.append({"plan": plan, "name": payload["name"], "currency": currency,
+                            "category_key": category_key, "effective_month": None,
+                            "limit": _money(limit), "actual": _money(actual),
+                            "remaining": _money(limit-actual) if complete else None, "archived": False,
+                            "legacy_undated": True, "status": "settled" if complete else "observed_so_far" if month_covered else "coverage_unknown"})
         for plan, rows in by_plan.items():
             effective = None
             for row in rows:
@@ -102,6 +123,7 @@ def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]
                 "actual": _money(actual_cents),
                 "remaining": _money(limit_cents - actual_cents) if complete else None,
                 "archived": archived,
+                "legacy_undated": False,
                 "status": (
                     "archived" if archived
                     else "settled" if complete
@@ -255,6 +277,18 @@ def goals_page(database: Path, *, as_of: str | None = None) -> dict[str, Any]:
             a["plan"]: bool(a["archived"]) for a in connection.execute("SELECT * FROM goal_archive")
         }
         goals: list[dict[str, Any]] = []
+        legacy = {}
+        for record in read_records(default_journal_path(database)):
+            if record.decision_kind == "PLAN_SET" and record.payload.get("type") == "goal":
+                legacy[record.anchors["plan"]] = record.payload
+        for plan, payload in legacy.items():
+            if plan not in details:
+                target = _to_cents(str(payload["target"]))
+                goals.append({"plan": plan, "name": payload["name"], "currency": payload["currency"],
+                              "target": _money(target), "target_on": None, "observed_on": None,
+                              "saved": None, "remaining": None, "dated_progress_known": False,
+                              "legacy_undated_saved": str(payload.get("saved", "0")),
+                              "archived": False, "overdue": False})
         for plan, detail in details.items():
             observation = connection.execute(
                 "SELECT observed_on, saved_coefficient, saved_scale FROM goal_observations "
@@ -274,11 +308,33 @@ def goals_page(database: Path, *, as_of: str | None = None) -> dict[str, Any]:
                 "saved": _money(saved_cents) if saved_cents is not None else None,
                 "remaining": _money(max(0, target_cents - saved_cents)) if saved_cents is not None else None,
                 "dated_progress_known": observation is not None,
+                "legacy_undated_saved": None,
                 "archived": archived.get(plan, False),
                 "overdue": bool(detail["target_on"] and detail["target_on"] < as_of and (saved_cents is None or saved_cents < target_cents)),
             })
         goals.sort(key=lambda g: (g["archived"], g["name"].lower()))
         return {"generation": generation, "as_of": as_of, "goals": goals}
+    finally:
+        connection.close()
+
+
+def goal_detail(database: Path, plan: str, *, as_of: str | None = None) -> dict[str, Any]:
+    page = goals_page(database, as_of=as_of)
+    goal = next((g for g in page["goals"] if g["plan"] == plan), None)
+    if goal is None:
+        raise FinCLError("Goal not found")
+    return {"generation": page["generation"], "as_of": page["as_of"], **goal}
+
+
+def goal_observations(database: Path, plan: str) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        generation = _generation(connection)
+        rows = connection.execute("SELECT observation, observed_on, saved_coefficient, saved_scale, journal_seq FROM goal_observations WHERE plan=? ORDER BY observed_on, journal_seq", (plan,)).fetchall()
+        return {"generation": generation, "plan": plan, "observations": [
+            {"observation": r["observation"], "observed_on": r["observed_on"],
+             "saved": _money(r["saved_coefficient"] * 10 ** (2-r["saved_scale"])), "journal_seq": r["journal_seq"]}
+            for r in rows]}
     finally:
         connection.close()
 
@@ -351,8 +407,34 @@ def recurring_page(database: Path) -> dict[str, Any]:
         dismissed = [
             d["candidate"] for d in connection.execute("SELECT candidate FROM recurring_candidate_dismissals")
         ]
+        entries = connection.execute(
+            f"SELECT natural_anchor, merchant, currency_pocket, account_id, substr(effective_at,1,10) day, amount_coefficient, amount_scale FROM ({_ENTRY_VIEW}) WHERE eligible AND bucket='spending' AND effective_precision != 'MONTH' ORDER BY merchant, currency_pocket, account_id, effective_at"
+        ).fetchall()
+        groups: dict[tuple[str, str, str], list[Any]] = defaultdict(list)
+        for entry in entries:
+            groups[(entry["merchant"], entry["currency_pocket"], entry["account_id"])].append(entry)
+        candidates = []
+        for (merchant, currency, account), items in groups.items():
+            if len(items) < 3:
+                continue
+            days = [date.fromisoformat(i["day"]) for i in items]
+            gaps = [(b-a).days for a, b in zip(days, days[1:], strict=False)]
+            cadence = "monthly" if all(25 <= g <= 35 for g in gaps[-3:]) else "weekly" if all(6 <= g <= 8 for g in gaps[-3:]) else None
+            amounts = [abs(Decimal(i["amount_coefficient"])) / Decimal(10 ** i["amount_scale"]) for i in items[-4:]]
+            if cadence is None or max(amounts) > min(amounts) * Decimal("1.1"):
+                continue
+            raw = json.dumps(["detv1", merchant, currency, [account], cadence], separators=(",", ":"))
+            key = "detv1:" + hashlib.sha256(raw.encode()).hexdigest()
+            if key in set(dismissed):
+                continue
+            candidates.append({"candidate": key, "detector_version": "detv1", "merchant_key": merchant,
+                               "currency": currency, "account_ids": [account], "cadence": cadence,
+                               "count": len(items), "expected_amount": _money(round(amounts[-1]*100)),
+                               "last_observed_on": days[-1].isoformat(),
+                               "seed_entry_anchors": [i["natural_anchor"] for i in items[-4:]]})
         return {
             "generation": generation,
+            "candidates": candidates,
             "confirmed": [c for c in commitments if c["status"] == "active"],
             "paused_or_ended": [c for c in commitments if c["status"] != "active"],
             "dismissed_candidate_keys": sorted(dismissed),
@@ -382,6 +464,9 @@ def recurring_occurrences(database: Path, commitment: str, *, start: str, end: s
             )
         }
         today = date.today().isoformat()
+        contract = _coverage_contract(connection)
+        claimed = {r["entry_anchor"]: r["commitment"] for r in connection.execute(
+            "SELECT commitment, entry_anchor FROM recurring_occurrences WHERE entry_anchor IS NOT NULL")}
         items: list[dict[str, Any]] = []
         for occ in scheduled:
             iso = occ.isoformat()
@@ -395,7 +480,27 @@ def recurring_occurrences(database: Path, commitment: str, *, start: str, end: s
             elif iso > today:
                 state, entry = "upcoming_estimate", None
             else:
-                state, entry = "missing_in_window", None
+                window = 1 if schedule["kind"] == "weekly" else 3
+                lo, hi = date.fromordinal(occ.toordinal()-window).isoformat(), date.fromordinal(occ.toordinal()+window).isoformat()
+                if not any(i.contains_interval(DateInterval(lo, hi)) for i in contract.covered_intervals):
+                    state, entry = "unverifiable_coverage", None
+                else:
+                    expected = row["expected_coefficient"] * 10 ** (2-row["expected_scale"])
+                    tolerance = row["tolerance_coefficient"] * 10 ** (2-row["tolerance_scale"])
+                    accounts = json.loads(row["account_ids_json"])
+                    matches = connection.execute(
+                        f"SELECT natural_anchor FROM ({_ENTRY_VIEW}) WHERE eligible AND bucket='spending' AND currency_pocket=? AND merchant=? AND substr(effective_at,1,10) BETWEEN ? AND ? AND (?=0 OR account_id IN (SELECT value FROM json_each(?))) AND abs(abs(amount_coefficient) * (CASE amount_scale WHEN 0 THEN 100 WHEN 1 THEN 10 ELSE 1 END)-?)<=?",
+                        (row["currency"], row["merchant_key"], lo, hi, len(accounts), json.dumps(accounts), expected, tolerance)).fetchall()
+                    available = [m["natural_anchor"] for m in matches if claimed.get(m["natural_anchor"], commitment) == commitment]
+                    conflicted = [m["natural_anchor"] for m in matches if claimed.get(m["natural_anchor"]) not in (None, commitment)]
+                    if conflicted:
+                        state, entry = "conflict", None
+                    elif len(available) == 1:
+                        state, entry = "observed", available[0]
+                    elif len(available) > 1:
+                        state, entry = "ambiguous", None
+                    else:
+                        state, entry = "missing_in_covered_window", None
             items.append({"scheduled_on": iso, "state": state, "entry": entry})
         return {"generation": generation, "commitment": commitment, "occurrences": items}
     finally:

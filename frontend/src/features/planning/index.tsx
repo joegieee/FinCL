@@ -36,7 +36,7 @@ export function PlanningView({ generation, freshness, categories, onSaved }: {
       {disabled && <div className="alert" role="status">New ledger inputs are available. Refresh before editing plans.</div>}
       <BudgetsSection month={month} setMonth={setMonth} generation={generation} disabled={disabled} categories={categories} onSaved={onSaved} />
       <GoalsSection generation={generation} disabled={disabled} onSaved={onSaved} />
-      <RecurringSection generation={generation} />
+      <RecurringSection generation={generation} disabled={disabled} onSaved={onSaved} />
     </div>
   )
 }
@@ -106,7 +106,7 @@ function BudgetRow({ budget, generation, categories, disabled, onSaved }: {
         <div>
           <strong>{budget.name}</strong>
           {budget.archived && <Badge variant="outline"> archived</Badge>}
-          <small>{budget.category_key ? budget.category_key : 'All purchases + fees'} · {budget.currency} · from {budget.effective_month}</small>
+          <small>{budget.category_key ? budget.category_key : 'All purchases + fees'} · {budget.currency} · {budget.effective_month ? `from ${budget.effective_month}` : 'legacy undated limit'}</small>
         </div>
         <Badge variant="outline" className={budget.status === 'coverage_unknown' ? 'review-badge' : ''}>{STATUS[budget.status]}</Badge>
       </div>
@@ -128,12 +128,12 @@ function BudgetRow({ budget, generation, categories, disabled, onSaved }: {
         <Button variant="ghost" size="sm" onClick={() => setMode(m => m === 'history' ? 'idle' : 'history')}>History <ChevronRight size={13} /></Button>
       </div>
       {mode === 'revise' && (
-        <BudgetForm generation={generation} month={budget.effective_month} categories={categories} disabled={disabled}
+        <BudgetForm generation={generation} month={budget.effective_month ?? thisMonth()} categories={categories} disabled={disabled}
           plan={budget.plan} initial={budget} onSaved={async s => { setMode('idle'); await onSaved(s) }} />
       )}
       {mode === 'archive' && (
         <ArchiveForm generation={generation} kind="BUDGET_ARCHIVE_SET" anchors={{ plan: budget.plan }}
-          extraPayload={{ effective_month: budget.effective_month }} archived={budget.archived} disabled={disabled}
+          extraPayload={{ effective_month: budget.effective_month ?? thisMonth() }} archived={budget.archived} disabled={disabled || budget.legacy_undated}
           onSaved={async s => { setMode('idle'); await onSaved(s) }} />
       )}
       {mode === 'history' && <BudgetHistoryPanel plan={budget.plan} />}
@@ -441,7 +441,7 @@ function ArchiveForm({ generation, kind, anchors, extraPayload, archived, disabl
   )
 }
 
-function RecurringSection({ generation }: { generation: string }) {
+function RecurringSection({ generation, disabled, onSaved }: { generation: string; disabled: boolean; onSaved: (status: string) => void | Promise<void> }) {
   const { data, error, loading, reload } = useResource<RecurringPage>(() => loadRecurring(), [])
   const [open, setOpen] = useState<string | null>(null)
   return (
@@ -451,6 +451,11 @@ function RecurringSection({ generation }: { generation: string }) {
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /></Button>
       </div>
       {error && <div className="alert error" role="alert"><p>{error}</p></div>}
+      {data && (data.candidates ?? []).length > 0 && <div className="history-panel">
+        <p className="eyebrow">CANDIDATES — REVIEW BEFORE CONFIRMING</p>
+        {(data.candidates ?? []).map(candidate => <CandidateReview key={candidate.candidate} candidate={candidate}
+          generation={generation} disabled={disabled} onSaved={async s => { await onSaved(s); reload() }} />)}
+      </div>}
       {data && data.confirmed.length === 0 && data.paused_or_ended.length === 0 && (
         <p className="muted-note">No confirmed commitments yet. Confirm a detected candidate (requires reviewing schedule, account and amount) with <code>fincl recurring commit</code>.</p>
       )}
@@ -464,7 +469,7 @@ function RecurringSection({ generation }: { generation: string }) {
             </div>
             <Button variant="ghost" size="sm" onClick={() => setOpen(o => o === c.commitment ? null : c.commitment)}>Occurrences <ChevronRight size={13} /></Button>
           </div>
-          {open === c.commitment && <OccurrenceTable commitment={c.commitment} />}
+          {open === c.commitment && <OccurrenceTable commitment={c.commitment} generation={generation} disabled={disabled} onSaved={onSaved} />}
         </div>
       ))}
       <p className="muted-note">Missing is not “unpaid” and never triggers a payment. Forecasts are labeled estimates and stay separate from observed cash flow.</p>
@@ -472,7 +477,42 @@ function RecurringSection({ generation }: { generation: string }) {
   )
 }
 
-function OccurrenceTable({ commitment }: { commitment: string }) {
+function CandidateReview({ candidate, generation, disabled, onSaved }: {
+  candidate: import('./api').RecurringCandidate; generation: string; disabled: boolean
+  onSaved: (status: string) => void | Promise<void>
+}) {
+  const [reason, setReason] = useState('')
+  const [action, setAction] = useState<'confirm' | 'dismiss'>('confirm')
+  const cmd = useLedgerCommand(generation, onSaved)
+  const last = new Date(`${candidate.last_observed_on}T00:00:00`)
+  const schedule = candidate.cadence === 'monthly'
+    ? { kind: 'monthly', day: last.getDate(), anchor_on: candidate.last_observed_on }
+    : { kind: 'weekly', weekday: last.getDay() === 0 ? 6 : last.getDay() - 1, anchor_on: candidate.last_observed_on }
+  return <form className="planning-form" onChange={cmd.reset} onSubmit={e => {
+    e.preventDefault()
+    void cmd.act(action === 'dismiss' ? {
+      kind: 'RECURRING_CANDIDATE_DISMISS', anchors: { candidate: candidate.candidate }, payload: { reason },
+    } : {
+      kind: 'RECURRING_COMMITMENT_SET', anchors: { commitment: crypto.randomUUID() },
+      payload: { name: candidate.merchant_key, currency: candidate.currency, merchant_key: candidate.merchant_key,
+        account_ids: candidate.account_ids, seed_entry_anchors: candidate.seed_entry_anchors, schedule,
+        expected_amount: candidate.expected_amount, amount_tolerance: '0.00', status: 'active', ended_on: null, reason },
+    })
+  }}>
+    <strong>{candidate.merchant_key}</strong>
+    <small>{candidate.cadence} · {candidate.count} observed · {money(candidate.expected_amount, candidate.currency)}</small>
+    <label>Decision<select value={action} disabled={cmd.attempted} onChange={e => setAction(e.target.value as 'confirm' | 'dismiss')}>
+      <option value="confirm">Confirm reviewed schedule</option><option value="dismiss">Dismiss candidate</option>
+    </select></label>
+    <label>Reason<Input required maxLength={2000} value={reason} disabled={cmd.attempted} onChange={e => setReason(e.target.value)} /></label>
+    {cmd.error && <p className="form-error" role="alert">{cmd.error}</p>}
+    <Button type="submit" disabled={disabled || cmd.busy}>{cmd.previewed ? 'Save decision' : 'Preview decision'}</Button>
+  </form>
+}
+
+function OccurrenceTable({ commitment, generation, disabled, onSaved }: {
+  commitment: string; generation: string; disabled: boolean; onSaved: (status: string) => void | Promise<void>
+}) {
   const now = new Date()
   const start = `${now.getFullYear()}-01-01`
   const end = `${now.getFullYear()}-12-31`
@@ -481,16 +521,42 @@ function OccurrenceTable({ commitment }: { commitment: string }) {
   if (!data) return <p className="muted-note">Loading…</p>
   return (
     <table className="occurrence-table">
-      <thead><tr><th>Scheduled</th><th>State</th><th>Entry</th></tr></thead>
+      <thead><tr><th>Scheduled</th><th>State</th><th>Entry</th><th>Review</th></tr></thead>
       <tbody>
         {data.occurrences.map(o => (
           <tr key={o.scheduled_on}>
             <td>{o.scheduled_on}</td>
             <td>{o.state.replaceAll('_', ' ')}</td>
             <td className="mono">{o.entry ?? (o.state === 'explicitly_skipped' ? 'skipped' : '—')}</td>
+            <td><OccurrenceDecision commitment={commitment} occurrence={o} generation={generation} disabled={disabled} onSaved={onSaved} /></td>
           </tr>
         ))}
       </tbody>
     </table>
   )
+}
+
+function OccurrenceDecision({ commitment, occurrence, generation, disabled, onSaved }: {
+  commitment: string; occurrence: import('./api').Occurrence; generation: string; disabled: boolean
+  onSaved: (status: string) => void | Promise<void>
+}) {
+  const [entry, setEntry] = useState(occurrence.entry ?? '')
+  const [reason, setReason] = useState('')
+  const [action, setAction] = useState<'match' | 'skip' | 'retire'>(occurrence.state === 'explicitly_skipped' || occurrence.state === 'associated' ? 'retire' : 'match')
+  const cmd = useLedgerCommand(generation, onSaved)
+  return <form className="inline-decision" onChange={cmd.reset} onSubmit={e => {
+    e.preventDefault()
+    const anchors = { commitment, scheduled_on: occurrence.scheduled_on }
+    void cmd.act(action === 'retire'
+      ? { kind: 'RECURRING_OCCURRENCE_RETIRE', anchors, payload: { reason } }
+      : { kind: 'RECURRING_OCCURRENCE_SET', anchors, payload: { entry: action === 'skip' ? null : entry.trim(), reason } })
+  }}>
+    <select aria-label="Occurrence decision" value={action} disabled={cmd.attempted} onChange={e => setAction(e.target.value as 'match' | 'skip' | 'retire')}>
+      <option value="match">Match entry</option><option value="skip">Mark skipped</option><option value="retire">Return to detection</option>
+    </select>
+    {action === 'match' && <Input required aria-label="Entry anchor" value={entry} disabled={cmd.attempted} onChange={e => setEntry(e.target.value)} />}
+    <Input required aria-label="Occurrence reason" value={reason} disabled={cmd.attempted} onChange={e => setReason(e.target.value)} />
+    {cmd.error && <small className="form-error">{cmd.error}</small>}
+    <Button size="sm" type="submit" disabled={disabled || cmd.busy}>{cmd.previewed ? 'Save' : 'Preview'}</Button>
+  </form>
 }

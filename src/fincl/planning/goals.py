@@ -128,6 +128,8 @@ def apply_goal(connection: sqlite3.Connection, record: JournalRecord) -> None:
              payload["currency"], payload["target_on"], record.seq),
         )
     elif record.decision_kind == GOAL_OBSERVATION_SET:
+        if connection.execute("SELECT 1 FROM goal_details WHERE plan = ?", (plan,)).fetchone() is None:
+            raise FinCLError(f"decision journal record {record.seq}: observation references unknown goal {plan}")
         saved = ExactMoney.parse(str(payload["saved"]))
         connection.execute(
             "INSERT OR REPLACE INTO goal_observations(plan, observation, observed_on, "
@@ -137,11 +139,16 @@ def apply_goal(connection: sqlite3.Connection, record: JournalRecord) -> None:
              saved.coefficient, saved.scale, record.seq),
         )
     elif record.decision_kind == GOAL_OBSERVATION_RETIRE:
+        if connection.execute("SELECT 1 FROM goal_observations WHERE plan=? AND observation=?",
+                              (plan, record.anchors["observation"])).fetchone() is None:
+            raise FinCLError(f"decision journal record {record.seq}: observation to retire was not found")
         connection.execute(
             "DELETE FROM goal_observations WHERE plan = ? AND observation = ?",
             (plan, record.anchors["observation"]),
         )
     elif record.decision_kind == GOAL_ARCHIVE_SET:
+        if connection.execute("SELECT 1 FROM goal_details WHERE plan = ?", (plan,)).fetchone() is None:
+            raise FinCLError(f"decision journal record {record.seq}: archive references unknown goal {plan}")
         connection.execute(
             "INSERT OR REPLACE INTO goal_archive(plan, archived, journal_seq) VALUES (?,?,?)",
             (plan, 1 if payload["archived"] else 0, record.seq),

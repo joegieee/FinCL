@@ -5,12 +5,13 @@ export type BudgetCard = {
   name: string
   currency: string
   category_key: string | null
-  effective_month: string
+  effective_month: string | null
   limit: string
   actual: string
   remaining: string | null
   archived: boolean
   status: 'settled' | 'observed_so_far' | 'coverage_unknown' | 'archived'
+  legacy_undated: boolean
 }
 export type BudgetsPage = {
   generation: string
@@ -49,6 +50,7 @@ export type GoalCard = {
   dated_progress_known: boolean
   archived: boolean
   overdue: boolean
+  legacy_undated_saved: string | null
 }
 export type GoalsPage = { generation: string; as_of: string; goals: GoalCard[] }
 
@@ -66,9 +68,15 @@ export type Commitment = {
 }
 export type RecurringPage = {
   generation: string
+  candidates: RecurringCandidate[]
   confirmed: Commitment[]
   paused_or_ended: Commitment[]
   dismissed_candidate_keys: string[]
+}
+export type RecurringCandidate = {
+  candidate: string; detector_version: string; merchant_key: string; currency: string
+  account_ids: string[]; cadence: 'weekly' | 'monthly'; count: number
+  expected_amount: string; last_observed_on: string; seed_entry_anchors: string[]
 }
 export type Occurrence = { scheduled_on: string; state: string; entry: string | null }
 export type OccurrencesPage = { generation: string; commitment: string; occurrences: Occurrence[] }

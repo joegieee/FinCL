@@ -18,6 +18,8 @@ from .planning.queries import (
     budget_backdate_preview,
     budget_history,
     budgets_page,
+    goal_detail,
+    goal_observations,
     goal_scenario,
     goals_page,
     recurring_occurrences,
@@ -46,6 +48,14 @@ def register_planning_routes(app: FastAPI, database: Path) -> None:
     def goals(as_of: str | None = None) -> Any:
         return goals_page(database, as_of=as_of)
 
+    @app.get("/api/v1/goals/{plan}")
+    def goal(plan: str, as_of: str | None = None) -> Any:
+        return goal_detail(database, plan, as_of=as_of)
+
+    @app.get("/api/v1/goals/{plan}/observations")
+    def observations(plan: str) -> Any:
+        return goal_observations(database, plan)
+
     @app.get("/api/v1/goals/{plan}/scenario")
     def goal_scenario_route(plan: str, dates: str = "", as_of: str | None = None) -> Any:
         parsed = [d.strip() for d in dates.split(",") if d.strip()]
@@ -56,6 +66,17 @@ def register_planning_routes(app: FastAPI, database: Path) -> None:
     @app.get("/api/v1/recurring")
     def recurring() -> Any:
         return recurring_page(database)
+
+    @app.get("/api/v1/recurring/candidates")
+    def recurring_candidates() -> Any:
+        page = recurring_page(database)
+        return {"generation": page["generation"], "candidates": page["candidates"]}
+
+    @app.get("/api/v1/recurring/commitments")
+    def recurring_commitments() -> Any:
+        page = recurring_page(database)
+        return {"generation": page["generation"], "confirmed": page["confirmed"],
+                "paused_or_ended": page["paused_or_ended"]}
 
     @app.get("/api/v1/recurring/{commitment}/occurrences")
     def recurring_occ(commitment: str, start: str, end: str) -> Any:
