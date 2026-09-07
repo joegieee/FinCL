@@ -15,8 +15,10 @@ from fastapi import FastAPI
 
 from .errors import FinCLError
 from .planning.queries import (
+    budget_backdate_preview,
     budget_history,
     budgets_page,
+    goal_scenario,
     goals_page,
     recurring_occurrences,
     recurring_page,
@@ -32,9 +34,24 @@ def register_planning_routes(app: FastAPI, database: Path) -> None:
     def budgets_history(plan: str) -> Any:
         return budget_history(database, plan)
 
+    @app.get("/api/v1/budgets/{plan}/backdate-preview")
+    def budgets_backdate(plan: str, effective_month: str, limit: str,
+                         currency: str = "SGD", category_key: str | None = None) -> Any:
+        return budget_backdate_preview(
+            database, plan, effective_month=effective_month, limit=limit,
+            category_key=category_key or None, currency=currency,
+        )
+
     @app.get("/api/v1/goals")
     def goals(as_of: str | None = None) -> Any:
         return goals_page(database, as_of=as_of)
+
+    @app.get("/api/v1/goals/{plan}/scenario")
+    def goal_scenario_route(plan: str, dates: str = "", as_of: str | None = None) -> Any:
+        parsed = [d.strip() for d in dates.split(",") if d.strip()]
+        if len(parsed) > 60:
+            raise FinCLError("Choose at most 60 contribution dates")
+        return goal_scenario(database, plan, as_of=as_of, contribution_dates=parsed)
 
     @app.get("/api/v1/recurring")
     def recurring() -> Any:

@@ -12,6 +12,8 @@ const loadBudgetHistory = vi.fn()
 const loadGoals = vi.fn()
 const loadRecurring = vi.fn()
 const loadOccurrences = vi.fn()
+const loadBackdatePreview = vi.fn()
+const loadGoalScenario = vi.fn()
 vi.mock('./api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./api')>()
   return {
@@ -21,6 +23,8 @@ vi.mock('./api', async (importOriginal) => {
     loadGoals: (...a: unknown[]) => loadGoals(...a),
     loadRecurring: () => loadRecurring(),
     loadOccurrences: (...a: unknown[]) => loadOccurrences(...a),
+    loadBackdatePreview: (...a: unknown[]) => loadBackdatePreview(...a),
+    loadGoalScenario: (...a: unknown[]) => loadGoalScenario(...a),
   }
 })
 
@@ -52,6 +56,11 @@ function setup() {
   loadBudgets.mockResolvedValue(budgetsPage())
   loadGoals.mockResolvedValue(goalsPage)
   loadRecurring.mockResolvedValue(recurringPage)
+  loadBackdatePreview.mockResolvedValue({ plan: 'b1', affected_months: [] })
+  loadGoalScenario.mockResolvedValue({
+    plan: 'gg1', currency: 'SGD', remaining: '0.00', contribution_dates_considered: [],
+    monthly_amount: null, status: 'reached', assumes_no_investment_return: true,
+  })
 }
 
 afterEach(() => { cleanup(); vi.clearAllMocks() })
@@ -112,6 +121,42 @@ describe('PlanningView', () => {
     const commit = apiMock.mock.calls.find(c => c[0] === 'commands')?.[1] as { kind: string; payload: { saved: string } }
     expect(commit.kind).toBe('GOAL_OBSERVATION_SET')
     expect(commit.payload.saved).toBe('750.00')
+  })
+
+  it('shows the backdating impact when a revision starts before this month', async () => {
+    setup()
+    render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={() => {}} />)
+    await screen.findByText('Dining')
+    loadBackdatePreview.mockResolvedValue({
+      plan: 'b1',
+      affected_months: [
+        { month: '2020-01', previous_limit: '300.00', new_limit: '500.00', actual: '10.00', previous_remaining: '290.00', new_remaining: '490.00' },
+      ],
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Revise' }))
+    const form = within(document.querySelector('.budget-row .planning-form') as HTMLElement)
+    fireEvent.change(form.getByLabelText('From month'), { target: { value: '2020-01' } })
+    fireEvent.change(form.getByLabelText('Monthly limit'), { target: { value: '500.00' } })
+
+    await waitFor(() => expect(screen.getByText(/BACKDATING AFFECTS 1 MONTH/i)).toBeInTheDocument())
+    expect(screen.getByText('2020-01')).toBeInTheDocument()
+    expect(loadBackdatePreview).toHaveBeenCalledWith('b1', '2020-01', '500.00', 'SGD', 'Food & Dining / Groceries')
+  })
+
+  it('estimates a monthly contribution from the goal scenario', async () => {
+    setup()
+    render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={() => {}} />)
+    await screen.findByText('Trip')
+    fireEvent.click(screen.getByRole('button', { name: 'Plan contributions' }))
+
+    loadGoalScenario.mockResolvedValueOnce({
+      plan: 'gg1', currency: 'SGD', remaining: '1500.00',
+      contribution_dates_considered: ['2026-04-01', '2026-05-01', '2026-06-01'],
+      monthly_amount: '500.00', status: 'scheduled', assumes_no_investment_return: true,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Estimate' }))
+    expect(await screen.findByText(/SGD 500.00/)).toBeInTheDocument()
+    expect(screen.getByText(/no interest or investment return is assumed/i)).toBeInTheDocument()
   })
 
   it('freezes edits when the ledger is stale', async () => {

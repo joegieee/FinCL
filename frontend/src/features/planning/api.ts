@@ -79,6 +79,54 @@ export const loadBudgetHistory = (plan: string) =>
   api<BudgetHistory>(`budgets/${encodeURIComponent(plan)}/history`)
 export const loadGoals = (asOf?: string) =>
   api<GoalsPage>(`goals${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`)
+export type BackdatePreview = {
+  plan: string
+  affected_months: {
+    month: string
+    previous_limit: string | null
+    new_limit: string
+    actual: string
+    previous_remaining: string | null
+    new_remaining: string | null
+  }[]
+  note?: string
+}
+export const loadBackdatePreview = (plan: string, effectiveMonth: string, limit: string, currency: string, categoryKey: string | null) =>
+  api<BackdatePreview>(
+    `budgets/${encodeURIComponent(plan)}/backdate-preview?effective_month=${effectiveMonth}` +
+    `&limit=${encodeURIComponent(limit)}&currency=${currency}` +
+    (categoryKey ? `&category_key=${encodeURIComponent(categoryKey)}` : ''),
+  )
+
+export type GoalScenario = {
+  plan: string
+  currency: string
+  remaining: string
+  contribution_dates_considered: string[]
+  monthly_amount: string | null
+  status: 'scheduled' | 'overdue' | 'no_future_contribution_date' | 'reached'
+  assumes_no_investment_return: boolean
+}
+export const loadGoalScenario = (plan: string, dates: string[], asOf?: string) =>
+  api<GoalScenario>(
+    `goals/${encodeURIComponent(plan)}/scenario?dates=${dates.join(',')}` +
+    (asOf ? `&as_of=${asOf}` : ''),
+  )
+
+export function monthlyDates(dayOfMonth: number, fromMonth: string, throughDate: string): string[] {
+  const out: string[] = []
+  let [y, m] = fromMonth.split('-').map(Number)
+  for (let i = 0; i < 120; i++) {
+    const last = new Date(y, m, 0).getDate()
+    const iso = `${y}-${String(m).padStart(2, '0')}-${String(Math.min(dayOfMonth, last)).padStart(2, '0')}`
+    if (iso > throughDate) break
+    out.push(iso)
+    m += 1
+    if (m === 13) { y += 1; m = 1 }
+  }
+  return out
+}
+
 export const loadRecurring = () => api<RecurringPage>('recurring')
 export const loadOccurrences = (commitment: string, start: string, end: string) =>
   api<OccurrencesPage>(`recurring/${encodeURIComponent(commitment)}/occurrences?start=${start}&end=${end}`)

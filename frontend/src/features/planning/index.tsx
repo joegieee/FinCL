@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { money } from '@/lib/api'
 import { useLedgerCommand } from '@/lib/command'
 import {
-  loadBudgetHistory, loadBudgets, loadGoals, loadOccurrences, loadRecurring, thisMonth,
-  type BudgetCard, type BudgetsPage, type GoalCard, type GoalsPage, type OccurrencesPage,
-  type RecurringPage,
+  loadBackdatePreview, loadBudgetHistory, loadBudgets, loadGoalScenario, loadGoals,
+  loadOccurrences, loadRecurring, monthlyDates, thisMonth,
+  type BackdatePreview, type BudgetCard, type BudgetsPage, type GoalCard, type GoalScenario,
+  type GoalsPage, type OccurrencesPage, type RecurringPage,
 } from './api'
 
 const STATUS: Record<string, string> = {
@@ -174,12 +175,49 @@ function BudgetForm({ generation, month, categories, disabled, plan, initial, on
       </select></label>
       <label>Reason<Input required maxLength={2000} value={reason} disabled={cmd.attempted} onChange={e => setReason(e.target.value)} placeholder="A short note for your decision history" /></label>
       {cmd.error && <p className="form-error" role="alert">{cmd.error}</p>}
+      {plan && limit.trim() && effectiveMonth < thisMonth() && (
+        <BackdateImpact plan={idRef.current} effectiveMonth={effectiveMonth} limit={limit.trim()}
+          currency={initial?.currency ?? 'SGD'} categoryKey={category || null} />
+      )}
       {cmd.previewed && <div className="preview" role="status"><Check size={15} /><p>{plan ? 'Revises' : 'Creates'} “{name.trim()}” — {money(limit, initial?.currency ?? 'SGD')}/month from {effectiveMonth}. Applies from that month until the next revision.</p></div>}
       {disabled && <p className="form-error">Refresh the ledger before editing budgets.</p>}
       <div className="dialog-actions">
         <Button type="submit" disabled={cmd.busy || disabled}>{cmd.busy ? 'Working…' : cmd.previewed ? (cmd.attempted ? 'Retry same save' : 'Save revision') : 'Preview'}</Button>
       </div>
     </form>
+  )
+}
+
+function BackdateImpact({ plan, effectiveMonth, limit, currency, categoryKey }: {
+  plan: string; effectiveMonth: string; limit: string; currency: string; categoryKey: string | null
+}) {
+  const { data, error } = useResource<BackdatePreview>(
+    () => loadBackdatePreview(plan, effectiveMonth, limit, currency, categoryKey),
+    [plan, effectiveMonth, limit, currency, categoryKey],
+  )
+  if (error) return <p className="form-error" role="alert">{error}</p>
+  if (!data) return <p className="muted-note">Checking which months this backdated revision changes…</p>
+  if (data.affected_months.length === 0) return <p className="muted-note">{data.note ?? 'No earlier displayed month changes.'}</p>
+  return (
+    <div className="history-panel">
+      <p className="eyebrow">BACKDATING AFFECTS {data.affected_months.length} MONTH{data.affected_months.length === 1 ? '' : 'S'}</p>
+      <table className="occurrence-table">
+        <thead><tr><th>Month</th><th>Limit</th><th>Actual</th><th>Remaining</th></tr></thead>
+        <tbody>
+          {data.affected_months.map(m => (
+            <tr key={m.month}>
+              <td>{m.month}</td>
+              <td>{m.previous_limit ? `${money(m.previous_limit, currency)} → ` : ''}{money(m.new_limit, currency)}</td>
+              <td>{money(m.actual, currency)}</td>
+              <td>{m.new_remaining !== null
+                ? `${m.previous_remaining !== null ? `${money(m.previous_remaining, currency)} → ` : ''}${money(m.new_remaining, currency)}`
+                : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted-note">A revision never silently rewrites a previously shown historical limit — this is the change you are about to make.</p>
+    </div>
   )
 }
 
@@ -232,7 +270,7 @@ function GoalsSection({ generation, disabled, onSaved }: {
 function GoalRow({ goal, generation, disabled, onSaved }: {
   goal: GoalCard; generation: string; disabled: boolean; onSaved: (status: string) => void | Promise<void>
 }) {
-  const [mode, setMode] = useState<'idle' | 'observe' | 'edit' | 'archive'>('idle')
+  const [mode, setMode] = useState<'idle' | 'observe' | 'edit' | 'archive' | 'scenario'>('idle')
   const pct = goal.saved !== null ? Math.max(0, Math.min(100, (Number(goal.saved) / Number(goal.target || '1')) * 100)) : 0
   return (
     <div className="budget-row">
@@ -258,12 +296,55 @@ function GoalRow({ goal, generation, disabled, onSaved }: {
         <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setMode(m => m === 'archive' ? 'idle' : 'archive')}>
           {goal.archived ? 'Restore' : 'Archive'}
         </Button>
+        {goal.target_on && <Button variant="ghost" size="sm" onClick={() => setMode(m => m === 'scenario' ? 'idle' : 'scenario')}>Plan contributions</Button>}
       </div>
+      {mode === 'scenario' && goal.target_on && <ScenarioPanel plan={goal.plan} currency={goal.currency} targetOn={goal.target_on} />}
       {mode === 'observe' && <ObservationForm generation={generation} plan={goal.plan} currency={goal.currency} disabled={disabled} onSaved={async s => { setMode('idle'); await onSaved(s) }} />}
       {mode === 'edit' && <GoalForm generation={generation} disabled={disabled} plan={goal.plan} initial={goal} onSaved={async s => { setMode('idle'); await onSaved(s) }} />}
       {mode === 'archive' && (
         <ArchiveForm generation={generation} kind="GOAL_ARCHIVE_SET" anchors={{ plan: goal.plan }}
           archived={goal.archived} disabled={disabled} onSaved={async s => { setMode('idle'); await onSaved(s) }} />
+      )}
+    </div>
+  )
+}
+
+function ScenarioPanel({ plan, currency, targetOn }: { plan: string; currency: string; targetOn: string }) {
+  const [day, setDay] = useState(1)
+  const [result, setResult] = useState<GoalScenario | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  async function run() {
+    setBusy(true); setError(''); setResult(null)
+    const from = thisMonth().length === 7 ? `${thisMonth()}-01` : thisMonth()
+    const nextMonth = new Date(from + 'T12:00:00'); nextMonth.setMonth(nextMonth.getMonth() + 1)
+    const fromMonth = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}`
+    try {
+      setResult(await loadGoalScenario(plan, monthlyDates(day, fromMonth, targetOn)))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="planning-form">
+      <div className="form-row-3">
+        <label>Contribution day<Input type="number" min={1} max={31} value={day} onChange={e => setDay(Math.max(1, Math.min(31, Number(e.target.value) || 1)))} /></label>
+        <div className="dialog-actions" style={{ marginTop: 22 }}><Button type="button" onClick={run} disabled={busy}>{busy ? 'Working…' : 'Estimate'}</Button></div>
+      </div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {result && (
+        <div className="preview" role="status">
+          <div>
+            {result.status === 'scheduled'
+              ? <p><strong>{money(result.monthly_amount, currency)}</strong> per contribution across {result.contribution_dates_considered.length} dates to reach the target by {targetOn}.</p>
+              : result.status === 'reached'
+                ? <p>Target already reached — {money(result.remaining, currency)} remaining.</p>
+                : <p>{money(result.remaining, currency)} remaining and no contribution date falls before {targetOn}{result.status === 'overdue' ? ' (overdue)' : ''}.</p>}
+            <p className="muted-note">A scenario only — no interest or investment return is assumed, and this reserves no money.</p>
+          </div>
+        </div>
       )}
     </div>
   )

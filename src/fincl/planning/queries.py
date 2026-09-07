@@ -18,8 +18,16 @@ from ..db import connect_readonly
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..intervals import DateInterval
+from ..money import ExactMoney
 from ..queries import _ENTRY_VIEW
 from ..report import _coverage_contract
+
+
+def _to_cents(text: str) -> int:
+    money = ExactMoney.parse(text)
+    if money.scale > 2:
+        raise FinCLError("Amounts allow at most two decimal places")
+    return money.coefficient * (10 ** (2 - money.scale))
 
 
 def _generation(connection: Any) -> str:
@@ -163,6 +171,78 @@ def budget_history(database: Path, plan: str) -> dict[str, Any]:
         connection.close()
 
 
+def _month_add(month: str, delta: int) -> str:
+    year, mon = int(month[:4]), int(month[5:7])
+    total = year * 12 + (mon - 1) + delta
+    return f"{total // 12:04d}-{total % 12 + 1:02d}"
+
+
+def _iter_months(start: str, end: str) -> list[str]:
+    months, cur = [], start
+    while cur <= end:
+        months.append(cur)
+        cur = _month_add(cur, 1)
+    return months
+
+
+def budget_backdate_preview(
+    database: Path, plan: str, *, effective_month: str, limit: str,
+    category_key: str | None, currency: str,
+) -> dict[str, Any]:
+    """Every month a new revision effective from ``effective_month`` would change,
+    with the limit and remaining before and after. A revision never silently
+    rewrites a previously displayed historical limit — this is what the caller
+    shows first (DESIGN-personal-finance §5)."""
+    if len(effective_month) != 7 or effective_month[4] != "-":
+        raise FinCLError("effective_month must be YYYY-MM")
+    connection = connect_readonly(database)
+    try:
+        connection.execute("BEGIN")
+        _generation(connection)
+        contract = _coverage_contract(connection)
+        rows = connection.execute(
+            "SELECT effective_month, category_key, limit_coefficient, limit_scale, currency "
+            "FROM budget_revisions WHERE plan = ? ORDER BY effective_month, journal_seq", (plan,)
+        ).fetchall()
+        new_cents = _to_cents(limit)
+        today_month = date.today().strftime("%Y-%m")
+        later = [r["effective_month"] for r in rows if r["effective_month"] > effective_month]
+        window_end = _month_add(min(later), -1) if later else today_month
+        if effective_month > window_end:
+            return {"plan": plan, "affected_months": [], "note": "future revision — no historical month is affected"}
+
+        def effective_at(month: str) -> tuple[int, str | None] | None:
+            active = None
+            for r in rows:
+                if r["effective_month"] <= month:
+                    active = r
+            if active is None:
+                return None
+            return active["limit_coefficient"] * (10 ** (2 - active["limit_scale"])), active["category_key"]
+
+        affected: list[dict[str, Any]] = []
+        for month in _iter_months(effective_month, window_end):
+            prev = effective_at(month)
+            prev_limit = prev[0] if prev else None
+            prev_cat = prev[1] if prev else None
+            if prev_limit == new_cents and prev_cat == category_key:
+                continue
+            start, end = _month_bounds(month)
+            covered = any(i.contains_interval(DateInterval(start, end)) for i in contract.covered_intervals)
+            actual = _budget_actual_cents(connection, category_key=category_key, currency=currency, start=start, end=end)
+            affected.append({
+                "month": month,
+                "previous_limit": _money(prev_limit) if prev_limit is not None else None,
+                "new_limit": _money(new_cents),
+                "actual": _money(actual),
+                "previous_remaining": _money(prev_limit - actual) if (prev_limit is not None and covered and end < date.today().isoformat()) else None,
+                "new_remaining": _money(new_cents - actual) if (covered and end < date.today().isoformat()) else None,
+            })
+        return {"plan": plan, "affected_months": affected}
+    finally:
+        connection.close()
+
+
 def goals_page(database: Path, *, as_of: str | None = None) -> dict[str, Any]:
     as_of = as_of or date.today().isoformat()
     connection = connect_readonly(database)
@@ -199,6 +279,56 @@ def goals_page(database: Path, *, as_of: str | None = None) -> dict[str, Any]:
             })
         goals.sort(key=lambda g: (g["archived"], g["name"].lower()))
         return {"generation": generation, "as_of": as_of, "goals": goals}
+    finally:
+        connection.close()
+
+
+def goal_scenario(
+    database: Path, plan: str, *, as_of: str | None, contribution_dates: list[str],
+) -> dict[str, Any]:
+    """"Monthly amount to reach target": the positive remainder divided by the
+    count of user-selected contribution dates after ``as_of`` and on/before the
+    target date, rounded up to the currency display scale. No interest or
+    investment return is assumed; this creates no transfer or reservation
+    (DESIGN-personal-finance §6)."""
+    as_of = as_of or date.today().isoformat()
+    connection = connect_readonly(database)
+    try:
+        generation = _generation(connection)
+        detail = connection.execute("SELECT * FROM goal_details WHERE plan = ?", (plan,)).fetchone()
+        if detail is None:
+            raise FinCLError("Goal not found")
+        observation = connection.execute(
+            "SELECT saved_coefficient, saved_scale FROM goal_observations "
+            "WHERE plan = ? AND observed_on <= ? ORDER BY observed_on DESC, journal_seq DESC LIMIT 1",
+            (plan, as_of),
+        ).fetchone()
+        target_cents = detail["target_coefficient"] * (10 ** (2 - detail["target_scale"]))
+        saved_cents = (
+            observation["saved_coefficient"] * (10 ** (2 - observation["saved_scale"]))
+            if observation is not None else 0
+        )
+        remaining_cents = max(0, target_cents - saved_cents)
+        target_on = detail["target_on"]
+        eligible = sorted(
+            d for d in contribution_dates
+            if len(d) == 10 and d > as_of and (target_on is None or d <= target_on)
+        )
+        if remaining_cents == 0:
+            status = "reached"
+        elif not eligible:
+            status = "overdue" if (target_on and target_on <= as_of) else "no_future_contribution_date"
+        else:
+            status = "scheduled"
+        monthly = _money(-(-remaining_cents // len(eligible))) if eligible and remaining_cents else None
+        return {
+            "generation": generation, "plan": plan, "as_of": as_of, "currency": detail["currency"],
+            "remaining": _money(remaining_cents),
+            "contribution_dates_considered": eligible,
+            "monthly_amount": monthly,
+            "status": status,
+            "assumes_no_investment_return": True,
+        }
     finally:
         connection.close()
 

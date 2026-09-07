@@ -65,6 +65,8 @@ describe('ReviewHub', () => {
     })
     render(<ReviewHub freshness="current" onSaved={() => {}} />)
     await screen.findByText('Unreadable row')
+    // The decision <select> is populated by an async history fetch — wait for it.
+    await screen.findByRole('option', { name: /#7/ })
     fireEvent.change(screen.getByLabelText('Decision'), { target: { value: '7' } })
     fireEvent.click(screen.getByRole('button', { name: 'Check inverse' }))
     expect(await screen.findByText(/no safe automatic inverse/)).toBeInTheDocument()
