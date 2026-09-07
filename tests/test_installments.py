@@ -10,7 +10,6 @@ import unittest
 import uuid
 from pathlib import Path
 
-from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from fincl.api import create_app
@@ -20,6 +19,7 @@ from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.rebuild import rebuild_database
 from fincl.refresh import refresh_ledger
+from tests.asgi_client import ASGITestClient
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "mari_card.pdf"
 _ORIGIN = "http://127.0.0.1:8765"
@@ -277,7 +277,7 @@ class InstallmentTests(unittest.TestCase):
             self.database, port=8765, bootstrap_secret="test-secret",
             evidence_dir=self.evidence,
         )
-        client = TestClient(application, base_url=_ORIGIN)
+        client = ASGITestClient(application, base_url=_ORIGIN)
         self.addCleanup(client.close)
         client.post(
             "/session", json={"secret": "test-secret"},

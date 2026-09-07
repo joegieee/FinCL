@@ -101,7 +101,7 @@ class PlanningApiTests(ApiTestBase):
         ).json()["occurrences"]
         states = {o["scheduled_on"]: o["state"] for o in occ}
         self.assertEqual(states["2026-02-10"], "explicitly_skipped")
-        self.assertIn(states["2026-01-10"], {"missing_in_window", "associated"})
+        self.assertIn(states["2026-01-10"], {"missing_in_covered_window", "associated"})
 
     def test_goal_target_date_scenario_divides_the_remainder_and_rounds_up(self) -> None:
         plan = str(uuid.uuid4())
