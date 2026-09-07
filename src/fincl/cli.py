@@ -1706,6 +1706,44 @@ def debt_retire_event(
     )
 
 
+@debt_app.command("close")
+def debt_close(
+    debt: str = typer.Option(..., "--debt"),
+    effective_on: str = typer.Option(..., "--effective-on", help="YYYY-MM-DD."),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Close a settled debt (PERSONAL_DEBT_CLOSE).
+
+    Refused unless the principal is zero as of the closure date and no active
+    event is dated after it.
+    """
+    _record_debt(
+        database, "PERSONAL_DEBT_CLOSE", {"debt": debt},
+        {"effective_on": effective_on.strip(), "reason": reason.strip()},
+        json_output=json_output, plain=plain,
+    )
+
+
+@debt_app.command("reopen")
+def debt_reopen(
+    debt: str = typer.Option(..., "--debt"),
+    effective_on: str = typer.Option(..., "--effective-on", help="YYYY-MM-DD."),
+    reason: str = typer.Option(..., "--reason"),
+    database: Path = typer.Option(..., "--database"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Reopen a closed debt before adding later events (PERSONAL_DEBT_REOPEN); principal is unchanged."""
+    _record_debt(
+        database, "PERSONAL_DEBT_REOPEN", {"debt": debt},
+        {"effective_on": effective_on.strip(), "reason": reason.strip()},
+        json_output=json_output, plain=plain,
+    )
+
+
 @debt_app.command("list")
 def debt_list(
     database: Path = typer.Option(..., "--database"),

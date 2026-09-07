@@ -303,11 +303,31 @@ def apply_debt(
         )
         return
 
-    if decision_kind in {
-        PERSONAL_DEBT_CLOSE,
-        PERSONAL_DEBT_REOPEN,
-    }:  # pragma: no cover - validation refuses these until slice 3
-        raise FinCLError(f"{decision_kind} projection arrives in v0.3 slice 3")
+    if decision_kind == PERSONAL_DEBT_CLOSE:
+        debt = _debt_row(connection, anchors["debt"])
+        if str(debt["status"]) == "CLOSED":
+            raise FinCLError(f"debt {anchors['debt']} is already closed")
+        if str(payload["effective_on"]) < str(debt["opened_on"]):
+            raise FinCLError("a debt cannot be closed before it was opened")
+        connection.execute(
+            "UPDATE personal_debts SET status = 'CLOSED', closed_on = ?, "
+            "lifecycle_seq = ?, reason = ? WHERE debt_id = ?",
+            (payload["effective_on"], journal_seq, payload["reason"], anchors["debt"]),
+        )
+        return
+
+    if decision_kind == PERSONAL_DEBT_REOPEN:
+        debt = _debt_row(connection, anchors["debt"])
+        if str(debt["status"]) != "CLOSED":
+            raise FinCLError(
+                f"debt {anchors['debt']} is not closed, so it cannot be reopened"
+            )
+        connection.execute(
+            "UPDATE personal_debts SET status = 'OPEN', closed_on = NULL, "
+            "lifecycle_seq = ?, reason = ? WHERE debt_id = ?",
+            (journal_seq, payload["reason"], anchors["debt"]),
+        )
+        return
 
     raise FinCLError(f"{decision_kind} is not a personal-debt decision")  # pragma: no cover
 
@@ -377,16 +397,18 @@ def _check_partitions(connection: sqlite3.Connection) -> None:
 
 
 def resolve_debts(connection: sqlite3.Connection) -> None:
-    """Revalidate every debt's chronology, allocation binding and partitions.
+    """Revalidate every debt's chronology, allocation binding, partitions and closure.
 
     Allocation rows are written by :func:`apply_debt`; this pass does not rebuild
     them. It runs the day-end non-negative check, the direction / currency check
-    for bound source allocations, and the shared component-partition check so a
-    retroactive edit that breaks any invariant is caught at replay time.
+    for bound source allocations, the shared component-partition check, and — for
+    a CLOSED debt — that the principal is zero as of the closure date and no
+    active event is dated after it (§2), so a retroactive edit that breaks any
+    invariant is caught at replay time.
     """
     for debt in connection.execute("SELECT * FROM personal_debts").fetchall():
         events = connection.execute(
-            "SELECT effective_on, principal_coefficient, principal_scale, signed "
+            "SELECT event_id, effective_on, principal_coefficient, principal_scale, signed "
             "FROM personal_debt_events WHERE debt_id = ? "
             "ORDER BY effective_on, signed DESC, event_id",
             (debt["debt_id"],),
@@ -397,6 +419,9 @@ def resolve_debts(connection: sqlite3.Connection) -> None:
         running_by_day: dict[str, int] = {}
         running = 0
         current_day = None
+        closed_on = str(debt["closed_on"]) if debt["closed_on"] is not None else None
+        balance_at_close = 0
+        later_than_close: list[str] = []
         for event in events:
             day = str(event["effective_on"])
             if current_day is not None and day != current_day:
@@ -410,12 +435,28 @@ def resolve_debts(connection: sqlite3.Connection) -> None:
                 raise FinCLError(
                     f"debt {debt['debt_id']} would fall below zero principal on {day}"
                 )
+            if closed_on is not None:
+                if day <= closed_on:
+                    balance_at_close = running
+                else:
+                    later_than_close.append(str(event["event_id"]))
         if current_day is not None:
             running_by_day[current_day] = running
         for day, day_end in running_by_day.items():
             if day_end < 0:
                 raise FinCLError(
                     f"debt {debt['debt_id']} ends {day} with negative principal"
+                )
+        if closed_on is not None:
+            if later_than_close:
+                raise FinCLError(
+                    f"debt {debt['debt_id']} is closed as of {closed_on} but has later "
+                    f"active events: {sorted(later_than_close)}"
+                )
+            if balance_at_close != 0:
+                raise FinCLError(
+                    f"debt {debt['debt_id']} cannot be closed as of {closed_on}: "
+                    f"principal is not zero at that date"
                 )
 
     _check_allocation_binding(connection)

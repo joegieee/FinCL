@@ -311,6 +311,8 @@ def _economic_flow(
         reimbursements = projection.bucket_total(currency, "reimbursements")
         non_income_inflow = projection.bucket_total(currency, "non_income_inflow")
         fees = projection.bucket_total(currency, "fees")
+        exceptional_inflow = projection.bucket_total(currency, "exceptional_inflow")
+        exceptional_loss = projection.bucket_total(currency, "exceptional_loss")
         currencies.append(
             {
                 "currency": currency,
@@ -320,12 +322,14 @@ def _economic_flow(
                 "refunds": refunds,
                 "reimbursements": reimbursements,
                 "non_income_inflow": non_income_inflow,
+                "exceptional_inflow": exceptional_inflow,
+                "exceptional_loss": exceptional_loss,
                 "pending_review": projection.bucket_total(currency, "pending_review"),
                 "other_classified_inbound": projection.bucket_total(currency, "other"),
                 "fees": fees,
                 "net_economic_flow": _net_money(
-                    [income, refunds, reimbursements, non_income_inflow],
-                    [spending, fees],
+                    [income, refunds, reimbursements, non_income_inflow, exceptional_inflow],
+                    [spending, fees, exceptional_loss],
                 ),
                 "excluded_confirmed_internal_entries": (
                     values.excluded_confirmed_internal_entries
@@ -620,6 +624,7 @@ def build_economic_flow_report(
         lines.append(
             "{currency}: spending={spending} income={income} "
             "refunds={refunds} reimbursements={reimbursements} non_income_inflow={non_income_inflow} "
+            "exceptional_inflow={exceptional_inflow} exceptional_loss={exceptional_loss} "
             "pending_review={pending_review} "
             "other_classified_inbound={other_classified_inbound} "
             "fees={fees} net={net_economic_flow} "

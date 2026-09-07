@@ -33,7 +33,7 @@ LENS_RECORDED_FLOW = "recorded_flow"
 # buckets net positively. `pending_review` and `other` stay visible but net zero,
 # exactly as the MVP report treats them.
 _POSITIVE_NET_BUCKETS = frozenset(
-    {"income", "refunds", "reimbursements", "non_income_inflow"}
+    {"income", "refunds", "reimbursements", "non_income_inflow", "exceptional_inflow"}
 )
 
 # One shared shaping of an eligible ledger entry: the economic-flow join plus the
@@ -239,6 +239,17 @@ class _ExpensePaidForMe:
 
 
 @dataclass(frozen=True, slots=True)
+class _Exceptional:
+    event_id: str
+    kind: str
+    coefficient: int
+    scale: int
+    effective_on: str
+    currency: str
+    journal_seq: int
+
+
+@dataclass(frozen=True, slots=True)
 class _DebtEffects:
     """v0.3 §3: how personal-debt decisions bend the economic view.
 
@@ -252,11 +263,12 @@ class _DebtEffects:
     amount_off_by_anchor: dict[str, tuple[int, int]]
     residual_by_anchor: dict[str, _Residual]
     expense_paid_for_me: list[_ExpensePaidForMe]
+    exceptional: list[_Exceptional]
 
 
 def _debt_economic_effects(connection: sqlite3.Connection) -> _DebtEffects:
     if not _table_exists(connection, "personal_debt_allocations"):
-        return _DebtEffects({}, {}, [])
+        return _DebtEffects({}, {}, [], [])
 
     principal: dict[str, list[tuple[int, int]]] = {}
     for row in connection.execute(
@@ -310,7 +322,26 @@ def _debt_economic_effects(connection: sqlite3.Connection) -> _DebtEffects:
                 journal_seq=int(row["journal_seq"]),
             )
         )
-    return _DebtEffects(amount_off, residual_by_anchor, expense_paid_for_me)
+
+    exceptional: list[_Exceptional] = []
+    for row in connection.execute(
+        "SELECT e.event_id, e.event_kind, e.principal_coefficient, e.principal_scale, "
+        "e.effective_on, e.journal_seq, d.currency "
+        "FROM personal_debt_events e JOIN personal_debts d ON d.debt_id = e.debt_id "
+        "WHERE e.event_kind IN ('PAYABLE_FORGIVEN', 'RECEIVABLE_WRITTEN_OFF') AND e.bound = 1"
+    ):
+        exceptional.append(
+            _Exceptional(
+                event_id=str(row["event_id"]),
+                kind=str(row["event_kind"]),
+                coefficient=int(row["principal_coefficient"]),
+                scale=int(row["principal_scale"]),
+                effective_on=str(row["effective_on"]),
+                currency=str(row["currency"]),
+                journal_seq=int(row["journal_seq"]),
+            )
+        )
+    return _DebtEffects(amount_off, residual_by_anchor, expense_paid_for_me, exceptional)
 
 
 def build_components(
@@ -522,6 +553,57 @@ def build_components(
                 source_location="Personal debt event",
                 evidence_sha256="",
                 decision_seqs=(event.journal_seq,),
+                nets=True,
+            )
+        )
+
+    # v0.3 §3: forgiveness / write-off are separately disclosed exceptional
+    # adjustments — never earned income or ordinary spending, and no bank cash
+    # movement. PAYABLE_FORGIVEN is an exceptional inflow; RECEIVABLE_WRITTEN_OFF
+    # an exceptional loss.
+    for adj in debt.exceptional:
+        day = adj.effective_on
+        if not covers_date(analysis_intervals, day):
+            continue
+        currency = adj.currency
+        if currency not in seen_currencies:
+            seen_currencies.append(currency)
+        stats.setdefault(
+            currency,
+            {
+                "entries": 0,
+                "outside_covered_window": 0,
+                "outside_analysis_window": 0,
+                "excluded_confirmed_internal_entries": 0,
+                "excluded_self_transfer_entries": 0,
+            },
+        )
+        forgiven = adj.kind == "PAYABLE_FORGIVEN"
+        components.append(
+            Component(
+                origin_kind="DEBT_EVENT",
+                origin_anchor=adj.event_id,
+                entry_id="",
+                role="amount",
+                lens=lens,
+                bucket="exceptional_inflow" if forgiven else "exceptional_loss",
+                coefficient=abs(adj.coefficient) if forgiven else -abs(adj.coefficient),
+                scale=adj.scale,
+                currency=currency,
+                represented_start=day,
+                represented_end=day,
+                precision="DAY",
+                period=day[:7],
+                category_key=(
+                    "Exceptional / Debt forgiven" if forgiven
+                    else "Exceptional / Debt written off"
+                ),
+                merchant_key=None,
+                merchant_display="Debt forgiven" if forgiven else "Debt written off",
+                account="(off-ledger)",
+                source_location="Personal debt event",
+                evidence_sha256="",
+                decision_seqs=(adj.journal_seq,),
                 nets=True,
             )
         )

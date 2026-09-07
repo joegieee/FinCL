@@ -364,7 +364,8 @@ class EconomicFlowReportTests(unittest.TestCase):
         self.assertEqual(data["consolidated_sgd_total_status"], "UNAVAILABLE_FX_RATES_NOT_IMPORTED")
         self.assertEqual(data["currencies"], [{
             "currency": "USD", "entries": 2, "spending": "0", "income": "0", "refunds": "0",
-            "reimbursements": "0", "non_income_inflow": "0", "pending_review": "0",
+            "reimbursements": "0", "non_income_inflow": "0",
+            "exceptional_inflow": "0", "exceptional_loss": "0", "pending_review": "0",
             "other_classified_inbound": "0", "fees": "1.00", "net_economic_flow": "-1.00",
             "excluded_confirmed_internal_entries": 2,
             "excluded_self_transfer_entries": 0,

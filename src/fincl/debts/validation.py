@@ -18,7 +18,6 @@ from .models import (
     DIRECTIONS,
     ENTRY_RESIDUAL_RETIRE,
     ENTRY_RESIDUAL_SET,
-    EXCEPTIONAL_EVENTS,
     EXPENSE_CATEGORY_EVENTS,
     INBOUND_CLASSIFICATION_RETIRE,
     OFF_LEDGER_EVENTS,
@@ -39,9 +38,7 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _REASON_MAX = 2000
 _LABEL_MAX = 200
 
-# Slice 2 lands source-linked events and shared-expense residuals. Forgiveness /
-# write-off and close / reopen stay refused until slice 3.
-_SLICE3_PENDING = True
+# All v0.3 event kinds and lifecycle transitions are live as of slice 3.
 
 
 def _reason(payload: dict[str, Any]) -> None:
@@ -235,11 +232,6 @@ def _validate_event(anchors: dict[str, str], payload: dict[str, Any]) -> None:
 
     _reason(payload)
 
-    if _SLICE3_PENDING and payload["event_kind"] in EXCEPTIONAL_EVENTS:
-        raise FinCLError(
-            "forgiveness and write-off events arrive in v0.3 slice 3"
-        )
-
 
 def _validate_event_retire(anchors: dict[str, str], payload: dict[str, Any]) -> None:
     if set(anchors) != {"debt", "event"}:
@@ -259,10 +251,6 @@ def _validate_lifecycle(kind: str, anchors: dict[str, str], payload: dict[str, A
         raise FinCLError(f"{kind} payload is exactly {{effective_on, reason}}")
     _calendar_date(payload["effective_on"], "effective_on")
     _reason(payload)
-    if _SLICE3_PENDING:
-        raise FinCLError(
-            "close / reopen arrive in v0.3 slice 3"
-        )
 
 
 def _validate_residual(kind: str, anchors: dict[str, str], payload: dict[str, Any]) -> None:

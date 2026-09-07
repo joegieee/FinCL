@@ -16,10 +16,12 @@ from typing import Any
 from ..errors import FinCLError
 from .models import (
     ENTRY_RESIDUAL_SET,
+    PERSONAL_DEBT_CLOSE,
     PERSONAL_DEBT_DETAILS_SET,
     PERSONAL_DEBT_EVENT_RETIRE,
     PERSONAL_DEBT_EVENT_SET,
     PERSONAL_DEBT_OPEN,
+    PERSONAL_DEBT_REOPEN,
 )
 from .projection import apply_debt, resolve_debts
 from .validation import validate_debt_payload
@@ -42,6 +44,8 @@ def preview_debt(
         PERSONAL_DEBT_DETAILS_SET,
         PERSONAL_DEBT_EVENT_SET,
         PERSONAL_DEBT_EVENT_RETIRE,
+        PERSONAL_DEBT_CLOSE,
+        PERSONAL_DEBT_REOPEN,
     }
     debt_exists = bool(
         "debt" in anchors
