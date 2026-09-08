@@ -305,6 +305,7 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
             max_days=MARI_SAVINGS_CARD_REPAYMENT_LINKER.max_days,
         ),
     ]
+    candidates = _resolve_balanced_paylah_topups(connection, candidates)
     _store_candidates(connection, candidates)
     _apply_link_decisions(connection)
     after = {
@@ -507,6 +508,130 @@ def _reference_keys_match(left: str, right: str) -> bool:
     )
 
 
+def _resolve_balanced_paylah_topups(
+    connection: sqlite3.Connection,
+    candidates: list[tuple[sqlite3.Row, sqlite3.Row, str]],
+) -> list[tuple[sqlite3.Row, sqlite3.Row, str]]:
+    """Auto-confirm same-day, same-amount DBS->PayLah top-up groups.
+
+    The DBS consolidated ``TOP-UP TO PAYLAH!`` line carries no reference, and the
+    PayLah ``TOP UP WALLET FROM MY ACCOUNT`` line's ``REF NO:. PLPE...`` never
+    appears on the DBS side, so two identical top-ups on one day have no shared
+    key and today land as ``AMBIGUOUS_MUTUAL_MATCH`` proposals.
+
+    Both legs are the owner's own SGD accounts, the amounts within a group are
+    exactly equal, the day is identical (``max_days=0``), and the fee is zero, so
+    every perfect matching is economically identical and is excluded from
+    spending analysis as a self-transfer. When a group is a complete bipartite
+    block with an equal number of legs on each side (k on each, k >= 2), confirm
+    one deterministic bijection -- both sides ordered by the rebuild-stable ledger
+    entry id and zipped -- instead of proposing k*k pairs. Unbalanced groups
+    (a missing or extra leg) stay ``PROPOSED``: that asymmetry is a real review
+    signal. A group any leg of which is named by a bound journal
+    ``LINK_CONFIRM`` / ``LINK_REJECT`` also stays ``PROPOSED`` so that the
+    explicit operator pairing is the one overlaid by ``_apply_link_decisions``.
+    """
+    paylah = [c for c in candidates if c[2] == DBS_PAYLAH_LINKER.method_version]
+    if not paylah:
+        return candidates
+
+    decided_entries: set[str] = set()
+    for decision in connection.execute(
+        "SELECT left_anchor, right_anchor FROM link_decisions WHERE bound = 1"
+    ).fetchall():
+        for anchor in (decision["left_anchor"], decision["right_anchor"]):
+            resolved_entry = resolve_anchor(connection, anchor)
+            if resolved_entry is not None:
+                decided_entries.add(resolved_entry)
+
+    groups: dict[tuple[str, int, int], list[tuple[sqlite3.Row, sqlite3.Row]]] = {}
+    for left, right, _ in paylah:
+        key = (right["posted_date"], abs(right["amount_coefficient"]), right["amount_scale"])
+        groups.setdefault(key, []).append((left, right))
+
+    resolved: set[tuple[str, str]] = set()
+    for pairs in groups.values():
+        lefts = {left["id"]: left for left, _ in pairs}
+        rights = {right["id"]: right for _, right in pairs}
+        if len(lefts) < 2 or len(lefts) != len(rights):
+            continue
+        if len(pairs) != len(lefts) * len(rights):
+            continue  # not a complete block; leave the whole group for review
+        if decided_entries & (lefts.keys() | rights.keys()):
+            continue  # an explicit journal decision pairs this group by hand
+        ordered_left = sorted(lefts.values(), key=lambda row: row["id"])
+        ordered_right = sorted(rights.values(), key=lambda row: row["id"])
+        for position, (left, right) in enumerate(zip(ordered_left, ordered_right, strict=True)):
+            _insert_link(
+                connection,
+                left,
+                right,
+                DBS_PAYLAH_LINKER.method_version,
+                status="CONFIRMED",
+                evidence={
+                    "date_left": left["posted_date"],
+                    "date_right": right["posted_date"],
+                    "description_evidence": True,
+                    "unique_candidate": False,
+                    "balanced_group": {
+                        "size": len(ordered_left),
+                        "position": position,
+                        "arbitrary_pairing": True,
+                    },
+                },
+            )
+            resolved.add((left["id"], right["id"]))
+
+    if not resolved:
+        return candidates
+    return [
+        c
+        for c in candidates
+        if c[2] != DBS_PAYLAH_LINKER.method_version
+        or (c[0]["id"], c[1]["id"]) not in resolved
+    ]
+
+
+def _insert_link(
+    connection: sqlite3.Connection,
+    left: sqlite3.Row,
+    right: sqlite3.Row,
+    method_version: str,
+    *,
+    status: str,
+    evidence: dict[str, object],
+) -> int:
+    link_id = _stable_id("link", left["id"], right["id"], method_version)
+    cursor = connection.execute(
+        """
+        INSERT OR IGNORE INTO transfer_links(
+            id, left_entry_id, right_entry_id, link_kind,
+            left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
+            right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
+            method_version, status, evidence_json, created_at
+        ) VALUES (?, ?, ?, 'SAME_CURRENCY_TRANSFER', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            link_id,
+            left["id"],
+            right["id"],
+            left["currency_pocket"],
+            left["amount_text"].lstrip("-"),
+            abs(left["amount_coefficient"]),
+            left["amount_scale"],
+            right["currency_pocket"],
+            right["amount_text"].lstrip("-"),
+            abs(right["amount_coefficient"]),
+            right["amount_scale"],
+            method_version,
+            status,
+            _json(evidence),
+            _now(),
+        ),
+    )
+    return cursor.rowcount
+
+
 def _store_candidates(
     connection: sqlite3.Connection,
     candidates: list[tuple[sqlite3.Row, sqlite3.Row, str]],
@@ -521,7 +646,6 @@ def _store_candidates(
         left_count = left_counts[left["id"]]
         right_count = right_counts[right["id"]]
         confirmed = left_count == 1 and right_count == 1
-        link_id = _stable_id("link", left["id"], right["id"], method_version)
         evidence: dict[str, object] = {
             "date_left": left["posted_date"],
             "date_right": right["posted_date"],
@@ -534,34 +658,15 @@ def _store_candidates(
                 "left_candidates": left_count,
                 "right_candidates": right_count,
             }
-        cursor = connection.execute(
-            """
-            INSERT OR IGNORE INTO transfer_links(
-                id, left_entry_id, right_entry_id, link_kind,
-                left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
-                right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
-                method_version, status, evidence_json, created_at
-            ) VALUES (?, ?, ?, 'SAME_CURRENCY_TRANSFER', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                link_id,
-                left["id"],
-                right["id"],
-                left["currency_pocket"],
-                left["amount_text"].lstrip("-"),
-                abs(left["amount_coefficient"]),
-                left["amount_scale"],
-                right["currency_pocket"],
-                right["amount_text"].lstrip("-"),
-                abs(right["amount_coefficient"]),
-                right["amount_scale"],
-                method_version,
-                "CONFIRMED" if confirmed else "PROPOSED",
-                _json(evidence),
-                _now(),
-            ),
+        rowcount = _insert_link(
+            connection,
+            left,
+            right,
+            method_version,
+            status="CONFIRMED" if confirmed else "PROPOSED",
+            evidence=evidence,
         )
-        created += cursor.rowcount if confirmed else 0
+        created += rowcount if confirmed else 0
     return created
 
 
