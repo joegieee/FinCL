@@ -49,6 +49,7 @@ export const ADAPTERS: { id: string; label: string }[] = [
   { id: 'PAYLAH', label: 'DBS PayLah! — PDF statement' },
   { id: 'MARIBANK', label: 'MariBank — CSV export' },
   { id: 'MARI_CARD', label: 'Mari Credit Card — CSV export' },
+  { id: 'TRUST_SAVINGS', label: 'Trust Bank — PDF statement' },
 ]
 
 export const MAX_FILES = 20
