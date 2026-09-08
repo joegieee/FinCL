@@ -1052,6 +1052,27 @@ def _infer_mari_date(
     return None
 
 
+def _infer_mari_txn_date(day: int, month: str, posted: date | None) -> str | None:
+    """Resolve a Mari card printed transaction date against its posted date.
+
+    Instalment postings print the original purchase date, which legitimately
+    predates the billing cycle by months, so the cycle-window check in
+    ``_infer_mari_date`` rejects it. The year is still unambiguous: it is the most
+    recent one for which the printed day/month falls on or before the posting
+    (a small forward tolerance absorbs timezone skew on non-instalment rows).
+    """
+    if posted is None:
+        return None
+    for year in (posted.year, posted.year - 1):
+        try:
+            candidate = datetime.strptime(f"{day:02d} {month} {year}", "%d %b %Y").date()
+        except ValueError:
+            continue
+        if candidate <= posted + timedelta(days=2):
+            return candidate.isoformat()
+    return None
+
+
 def _parse_mari_interest_schedule(
     flat: list[tuple[int, _Line]],
     records: list[DocumentRecord],
@@ -1793,6 +1814,9 @@ def _build_mari_card_record(
         alt_role = "TRANSACTION"
         alt_raw = txn
         alt_value = _infer_mari_date(int(txn[:2]), txn[3:], period_start, period_end)
+        if alt_value is None:
+            posted_date = date.fromisoformat(posted_value) if posted_value else None
+            alt_value = _infer_mari_txn_date(int(txn[:2]), txn[3:], posted_date)
         if alt_value is None:
             problems.append(
                 DocumentProblem(
