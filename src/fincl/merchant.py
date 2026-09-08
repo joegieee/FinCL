@@ -141,6 +141,7 @@ def _profile_family(source_profile_version: str) -> str:
         ("dbs-consolidated-", "doc"),
         ("dbs-paylah-", "doc"),
         ("mari-savings-", "doc"),
+        ("trust-savings-", "doc"),
         ("mari-card-", "mari-card"),
     ):
         if source_profile_version.startswith(prefix):

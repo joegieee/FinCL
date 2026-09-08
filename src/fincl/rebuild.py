@@ -41,6 +41,7 @@ _ADAPTERS: dict[str, str] = {
     "dbs-paylah-": "DBS_PAYLAH",
     "mari-savings-": "MARI_SAVINGS",
     "mari-card-": "MARI_CARD",
+    "trust-savings-": "TRUST_SAVINGS",
 }
 
 
@@ -359,6 +360,8 @@ def _import_source(database: Path, evidence_directory: Path, source: Path, famil
         return service.import_maribank(source).status
     if family == "MARI_CARD":
         return service.import_mari_card(source).status
+    if family == "TRUST_SAVINGS":
+        return service.import_trust(source).status
     raise FinCLError(f"unsupported source family for reconstruction: {family}")
 
 
