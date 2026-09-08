@@ -22,6 +22,7 @@ from .documents import (
     parse_mari_card,
     parse_maribank_savings,
     parse_paylah,
+    parse_trust_savings,
 )
 from .errors import EvidenceError, FinCLError
 from .evidence import EvidenceCapture, EvidenceStore, PlaintextEvidenceStore
@@ -48,6 +49,7 @@ _DOCUMENT_PARSERS = {
     "DBS_PAYLAH": parse_paylah,
     "MARI_SAVINGS": parse_maribank_savings,
     "MARI_CARD": parse_mari_card,
+    "TRUST_SAVINGS": parse_trust_savings,
 }
 
 
@@ -106,6 +108,11 @@ class DocumentImportService:
         self, source_path: Path, *, writer: WriterContext | None = None
     ) -> DocumentImportResult:
         return self._import(source_path, "MARI_CARD", writer=writer)
+
+    def import_trust(
+        self, source_path: Path, *, writer: WriterContext | None = None
+    ) -> DocumentImportResult:
+        return self._import(source_path, "TRUST_SAVINGS", writer=writer)
 
     def _import(
         self, source_path: Path, source_type: str, *, writer: WriterContext | None = None
@@ -703,7 +710,7 @@ def _insert_document_entry(
     record_id: str,
     record: DocumentRecord,
 ) -> None:
-    if parsed.source_type in ("DBS_CONSOLIDATED", "MARI_SAVINGS"):
+    if parsed.source_type in ("DBS_CONSOLIDATED", "MARI_SAVINGS", "TRUST_SAVINGS"):
         source_amount = record.credit if record.credit is not None else record.debit
         assert source_amount is not None
         coefficient = source_amount.coefficient if record.credit is not None else -source_amount.coefficient

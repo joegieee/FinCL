@@ -33,6 +33,14 @@ MARI_SAVINGS_BALANCE_EQUATION_VERSION = (
 )
 MARI_SAVINGS_INTEREST_EQUATION_VERSION = "mari-savings-total-interest-equals-daily-sum-v1"
 MARI_SAVINGS_PROFILE_LABEL = "mari-savings"
+TRUST_SAVINGS_PROFILE = "trust-savings-2026-v1"
+TRUST_SAVINGS_BALANCE_EQUATION_VERSION = (
+    "trust-closing-equals-opening-plus-incoming-minus-outgoing-v1"
+)
+TRUST_SAVINGS_SUMMARY_EQUATION_VERSION = (
+    "trust-summary-closing-equals-opening-plus-incoming-minus-outgoing-plus-interest-v1"
+)
+TRUST_SAVINGS_PROFILE_LABEL = "trust-savings"
 
 # Geometry constants, in PDF points unless noted, calibrated against the frozen
 # source profiles above. If any of these change, the extracted layout changes
@@ -2539,3 +2547,551 @@ def _extract_reference(description: str | None) -> str | None:
         if "REF" in line.upper() or re.fullmatch(r"[A-Z0-9-]{8,}", line.strip())
     ]
     return "\n".join(candidates) if candidates else None
+
+
+# --- Trust Bank Singapore savings statement --------------------------------
+
+_TRUST_DAY_RE = re.compile(r"^\d{1,2}$")
+_TRUST_MONTH_RE = re.compile(r"^[A-Z][a-z]{2}$")
+_TRUST_MONEY_RE = re.compile(r"^[+-]?\d[\d,]*\.\d{2}$")
+_TRUST_HEADER_MONEY_RE = re.compile(r"^S\$-?\d[\d,]*\.\d{2}$")
+_TRUST_FX_RE = re.compile(
+    r"^1\s+([A-Z]{3})\s*=\s*([0-9]*\.?[0-9]+)\s+SGD\s+TRUST FX CHARGE\s*=\s*([0-9]*\.?[0-9]+)%$"
+)
+_TRUST_FULL_DATE = r"\d{1,2} [A-Za-z]{3} \d{4}"
+
+# The "Amount in SGD" column is right-aligned near the page edge; the optional
+# "Amount in FCY" figure sits well to its left. Anything below this right-edge
+# threshold that parses as money is a foreign-currency amount, not the posted
+# SGD value.
+TRUST_SGD_COLUMN_MIN_X1_PT = 460.0
+TRUST_SUMMARY_COLUMN_TOLERANCE_PT = 40.0
+
+
+def _trust_parse_full_date(text: str) -> date:
+    return datetime.strptime(text.strip(), "%d %b %Y").date()
+
+
+def _infer_trust_date(
+    day: int, month: str, period_start: date | None, period_end: date | None
+) -> str | None:
+    if period_start is None or period_end is None:
+        return None
+    for year in (period_end.year, period_end.year - 1, period_start.year):
+        try:
+            candidate = datetime.strptime(f"{day:02d} {month} {year}", "%d %b %Y").date()
+        except ValueError:
+            continue
+        if period_start - timedelta(days=3) <= candidate <= period_end + timedelta(days=3):
+            return candidate.isoformat()
+    return None
+
+
+def _trust_money(text: str) -> ExactMoney:
+    return _parse_printed_money(text.lstrip("+"))
+
+
+@dataclass(slots=True)
+class _TrustSummaryRow:
+    opening: ExactMoney | None = None
+    incoming: ExactMoney | None = None
+    outgoing: ExactMoney | None = None
+    interest: ExactMoney | None = None
+    closing: ExactMoney | None = None
+
+
+def _parse_trust_activity_summary(
+    flat: list[tuple[int, _Line]], problems: list[DocumentProblem]
+) -> dict[str, _TrustSummaryRow]:
+    rows: dict[str, _TrustSummaryRow] = {}
+    header_index: int | None = None
+    column_rights: list[tuple[str, float]] = []
+    for index, (_, line) in enumerate(flat):
+        norm = " ".join(line.text.split())
+        if "Opening balance" in norm and "Closing balance" in norm and "Total incoming" in norm:
+            header_index = index
+            fields = {
+                "opening": ("Opening", "balance"),
+                "incoming": ("Total", "incoming"),
+                "outgoing": ("Total", "outgoing"),
+                "interest": ("Interest*",),
+                "closing": ("Closing", "balance"),
+            }
+            for key, tokens in fields.items():
+                tail = tokens[-1]
+                right = max(
+                    (word["x1"] for word in line.words if word["text"] == tail),
+                    default=None,
+                )
+                if key == "opening":
+                    right = min(
+                        (word["x1"] for word in line.words if word["text"] == "balance"),
+                        default=right,
+                    )
+                if right is not None:
+                    column_rights.append((key, right))
+            break
+    if header_index is None or not column_rights:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "TRUST_ACTIVITY_SUMMARY_MISSING",
+                "Trust statement activity summary header was not found",
+            )
+        )
+        return rows
+
+    labels = {"Main Account": "MAIN", "Savings": "SAVINGS", "Total": "TOTAL"}
+    current: str | None = None
+    for _, line in flat[header_index + 1 :]:
+        text = line.text.strip()
+        if text.startswith("*All interest") or text.startswith("IMPORTANT NOTICE"):
+            break
+        matched_label = next((key for key in labels if text.startswith(key)), None)
+        money_words = [word for word in line.words if _TRUST_HEADER_MONEY_RE.fullmatch(word["text"])]
+        if matched_label is not None:
+            current = labels[matched_label]
+            rows.setdefault(current, _TrustSummaryRow())
+        elif current is None:
+            continue
+        elif not money_words or any(
+            not _TRUST_HEADER_MONEY_RE.fullmatch(word["text"]) for word in line.words
+        ):
+            # A non-continuation line closes the row currently being filled.
+            current = None
+            continue
+        row = rows[current]
+        for word in money_words:
+            value = _parse_printed_money(word["text"][2:])
+            nearest = min(column_rights, key=lambda item: abs(item[1] - word["x1"]))
+            if abs(nearest[1] - word["x1"]) > TRUST_SUMMARY_COLUMN_TOLERANCE_PT:
+                continue
+            setattr(row, nearest[0], value)
+    return rows
+
+
+def _is_trust_anchor(line: _Line) -> bool:
+    words = line.words
+    if len(words) < 3:
+        return False
+    if _TRUST_DAY_RE.fullmatch(words[0]["text"]) is None:
+        return False
+    if _TRUST_MONTH_RE.fullmatch(words[1]["text"]) is None:
+        return False
+    return any(
+        _TRUST_MONEY_RE.fullmatch(word["text"]) and word["x1"] >= TRUST_SGD_COLUMN_MIN_X1_PT
+        for word in words[2:]
+    )
+
+
+def _build_trust_record(
+    line: _Line,
+    ordinal: int,
+    page_number: int,
+    section_ordinal: int,
+    period_start: date | None,
+    period_end: date | None,
+    problems: list[DocumentProblem],
+) -> DocumentRecord:
+    words = line.words
+    day, month = words[0]["text"], words[1]["text"]
+    body = words[2:]
+
+    money_words = [word for word in body if _TRUST_MONEY_RE.fullmatch(word["text"])]
+    sgd_word = max(
+        (word for word in money_words if word["x1"] >= TRUST_SGD_COLUMN_MIN_X1_PT),
+        key=lambda word: word["x1"],
+        default=None,
+    )
+    fcy_word = next(
+        (word for word in money_words if word["x1"] < TRUST_SGD_COLUMN_MIN_X1_PT), None
+    )
+    consumed = {id(sgd_word)}
+    foreign_currency: str | None = None
+    foreign_amount: ExactMoney | None = None
+    if fcy_word is not None:
+        consumed.add(id(fcy_word))
+        code_word = next(
+            (
+                word
+                for word in body
+                if word["x0"] > fcy_word["x1"]
+                and re.fullmatch(r"[A-Z]{3}", word["text"])
+                and word["x1"] < TRUST_SGD_COLUMN_MIN_X1_PT
+            ),
+            None,
+        )
+        if code_word is not None:
+            consumed.add(id(code_word))
+            foreign_currency = code_word["text"]
+            foreign_amount = _trust_money(fcy_word["text"])
+
+    description = " ".join(word["text"] for word in body if id(word) not in consumed).strip()
+
+    debit = credit = None
+    if sgd_word is not None:
+        value = _trust_money(sgd_word["text"])
+        if sgd_word["text"].lstrip().startswith("+"):
+            credit = value
+        else:
+            debit = value
+
+    date_raw = f"{day} {month}"
+    date_value = _infer_trust_date(int(day), month, period_start, period_end)
+    complete = bool(
+        date_value and description and ((debit is None) != (credit is None))
+    )
+    if not complete:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "TRUST_TRANSACTION_UNRESOLVED",
+                "Trust savings row is missing an unambiguous amount, description, or date",
+                {"page_number": page_number, "raw_text": line.text},
+                _document_anchor("trust", page_number, line.bbox, line.text),
+            )
+        )
+    return DocumentRecord(
+        source_anchor=_document_anchor("trust", page_number, line.bbox, line.text),
+        ordinal=ordinal,
+        page_number=page_number,
+        bbox=line.bbox,
+        record_kind="TRANSACTION" if complete else "UNRESOLVED",
+        raw_text=line.text,
+        raw_fields={
+            "source_columns": {
+                "amount_sgd": sgd_word["text"] if sgd_word else None,
+                "amount_fcy": fcy_word["text"] if fcy_word else None,
+                "foreign_currency": foreign_currency,
+            }
+        },
+        section_ordinal=section_ordinal,
+        date_raw=date_raw,
+        date_value=date_value,
+        description_raw=description or None,
+        reference_raw=_extract_reference(description),
+        debit=debit,
+        credit=credit,
+        currency_raw="SGD",
+        foreign_currency=foreign_currency,
+        foreign_amount=foreign_amount,
+        confidence="HIGH" if complete else "UNRESOLVED",
+        required_fields_complete=complete,
+        date_precision="DAY",
+    )
+
+
+def _reconcile_trust(
+    records: list[DocumentRecord],
+    summary: dict[str, _TrustSummaryRow],
+    sections: list[DocumentSection],
+) -> list[DocumentCheck]:
+    checks: list[DocumentCheck] = []
+    section_to_summary = {1: "MAIN", 2: "SAVINGS"}
+    for section in sections:
+        section_records = [r for r in records if r.section_ordinal == section.ordinal]
+        opening = next(
+            (
+                r.balance
+                for r in section_records
+                if r.record_kind == "SUPPORTING_BALANCE"
+                and r.raw_fields.get("supporting_kind") == "OPENING_BALANCE"
+            ),
+            None,
+        )
+        closing = next(
+            (
+                r.balance
+                for r in section_records
+                if r.record_kind == "SUPPORTING_BALANCE"
+                and r.raw_fields.get("supporting_kind") == "CLOSING_BALANCE"
+            ),
+            None,
+        )
+        credits = [r.credit for r in section_records if r.record_kind == "TRANSACTION" and r.credit]
+        debits = [r.debit for r in section_records if r.record_kind == "TRANSACTION" and r.debit]
+        if opening is not None and closing is not None:
+            expected = _money_expression(opening, _money_total(credits), _money_total(debits))
+            checks.append(
+                _make_check(
+                    "SGD",
+                    "STATEMENT_BALANCE",
+                    TRUST_SAVINGS_BALANCE_EQUATION_VERSION,
+                    expected,
+                    closing,
+                    True,
+                    {
+                        "section": section.heading_raw,
+                        "credit_rows": len(credits),
+                        "debit_rows": len(debits),
+                    },
+                )
+            )
+        summary_check = _trust_summary_identity_check(
+            summary.get(section_to_summary.get(section.ordinal, "")), section.heading_raw
+        )
+        if summary_check is not None:
+            checks.append(summary_check)
+    total_check = _trust_summary_identity_check(summary.get("TOTAL"), "Total")
+    if total_check is not None:
+        checks.append(total_check)
+    return checks
+
+
+def _trust_summary_identity_check(
+    row: _TrustSummaryRow | None, section_label: str
+) -> DocumentCheck | None:
+    if row is None:
+        return None
+    opening, incoming, outgoing, closing = (
+        row.opening,
+        row.incoming,
+        row.outgoing,
+        row.closing,
+    )
+    if opening is None or incoming is None or outgoing is None or closing is None:
+        return None
+    interest = row.interest or ExactMoney(0, 2, "0.00")
+    expected = _money_expression(opening, _money_total([incoming, interest]), outgoing)
+    return _make_check(
+        "SGD",
+        "PRINTED_SUMMARY_IDENTITY",
+        TRUST_SAVINGS_SUMMARY_EQUATION_VERSION,
+        expected,
+        closing,
+        True,
+        {"section": section_label},
+    )
+
+
+def parse_trust_savings(data: bytes) -> ParsedDocument:
+    """Extract one Trust Bank Singapore savings account statement.
+
+    The statement carries two sub-account ledgers ("Main Account" and
+    "Savings") plus a printed activity summary. Every dated row with a posted
+    SGD amount is a ledger candidate; the "Previous balance"/"Closing balance"
+    rows are supporting balances. Foreign-currency purchases print the FCY
+    amount and code on the anchor row and the applied rate on the line below.
+    """
+    problems: list[DocumentProblem] = []
+    records: list[DocumentRecord] = []
+    coverage: list[PageCoverage] = []
+    ordinal = 0
+    account_number: str | None = None
+    statement_date: date | None = None
+    period_start: date | None = None
+    period_end: date | None = None
+
+    with pdfplumber.open(io.BytesIO(data), password="") as pdf:
+        page_lines: list[tuple[int, list[_Line], dict[str, int]]] = []
+        for page_number, page in enumerate(pdf.pages, start=1):
+            all_words = page.extract_words(x_tolerance=2, y_tolerance=2, extra_attrs=["upright"])
+            upright = [word for word in all_words if word.get("upright", True)]
+            lines = _group_lines(upright)
+            page_lines.append(
+                (
+                    page_number,
+                    lines,
+                    {
+                        "all": len(all_words),
+                        "upright": len(upright),
+                        "rotated": len(all_words) - len(upright),
+                    },
+                )
+            )
+            page_text = "\n".join(line.text for line in lines)
+            if account_number is None:
+                match = re.search(r"Account Statement\s+([0-9][0-9-]+)", page_text)
+                if match:
+                    account_number = match.group(1)
+            if period_start is None:
+                match = re.search(
+                    rf"Statement period\s+({_TRUST_FULL_DATE})\s*-\s*({_TRUST_FULL_DATE})",
+                    page_text,
+                )
+                if match:
+                    period_start = _trust_parse_full_date(match.group(1))
+                    period_end = _trust_parse_full_date(match.group(2))
+            if statement_date is None:
+                match = re.search(rf"Statement date\s+({_TRUST_FULL_DATE})", page_text)
+                if match:
+                    statement_date = _trust_parse_full_date(match.group(1))
+
+        flat: list[tuple[int, _Line]] = [
+            (page_number, line) for page_number, lines, _ in page_lines for line in lines
+        ]
+        summary = _parse_trust_activity_summary(flat, problems)
+
+        seen_details = False
+        section_ordinal = 0
+        pending: DocumentRecord | None = None
+        page_rows: dict[int, int] = {}
+        page_support: dict[int, int] = {}
+
+        for page_number, line in flat:
+            text = line.text.strip()
+            norm = " ".join(text.split())
+            if norm == "TRANSACTION DETAILS":
+                seen_details = True
+                continue
+            if not seen_details:
+                continue
+            if norm == "Main Account":
+                section_ordinal = 1
+                pending = None
+                continue
+            if norm == "Savings":
+                section_ordinal = 2
+                pending = None
+                continue
+            if norm.startswith("Posting date Description"):
+                continue
+            if section_ordinal == 0:
+                continue
+
+            fx_match = _TRUST_FX_RE.fullmatch(norm)
+            if fx_match is not None:
+                if pending is not None:
+                    pending.raw_text += "\n" + text
+                    pending.bbox = _merge_bbox(pending.bbox, line.bbox)
+                    fields = dict(pending.raw_fields)
+                    fields["fx"] = {
+                        "currency": fx_match.group(1),
+                        "rate_to_sgd": fx_match.group(2),
+                        "fx_charge_percent": fx_match.group(3),
+                    }
+                    if pending.foreign_currency is None:
+                        pending.foreign_currency = fx_match.group(1)
+                    pending.raw_fields = fields
+                continue
+
+            if _TRUST_DAY_RE.fullmatch(line.words[0]["text"]) and (
+                "Previous balance" in norm or "Closing balance" in norm
+            ):
+                kind = "OPENING_BALANCE" if "Previous balance" in norm else "CLOSING_BALANCE"
+                balance = _rightmost_money(line)
+                if balance is not None:
+                    ordinal += 1
+                    records.append(
+                        DocumentRecord(
+                            source_anchor=_document_anchor(
+                                "trust", page_number, line.bbox, line.text
+                            ),
+                            ordinal=ordinal,
+                            page_number=page_number,
+                            bbox=line.bbox,
+                            record_kind="SUPPORTING_BALANCE",
+                            raw_text=line.text,
+                            raw_fields={"supporting_kind": kind},
+                            section_ordinal=section_ordinal,
+                            currency_raw="SGD",
+                            balance=balance,
+                        )
+                    )
+                    page_support[page_number] = page_support.get(page_number, 0) + 1
+                pending = None
+                continue
+
+            if _is_trust_anchor(line):
+                ordinal += 1
+                record = _build_trust_record(
+                    line,
+                    ordinal,
+                    page_number,
+                    section_ordinal,
+                    period_start,
+                    period_end,
+                    problems,
+                )
+                records.append(record)
+                pending = record
+                page_rows[page_number] = page_rows.get(page_number, 0) + 1
+                continue
+
+    if account_number is None:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING", "TRUST_ACCOUNT_NUMBER_MISSING", "Trust account number was not found"
+            )
+        )
+    if statement_date is None:
+        problems.append(
+            DocumentProblem("BLOCKING", "STATEMENT_DATE_MISSING", "Trust statement date was not found")
+        )
+        statement_date = date.min
+    if period_start is None or period_end is None:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "TRUST_STATEMENT_PERIOD_MISSING",
+                "Trust statement period was not found",
+            )
+        )
+
+    page_count = len(page_lines)
+    sections = [
+        DocumentSection(1, "MAIN_LEDGER", "SGD", "Main Account", 1, page_count),
+        DocumentSection(2, "SAVINGS_LEDGER", "SGD", "Savings", 1, page_count),
+    ]
+    checks = _reconcile_trust(records, summary, sections)
+    if any(check.blocking and check.passed is not True for check in checks):
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "TRUST_BALANCE_MISMATCH",
+                "Trust savings balance equation failed",
+            )
+        )
+
+    for page_number, lines, counts in page_lines:
+        page_text = "\n".join(line.text for line in lines)
+        has_summary = "ACTIVITY SUMMARY" in page_text
+        has_transactions = any(_is_trust_anchor(line) for line in lines) or any(
+            line.text.strip().startswith("Posting date Description") for line in lines
+        )
+        has_information = "IMPORTANT NOTICE" in page_text or "DEPOSIT INSURANCE SCHEME" in page_text
+        classification = _page_classification(has_summary, has_transactions, has_information)
+        status = "ACCOUNTED" if classification != "UNKNOWN" else "UNRESOLVED"
+        if status == "UNRESOLVED":
+            problems.append(
+                DocumentProblem(
+                    "BLOCKING",
+                    "UNCLASSIFIED_PDF_PAGE",
+                    "Trust savings page could not be classified structurally",
+                    {"page_number": page_number},
+                )
+            )
+        coverage.append(
+            PageCoverage(
+                page_number,
+                classification,
+                counts["all"],
+                counts["upright"],
+                counts["rotated"],
+                page_rows.get(page_number, 0),
+                page_support.get(page_number, 0),
+                status,
+                {"profile": TRUST_SAVINGS_PROFILE},
+            )
+        )
+
+    statement_date_text = statement_date.isoformat()
+    return ParsedDocument(
+        institution="Trust",
+        source_type="TRUST_SAVINGS",
+        account_id="trust-savings",
+        account_display_name="Trust Bank Savings Account",
+        masked_identifier=(
+            f"Trust savings {account_number}" if account_number else "Trust savings"
+        ),
+        source_profile_version=TRUST_SAVINGS_PROFILE,
+        statement_date=statement_date_text,
+        period_start=(period_start.isoformat() if period_start else None),
+        period_end=(period_end.isoformat() if period_end else None),
+        statement_identity=f"trust-savings:trust-savings:{statement_date_text}",
+        sections=sections,
+        records=records,
+        pages=coverage,
+        checks=checks,
+        problems=problems,
+    )

@@ -182,6 +182,18 @@ def import_mari_card(
     _import_document(source, database, evidence_dir, "MARI_CARD", plain, json_output)
 
 
+@app.command("import-trust")
+def import_trust(
+    source: Path,
+    database: Path = typer.Option(..., "--database"),
+    evidence_dir: Path = typer.Option(..., "--evidence-dir"),
+    plain: bool = typer.Option(False, "--plain"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Capture and extract one Trust Bank Singapore savings statement."""
+    _import_document(source, database, evidence_dir, "TRUST_SAVINGS", plain, json_output)
+
+
 _NO_REFRESH_HELP = (
     "Skip the implicit refresh and read whatever the last preparation committed."
 )
@@ -1929,6 +1941,7 @@ def _import_document(
             "PAYLAH": service.import_paylah,
             "MARI_SAVINGS": service.import_maribank,
             "MARI_CARD": service.import_mari_card,
+            "TRUST_SAVINGS": service.import_trust,
         }[kind]
         result = importer(source)
         data = {
