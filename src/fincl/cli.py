@@ -1994,11 +1994,13 @@ def _fail(exc: Exception) -> NoReturn:
 def serve_command(
     database: Path = typer.Option(..., "--database"),
     port: int = typer.Option(8765, "--port", min=1024, max=65535),
+    host: str = typer.Option("127.0.0.1", "--host", help="Loopback (default) or this computer's private IPv4 address for local-Wi-Fi access."),
     open_browser: bool = typer.Option(False, "--open"),
     evidence_dir: Path | None = typer.Option(None, "--evidence-dir"),
     demo: bool = typer.Option(False, "--demo", help="Label a synthetic demonstration ledger."),
 ) -> None:
-    """Serve the bundled personal finance UI on authenticated loopback HTTP."""
+    """Serve the bundled personal finance UI on loopback or a private local network."""
+    import ipaddress
     import secrets
     import webbrowser
 
@@ -2008,6 +2010,13 @@ def serve_command(
     from .db import connect_readonly
 
     try:
+        address = ipaddress.ip_address(host)
+        if (
+            not isinstance(address, ipaddress.IPv4Address)
+            or address.is_unspecified
+            or not (address.is_loopback or address.is_private)
+        ):
+            raise FinCLError("--host must be 127.0.0.1 or this computer's private IPv4 address (for example 192.168.0.10), not 0.0.0.0.")
         # Refuse absent/old ledgers before any write or automatic migration.
         connection = connect_readonly(database)
         connection.close()
@@ -2016,13 +2025,15 @@ def serve_command(
             raise FinCLError("UI assets are missing. Run npm ci and npm run build in frontend/.")
         refresh_ledger(database)
         secret = secrets.token_urlsafe(32)
-        url = f"http://127.0.0.1:{port}/#bootstrap={secret}"
+        url = f"http://{host}:{port}/#bootstrap={secret}"
         console = Console()
+        if not address.is_loopback:
+            console.print("[yellow]Local-network mode: anyone on this Wi-Fi can reach this HTTP server. Use only a trusted private network.[/yellow]")
         console.print("Open this private, one-use launch link:")
         console.print(url, markup=False, highlight=False, soft_wrap=True)
         if open_browser:
             webbrowser.open(url)
-        uvicorn.run(create_app(database, port=port, bootstrap_secret=secret, evidence_dir=evidence_dir, demo=demo), host="127.0.0.1", port=port, access_log=False)
+        uvicorn.run(create_app(database, port=port, public_host=host, bootstrap_secret=secret, evidence_dir=evidence_dir, demo=demo), host=host, port=port, access_log=False)
     except (FinCLError, OSError) as exc:
         _fail(exc)
 

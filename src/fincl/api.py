@@ -508,20 +508,20 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         connection.close()
 
 
-def create_app(database: Path, *, port: int = 8765, bootstrap_secret: str | None = None, assets: Path | None = None, evidence_dir: Path | None = None, demo: bool = False) -> FastAPI:
+def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.1', bootstrap_secret: str | None = None, assets: Path | None = None, evidence_dir: Path | None = None, demo: bool = False) -> FastAPI:
     database = database.resolve()
     app = FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
     app.state.bootstrap_secret = bootstrap_secret or secrets.token_urlsafe(32)
     app.state.session = secrets.token_urlsafe(32)
     app.state.csrf = secrets.token_urlsafe(32)
     app.state.bootstrapped = False
-    origin = f'http://127.0.0.1:{port}'
+    origin = f'http://{public_host}:{port}'
     cookie_name = f'fincl_session_{port}'
     assets = assets or Path(__file__).parent / 'static'
 
     @app.middleware('http')
     async def boundary(request: Request, call_next: Any) -> Any:
-        if request.headers.get('host') != f'127.0.0.1:{port}':
+        if request.headers.get('host') != f'{public_host}:{port}':
             return JSONResponse({'detail':'Invalid host'},status_code=403)
         if request.headers.get('origin') not in (None,origin):
             return JSONResponse({'detail':'Invalid origin'},status_code=403)
