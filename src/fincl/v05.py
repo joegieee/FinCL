@@ -348,9 +348,116 @@ def rules_page(database: Path) -> dict[str, Any]:
             row["patterns"] = json.loads(row.pop("patterns_json"))
         for row in rules:
             row["match"] = json.loads(row.pop("match_json"))
-        return {"generation": generation_of(database), "aliases": aliases, "rules": rules}
+        # Current observed impact, not a claim about every possible future
+        # description.  Reuse the categorization evaluator so row metrics and
+        # the actual projection share precedence semantics.
+        from .engine import _Rule, _rule_matches_entry, evaluate_current_entries
+        evaluated = evaluate_current_entries(connection)
+        override_anchors = {
+            override["entry_anchor"] for override in connection.execute(
+                "SELECT entry_anchor FROM category_overrides WHERE bound=1"
+            )
+        }
+        for row in rules:
+            rule = _Rule(row["rule_id"], json.dumps(row["match"]), row["group_name"], row["category"])
+            predicate_matches = [item for item in evaluated if _rule_matches_entry(rule, item.entry)]
+            effective = [item for item in evaluated if item.basis.endswith(row["rule_id"])]
+            row["metrics"] = {
+                "predicate_matches": len(predicate_matches),
+                "effective_assignments": len(effective),
+                "overridden": sum(item.entry["natural_anchor"] in override_anchors for item in predicate_matches),
+                "direction_conflicts": sum(item.direction_conflict for item in predicate_matches),
+                "first_match": min((item.entry["effective_at"][:10] for item in predicate_matches), default=None),
+                "last_match": max((item.entry["effective_at"][:10] for item in predicate_matches), default=None),
+            }
+        for row in aliases:
+            canonical = row["canonical"]
+            observed = [item for item in evaluated if item.entry["merchant_canonical"] == canonical]
+            effective = [item for item in evaluated if item.basis.startswith(f"alias:{canonical}:")]
+            row["metrics"] = {
+                "observed_matches": len(observed),
+                "effective_assignments": len(effective),
+                "first_match": min((item.entry["effective_at"][:10] for item in observed), default=None),
+                "last_match": max((item.entry["effective_at"][:10] for item in observed), default=None),
+            }
+        active_ids = {row["rule_id"] for row in rules}
+        latest: dict[str, tuple[str, dict[str, Any], int]] = {}
+        for record in read_records(default_journal_path(database)):
+            children = record.payload.get("items", []) if record.decision_kind == "DECISION_BATCH" else []
+            candidates = children if isinstance(children, list) else []
+            if record.decision_kind in {"CATEGORY_RULE_SET", "CATEGORY_RULE_RETIRE"}:
+                candidates = [{"kind": record.decision_kind, "anchors": record.anchors, "payload": record.payload}]
+            for child in candidates:
+                if not isinstance(child, dict) or child.get("kind") not in {"CATEGORY_RULE_SET", "CATEGORY_RULE_RETIRE"}:
+                    continue
+                anchors = child.get("anchors", {})
+                payload = child.get("payload", {})
+                if isinstance(anchors, dict) and isinstance(payload, dict) and isinstance(anchors.get("rule_id"), str):
+                    latest[anchors["rule_id"]] = (str(child["kind"]), payload, record.seq)
+        inactive_rules = []
+        for rule_id, (kind, payload, seq) in latest.items():
+            if kind != "CATEGORY_RULE_RETIRE" or rule_id in active_ids:
+                continue
+            # The last set record carries the durable predicate/outcome needed
+            # for an inspectable inactive row and later reactivation.
+            history = rule_history(database, rule_id)["history"]
+            prior_set = next((item for item in reversed(history) if item["kind"] == "CATEGORY_RULE_SET"), None)
+            if prior_set is None or not isinstance(prior_set["payload"], dict):
+                continue
+            set_payload = prior_set["payload"]
+            category = set_payload.get("category")
+            if not isinstance(category, str) or " / " not in category:
+                continue
+            group_name, category_name = category.split(" / ", 1)
+            inactive_rules.append({"rule_id": rule_id, "match": set_payload.get("match", {}), "group_name": group_name,
+                                   "category": category_name, "reason": payload.get("reason"), "journal_seq": seq,
+                                   "metrics": {"predicate_matches": 0, "effective_assignments": 0, "overridden": 0,
+                                               "direction_conflicts": 0, "first_match": None, "last_match": None}})
+        return {"generation": generation_of(database), "aliases": aliases, "rules": rules, "inactive_rules": inactive_rules}
     finally:
         connection.close()
+
+
+def rule_history(database: Path, rule_id: str) -> dict[str, Any]:
+    """Journal-backed history, including rule changes authored in a batch."""
+    rows: list[dict[str, Any]] = []
+    for record in read_records(default_journal_path(database)):
+        children = record.payload.get("items", []) if record.decision_kind == "DECISION_BATCH" else []
+        candidates = children if isinstance(children, list) else []
+        if record.decision_kind in {"CATEGORY_RULE_SET", "CATEGORY_RULE_RETIRE"}:
+            candidates = [{"kind": record.decision_kind, "anchors": record.anchors, "payload": record.payload}]
+        for index, child in enumerate(candidates):
+            if not isinstance(child, dict) or child.get("kind") not in {"CATEGORY_RULE_SET", "CATEGORY_RULE_RETIRE"}:
+                continue
+            anchors = child.get("anchors", {})
+            if isinstance(anchors, dict) and anchors.get("rule_id") == rule_id:
+                payload = child.get("payload", {})
+                rows.append({"journal_seq": record.seq, "batch_index": index if record.decision_kind == "DECISION_BATCH" else None,
+                             "recorded_at": record.decided_at, "kind": child["kind"],
+                             "reason": payload.get("reason", "") if isinstance(payload, dict) else "",
+                             "payload": payload})
+    return {"generation": generation_of(database), "rule_id": rule_id, "history": rows}
+
+
+def alias_history(database: Path, canonical: str) -> dict[str, Any]:
+    """Journal-backed merchant-alias history, including atomic batches."""
+    rows: list[dict[str, Any]] = []
+    for record in read_records(default_journal_path(database)):
+        children = record.payload.get("items", []) if record.decision_kind == "DECISION_BATCH" else []
+        candidates = children if isinstance(children, list) else []
+        if record.decision_kind in {"MERCHANT_ALIAS_SET", "MERCHANT_ALIAS_RETIRE"}:
+            candidates = [{"kind": record.decision_kind, "anchors": record.anchors, "payload": record.payload}]
+        for index, child in enumerate(candidates):
+            if not isinstance(child, dict) or child.get("kind") not in {"MERCHANT_ALIAS_SET", "MERCHANT_ALIAS_RETIRE"}:
+                continue
+            anchors = child.get("anchors", {})
+            if isinstance(anchors, dict) and anchors.get("canonical") == canonical:
+                payload = child.get("payload", {})
+                rows.append({"journal_seq": record.seq, "batch_index": index if record.decision_kind == "DECISION_BATCH" else None,
+                             "recorded_at": record.decided_at, "kind": child["kind"],
+                             "reason": payload.get("reason", "") if isinstance(payload, dict) else "",
+                             "payload": payload})
+    return {"generation": generation_of(database), "canonical": canonical, "history": rows}
 
 
 def review_page(database: Path) -> dict[str, Any]:

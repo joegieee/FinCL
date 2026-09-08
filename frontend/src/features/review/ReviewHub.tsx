@@ -37,10 +37,11 @@ const QUEUE_LABEL: Record<string, string> = {
  * a changed issue resurfaces. Undo selects a past decision and previews its
  * supported inverse against the current generation.
  */
-export function ReviewHub({ freshness, onSaved }: { freshness: string; onSaved: (status: string) => void | Promise<void> }) {
+export function ReviewHub({ freshness, onSaved, onOpenCategorization }: { freshness: string; onSaved: (status: string) => void | Promise<void>; onOpenCategorization?: () => void }) {
   const [page, setPage] = useState<ReviewPage | null>(null)
   const [error, setError] = useState('')
   const [showDeferred, setShowDeferred] = useState(false)
+  const [unclassified, setUnclassified] = useState<number | null>(null)
   const seq = useRef(0)
 
   const load = useCallback(() => {
@@ -51,6 +52,12 @@ export function ReviewHub({ freshness, onSaved }: { freshness: string; onSaved: 
       .catch(e => { if (id === seq.current) setError((e as Error).message) })
   }, [])
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (!page) return
+    api<{ counts: Record<string, number> }>(`categorization/summary?generation=${encodeURIComponent(page.generation)}`)
+      .then(summary => setUnclassified(summary.counts.unclassified_active || 0))
+      .catch(() => setUnclassified(null))
+  }, [page])
 
   const afterSave = async (status: string) => { await onSaved(status); load() }
   const disabled = freshness === 'stale'
@@ -78,6 +85,7 @@ export function ReviewHub({ freshness, onSaved }: { freshness: string; onSaved: 
         )}
       </div>
       <p className="muted-note">Each number counts issues in one queue. Queues are independent and never added together.</p>
+      {unclassified !== null && <Card className="review-categorization-summary"><div><p className="eyebrow">CATEGORIZATION BACKLOG</p><h2>{unclassified} active transaction{unclassified === 1 ? '' : 's'} need a category</h2><p>Ordinary unclassified transactions are grouped in Categorization, not added one by one to Review.</p></div>{onOpenCategorization && <Button variant="outline" onClick={onOpenCategorization}>Open Inbox</Button>}</Card>}
 
       {queues.map(queue => (
         <Card key={queue} className="review-queue">

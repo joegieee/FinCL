@@ -51,6 +51,8 @@ BATCH_CHILD_KINDS = frozenset(
         "CATEGORY_OVERRIDE",
         CATEGORY_OVERRIDE_RETIRE,
         "INBOUND_CLASSIFICATION",
+        "MERCHANT_ALIAS_SET", "MERCHANT_ALIAS_RETIRE",
+        "CATEGORY_RULE_SET", "CATEGORY_RULE_RETIRE",
         *DUPLICATE_KINDS,
         # v0.3: a coupled correction batch opens a debt, its initial event and
         # shared residual atomically, and may retire a conflicting inbound
@@ -340,6 +342,9 @@ def preview_batch(
     for index, item in enumerate(items):
         kind, anchors, payload = item["kind"], dict(item["anchors"]), dict(item["payload"])
         try:
+            if kind in CATEGORIZATION_DECISION_KINDS and kind != "CATEGORY_OVERRIDE":
+                validate_payload(kind, anchors, payload, custom_categories)
+                continue
             if kind in DEBT_DECISION_KINDS:
                 validate_debt_payload(kind, anchors, payload)
                 debt_items.append((index, kind, anchors, payload))

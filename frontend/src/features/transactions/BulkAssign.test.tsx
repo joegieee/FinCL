@@ -29,6 +29,7 @@ describe('BulkAssign', () => {
     const props = base()
     render(<BulkAssign {...props} />)
     apiMock.mockResolvedValueOnce({ status: 'applied' })
+    fireEvent.change(screen.getByLabelText('Set category'), { target: { value: 'Food & Dining / Groceries' } })
 
     fireEvent.click(screen.getByRole('button', { name: /Apply to 2/ }))
 
@@ -67,6 +68,7 @@ describe('BulkAssign', () => {
     expect(apiMock.mock.calls[0][0]).toBe('transactions/anchors?generation=g1&currency=SGD&start=2026-01-01&end=2026-01-31&kind=spending')
 
     rerender(<BulkAssign {...base({ matchAll: { anchors, truncated: false }, onSelectMatch })} />)
+    fireEvent.change(screen.getByLabelText('Set category'), { target: { value: 'Food & Dining / Groceries' } })
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'bulk' } })
     apiMock.mockResolvedValue({ status: 'applied' })
     fireEvent.click(screen.getByRole('button', { name: /Apply to 450 in 3 batches/ }))
@@ -83,9 +85,20 @@ describe('BulkAssign', () => {
     expect((screen.getByRole('button', { name: /Apply to 2/ }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('derives a reusable rule only from the frozen selected anchors', async () => {
+    const props = base()
+    render(<BulkAssign {...props} />)
+    apiMock.mockResolvedValueOnce({ options: [{ label: 'All transactions from this merchant', match: { merchant_canonical: 'CAFE SOCIAL' } }] })
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest reusable rule' }))
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith('categorization/derive-rule', { generation: 'g1', anchors: ['a1', 'a2'] }))
+    expect(screen.getByText(/affects matching transactions now and future imports/)).toBeInTheDocument()
+    expect((screen.getByRole('button', { name: 'Check reusable-rule impact' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it('keeps the draft and reports committed chunks on a mid-run failure', async () => {
     const anchors = Array.from({ length: 300 }, (_, i) => `y${i}`)
     render(<BulkAssign {...base({ matchAll: { anchors, truncated: false } })} />)
+    fireEvent.change(screen.getByLabelText('Set category'), { target: { value: 'Food & Dining / Groceries' } })
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'bulk' } })
 
     apiMock.mockResolvedValueOnce({ status: 'applied' })

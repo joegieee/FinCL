@@ -3,6 +3,8 @@ import { Check, Layers3, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api, ApiError } from '@/lib/api'
+import { useLedgerCommand } from '@/lib/command'
+import { compileRule, type CompiledRule } from '@/features/rules/api'
 
 const CHUNK = 200 // one atomic batch per <=200 items (Operations §1)
 
@@ -34,12 +36,19 @@ export function BulkAssign({
   onClear: () => void
   onSaved: (status: string) => void | Promise<void>
 }) {
-  const [category, setCategory] = useState(categories.find(c => !c.startsWith('Internal')) ?? categories[0] ?? '')
+  // A bulk override is durable; the picker must never choose a category on the
+  // user's behalf merely because taxonomy data arrived first.
+  const [category, setCategory] = useState('')
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [matching, setMatching] = useState(false)
+  const [ruleOptions, setRuleOptions] = useState<Array<{ label: string; match: Record<string, unknown> }>>([])
+  const [ruleOption, setRuleOption] = useState(0)
+  const [ruleLoading, setRuleLoading] = useState(false)
+  const [compiledRule, setCompiledRule] = useState<CompiledRule | null>(null)
+  const ruleCommand = useLedgerCommand(generation, async status => { onClear(); await onSaved(status) })
 
   const anchors = matchAll ? matchAll.anchors : [...picked]
   const disabled = freshness === 'stale'
@@ -95,6 +104,23 @@ export function BulkAssign({
     }
   }
 
+  async function suggestRule() {
+    if (!anchors.length || ruleLoading) return
+    setRuleLoading(true); setError(''); setRuleOptions([]); setCompiledRule(null); ruleCommand.reset()
+    try {
+      const result = await api<{ options: Array<{ label: string; match: Record<string, unknown> }>; unavailable_reason?: string | null }>('categorization/derive-rule', { generation, anchors })
+      setRuleOptions(result.options)
+      if (!result.options.length) setError(result.unavailable_reason || 'This selection does not share a safe reusable predicate.')
+    } catch (e) { setError((e as Error).message) } finally { setRuleLoading(false) }
+  }
+
+  async function checkRuleImpact() {
+    if (!ruleOptions[ruleOption] || !category || !reason.trim()) return
+    setRuleLoading(true); setError(''); setCompiledRule(null); ruleCommand.reset()
+    try { setCompiledRule(await compileRule(ruleOptions[ruleOption].match, category, reason.trim())) }
+    catch (e) { setError((e as Error).message) } finally { setRuleLoading(false) }
+  }
+
   return (
     <div className="bulk-assign" role="region" aria-label="Bulk category assignment">
       <div className="bulk-head">
@@ -106,15 +132,28 @@ export function BulkAssign({
       </div>
       <div className="bulk-form">
         <label>Set category
-          <select value={category} disabled={busy} onChange={e => setCategory(e.target.value)}>
+          <select value={category} disabled={busy} onChange={e => { setCategory(e.target.value); setCompiledRule(null); ruleCommand.reset() }}>
+            <option value="" disabled>Choose a category</option>
             {categories.filter(c => !c.startsWith('Internal')).map(c => <option key={c}>{c}</option>)}
           </select>
         </label>
-        <label>Reason <small>(optional)</small><Input aria-label="Reason" maxLength={2000} value={reason} disabled={busy} onChange={e => setReason(e.target.value)} placeholder="Optional note for your history" /></label>
-        <Button type="button" disabled={disabled || busy || !anchors.length} onClick={apply}>
+        <label>Reason <small>(optional for one-off overrides; required for a reusable rule)</small><Input aria-label="Reason" maxLength={2000} value={reason} disabled={busy} onChange={e => { setReason(e.target.value); setCompiledRule(null); ruleCommand.reset() }} placeholder="Optional note for your history" /></label>
+        <Button type="button" disabled={disabled || busy || !anchors.length || !category} onClick={apply}>
           {busy ? `Applying ${progress?.done ?? 0}/${progress?.total ?? chunks}…` : `Apply to ${anchors.length}${chunks > 1 ? ` in ${chunks} batches` : ''}`}
           {!busy && <Check size={15} />}
         </Button>
+      </div>
+      <div className="bulk-rule-suggestion">
+        {!ruleOptions.length && <Button variant="outline" type="button" disabled={disabled || ruleLoading || !anchors.length} onClick={() => void suggestRule()}>{ruleLoading ? 'Checking selection…' : 'Suggest reusable rule'}</Button>}
+        {ruleOptions.length > 0 && <>
+          <p className="muted-note">A reusable rule affects matching transactions now and future imports. It does not create one-off overrides for this selection.</p>
+          {ruleOptions.length > 1 && <label>Reusable match<select value={ruleOption} onChange={e => { setRuleOption(Number(e.target.value)); setCompiledRule(null); ruleCommand.reset() }}>{ruleOptions.map((option, index) => <option key={option.label} value={index}>{option.label}</option>)}</select></label>}
+          {compiledRule && !ruleCommand.previewed && <p className="muted-note">{compiledRule.impact.newly_categorized + compiledRule.impact.recategorized} transactions will change; {compiledRule.impact.protected_by_override} manual overrides stay protected.</p>}
+          {ruleCommand.error && <p className="form-error" role="alert">{ruleCommand.error}</p>}
+          <Button variant="outline" type="button" disabled={disabled || ruleLoading || ruleCommand.busy || !category || !reason.trim()} onClick={() => { if (compiledRule) void ruleCommand.act(compiledRule.command); else void checkRuleImpact() }}>
+            {ruleLoading ? 'Checking impact…' : !compiledRule ? 'Check reusable-rule impact' : ruleCommand.previewed ? (ruleCommand.attempted ? 'Retry same save' : 'Save reusable rule') : 'Preview reusable rule'}
+          </Button>
+        </>}
       </div>
       {chunks > 1 && !busy && <p className="muted-note">This runs {chunks} atomic batches of up to {CHUNK}. Each batch is all-or-nothing; the set of batches is not.</p>}
       {disabled && <p className="form-error">Refresh the ledger before a bulk correction.</p>}

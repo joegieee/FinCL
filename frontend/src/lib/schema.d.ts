@@ -158,6 +158,145 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/rules/{rule_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rule History Read */
+        get: operations["rule_history_read_api_v1_rules__rule_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rules/{rule_id}/retirement-impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rule Retirement Impact */
+        get: operations["rule_retirement_impact_api_v1_rules__rule_id__retirement_impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aliases/{canonical}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Alias History Read */
+        get: operations["alias_history_read_api_v1_aliases__canonical__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/categorization/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Categorization Summary */
+        get: operations["categorization_summary_api_v1_categorization_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/categorization/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Categorization Candidates */
+        get: operations["categorization_candidates_api_v1_categorization_candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/categorization/candidates/{candidate_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Categorization Candidate Detail */
+        get: operations["categorization_candidate_detail_api_v1_categorization_candidates__candidate_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/categorization/derive-rule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Categorization Derive Rule */
+        post: operations["categorization_derive_rule_api_v1_categorization_derive_rule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/categorization/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Categorization Impact
+         * @description Exact pure preview for a rule alone or an alias-plus-rule action.
+         */
+        post: operations["categorization_impact_api_v1_categorization_impact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rules/preview": {
         parameters: {
             query?: never;
@@ -877,14 +1016,14 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE";
             /** Anchors */
             anchors: {
                 [key: string]: string;
             };
             /** Payload */
             payload: {
-                [key: string]: string;
+                [key: string]: unknown;
             };
         };
         /** Body_imports_create_api_v1_imports_post */
@@ -898,6 +1037,25 @@ export interface components {
         Bootstrap: {
             /** Secret */
             secret: string;
+        };
+        /** CategorizationImpactDraft */
+        CategorizationImpactDraft: {
+            /** Match */
+            match: {
+                [key: string]: unknown;
+            };
+            /** Category */
+            category: string;
+            /** Reason */
+            reason: string;
+            /** Generation */
+            generation: string;
+            /** Alias Canonical */
+            alias_canonical?: string | null;
+            /** Alias Patterns */
+            alias_patterns?: {
+                [key: string]: string;
+            }[] | null;
         };
         /** CategoryChange */
         CategoryChange: {
@@ -1253,6 +1411,13 @@ export interface components {
             /** Basis */
             basis: string;
         };
+        /** RuleDerivationDraft */
+        RuleDerivationDraft: {
+            /** Generation */
+            generation: string;
+            /** Anchors */
+            anchors: string[];
+        };
         /** RuleDraft */
         RuleDraft: {
             /** Match */
@@ -1583,6 +1748,280 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    rule_history_read_api_v1_rules__rule_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rule_retirement_impact_api_v1_rules__rule_id__retirement_impact_get: {
+        parameters: {
+            query: {
+                generation: string;
+            };
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    alias_history_read_api_v1_aliases__canonical__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                canonical: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categorization_summary_api_v1_categorization_summary_get: {
+        parameters: {
+            query: {
+                generation: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categorization_candidates_api_v1_categorization_candidates_get: {
+        parameters: {
+            query: {
+                generation: string;
+                cursor?: string | null;
+                limit?: number;
+                account?: string;
+                currency?: string;
+                direction?: string;
+                lifecycle?: string;
+                kind?: string;
+                start?: string;
+                end?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categorization_candidate_detail_api_v1_categorization_candidates__candidate_id__get: {
+        parameters: {
+            query: {
+                generation: string;
+                cursor?: string | null;
+                limit?: number;
+                account?: string;
+                currency?: string;
+                direction?: string;
+                lifecycle?: string;
+                kind?: string;
+                start?: string;
+                end?: string;
+            };
+            header?: never;
+            path: {
+                candidate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categorization_derive_rule_api_v1_categorization_derive_rule_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RuleDerivationDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categorization_impact_api_v1_categorization_impact_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategorizationImpactDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

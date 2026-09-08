@@ -14,7 +14,10 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from .categorization import canonical_match
 from .common import (
@@ -28,6 +31,7 @@ from .merchant import (
     MERCHANT_NORM_VERSION,
     PROJECTION_VERSION,
     recompute_merchant_observations,
+    resolve_canonical,
 )
 from .money import ExactMoney, compare
 from .selection import recompute_selection
@@ -130,6 +134,19 @@ class _Rule:
         self.category = category
 
 
+@dataclass(frozen=True)
+class EvaluatedEntry:
+    """One read-only application of the categorization precedence ladder."""
+
+    entry: sqlite3.Row
+    group_name: str
+    category: str
+    precedence_tier: int
+    basis: str
+    ambiguous: bool
+    direction_conflict: bool
+
+
 # --------------------------------------------------------------------------- #
 # The run
 # --------------------------------------------------------------------------- #
@@ -141,43 +158,8 @@ def categorize(connection: sqlite3.Connection, *, journal_path: Path | None = No
     recompute_selection(connection)
     recompute_merchant_observations(connection)
 
-    rules = [
-        _Rule(row["rule_id"], row["match_json"], row["group_name"], row["category"])
-        for row in connection.execute(
-            "SELECT rule_id, match_json, group_name, category FROM category_rules"
-        )
-    ]
-    merchant_rules = [r for r in rules if "merchant_canonical" in r.match]
-    tier5_rules = [r for r in rules if "merchant_canonical" not in r.match]
-
-    overrides = {
-        row["entry_anchor"]: row
-        for row in connection.execute(
-            "SELECT * FROM category_overrides WHERE bound = 1"
-        )
-    }
-    inbound = {
-        row["anchor"]: row["classification"]
-        for row in connection.execute(
-            "SELECT anchor, classification FROM inbound_classifications WHERE bound = 1"
-        )
-    }
-    link_category = _confirmed_link_categories(connection)
-
-    entries = connection.execute(
-        """
-        SELECT e.id, e.natural_anchor, e.account_id, e.currency_pocket,
-               e.amount_text, e.amount_coefficient, e.amount_scale,
-               e.economic_direction, e.effective_at,
-               o.description_text, o.paynow_to, o.merchant_normalized,
-               o.merchant_canonical, o.alias_applied
-        FROM ledger_entries e
-        JOIN extraction_runs x
-          ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
-        JOIN merchant_observations o ON o.entry_id = e.id
-        ORDER BY e.id
-        """
-    ).fetchall()
+    evaluated = evaluate_current_entries(connection)
+    entries = [item.entry for item in evaluated]
 
     run_id, manifest = _build_manifest(connection, entries)
     now = utc_now()
@@ -206,10 +188,7 @@ def categorize(connection: sqlite3.Connection, *, journal_path: Path | None = No
             """,
             {**manifest, "id": run_id, "started_at": now, "completed_at": now},
         )
-        for entry in entries:
-            group, category, tier, basis, ambiguous, conflict = _classify_entry(
-                entry, overrides, inbound, link_category, merchant_rules, tier5_rules
-            )
+        for result in evaluated:
             connection.execute(
                 """
                 INSERT INTO entry_categories(
@@ -217,10 +196,279 @@ def categorize(connection: sqlite3.Connection, *, journal_path: Path | None = No
                     ambiguous, direction_conflict, run_id, categorized_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (entry["id"], group, category, tier, basis,
-                 int(ambiguous), int(conflict), run_id, now),
+                (result.entry["id"], result.group_name, result.category,
+                 result.precedence_tier, result.basis, int(result.ambiguous),
+                 int(result.direction_conflict), run_id, now),
             )
     return run_id
+
+
+def evaluate_current_entries(
+    connection: sqlite3.Connection, *, proposed_rules: list[_Rule] | None = None,
+    proposed_aliases: dict[str, list[dict[str, str]]] | None = None,
+) -> list[EvaluatedEntry]:
+    """Evaluate selected entries without mutating projections, manifests, or journal.
+
+    ``proposed_rules`` replaces the active rule list; ``proposed_aliases``
+    replaces the active alias map. Both are evaluated entirely in memory.
+    """
+    rules = proposed_rules if proposed_rules is not None else [
+        _Rule(row["rule_id"], row["match_json"], row["group_name"], row["category"])
+        for row in connection.execute(
+            "SELECT rule_id, match_json, group_name, category FROM category_rules"
+        )
+    ]
+    merchant_rules = [rule for rule in rules if "merchant_canonical" in rule.match]
+    tier5_rules = [rule for rule in rules if "merchant_canonical" not in rule.match]
+    overrides = {row["entry_anchor"]: row for row in connection.execute(
+        "SELECT * FROM category_overrides WHERE bound = 1"
+    )}
+    inbound = {row["anchor"]: row["classification"] for row in connection.execute(
+        "SELECT anchor, classification FROM inbound_classifications WHERE bound = 1"
+    )}
+    link_category = _confirmed_link_categories(connection)
+    entries = connection.execute(
+        """
+        SELECT e.id, e.natural_anchor, e.account_id, e.currency_pocket,
+               e.amount_text, e.amount_coefficient, e.amount_scale,
+               e.economic_direction, e.effective_at, e.analytics_eligible, e.lifecycle_state,
+               o.description_text, o.paynow_to, o.merchant_normalized,
+               o.merchant_canonical, o.alias_applied
+        FROM ledger_entries e
+        JOIN extraction_runs x ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+        JOIN merchant_observations o ON o.entry_id = e.id
+        ORDER BY e.id
+        """
+    ).fetchall()
+    if proposed_aliases is not None:
+        entries = [_with_proposed_alias(entry, proposed_aliases) for entry in entries]
+    return [
+        EvaluatedEntry(entry, *_classify_entry(
+            entry, overrides, inbound, link_category, merchant_rules, tier5_rules
+        ))
+        for entry in entries
+    ]
+
+
+def _with_proposed_alias(entry: sqlite3.Row, aliases: dict[str, list[dict[str, str]]]) -> dict[str, object]:
+    """Copy one observation with a proposed alias resolution, without writes."""
+    changed = dict(entry)
+    resolution = resolve_canonical(changed["merchant_normalized"], aliases)
+    changed["merchant_canonical"] = resolution.merchant_canonical
+    changed["alias_applied"] = int(resolution.alias_applied)
+    return changed
+
+
+def _coverage_counts(evaluated: list[EvaluatedEntry]) -> dict[str, int]:
+    """The UI coverage partition, calculated from an evaluation not a projection."""
+    counts: dict[str, int] = {
+        "rule_assigned": 0, "manual_override": 0, "internal": 0,
+        "inbound_classified": 0, "unclassified_active": 0,
+        "unclassified_inactive": 0, "other_system_assigned": 0,
+    }
+    for item in evaluated:
+        active = bool(item.entry["analytics_eligible"]) and item.entry["lifecycle_state"] == "COMPLETED"
+        if item.basis == "override":
+            bucket = "manual_override"
+        elif item.basis.startswith(("rule:", "alias:")):
+            bucket = "rule_assigned"
+        elif item.basis.startswith("link:"):
+            bucket = "internal"
+        elif item.basis.startswith("inbound:"):
+            bucket = "inbound_classified"
+        elif item.category == _UNCLASSIFIED[1]:
+            bucket = "unclassified_active" if active else "unclassified_inactive"
+        else:
+            bucket = "other_system_assigned"
+        counts[bucket] += 1
+    return counts
+
+
+def _breakdowns(items: list[EvaluatedEntry]) -> dict[str, Any]:
+    """Inspectable exact counts/totals. Currency totals are deliberately never mixed."""
+    by_currency: dict[str, dict[str, Any]] = {}
+    by_direction: dict[str, int] = {}
+    by_account: dict[str, int] = {}
+    by_category: dict[str, int] = {}
+    for item in items:
+        entry = item.entry
+        currency = str(entry["currency_pocket"])
+        money = by_currency.setdefault(currency, {"count": 0, "absolute_amount": Decimal("0")})
+        money["count"] += 1
+        money["absolute_amount"] += abs(Decimal(str(entry["amount_text"])))
+        direction = str(entry["economic_direction"])
+        by_direction[direction] = by_direction.get(direction, 0) + 1
+        account = str(entry["account_id"])
+        by_account[account] = by_account.get(account, 0) + 1
+        category = f"{item.group_name} / {item.category}"
+        by_category[category] = by_category.get(category, 0) + 1
+    return {
+        "by_currency": {currency: {"count": value["count"], "absolute_amount": format(value["absolute_amount"], "f")}
+                        for currency, value in sorted(by_currency.items())},
+        "by_direction": dict(sorted(by_direction.items())),
+        "by_account": dict(sorted(by_account.items())),
+        "resulting_category": dict(sorted(by_category.items())),
+    }
+
+
+def _observed_rule_overlaps(rule: _Rule, active_rules: list[_Rule], entries: list[EvaluatedEntry]) -> list[dict[str, object]]:
+    """Observed overlap is intentionally evidence, not a claim about future text."""
+    overlaps: list[dict[str, object]] = []
+    for other in active_rules:
+        shared = [item for item in entries if _rule_matches_entry(rule, item.entry) and _rule_matches_entry(other, item.entry)]
+        if not shared:
+            continue
+        same_outcome = (rule.group_name, rule.category) == (other.group_name, other.category)
+        same_tier = ("merchant_canonical" in rule.match) == ("merchant_canonical" in other.match)
+        overlaps.append({
+            "rule_id": other.rule_id,
+            "observed_matches": len(shared),
+            "kind": "duplicate_outcome" if same_outcome else "same_tier_conflict" if same_tier else "precedence",
+            "message": "Same outcome; consider consolidating these rules." if same_outcome
+            else "Different outcomes can compete at the same precedence tier." if same_tier
+            else "One rule has stronger precedence for these observed entries.",
+        })
+    return overlaps
+
+
+def preview_rule_impact(
+    connection: sqlite3.Connection, *, rule_id: str, match: dict,
+    group_name: str, category: str, proposed_alias: tuple[str, list[dict[str, str]]] | None = None,
+) -> dict[str, object]:
+    """Return an exact, side-effect-free before/after impact for one rule set."""
+    active_rules = [
+        _Rule(row["rule_id"], row["match_json"], row["group_name"], row["category"])
+        for row in connection.execute(
+            "SELECT rule_id, match_json, group_name, category FROM category_rules"
+        )
+        if row["rule_id"] != rule_id
+    ]
+    proposed_rule = _Rule(rule_id, canonical_json(match), group_name, category)
+    before = {item.entry["id"]: item for item in evaluate_current_entries(connection)}
+    aliases: dict[str, list[dict[str, str]]] | None = None
+    if proposed_alias is not None:
+        aliases = {
+            row["canonical"]: json.loads(row["patterns_json"])
+            for row in connection.execute("SELECT canonical, patterns_json FROM merchant_aliases")
+        }
+        aliases[proposed_alias[0]] = proposed_alias[1]
+    after = evaluate_current_entries(
+        connection, proposed_rules=[*active_rules, proposed_rule], proposed_aliases=aliases,
+    )
+    predicate_matches = [item for item in after if _rule_matches_entry(proposed_rule, item.entry)]
+    override_anchors = {
+        row["entry_anchor"] for row in connection.execute(
+            "SELECT entry_anchor FROM category_overrides WHERE bound = 1"
+        )
+    }
+    newly = recategorized = unchanged = protected = conflicts = inactive = ambiguous = 0
+    examples: dict[str, list[dict[str, object]]] = {"changed": [], "unchanged": [], "attention": []}
+    for item in after:
+        previous = before[item.entry["id"]]
+        changed = (previous.group_name, previous.category) != (item.group_name, item.category)
+        if changed:
+            if previous.category == _UNCLASSIFIED[1]:
+                newly += 1
+            else:
+                recategorized += 1
+            bucket = "changed"
+        else:
+            bucket = "unchanged"
+        if item in predicate_matches:
+            if not changed:
+                unchanged += 1
+            if item.entry["natural_anchor"] in override_anchors:
+                protected += 1
+            if not (bool(item.entry["analytics_eligible"]) and item.entry["lifecycle_state"] == "COMPLETED"):
+                inactive += 1
+            if item.ambiguous:
+                ambiguous += 1
+        if item.direction_conflict and (item in predicate_matches or changed):
+            conflicts += 1
+            bucket = "attention"
+        if len(examples[bucket]) < 3 and (changed or bucket == "attention" or item in predicate_matches):
+            examples[bucket].append({
+                "anchor": item.entry["natural_anchor"],
+                "description": item.entry["description_text"],
+                "category": f"{item.group_name} / {item.category}",
+                "basis": item.basis,
+            })
+    changed_items = [item for item in after if (before[item.entry["id"]].group_name, before[item.entry["id"]].category) != (item.group_name, item.category)]
+    overlaps = _observed_rule_overlaps(proposed_rule, active_rules, after)
+    warnings = ["Observed overlap is based on current entries; it does not prove future descriptions cannot overlap."] if overlaps else []
+    if conflicts:
+        warnings.append("Some proposed matches have an incompatible incoming/outgoing category direction.")
+    return {
+        "predicate_matches": len(predicate_matches),
+        "effective_assignments": sum(item.basis.endswith(rule_id) for item in after),
+        "newly_categorized": newly,
+        "recategorized": recategorized,
+        "unchanged": unchanged,
+        "protected_by_override": protected,
+        "inactive": inactive,
+        "ambiguous": ambiguous,
+        "direction_conflict": conflicts,
+        "before_coverage": _coverage_counts(list(before.values())),
+        "after_coverage": _coverage_counts(after),
+        "breakdowns": {"matched": _breakdowns(predicate_matches), "changed": _breakdowns(changed_items)},
+        "examples": examples,
+        "overlaps": overlaps,
+        "warnings": warnings,
+    }
+
+
+def preview_rule_retirement_impact(connection: sqlite3.Connection, *, rule_id: str) -> dict[str, object]:
+    """Exact, side-effect-free fall-through preview for retiring one rule."""
+    active_rules = [
+        _Rule(row["rule_id"], row["match_json"], row["group_name"], row["category"])
+        for row in connection.execute("SELECT rule_id, match_json, group_name, category FROM category_rules")
+    ]
+    if not any(rule.rule_id == rule_id for rule in active_rules):
+        raise ValueError(f"Unknown active rule {rule_id}")
+    before = {item.entry["id"]: item for item in evaluate_current_entries(connection)}
+    after = evaluate_current_entries(connection, proposed_rules=[rule for rule in active_rules if rule.rule_id != rule_id])
+    newly_unclassified = recategorized = unchanged = 0
+    examples: dict[str, list[dict[str, object]]] = {"changed": [], "unchanged": [], "attention": []}
+    for item in after:
+        previous = before[item.entry["id"]]
+        changed = (previous.group_name, previous.category) != (item.group_name, item.category)
+        if changed:
+            if item.category == _UNCLASSIFIED[1]:
+                newly_unclassified += 1
+            else:
+                recategorized += 1
+            if len(examples["changed"]) < 3:
+                examples["changed"].append({"anchor": item.entry["natural_anchor"], "description": item.entry["description_text"], "category": f"{item.group_name} / {item.category}", "basis": item.basis})
+        else:
+            unchanged += 1
+    return {
+        "effective_assignments_removed": sum(item.basis.endswith(rule_id) for item in before.values()),
+        "newly_unclassified": newly_unclassified,
+        "recategorized": recategorized,
+        "unchanged": unchanged,
+        "examples": examples,
+    }
+
+
+def _rule_matches_entry(rule: _Rule, entry: sqlite3.Row) -> bool:
+    """Predicate-only test used for impact counts; precedence is evaluated above."""
+    amount = ExactMoney(entry["amount_coefficient"], entry["amount_scale"], entry["amount_text"])
+    if "amount_band" in rule.match and not _band_holds(rule.match["amount_band"], entry["currency_pocket"], amount):
+        return False
+    if "merchant_canonical" in rule.match:
+        target = entry["merchant_canonical"] if int(entry["alias_applied"]) else entry["merchant_normalized"]
+        return target == rule.match["merchant_canonical"]
+    if "paynow_to" in rule.match:
+        return entry["paynow_to"] == rule.match["paynow_to"]
+    description = entry["description_text"]
+    if description is None:
+        return False
+    if "description_prefix" in rule.match:
+        return description.startswith(rule.match["description_prefix"])
+    return (
+        rule.match["description_contains"] in description
+        and ("account" not in rule.match or rule.match["account"] == entry["account_id"])
+    )
 
 
 def _classify_entry(

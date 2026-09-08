@@ -95,13 +95,25 @@ class RuleDraft(StrictModel):
     reason: str = Field(min_length=1,max_length=2000)
 
 
+class CategorizationImpactDraft(RuleDraft):
+    generation: str = Field(min_length=1, max_length=100)
+    alias_canonical: str | None = Field(default=None, min_length=1, max_length=200)
+    alias_patterns: list[dict[str, str]] | None = None
+
+
+class RuleDerivationDraft(StrictModel):
+    generation: str = Field(min_length=1, max_length=100)
+    anchors: list[str] = Field(min_length=1, max_length=200)
+
+
 class BatchItem(StrictModel):
     kind: Literal[
         'CATEGORY_OVERRIDE','CATEGORY_OVERRIDE_RETIRE','INBOUND_CLASSIFICATION',
         'DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE',
+        'MERCHANT_ALIAS_SET','MERCHANT_ALIAS_RETIRE','CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE',
     ]
     anchors: dict[str,str]
-    payload: dict[str,str]
+    payload: dict[str,Any]
 
 
 class Batch(StrictModel):
@@ -633,6 +645,110 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .v05 import rules_page
         return rules_page(database)
 
+    @app.get('/api/v1/rules/{rule_id}/history')
+    def rule_history_read(rule_id: str) -> Any:
+        from .v05 import rule_history
+        return rule_history(database, rule_id)
+
+    @app.get('/api/v1/rules/{rule_id}/retirement-impact')
+    def rule_retirement_impact(rule_id: str, generation: str) -> Any:
+        from .engine import preview_rule_retirement_impact
+        connection = connect_readonly(database)
+        try:
+            current = current_generation(connection)
+            if current is None or current['generation_token'] != generation:
+                raise HTTPException(409, 'STALE_GENERATION: reload and preview again. Your draft is preserved.')
+            try:
+                impact = preview_rule_retirement_impact(connection, rule_id=rule_id)
+            except ValueError as exc:
+                raise HTTPException(404, str(exc)) from exc
+            return {'generation': generation, 'impact': impact}
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/aliases/{canonical}/history')
+    def alias_history_read(canonical: str) -> Any:
+        from .v05 import alias_history
+        return alias_history(database, canonical)
+
+    @app.get('/api/v1/categorization/summary')
+    def categorization_summary(generation: str) -> Any:
+        from .categorization_queries import categorization_summary as read_summary
+        try:
+            return read_summary(database, generation=generation)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+
+    @app.get('/api/v1/categorization/candidates')
+    def categorization_candidates(generation: str, cursor: str | None = None,
+                                  limit: int = Query(50, ge=1, le=100), account: str = '',
+                                  currency: str = '', direction: str = '', lifecycle: str = '', kind: str = '',
+                                  start: str = '', end: str = '') -> Any:
+        from .categorization_queries import categorization_candidates as read_candidates
+        try:
+            return read_candidates(
+                database, generation=generation, cursor=cursor, limit=limit, account=account,
+                currency=currency, direction=direction, lifecycle=lifecycle, kind=kind, start=start, end=end,
+            )
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+
+    @app.get('/api/v1/categorization/candidates/{candidate_id}')
+    def categorization_candidate_detail(candidate_id: str, generation: str, cursor: str | None = None,
+                                        limit: int = Query(50, ge=1, le=100), account: str = '', currency: str = '',
+                                        direction: str = '', lifecycle: str = '', kind: str = '', start: str = '', end: str = '') -> Any:
+        from .categorization_queries import categorization_candidate_detail as read_detail
+        try:
+            return read_detail(
+                database, generation=generation, candidate_id=candidate_id, cursor=cursor, limit=limit,
+                account=account, currency=currency, direction=direction, lifecycle=lifecycle, kind=kind, start=start, end=end,
+            )
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            if str(exc) == 'Categorization candidate not found':
+                raise HTTPException(404, str(exc)) from exc
+            raise
+
+    @app.post('/api/v1/categorization/derive-rule')
+    def categorization_derive_rule(draft: RuleDerivationDraft) -> Any:
+        from .categorization_queries import derive_rule_options
+        try:
+            return derive_rule_options(database, generation=draft.generation, anchors=draft.anchors)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+
+    @app.post('/api/v1/categorization/impact')
+    def categorization_impact(draft: CategorizationImpactDraft) -> Any:
+        """Exact pure preview for a rule alone or an alias-plus-rule action."""
+        from .categorization import canonical_match, rule_id_for, validate_alias_patterns
+        from .engine import preview_rule_impact
+        connection = connect_readonly(database)
+        try:
+            current = current_generation(connection)
+            if current is None or current['generation_token'] != draft.generation:
+                raise HTTPException(409, 'STALE_GENERATION: reload and preview again. Your draft is preserved.')
+            canonical = canonical_match(draft.match)
+            alias = None
+            if draft.alias_canonical is not None or draft.alias_patterns is not None:
+                if not draft.alias_canonical or draft.alias_patterns is None:
+                    raise FinCLError('An alias preview needs both canonical name and patterns')
+                alias = (draft.alias_canonical, validate_alias_patterns(draft.alias_patterns))
+            group_name, category = draft.category.split(' / ', 1)
+            impact = preview_rule_impact(
+                connection, rule_id=rule_id_for(canonical), match=canonical,
+                group_name=group_name, category=category, proposed_alias=alias,
+            )
+            return {'generation': draft.generation, 'impact': impact}
+        finally:
+            connection.close()
+
     @app.post('/api/v1/rules/preview')
     def rules_preview(command: Command) -> Any:
         if command.kind not in {'CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE','MERCHANT_ALIAS_SET','MERCHANT_ALIAS_RETIRE'}:
@@ -644,29 +760,30 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.post('/api/v1/rules/compile')
     def rules_compile(draft: RuleDraft) -> Any:
         # Server owns rule_id_for(); the browser cannot compute the anchor hash.
+        # Unlike the former SQL literal count, this dry-run uses the same
+        # precedence evaluator as categorization and never writes a projection.
         from .categorization import canonical_match, rule_id_for
         from .custom_categories import custom_categories
-        from .db import connect_readonly
+        from .engine import preview_rule_impact
         canonical = canonical_match(draft.match)
         rule_id = rule_id_for(canonical)
         resolve_category(draft.category, custom_categories(database))
         connection = connect_readonly(database)
         try:
-            key = next(k for k in ('merchant_canonical','paynow_to','description_prefix','description_contains') if k in canonical)
-            literal = canonical[key]
-            counts = {
-                'merchant_canonical': ('SELECT count(*) FROM merchant_observations WHERE merchant_normalized=? OR merchant_canonical=?', (literal,literal)),
-                'paynow_to': ('SELECT count(*) FROM merchant_observations WHERE paynow_to=?', (literal,)),
-                'description_prefix': ('SELECT count(*) FROM merchant_observations WHERE substr(description_text,1,?)=?', (len(literal),literal)),
-                'description_contains': ('SELECT count(*) FROM merchant_observations WHERE instr(description_text,?)>0', (literal,)),
-            }[key]
-            match_count = connection.execute(counts[0],counts[1]).fetchone()[0]
+            group_name, category = draft.category.split(' / ', 1)
+            impact = preview_rule_impact(
+                connection, rule_id=rule_id, match=canonical,
+                group_name=group_name, category=category,
+            )
         finally:
             connection.close()
         return {
             'command': {'kind':'CATEGORY_RULE_SET','anchors':{'rule_id':rule_id},
                         'payload':{'match':canonical,'category':draft.category,'reason':draft.reason}},
-            'match_count': match_count,
+            # Compatibility for the current rule builder; consumers should use
+            # impact to distinguish literal matches from effective assignments.
+            'match_count': impact['predicate_matches'],
+            'impact': impact,
         }
 
     @app.get('/api/v1/review')
