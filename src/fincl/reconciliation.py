@@ -83,11 +83,15 @@ DBS_PAYLAH_LINKER = SameCurrencyLinker(
     EligibleLinkLeg("DBS_PAYLAH", "SGD", "IN", frozenset({"TOPUP"})),
     max_days=0,
 )
+# The window is measured against the real card-transaction date parsed from the
+# DBS merchant line (the trailing ``DDMMM`` token), not the later posting date,
+# so two same-amount top-ups a few days apart are told apart by when the card was
+# actually charged rather than by when DBS got round to posting each one.
 DBS_REVOLUT_CARD_TOPUP_LINKER = SameCurrencyLinker(
     DBS_REVOLUT_CARD_TOPUP_LINK_VERSION,
     EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "OUT", frozenset({"CARD_PAYMENT"})),
     EligibleLinkLeg("REVOLUT_CSV", "SGD", "IN", frozenset({"TOPUP", "TRANSFER"})),
-    max_days=2,
+    max_days=1,
 )
 DBS_REVOLUT_PAYNOW_TOPUP_LINKER = SameCurrencyLinker(
     DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION,
@@ -284,6 +288,9 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
             card_revolut_rows,
             DBS_REVOLUT_CARD_TOPUP_LINKER.method_version,
             max_days=DBS_REVOLUT_CARD_TOPUP_LINKER.max_days,
+            left_date=lambda row: _dbs_card_transaction_date(
+                row["description_raw"], row["posted_date"]
+            ),
         ),
         *_candidate_pairs(
             paynow_topups,
@@ -387,6 +394,46 @@ def _is_revolut_card_topup(description: str | None) -> bool:
     return text.startswith("DEBIT CARD TRANSACTION") and "REVOLUT**" in text and "SINGAPORE SGP" in text
 
 
+_CARD_TRANSACTION_DATE_RE = re.compile(r"\b(\d{2})([A-Z]{3})\b")
+_MONTH_ABBREVIATIONS = {
+    name: number
+    for number, name in enumerate(
+        ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"),
+        start=1,
+    )
+}
+# A DBS debit-card row posts a few days after the card is charged; a parsed
+# transaction date further than this before the posting date is treated as a
+# misread and the posting date is used instead.
+_CARD_POSTING_LAG_DAYS = 14
+
+
+def _dbs_card_transaction_date(description: str | None, posted_date: str) -> str:
+    """The card-transaction date from the DBS merchant line's ``DDMMM`` token.
+
+    DBS prints the real transaction date (e.g. ``... SINGAPORE SGP 16MAR``) and
+    posts the debit a few days later, so two same-amount Revolut top-ups a few
+    days apart are only told apart by this token. Falls back to ``posted_date``
+    when the token is absent, unparseable, or implies an implausible posting lag.
+    """
+    posted = date.fromisoformat(posted_date[:10])
+    match = _CARD_TRANSACTION_DATE_RE.search((description or "").upper())
+    if match is None:
+        return posted.isoformat()
+    day = int(match.group(1))
+    month = _MONTH_ABBREVIATIONS.get(match.group(2))
+    if month is None:
+        return posted.isoformat()
+    for year in (posted.year, posted.year - 1):
+        try:
+            candidate = date(year, month, day)
+        except ValueError:
+            return posted.isoformat()
+        if 0 <= (posted - candidate).days <= _CARD_POSTING_LAG_DAYS:
+            return candidate.isoformat()
+    return posted.isoformat()
+
+
 def _is_revolut_paynow_topup(description: str | None) -> bool:
     text = (description or "").upper()
     return "PAYNOW TRANSFER" in text and "TO: REVOLUT TECHNOLOGIES SINGAPORE" in text
@@ -477,16 +524,18 @@ def _candidate_pairs(
     *,
     max_days: int,
     key: Callable[[sqlite3.Row], str | None] | None = None,
+    left_date: Callable[[sqlite3.Row], str] | None = None,
 ) -> list[tuple[sqlite3.Row, sqlite3.Row, str]]:
     candidates: list[tuple[sqlite3.Row, sqlite3.Row, str]] = []
     for left in left_rows:
+        left_anchor_date = left_date(left) if left_date is not None else left["posted_date"]
         for right in right_rows:
             if left["currency_pocket"] != right["currency_pocket"]:
                 continue
             if not _opposite_exact_amount(left, right):
                 continue
             day_difference = abs(
-                (date.fromisoformat(left["posted_date"]) - date.fromisoformat(right["posted_date"])).days
+                (date.fromisoformat(left_anchor_date) - date.fromisoformat(right["posted_date"])).days
             )
             if day_difference > max_days:
                 continue
