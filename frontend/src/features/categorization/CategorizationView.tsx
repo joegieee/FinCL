@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ChevronRight, RefreshCw, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api } from '@/lib/api'
 import { useLedgerCommand } from '@/lib/command'
 import { compileRule, type CompiledRule } from '@/features/rules/api'
@@ -154,8 +155,9 @@ function CandidateReview({ detail, generation, categories, disabled, onClose, on
     } catch (e) { setError((e as Error).message) } finally { setBatching(false) }
   }
   const record = detail.records[0]
-  return <Card className="candidate-review" aria-label={`Review ${detail.candidate.label}`}>
-    <div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><h2>{detail.candidate.label}</h2></div><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></div>
+  return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
+    <DialogContent className="candidate-review candidate-review-dialog" showCloseButton={false} aria-label={`Review ${detail.candidate.label}`}>
+    <DialogHeader className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><DialogTitle>{detail.candidate.label}</DialogTitle><DialogDescription>{detail.candidate.transaction_count} similar transactions. Choose exactly what should change before saving.</DialogDescription></div><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></div></DialogHeader>
     <div className="candidate-records">{records.map(row => <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next })}/><span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}</small></label>)}</div>
     {nextCursor && <Button variant="outline" size="sm" disabled={detailLoading} onClick={() => void loadMoreRecords()}>{detailLoading ? 'Loading records…' : 'Load more records'}</Button>}
     <fieldset disabled={disabled || command.attempted || batching}><legend>Choose scope</legend><label><input type="radio" checked={scope === 'one'} onChange={() => { setScope('one'); setCompiled(null); command.reset() }}/> Only this transaction</label><label><input type="radio" checked={scope === 'selected'} onChange={() => { setScope('selected'); setCompiled(null); command.reset() }}/> Selected transactions ({anchors.size})</label><label><input type="radio" checked={scope === 'rule'} disabled={!options.length} onChange={() => { setScope('rule'); setCompiled(null); command.reset() }}/> All matching transactions, now and later</label></fieldset>
@@ -166,5 +168,6 @@ function CandidateReview({ detail, generation, categories, disabled, onClose, on
     {error && <p className="form-error">{error}</p>}{command.error && <p className="form-error">{command.error}</p>}
     {compiled && !command.previewed && <ImpactDetails impact={combinedImpact ?? compiled.impact}/>} 
     <div className="dialog-actions">{scope === 'one' ? <Button disabled={disabled || !category || command.busy} onClick={() => void command.act({ kind: 'CATEGORY_OVERRIDE', anchors: { entry: record.anchor }, payload: { category, reason } })}>{command.previewed ? 'Save one transaction' : 'Preview one transaction'}</Button> : scope === 'selected' ? <Button disabled={disabled || !category || !anchors.size || batching} onClick={() => void applySelected()}>{batching ? 'Saving selected transactions…' : `Save ${anchors.size} selected transactions`}</Button> : aliasVariants.size ? <Button disabled={disabled || !compiled || !aliasCanonical.trim() || batching} onClick={() => void saveRuleWithAlias()}>{batching ? 'Saving alias and rule…' : 'Save alias and rule together'}</Button> : <Button disabled={disabled || !category || !reason.trim() || command.busy} onClick={() => { if (compiled) void command.act(compiled.command); else void previewRule() }}>{!compiled ? 'Check exact impact' : command.previewed ? 'Save rule' : 'Preview rule'}</Button>}</div>
-  </Card>
+    </DialogContent>
+  </Dialog>
 }
