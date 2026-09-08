@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import hashlib
 import io
 import re
@@ -14,9 +15,15 @@ from .money import MAX_ABS_COEFFICIENT, ExactMoney, format_decimal
 
 PDF_PARSER_VERSION = "pdf-geometry-parser-v1"
 PDF_EXTRACTION_POLICY_VERSION = "phase2-policy-v1"
-DBS_PROFILE_VERSION = "dbs-consolidated-2025-v1"
-PAYLAH_OLD_PROFILE_VERSION = "dbs-paylah-legacy-2025-v1"
-PAYLAH_NEW_PROFILE_VERSION = "dbs-paylah-account-summary-2026-v1"
+# v2 (2026-09): the statement period is now derived from the billing cycle the
+# statement date implies, not from the first/last transaction date. A boundary
+# day with no transaction no longer shrinks the period, so consecutive
+# statements stay exactly adjacent and the F23 coverage contract has no false
+# one-day gaps. Bumping the profile version supersedes every v1 extraction run
+# and marks the DBS/PayLah evidence for re-extraction (see selection.py).
+DBS_PROFILE_VERSION = "dbs-consolidated-2025-v2"
+PAYLAH_OLD_PROFILE_VERSION = "dbs-paylah-legacy-2025-v2"
+PAYLAH_NEW_PROFILE_VERSION = "dbs-paylah-account-summary-2026-v2"
 DBS_BALANCE_EQUATION_VERSION = "dbs-next-equals-prior-minus-debit-plus-credit-v1"
 PAYLAH_BALANCE_EQUATION_VERSION = "paylah-closing-equals-opening-plus-cr-minus-db-v1"
 MARI_SAVINGS_3COL_PROFILE = "mari-savings-3col-interest-2025-v1"
@@ -206,6 +213,41 @@ def generic_extraction_identity(evidence_sha256: str, source_profile_version: st
     return "ext_" + hashlib.sha256(payload).hexdigest()
 
 
+def _shift_one_month_back(anchor: date) -> date:
+    """The same day-of-month one calendar month before ``anchor``.
+
+    The day is clamped to the target month's length so 31 March maps to the
+    last day of February.
+    """
+    year = anchor.year - 1 if anchor.month == 1 else anchor.year
+    month = 12 if anchor.month == 1 else anchor.month - 1
+    day = min(anchor.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def _calendar_month_period(statement_date: date) -> tuple[date, date]:
+    """DBS consolidated statements bill the calendar month the statement dates.
+
+    The statement date is the month-end closing date; the period runs from the
+    first of that month to the statement date. Anchoring on the date rather than
+    the first/last posted transaction keeps successive statements adjacent.
+    """
+    return statement_date.replace(day=1), statement_date
+
+
+def _paylah_cycle_period(statement_date: date) -> tuple[date, date]:
+    """DBS PayLah! bills a monthly cycle that closes on the statement date.
+
+    The next cycle opens the following day, so the period is
+    ``[statement_date - 1 month + 1 day, statement_date]``. Deriving it from the
+    statement date (not the first/last wallet transaction) means a boundary day
+    with no transaction cannot open a false one-day gap between statements. A
+    transaction booked a day or two after the close still appears on the next
+    statement and is covered by that statement's interval.
+    """
+    return _shift_one_month_back(statement_date) + timedelta(days=1), statement_date
+
+
 def parse_dbs_consolidated(data: bytes) -> ParsedDocument:
     records: list[DocumentRecord] = []
     sections: list[DocumentSection] = []
@@ -377,13 +419,14 @@ def parse_dbs_consolidated(data: bytes) -> ParsedDocument:
                 {"dated_rows": expected_date_rows, "parsed_rows": parsed_rows},
             )
         )
-    transaction_dates = [
-        date.fromisoformat(record.date_value)
-        for record in records
-        if record.record_kind == "TRANSACTION" and record.date_value
-    ]
     checks = _reconcile_dbs(records, sections, problems)
     statement_date_text = statement_date.isoformat()
+    if statement_date == date.min:
+        period_start_text = period_end_text = None
+    else:
+        period_start, period_end = _calendar_month_period(statement_date)
+        period_start_text = period_start.isoformat()
+        period_end_text = period_end.isoformat()
     return ParsedDocument(
         institution="DBS",
         source_type="DBS_CONSOLIDATED",
@@ -392,8 +435,8 @@ def parse_dbs_consolidated(data: bytes) -> ParsedDocument:
         masked_identifier="DBS deposit account (masked)",
         source_profile_version=DBS_PROFILE_VERSION,
         statement_date=statement_date_text,
-        period_start=min(transaction_dates).isoformat() if transaction_dates else None,
-        period_end=max(transaction_dates).isoformat() if transaction_dates else None,
+        period_start=period_start_text,
+        period_end=period_end_text,
         statement_identity=f"dbs-consolidated:dbs-my-account:{statement_date_text}",
         sections=sections,
         records=records,
@@ -561,11 +604,6 @@ def parse_paylah(data: bytes) -> ParsedDocument:
                 {"opening_available": opening is not None, "closing_available": closing is not None},
             )
         )
-    transaction_dates = [
-        date.fromisoformat(record.date_value)
-        for record in records
-        if record.record_kind == "TRANSACTION" and record.date_value
-    ]
     checks = _reconcile_paylah(records, opening, closing)
     if any(check.blocking and check.passed is not True for check in checks):
         problems.append(
@@ -576,6 +614,12 @@ def parse_paylah(data: bytes) -> ParsedDocument:
             )
         )
     statement_date_text = statement_date.isoformat()
+    if statement_date == date.min:
+        period_start_text = period_end_text = None
+    else:
+        period_start, period_end = _paylah_cycle_period(statement_date)
+        period_start_text = period_start.isoformat()
+        period_end_text = period_end.isoformat()
     return ParsedDocument(
         institution="DBS",
         source_type="DBS_PAYLAH",
@@ -584,8 +628,8 @@ def parse_paylah(data: bytes) -> ParsedDocument:
         masked_identifier="PayLah wallet (masked)",
         source_profile_version=profile,
         statement_date=statement_date_text,
-        period_start=min(transaction_dates).isoformat() if transaction_dates else None,
-        period_end=max(transaction_dates).isoformat() if transaction_dates else None,
+        period_start=period_start_text,
+        period_end=period_end_text,
         statement_identity=f"dbs-paylah:dbs-paylah-wallet:{statement_date_text}",
         sections=[DocumentSection(1, "WALLET_LEDGER", "SGD", "PayLah! Wallet", 1, len(coverage))],
         records=records,
