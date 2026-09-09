@@ -347,6 +347,52 @@
         }
       }
     },
+    "/api/v1/forecast/manifest": {
+      "get": {
+        "summary": "Forecast Manifest Read",
+        "operationId": "forecast_manifest_read_api_v1_forecast_manifest_get",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Forecast Manifest Read Api V1 Forecast Manifest Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/position": {
       "get": {
         "summary": "Position Read",
