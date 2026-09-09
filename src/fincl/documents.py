@@ -41,6 +41,16 @@ TRUST_SAVINGS_SUMMARY_EQUATION_VERSION = (
     "trust-summary-closing-equals-opening-plus-incoming-minus-outgoing-plus-interest-v1"
 )
 TRUST_SAVINGS_PROFILE_LABEL = "trust-savings"
+REVOLUT_PDF_PROFILE = "revolut-pdf-en-sg-2026-v1"
+REVOLUT_PDF_BALANCE_EQUATION_VERSION = "revolut-pdf-next-equals-prior-plus-delta-v1"
+REVOLUT_PDF_SUMMARY_EQUATION_VERSION = (
+    "revolut-pdf-closing-equals-opening-plus-in-minus-out-v1"
+)
+REVOLUT_PDF_PROFILE_LABEL = "revolut-pdf"
+# The Revolut current account both import paths write to. The literal used to
+# live in `service.py` as `REVOLUT_ACCOUNT_ID`; it moved here when the CSV
+# adapter was retired so the PDF parser owns it.
+REVOLUT_ACCOUNT_ID = "acct_revolut_current"
 
 # Geometry constants, in PDF points unless noted, calibrated against the frozen
 # source profiles above. If any of these change, the extracted layout changes
@@ -63,6 +73,12 @@ DBS_DESCRIPTION_MAX_X0_PT = 340
 
 PAYLAH_DATE_INFERENCE_WINDOW_DAYS = 40
 """Oldest a day/month PayLah row may resolve to, relative to the statement date."""
+
+REVOLUT_PDF_AMOUNT_COLUMN_TOLERANCE_PT = 25
+"""Max gap between a money value's right edge and a header column's right edge."""
+
+REVOLUT_PDF_DESCRIPTION_MIN_X0_PT = 120
+"""A continuation line whose first word starts left of this is page furniture."""
 
 _DBS_DATE_RE = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 _PAYLAH_DAY_RE = re.compile(r"^\d{2}$")
@@ -128,6 +144,11 @@ class DocumentRecord:
     alt_date_raw: str | None = None
     foreign_currency: str | None = None
     foreign_amount: ExactMoney | None = None
+    # Additive optional field: the printed fee for this row, when the source
+    # carries one on a continuation line (Revolut PDF). Every other parser
+    # leaves it ``None``; `document_service._insert_document_entry` threads it
+    # into ``ledger_entries.fee_*`` when present.
+    fee: ExactMoney | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -3113,6 +3134,650 @@ def parse_trust_savings(data: bytes) -> ParsedDocument:
         period_start=(period_start.isoformat() if period_start else None),
         period_end=(period_end.isoformat() if period_end else None),
         statement_identity=f"trust-savings:trust-savings:{statement_date_text}",
+        sections=sections,
+        records=records,
+        pages=coverage,
+        checks=checks,
+        problems=problems,
+    )
+
+
+# --- Revolut current-account PDF statement --------------------------------
+#
+# One evidence file concatenates a per-currency statement for each currency the
+# account holds (``USD Statement`` then ``SGD Statement``), each with its own
+# printed Balance summary and up to three transaction sections keyed by heading:
+# ``Account transactions from <d> to <d>`` (Date, Description, Money out, Money
+# in, Balance), plus ``Pending from …`` and ``Reverted from …`` which drop the
+# Balance column. The currency banner repeats at the top of every page, so the
+# section state machine only resets when the currency actually changes.
+#
+# The main money column is the balance *delta*. A ``Fee:`` continuation subline
+# carries the fee and the counterpart figure: for an outflow the delta is gross
+# (merchant + fee), for a top-up the delta is net. The ledger amount is kept
+# net of fee (``|delta| - fee`` for an outflow, ``|delta| + fee`` for an
+# inflow) so it matches the meaning the retired CSV adapter gave it.
+
+_REVOLUT_CUR_RE = re.compile(r"^([A-Z]{3}) Statement$")
+_REVOLUT_SECTION_RE = re.compile(
+    r"^(Account transactions|Pending|Reverted) from (.+?) to (.+)$"
+)
+_REVOLUT_DATE_RE = re.compile(r"^\d{1,2} [A-Z][a-z]{2} \d{4}$")
+_REVOLUT_MONEY_RE = re.compile(r"^-?(?:S\$|\$)?\d[\d,]*\.\d{2}$")
+_REVOLUT_CUR_CODE_RE = re.compile(r"^[A-Z]{3}$")
+_REVOLUT_SECTION_KINDS = {
+    "Account transactions": "TRANSACTIONS",
+    "Pending": "PENDING",
+    "Reverted": "REVERTED",
+}
+_REVOLUT_FURNITURE_PREFIXES = (
+    "Generated on the",
+    "Revolut Technologies Singapore",
+    "Report lost or stolen",
+    "registered address is",
+    "(licence no.",
+    "RTSPL provides",
+    "travel insurance policy",
+    "Get help directly",
+    "Scan the QR",
+    "The balance on your statement",
+    "Where your transactions are remitted",
+    "Product Opening balance",
+    "Sort Code",
+    "Account Number",
+)
+
+
+def _revolut_money(text: str) -> ExactMoney:
+    normalized = text.replace("S$", "").replace("$", "").replace(",", "")
+    parsed = ExactMoney.parse(normalized)
+    return ExactMoney(parsed.coefficient, parsed.scale, text)
+
+
+def _revolut_symbol_currency(text: str) -> str | None:
+    if text.startswith("S$"):
+        return "SGD"
+    if text.startswith("$"):
+        return "USD"
+    return None
+
+
+def revolut_pdf_event_kind(description: str, *, card_present: bool, inflow: bool) -> str:
+    """Classify a Revolut PDF row from its printed description and card marker.
+
+    Verified against the retired CSV export's ``Type`` column on every
+    unambiguously matched row. `document_service._event_kind` reads the result
+    the parser stashes rather than re-deriving it from description keywords.
+    """
+    if description.startswith(("Exchanged to", "Exchanged from")):
+        return "EXCHANGE"
+    if "top-up by" in description or description.startswith("Payment from "):
+        return "TOPUP"
+    if card_present:
+        return "REFUND" if inflow else "CARD_PAYMENT"
+    return "TRANSFER"
+
+
+def _revolut_is_furniture(text: str, first_x0: float) -> bool:
+    if first_x0 < REVOLUT_PDF_DESCRIPTION_MIN_X0_PT:
+        return True
+    if text in {"Closing", "balance", "Singapore Pte. Ltd."}:
+        return True
+    if text.startswith(_REVOLUT_FURNITURE_PREFIXES):
+        return True
+    return bool(text.startswith("©") and " Page " in text)
+
+
+def _revolut_parse_heading_date(text: str) -> date | None:
+    try:
+        return datetime.strptime(text.strip(), "%d %B %Y").date()
+    except ValueError:
+        return None
+
+
+@dataclass(slots=True)
+class _RevolutOpen:
+    record: DocumentRecord
+    section_kind: str
+    out_amount: ExactMoney | None
+    in_amount: ExactMoney | None
+    fee: ExactMoney | None = None
+    fields: dict[str, object] = field(default_factory=dict)
+
+
+def _revolut_finalize(pending: _RevolutOpen | None) -> None:
+    """Fold consumed continuation lines into the open record's ledger fields."""
+    if pending is None:
+        return
+    record = pending.record
+    delta = pending.in_amount if pending.in_amount is not None else pending.out_amount
+    if delta is None:
+        return
+    inflow = pending.in_amount is not None
+    fee = pending.fee
+    scale = delta.scale
+    if fee is not None:
+        fee_coefficient = fee.rescaled_coefficient(scale)
+        net = (
+            delta.coefficient + fee_coefficient
+            if inflow
+            else delta.coefficient - fee_coefficient
+        )
+    else:
+        net = delta.coefficient
+    net_amount = ExactMoney(net, scale, format_decimal(net, scale))
+    if inflow:
+        record.credit = net_amount
+    else:
+        record.debit = net_amount
+    record.fee = fee
+    signed = delta.coefficient if inflow else -delta.coefficient
+    signed_delta = ExactMoney(signed, scale, format_decimal(signed, scale))
+    card_present = bool(pending.fields.get("card_present"))
+    event_kind = revolut_pdf_event_kind(
+        record.description_raw or "", card_present=card_present, inflow=inflow
+    )
+    record.raw_fields = {
+        **pending.fields,
+        "balance_delta": signed_delta.text,
+        "fee": fee.text if fee is not None else None,
+        "section_kind": pending.section_kind,
+        "event_kind": event_kind,
+    }
+    foreign_amount = pending.fields.get("foreign_amount")
+    if isinstance(foreign_amount, str):
+        record.foreign_amount = _revolut_money(foreign_amount)
+        foreign_currency = pending.fields.get("foreign_currency")
+        record.foreign_currency = (
+            foreign_currency if isinstance(foreign_currency, str) else None
+        )
+    reference = pending.fields.get("reference")
+    if isinstance(reference, str) and reference:
+        record.reference_raw = reference
+
+
+def _revolut_column_map(line: _Line) -> dict[str, float | None]:
+    def right_of(token: str) -> float | None:
+        edges = [word["x1"] for word in line.words if word["text"] == token]
+        return max(edges) if edges else None
+
+    return {"out": right_of("out"), "in": right_of("in"), "balance": right_of("Balance")}
+
+
+def _revolut_classify_money(
+    word: dict[str, Any], columns: dict[str, float | None]
+) -> str | None:
+    best: tuple[float, str] | None = None
+    for name in ("out", "in", "balance"):
+        edge = columns[name]
+        if edge is None:
+            continue
+        distance = abs(word["x1"] - edge)
+        if best is None or distance < best[0]:
+            best = (distance, name)
+    if best is None or best[0] > REVOLUT_PDF_AMOUNT_COLUMN_TOLERANCE_PT:
+        return None
+    return best[1]
+
+
+def _reconcile_revolut_pdf(
+    records: list[DocumentRecord],
+    sections: list[DocumentSection],
+    problems: list[DocumentProblem],
+) -> list[DocumentCheck]:
+    checks: list[DocumentCheck] = []
+    currencies: list[str] = []
+    for section in sections:
+        if section.currency and section.currency not in currencies:
+            currencies.append(section.currency)
+    for currency in currencies:
+        summary = next(
+            (
+                record
+                for record in records
+                if record.record_kind == "SUMMARY" and record.currency_raw == currency
+            ),
+            None,
+        )
+        transactions = [
+            record
+            for record in records
+            if record.record_kind == "TRANSACTION" and record.currency_raw == currency
+        ]
+        if summary is None:
+            continue
+        opening = _revolut_money(str(summary.raw_fields["opening"]))
+        money_out = _revolut_money(str(summary.raw_fields["money_out"]))
+        money_in = _revolut_money(str(summary.raw_fields["money_in"]))
+        closing = _revolut_money(str(summary.raw_fields["closing"]))
+        summary_zero = all(
+            value.coefficient == 0 for value in (opening, money_out, money_in, closing)
+        )
+        if not transactions:
+            # A currency pocket that only ever held a zero balance (for example
+            # a foreign-currency section) prints a zero summary and no
+            # transaction heading. That is valid; there is nothing to check.
+            if not summary_zero:
+                problems.append(
+                    DocumentProblem(
+                        "BLOCKING",
+                        "REVOLUT_PDF_BALANCE_MISMATCH",
+                        "a Revolut currency pocket has a non-zero summary but no transactions",
+                        {"currency": currency},
+                    )
+                )
+            continue
+        prior = opening
+        for record in transactions:
+            delta = _revolut_money(str(record.raw_fields["balance_delta"]))
+            scale = max(prior.scale, delta.scale)
+            expected_coefficient = prior.rescaled_coefficient(
+                scale
+            ) + delta.rescaled_coefficient(scale)
+            expected = ExactMoney(
+                expected_coefficient, scale, format_decimal(expected_coefficient, scale)
+            )
+            assert record.balance is not None
+            checks.append(
+                _make_check(
+                    currency,
+                    "STATEMENT_BALANCE",
+                    REVOLUT_PDF_BALANCE_EQUATION_VERSION,
+                    expected,
+                    record.balance,
+                    True,
+                    {
+                        "source_anchor": record.source_anchor,
+                        "page_number": record.page_number,
+                    },
+                )
+            )
+            prior = record.balance
+        checks.append(
+            _make_check(
+                currency,
+                "PRINTED_SUMMARY_IDENTITY",
+                REVOLUT_PDF_SUMMARY_EQUATION_VERSION,
+                _money_expression(opening, money_in, money_out),
+                closing,
+                True,
+                {"currency": currency, "endpoint": "identity"},
+            )
+        )
+        checks.append(
+            _make_check(
+                currency,
+                "PRINTED_SUMMARY_IDENTITY",
+                REVOLUT_PDF_SUMMARY_EQUATION_VERSION,
+                prior,
+                closing,
+                True,
+                {"currency": currency, "endpoint": "closing"},
+            )
+        )
+    if any(check.blocking and check.passed is not True for check in checks):
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "REVOLUT_PDF_BALANCE_MISMATCH",
+                "Revolut PDF balance equation failed",
+            )
+        )
+    return checks
+
+
+def parse_revolut_pdf(data: bytes) -> ParsedDocument:
+    """Extract one Revolut current-account PDF statement.
+
+    The evidence carries a per-currency statement for every currency the
+    account holds. Every dated row in an ``Account transactions`` section is a
+    ledger candidate; ``Pending`` and ``Reverted`` rows are persisted as
+    evidence but never reach the ledger. The printed running balance and the
+    Balance summary are both reconciled against the parsed rows.
+    """
+    problems: list[DocumentProblem] = []
+    records: list[DocumentRecord] = []
+    coverage: list[PageCoverage] = []
+    sections: list[DocumentSection] = []
+    ordinal = 0
+    currency: str | None = None
+    section_kind: str | None = None
+    section_ordinal: int | None = None
+    columns: dict[str, float | None] = {"out": None, "in": None, "balance": None}
+    pending: _RevolutOpen | None = None
+    period_start: date | None = None
+    period_end: date | None = None
+    section_last_page: dict[int, int] = {}
+    section_by_key: dict[tuple[str, str], int] = {}
+    page_rows: dict[int, int] = {}
+    page_support: dict[int, int] = {}
+
+    with pdfplumber.open(io.BytesIO(data), password="") as pdf:
+        page_lines: list[tuple[int, list[_Line], dict[str, int]]] = []
+        for page_number, page in enumerate(pdf.pages, start=1):
+            all_words = page.extract_words(
+                x_tolerance=2, y_tolerance=2, extra_attrs=["upright"]
+            )
+            upright = [word for word in all_words if word.get("upright", True)]
+            page_lines.append(
+                (
+                    page_number,
+                    _group_lines(upright),
+                    {
+                        "all": len(all_words),
+                        "upright": len(upright),
+                        "rotated": len(all_words) - len(upright),
+                    },
+                )
+            )
+
+        for page_number, lines, _counts in page_lines:
+            for line in lines:
+                text = line.text.strip()
+                if not line.words:
+                    continue
+                first_x0 = min(word["x0"] for word in line.words)
+                money_words = [
+                    word
+                    for word in line.words
+                    if _REVOLUT_MONEY_RE.fullmatch(word["text"])
+                ]
+
+                banner = _REVOLUT_CUR_RE.match(text)
+                if banner is not None:
+                    code = banner.group(1)
+                    if code != currency:
+                        _revolut_finalize(pending)
+                        pending = None
+                        currency = code
+                        section_kind = None
+                        section_ordinal = None
+                        columns = {"out": None, "in": None, "balance": None}
+                    continue
+
+                heading = _REVOLUT_SECTION_RE.match(text)
+                if heading is not None and currency is not None:
+                    _revolut_finalize(pending)
+                    pending = None
+                    section_kind = _REVOLUT_SECTION_KINDS[heading.group(1)]
+                    start = _revolut_parse_heading_date(heading.group(2))
+                    end = _revolut_parse_heading_date(heading.group(3))
+                    if period_start is None and start is not None and end is not None:
+                        period_start, period_end = start, end
+                    key = (currency, section_kind)
+                    if key in section_by_key:
+                        section_ordinal = section_by_key[key]
+                    else:
+                        section_ordinal = len(sections) + 1
+                        section_by_key[key] = section_ordinal
+                        sections.append(
+                            DocumentSection(
+                                section_ordinal,
+                                section_kind,
+                                currency,
+                                text,
+                                page_number,
+                                page_number,
+                            )
+                        )
+                    section_last_page[section_ordinal] = page_number
+                    continue
+
+                if text.startswith(("Date Description", "Start date Description")):
+                    columns = _revolut_column_map(line)
+                    continue
+
+                if line.words[0]["text"] == "Total" and len(money_words) == 4:
+                    _revolut_finalize(pending)
+                    pending = None
+                    values = [
+                        _revolut_money(word["text"])
+                        for word in sorted(money_words, key=lambda word: word["x0"])
+                    ]
+                    ordinal += 1
+                    records.append(
+                        DocumentRecord(
+                            source_anchor=_document_anchor(
+                                "revolut", page_number, line.bbox, line.text
+                            ),
+                            ordinal=ordinal,
+                            page_number=page_number,
+                            bbox=line.bbox,
+                            record_kind="SUMMARY",
+                            raw_text=line.text,
+                            raw_fields={
+                                "summary_kind": "BALANCE_SUMMARY",
+                                "opening": values[0].text,
+                                "money_out": values[1].text,
+                                "money_in": values[2].text,
+                                "closing": values[3].text,
+                            },
+                            currency_raw=currency,
+                            balance=values[3],
+                            required_fields_complete=False,
+                            confidence="HIGH",
+                        )
+                    )
+                    page_support[page_number] = page_support.get(page_number, 0) + 1
+                    continue
+
+                first_three = " ".join(word["text"] for word in line.words[:3])
+                if len(line.words) >= 4 and _REVOLUT_DATE_RE.match(first_three):
+                    _revolut_finalize(pending)
+                    pending = None
+                    ordinal += 1
+                    date_raw = first_three
+                    try:
+                        date_value: str | None = (
+                            datetime.strptime(date_raw, "%d %b %Y").date().isoformat()
+                        )
+                    except ValueError:
+                        date_value = None
+                    out_amount = in_amount = balance = None
+                    consumed: set[int] = set()
+                    for word in line.words[3:]:
+                        if not _REVOLUT_MONEY_RE.fullmatch(word["text"]):
+                            continue
+                        slot = _revolut_classify_money(word, columns)
+                        if slot is None:
+                            continue
+                        value = _revolut_money(word["text"])
+                        if slot == "out":
+                            out_amount = value
+                        elif slot == "in":
+                            in_amount = value
+                        else:
+                            balance = value
+                        consumed.add(id(word))
+                    description = " ".join(
+                        word["text"]
+                        for word in line.words[3:]
+                        if id(word) not in consumed
+                        and not _REVOLUT_MONEY_RE.fullmatch(word["text"])
+                    ).strip()
+                    one_side = (out_amount is None) != (in_amount is None)
+                    if section_kind == "TRANSACTIONS":
+                        complete = balance is not None and one_side
+                    elif section_kind in ("PENDING", "REVERTED"):
+                        complete = balance is None and one_side
+                    else:
+                        complete = False
+                    is_ledger_row = complete and section_kind == "TRANSACTIONS"
+                    # The `document_records` schema only admits the shared record
+                    # kinds; a cleanly parsed Pending/Reverted row is persisted as
+                    # UNRESOLVED evidence and its lifecycle is kept in raw_fields.
+                    record_kind = "TRANSACTION" if is_ledger_row else "UNRESOLVED"
+                    anchor_fields: dict[str, object] = {"section_kind": section_kind}
+                    if complete and section_kind in ("PENDING", "REVERTED"):
+                        anchor_fields["lifecycle"] = section_kind
+                    record = DocumentRecord(
+                        source_anchor=_document_anchor(
+                            "revolut", page_number, line.bbox, line.text
+                        ),
+                        ordinal=ordinal,
+                        page_number=page_number,
+                        bbox=line.bbox,
+                        record_kind=record_kind,
+                        raw_text=line.text,
+                        raw_fields=anchor_fields,
+                        section_ordinal=section_ordinal,
+                        date_raw=date_raw,
+                        date_value=date_value,
+                        description_raw=description or None,
+                        currency_raw=currency,
+                        balance=balance,
+                        confidence="HIGH" if complete else "UNRESOLVED",
+                        required_fields_complete=is_ledger_row,
+                        date_precision="DAY",
+                    )
+                    records.append(record)
+                    if record_kind == "TRANSACTION":
+                        page_rows[page_number] = page_rows.get(page_number, 0) + 1
+                    else:
+                        page_support[page_number] = page_support.get(page_number, 0) + 1
+                    if not complete or date_value is None:
+                        problems.append(
+                            DocumentProblem(
+                                "WARNING",
+                                "REVOLUT_PDF_ROW_UNRESOLVED",
+                                "a Revolut row is missing an unambiguous amount, balance, or date",
+                                {"page_number": page_number, "raw_text": line.text},
+                                record.source_anchor,
+                            )
+                        )
+                    if section_ordinal is not None:
+                        section_last_page[section_ordinal] = page_number
+                    pending = _RevolutOpen(
+                        record=record,
+                        section_kind=section_kind or "",
+                        out_amount=out_amount,
+                        in_amount=in_amount,
+                        fields=dict(anchor_fields),
+                    )
+                    continue
+
+                if pending is None:
+                    continue
+
+                # Continuation lines beneath the open row.
+                non_money = [
+                    word
+                    for word in line.words
+                    if not _REVOLUT_MONEY_RE.fullmatch(word["text"])
+                    and not _REVOLUT_CUR_CODE_RE.fullmatch(word["text"])
+                ]
+                if money_words and not non_money:
+                    # A bare money line: the counterpart figure of an exchange.
+                    pending.fields.setdefault("counterpart", text)
+                    pending.record.raw_text += "\n" + line.text
+                    continue
+                if _revolut_is_furniture(text, first_x0):
+                    continue
+                pending.record.raw_text += "\n" + line.text
+                pending.record.bbox = _merge_bbox(pending.record.bbox, line.bbox)
+                if text.startswith("Fee:"):
+                    parts = text.split()
+                    if len(parts) >= 2 and _REVOLUT_MONEY_RE.fullmatch(parts[1]):
+                        pending.fee = _revolut_money(parts[1])
+                    if len(parts) >= 3 and _REVOLUT_MONEY_RE.fullmatch(parts[2]):
+                        pending.fields["fee_counterpart"] = parts[2]
+                elif text.startswith("Revolut Rate"):
+                    tokens = text.split()
+                    if _REVOLUT_CUR_CODE_RE.fullmatch(
+                        tokens[-1]
+                    ) and _REVOLUT_MONEY_RE.fullmatch(tokens[-2]):
+                        pending.fields["foreign_amount"] = tokens[-2]
+                        pending.fields["foreign_currency"] = tokens[-1]
+                    elif _REVOLUT_MONEY_RE.fullmatch(tokens[-1]):
+                        pending.fields["foreign_amount"] = tokens[-1]
+                        pending.fields["foreign_currency"] = _revolut_symbol_currency(
+                            tokens[-1]
+                        )
+                    pending.fields["fx_line"] = text
+                elif text.startswith(("To:", "From:")):
+                    pending.fields["counterparty"] = text.split(":", 1)[1].strip()
+                    pending.fields["party_present"] = True
+                elif text.startswith("Card:"):
+                    parts = text.split()
+                    if len(parts) >= 2:
+                        pending.fields["card_masked"] = parts[1]
+                    pending.fields["card_present"] = True
+                elif text.startswith("Reference:"):
+                    reference = text.split(":", 1)[1].strip()
+                    pending.fields["reference"] = _extract_reference(reference) or reference
+        _revolut_finalize(pending)
+        pending = None
+
+    if period_start is None or period_end is None:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "REVOLUT_PDF_STATEMENT_PERIOD_MISSING",
+                "no Revolut section heading carried a resolvable statement period",
+            )
+        )
+
+    for section in sections:
+        section.end_page = section_last_page.get(section.ordinal, section.end_page)
+
+    checks = _reconcile_revolut_pdf(records, sections, problems)
+
+    for page_number, lines, counts in page_lines:
+        page_text = "\n".join(line.text for line in lines)
+        has_summary = "Balance summary" in page_text
+        has_transactions = any(
+            _REVOLUT_DATE_RE.match(" ".join(word["text"] for word in line.words[:3]))
+            for line in lines
+            if len(line.words) >= 4
+        ) or any(
+            line.text.strip().startswith(("Date Description", "Start date Description"))
+            for line in lines
+        )
+        has_information = "Report lost or stolen card" in page_text
+        classification = _page_classification(
+            has_summary, has_transactions, has_information
+        )
+        status = "ACCOUNTED" if classification != "UNKNOWN" else "UNRESOLVED"
+        if status == "UNRESOLVED":
+            problems.append(
+                DocumentProblem(
+                    "BLOCKING",
+                    "UNCLASSIFIED_PDF_PAGE",
+                    "a Revolut statement page could not be classified structurally",
+                    {"page_number": page_number},
+                )
+            )
+        coverage.append(
+            PageCoverage(
+                page_number,
+                classification,
+                counts["all"],
+                counts["upright"],
+                counts["rotated"],
+                page_rows.get(page_number, 0),
+                page_support.get(page_number, 0),
+                status,
+                {"profile": REVOLUT_PDF_PROFILE},
+            )
+        )
+
+    period_start_text = period_start.isoformat() if period_start else ""
+    period_end_text = period_end.isoformat() if period_end else ""
+    statement_date_text = period_end_text or date.min.isoformat()
+    return ParsedDocument(
+        institution="Revolut",
+        source_type="REVOLUT_PDF",
+        account_id=REVOLUT_ACCOUNT_ID,
+        account_display_name="Revolut Current",
+        masked_identifier="Current",
+        source_profile_version=REVOLUT_PDF_PROFILE,
+        statement_date=statement_date_text,
+        period_start=period_start_text or None,
+        period_end=period_end_text or None,
+        statement_identity=(
+            f"{REVOLUT_ACCOUNT_ID}:{REVOLUT_PDF_PROFILE_LABEL}:"
+            f"{period_start_text}:{period_end_text}"
+        ),
         sections=sections,
         records=records,
         pages=coverage,
