@@ -640,6 +640,11 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .baseline import baseline_readiness
         return baseline_readiness(database)
 
+    @app.get('/api/v1/baseline/cost-income')
+    def baseline_cost_income_read() -> Any:
+        from .baseline import cost_income_table
+        return cost_income_table(database)
+
     @app.get('/api/v1/categories')
     def categories_read() -> Any:
         from .v05 import categories_page

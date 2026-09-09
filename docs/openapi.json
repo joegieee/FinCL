@@ -247,6 +247,24 @@
         }
       }
     },
+    "/api/v1/baseline/cost-income": {
+      "get": {
+        "summary": "Baseline Cost Income Read",
+        "operationId": "baseline_cost_income_read_api_v1_baseline_cost_income_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Baseline Cost Income Read Api V1 Baseline Cost Income Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categories": {
       "get": {
         "summary": "Categories Read",
