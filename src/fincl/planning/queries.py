@@ -9,11 +9,8 @@ spending so far with no confident remaining allowance.
 from __future__ import annotations
 
 import calendar
-import hashlib
 import json
-from collections import defaultdict
 from datetime import date
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +22,7 @@ from ..intervals import DateInterval
 from ..money import ExactMoney
 from ..queries import _ENTRY_VIEW
 from ..report import _coverage_contract
+from .detection import candidates as detect_candidates
 
 
 def _to_cents(text: str) -> int:
@@ -407,34 +405,18 @@ def recurring_page(database: Path) -> dict[str, Any]:
         dismissed = [
             d["candidate"] for d in connection.execute("SELECT candidate FROM recurring_candidate_dismissals")
         ]
-        entries = connection.execute(
-            f"SELECT natural_anchor, merchant, currency_pocket, account_id, substr(effective_at,1,10) day, amount_coefficient, amount_scale FROM ({_ENTRY_VIEW}) WHERE eligible AND bucket='spending' AND effective_precision != 'MONTH' ORDER BY merchant, currency_pocket, account_id, effective_at"
-        ).fetchall()
-        groups: dict[tuple[str, str, str], list[Any]] = defaultdict(list)
-        for entry in entries:
-            groups[(entry["merchant"], entry["currency_pocket"], entry["account_id"])].append(entry)
-        candidates = []
-        for (merchant, currency, account), items in groups.items():
-            if len(items) < 3:
-                continue
-            days = [date.fromisoformat(i["day"]) for i in items]
-            gaps = [(b-a).days for a, b in zip(days, days[1:], strict=False)]
-            cadence = "monthly" if all(25 <= g <= 35 for g in gaps[-3:]) else "weekly" if all(6 <= g <= 8 for g in gaps[-3:]) else None
-            amounts = [abs(Decimal(i["amount_coefficient"])) / Decimal(10 ** i["amount_scale"]) for i in items[-4:]]
-            if cadence is None or max(amounts) > min(amounts) * Decimal("1.1"):
-                continue
-            raw = json.dumps(["detv1", merchant, currency, [account], cadence], separators=(",", ":"))
-            key = "detv1:" + hashlib.sha256(raw.encode()).hexdigest()
-            if key in set(dismissed):
-                continue
-            candidates.append({"candidate": key, "detector_version": "detv1", "merchant_key": merchant,
-                               "currency": currency, "account_ids": [account], "cadence": cadence,
-                               "count": len(items), "expected_amount": _money(round(amounts[-1]*100)),
-                               "last_observed_on": days[-1].isoformat(),
-                               "seed_entry_anchors": [i["natural_anchor"] for i in items[-4:]]})
+        found = detect_candidates(connection, dismissed=frozenset(dismissed))
+        bills = found["bill"]
+        income = found["income"]
         return {
             "generation": generation,
-            "candidates": candidates,
+            # Bill candidates keep the historical key so an existing dismissal
+            # still matches; income streams are a separate list because they are
+            # confirmed against different evidence (Stage 2B requirement 2).
+            "candidates": bills,
+            "bill_candidates": bills,
+            "income_candidates": income,
+            "income_exclusions": found["income_exclusions"],
             "confirmed": [c for c in commitments if c["status"] == "active"],
             "paused_or_ended": [c for c in commitments if c["status"] != "active"],
             "dismissed_candidate_keys": sorted(dismissed),

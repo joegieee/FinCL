@@ -144,16 +144,16 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
         )
     irregular_components: set[str] = set()
     for row in spending_rows:
-        values = [
+        monthly_totals = [
             category_month[(row["currency"], row["category_key"], month)]
             for month in months
         ]
-        ordered = sorted(values)
+        ordered = sorted(monthly_totals)
         middle = len(ordered) // 2
         median = ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
         threshold = max(_OUTLIER_FLOOR, median * _OUTLIER_MULTIPLE)
-        amount = abs(Decimal(row["signed_coefficient"]).scaleb(-int(row["scale"])))
-        if amount >= threshold and amount > 0:
+        entry_amount = abs(Decimal(row["signed_coefficient"]).scaleb(-int(row["scale"])))
+        if entry_amount >= threshold and entry_amount > 0:
             irregular_components.add(row["component_id"])
 
     # (month, currency, status) exact signed owner-cost contributions.
@@ -196,7 +196,7 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
 
     by_currency: dict[str, Any] = {}
     for currency in table["currencies"]:
-        monthly = []
+        monthly: list[dict[str, Any]] = []
         essential_values: list[ExactMoney] = []
         discretionary_values: list[ExactMoney] = []
         unresolved_values: list[ExactMoney] = []
@@ -208,7 +208,7 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
             essential_values.append(ExactMoney.parse(values["essential"]))
             discretionary_values.append(ExactMoney.parse(values["discretionary"]))
             unresolved_values.append(ExactMoney.parse(values["unresolved"]))
-        total_values = {status: _sum([ExactMoney.parse(row[status]) for row in monthly]) for status in ("essential", "discretionary", "unresolved")}
+        total_values = {status: _sum([ExactMoney.parse(item[status]) for item in monthly]) for status in ("essential", "discretionary", "unresolved")}
         total = _sum([ExactMoney.parse(value) for value in total_values.values()])
         by_currency[currency] = {
             "months": monthly,

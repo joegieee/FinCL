@@ -672,6 +672,11 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .baseline import baseline_estimate
         return baseline_estimate(database)
 
+    @app.get('/api/v1/obligations')
+    def obligations_read(as_of: str | None = None) -> Any:
+        from .obligations import obligations_page
+        return obligations_page(database, as_of=as_of)
+
     @app.get('/api/v1/categories')
     def categories_read() -> Any:
         from .v05 import categories_page

@@ -301,6 +301,52 @@
         }
       }
     },
+    "/api/v1/obligations": {
+      "get": {
+        "summary": "Obligations Read",
+        "operationId": "obligations_read_api_v1_obligations_get",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Obligations Read Api V1 Obligations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categories": {
       "get": {
         "summary": "Categories Read",
@@ -3700,7 +3746,9 @@
               "RECURRING_COMMITMENT_SET",
               "RECURRING_CANDIDATE_DISMISS",
               "RECURRING_OCCURRENCE_SET",
-              "RECURRING_OCCURRENCE_RETIRE"
+              "RECURRING_OCCURRENCE_RETIRE",
+              "BALANCE_OBSERVATION_SET",
+              "BALANCE_OBSERVATION_RETIRE"
             ],
             "title": "Kind"
           },
