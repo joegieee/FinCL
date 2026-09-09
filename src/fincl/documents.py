@@ -3189,9 +3189,12 @@ _REVOLUT_FURNITURE_PREFIXES = (
 
 
 def _revolut_money(text: str) -> ExactMoney:
+    # Keep only a bare signed decimal in `.text`: the S$/$ prefix and thousands
+    # separators are printed noise, and ledger read surfaces `Decimal()` this
+    # string directly. The original always survives in `raw_text` / `raw_fields`.
     normalized = text.replace("S$", "").replace("$", "").replace(",", "")
     parsed = ExactMoney.parse(normalized)
-    return ExactMoney(parsed.coefficient, parsed.scale, text)
+    return ExactMoney(parsed.coefficient, parsed.scale, format_decimal(parsed.coefficient, parsed.scale))
 
 
 def _revolut_symbol_currency(text: str) -> str | None:

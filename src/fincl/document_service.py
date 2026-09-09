@@ -740,6 +740,7 @@ def _insert_document_entry(
     alt_role = record.alt_date_role
     alt_precision = "DAY" if alt_role is not None else None
     foreign = record.foreign_amount
+    fee = record.fee
     connection.execute(
         """
         INSERT INTO ledger_entries(
@@ -756,7 +757,7 @@ def _insert_document_entry(
         ) VALUES (
             ?, 'DOCUMENT', ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             'COMPLETED', 0,
-            ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL,
+            ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL,
             ?, ?, ?, ?
         )
         """,
@@ -780,6 +781,9 @@ def _insert_document_entry(
             record.alt_date_value if alt_role is not None else None,
             record.alt_date_raw if alt_role is not None else None,
             alt_precision,
+            fee.text if fee is not None else None,
+            fee.coefficient if fee is not None else None,
+            fee.scale if fee is not None else None,
             record.foreign_currency,
             foreign.text if foreign is not None else None,
             foreign.coefficient if foreign is not None else None,
