@@ -1,10 +1,7 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Card } from '@/components/ui/card'
+import { ChartFrame } from '@/components/ChartFrame'
 import { money, type TrendPoint } from '@/lib/api'
-
-const SPEND = '#247b69'
-const FEE = '#c8aa70'
-const INCOME = '#809ba6'
+import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_SEMANTIC, CHART_TOOLTIP_STYLE, currencyTick } from '@/lib/chart-theme'
 
 /**
  * A selected number of complete calendar months ending at the most recent
@@ -31,62 +28,59 @@ export function TrendChart({
     : range === '12' ? 'TWELVE-MONTH VIEW' : 'ALL COVERED HISTORY'
   const chartWidth = Math.max(520, data.length * 68)
   return (
-    <Card className="chart-card">
-      <div className="panel-title">
-        <div>
-          <p className="eyebrow">{historyLabel}</p>
-          <h2>Am I spending more than I earn?</h2>
-        </div>
-      </div>
-      <p className="chart-caption">Complete calendar months · {currency} · not the selected-period total</p>
-      <div className="legend">
-        <span><i style={{ background: SPEND }} />Purchases</span>
-        <span><i style={{ background: FEE }} />Fees</span>
-        <span><i style={{ background: INCOME }} />Income</span>
-      </div>
-      <div className="trend-chart" aria-label={`${historyLabel.toLowerCase()} spending, fees, and income chart`}>
+    <ChartFrame
+      eyebrow={historyLabel}
+      title="Am I spending more than I earn?"
+      caption={`Complete calendar months · ${currency} · not the selected-period total`}
+      ariaLabel={`${historyLabel.toLowerCase()} spending, fees, and income chart`}
+      footer="Gaps mean unavailable data, not zero activity."
+      legend={<>
+        <span><i style={{ background: CHART_SEMANTIC.spending }} />Purchases</span>
+        <span><i style={{ background: CHART_SEMANTIC.fees }} />Fees</span>
+        <span><i style={{ background: CHART_SEMANTIC.income }} />Income</span>
+      </>}
+      table={<table>
+        <thead>
+          <tr><th>Month</th><th>Purchases</th><th>Fees</th><th>Income</th><th>Coverage</th></tr>
+        </thead>
+        <tbody>
+          {trend.map(t => (
+            <tr key={t.month}>
+              <td>{t.month}</td>
+              <td>{money(t.spending?.value ?? null, currency)}</td>
+              <td>{money(t.fees?.value ?? null, currency)}</td>
+              <td>{money(t.income?.value ?? null, currency)}</td>
+              <td>{t.complete ? 'Complete' : 'Missing period'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>}
+    >
+      <div className="trend-chart">
         <div style={{ minWidth: chartWidth }}>
           <ResponsiveContainer width="100%" height={270}>
           <BarChart data={data} barGap={3} accessibilityLayer>
-            <CartesianGrid vertical={false} stroke="var(--border)" />
+            <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} />
             <XAxis
               dataKey="month"
               tickFormatter={m => new Date(m + '-01T12:00:00').toLocaleDateString('en', { month: 'short' })}
               axisLine={false}
               tickLine={false}
+              tick={CHART_AXIS_TICK}
             />
-            <YAxis tickLine={false} axisLine={false} width={62} />
+            <YAxis tickLine={false} axisLine={false} width={62} tick={CHART_AXIS_TICK} tickFormatter={currencyTick(currency)} />
             <Tooltip
+              contentStyle={CHART_TOOLTIP_STYLE}
               formatter={(value, name) => [money(String(value), currency), String(name)]}
               labelFormatter={m => `${m}${data.find(d => d.month === m)?.complete ? '' : ' · missing coverage'}`}
             />
-            <Bar dataKey="spending" name="Purchases" stackId="out" fill={SPEND} maxBarSize={30} isAnimationActive={false} />
-            <Bar dataKey="fees" name="Fees" stackId="out" fill={FEE} maxBarSize={30} isAnimationActive={false} />
-            <Bar dataKey="income" name="Income" fill={INCOME} radius={[4, 4, 0, 0]} maxBarSize={30} isAnimationActive={false} />
+            <Bar dataKey="spending" name="Purchases" stackId="out" fill={CHART_SEMANTIC.spending} maxBarSize={30} isAnimationActive={false} />
+            <Bar dataKey="fees" name="Fees" stackId="out" fill={CHART_SEMANTIC.fees} maxBarSize={30} isAnimationActive={false} />
+            <Bar dataKey="income" name="Income" fill={CHART_SEMANTIC.income} radius={[4, 4, 0, 0]} maxBarSize={30} isAnimationActive={false} />
           </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
-      <details className="chart-data">
-        <summary>Exact values and coverage</summary>
-        <table>
-          <thead>
-            <tr><th>Month</th><th>Purchases</th><th>Fees</th><th>Income</th><th>Coverage</th></tr>
-          </thead>
-          <tbody>
-            {trend.map(t => (
-              <tr key={t.month}>
-                <td>{t.month}</td>
-                <td>{money(t.spending?.value ?? null, currency)}</td>
-                <td>{money(t.fees?.value ?? null, currency)}</td>
-                <td>{money(t.income?.value ?? null, currency)}</td>
-                <td>{t.complete ? 'Complete' : 'Missing period'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
-      <div className="card-foot">Gaps mean unavailable data, not zero activity.</div>
-    </Card>
+    </ChartFrame>
   )
 }

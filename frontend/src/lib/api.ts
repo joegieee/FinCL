@@ -15,11 +15,25 @@ export type ContributorsPage = components['schemas']['ContributorsPage']
 export type Contributor = components['schemas']['Contributor']
 let csrf = ''
 export class ApiError extends Error { constructor(message:string,public status:number){super(message)} }
-export async function api<T>(path:string, body?:unknown):Promise<T> {
-  const response = await fetch(`/api/v1/${path}`,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:body===undefined?undefined:JSON.stringify(body)})
-  const value = await response.json()
-  if (!response.ok) throw new ApiError(typeof value.detail==='string'?value.detail:'Please check the entered values.',response.status)
-  return value as T
+// In-flight GET requests are shared by identical method+path+body key, so
+// switching tabs or re-rendering while a request is outstanding issues one
+// fetch instead of a duplicate (PLAN-ui-cohesion.md §1.5). This is dedup
+// only, not a time-based cache: a completed GET is not replayed for a later
+// call, since the right invalidation trigger (generation vs. coverage-only
+// changes from Setup imports and refresh) is still an open question there.
+const inFlightGets = new Map<string, Promise<unknown>>()
+export async function api<T>(path:string, body?:unknown, options?:{signal?:AbortSignal}):Promise<T> {
+  const method = body===undefined?'GET':'POST'
+  const key = method==='GET' ? path : ''
+  if (key && inFlightGets.has(key)) return inFlightGets.get(key) as Promise<T>
+  const promise = (async () => {
+    const response = await fetch(`/api/v1/${path}`,{method,headers:body===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:body===undefined?undefined:JSON.stringify(body),signal:options?.signal})
+    const value = await response.json()
+    if (!response.ok) throw new ApiError(typeof value.detail==='string'?value.detail:'Please check the entered values.',response.status)
+    return value as T
+  })()
+  if (key) { inFlightGets.set(key, promise); const cleanup = () => inFlightGets.delete(key); promise.then(cleanup, cleanup) }
+  return promise
 }
 // The one multipart write. Same Origin/session/CSRF boundary as JSON writes.
 export async function uploadFiles<T>(path:string, adapter:string, files:File[]):Promise<T> {

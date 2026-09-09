@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { ChevronRight, RefreshCw, Tag } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, ChevronRight, RefreshCw, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { api } from '@/lib/api'
+import { api, money } from '@/lib/api'
 import { useLedgerCommand } from '@/lib/command'
 import { compileRule, type CompiledRule } from '@/features/rules/api'
 import { ImpactDetails } from '@/features/rules'
@@ -15,12 +15,26 @@ type CandidateRecord = { anchor: string; description: string | null; account: st
 type Detail = { candidate: Candidate; records: CandidateRecord[]; next_cursor?: string | null }
 type RuleOption = { label: string; match: Record<string, unknown> }
 
-export function CategorizationView({ generation, freshness, categories, start = '', end = '', onSaved }: {
-  generation: string; freshness: string; categories: string[]; start?: string; end?: string; onSaved: (status: string) => void | Promise<void>
+const RECENT_CATEGORIES_KEY = 'fincl.categorization.recentCategories'
+
+function loadRecentCategories(): string[] {
+  try { return JSON.parse(localStorage.getItem(RECENT_CATEGORIES_KEY) || '[]') } catch { return [] }
+}
+function rememberCategory(category: string) {
+  try {
+    const next = [category, ...loadRecentCategories().filter(c => c !== category)].slice(0, 6)
+    localStorage.setItem(RECENT_CATEGORIES_KEY, JSON.stringify(next))
+  } catch { /* private browsing or storage disabled */ }
+}
+
+export function CategorizationView({ generation, freshness, categories, accounts = [], currencies = [], start = '', end = '', onSaved }: {
+  generation: string; freshness: string; categories: string[]; accounts?: string[]; currencies?: string[]; start?: string; end?: string; onSaved: (status: string) => void | Promise<void>
 }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [page, setPage] = useState<CandidatesPage | null>(null)
   const [selected, setSelected] = useState<Detail | null>(null)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const [activeIndex, setActiveIndex] = useState(0)
   const [error, setError] = useState('')
   const [direction, setDirection] = useState('')
   const [lifecycle, setLifecycle] = useState('')
@@ -44,9 +58,10 @@ export function CategorizationView({ generation, freshness, categories, start = 
     } catch (e) { setError((e as Error).message) }
   }, [generation, direction, lifecycle, kind, account, currency, start, end])
   useEffect(() => { void load() }, [load])
-  async function open(candidate: Candidate) {
+  const queue = page?.candidates ?? []
+  async function open(candidate: Candidate, index: number) {
     setError('')
-    try { setSelected(await api<Detail>(`categorization/candidates/${candidate.candidate_id}?${candidateQuery()}`)) }
+    try { setSelected(await api<Detail>(`categorization/candidates/${candidate.candidate_id}?${candidateQuery()}`)); setSelectedIndex(index); setActiveIndex(index) }
     catch (e) { setError((e as Error).message) }
   }
   async function loadMoreCandidates() {
@@ -56,20 +71,39 @@ export function CategorizationView({ generation, freshness, categories, start = 
       setPage(current => current ? { ...more, candidates: [...current.candidates, ...more.candidates], total: current.total } : more)
     } catch (e) { setError((e as Error).message) }
   }
+  function onListKeyDown(e: React.KeyboardEvent) {
+    if (!queue.length) return
+    if (e.key === 'ArrowDown' || e.key === 'j') { e.preventDefault(); setActiveIndex(i => Math.min(i + 1, queue.length - 1)) }
+    else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); setActiveIndex(i => Math.max(i - 1, 0)) }
+    else if (e.key === 'Enter') { e.preventDefault(); const candidate = queue[activeIndex]; if (candidate) void open(candidate, activeIndex) }
+  }
+  /** Save-and-next advances through the batch as it was loaded when review began, not a post-save reload's reordering. */
+  async function afterSave(status: string) {
+    await onSaved(status)
+    const nextIndex = selectedIndex !== null ? selectedIndex + 1 : null
+    await load()
+    if (nextIndex !== null && queue[nextIndex]) await open(queue[nextIndex], nextIndex)
+    else { setSelected(null); setSelectedIndex(null) }
+  }
   const disabled = freshness === 'stale'
   return <div className="categorization-view">
     {error && <div className="alert error" role="alert">{error}</div>}
-    <div className="scope-caption"><span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision.</span><span className="categorization-filters"><select aria-label="Filter categorization candidate kind" value={kind} onChange={e => setKind(e.target.value)}><option value="">All group types</option><option value="merchant">Merchant</option><option value="paynow_recipient">PayNow recipient</option><option value="description">Description</option><option value="missing_merchant">Missing merchant</option></select><select aria-label="Filter categorization direction" value={direction} onChange={e => setDirection(e.target.value)}><option value="">All directions</option><option value="OUT">Outgoing</option><option value="IN">Incoming</option></select><select aria-label="Filter categorization lifecycle" value={lifecycle} onChange={e => setLifecycle(e.target.value)}><option value="">All lifecycle states</option><option value="COMPLETED">Active only</option><option value="PENDING">Pending</option><option value="REVERTED">Reverted</option></select><input aria-label="Filter categorization account" value={account} onChange={e => setAccount(e.target.value)} placeholder="Account ID"/><input aria-label="Filter categorization currency" value={currency} onChange={e => setCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="Currency"/><Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button></span></div>
-    {summary && <CoverageSummary summary={summary}/>} 
-    <Card className="candidate-list">
+    <div className="scope-caption"><span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision. <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>Enter</kbd> to open.</span><span className="categorization-filters"><select aria-label="Filter categorization candidate kind" value={kind} onChange={e => setKind(e.target.value)}><option value="">All group types</option><option value="merchant">Merchant</option><option value="paynow_recipient">PayNow recipient</option><option value="description">Description</option><option value="missing_merchant">Missing merchant</option></select><select aria-label="Filter categorization direction" value={direction} onChange={e => setDirection(e.target.value)}><option value="">All directions</option><option value="OUT">Outgoing</option><option value="IN">Incoming</option></select><select aria-label="Filter categorization lifecycle" value={lifecycle} onChange={e => setLifecycle(e.target.value)}><option value="">All lifecycle states</option><option value="COMPLETED">Active only</option><option value="PENDING">Pending</option><option value="REVERTED">Reverted</option></select><select aria-label="Filter categorization account" value={account} onChange={e => setAccount(e.target.value)}><option value="">All accounts</option>{accounts.map(a => <option key={a}>{a}</option>)}</select><select aria-label="Filter categorization currency" value={currency} onChange={e => setCurrency(e.target.value)}><option value="">All currencies</option>{currencies.map(c => <option key={c}>{c}</option>)}</select><Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button></span></div>
+    {summary && <CoverageSummary summary={summary}/>}
+    <Card className="candidate-list" onKeyDown={onListKeyDown}>
       <div className="panel-title"><div><p className="eyebrow">CATEGORIZATION INBOX</p><h2>{page ? `${page.total} groups need review` : 'Loading groups…'}</h2></div></div>
       {!page?.candidates.length && <p className="empty-line">Everything active is categorized, or no groups match the current ledger generation.</p>}
-      {page?.candidates.map(candidate => <button className="candidate-card" key={candidate.candidate_id} onClick={() => void open(candidate)}>
+      {page?.candidates.map((candidate, index) => <button className={`candidate-card${index === activeIndex ? ' is-active' : ''}`} key={candidate.candidate_id} tabIndex={index === activeIndex ? 0 : -1} onFocus={() => setActiveIndex(index)} onClick={() => void open(candidate, index)}>
         <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small></span><ChevronRight size={16}/>
       </button>)}
       {page?.next_cursor && <div className="dialog-actions"><Button variant="outline" onClick={() => void loadMoreCandidates()}>Load more groups</Button></div>}
     </Card>
-    {selected && <CandidateReview detail={selected} generation={generation} categories={categories} disabled={disabled} onClose={() => setSelected(null)} onSaved={async status => { await onSaved(status); setSelected(null); await load() }}/>} 
+    {selected && <CandidateReview
+      detail={selected} generation={generation} categories={categories} disabled={disabled}
+      hasNext={selectedIndex !== null && selectedIndex + 1 < queue.length}
+      onClose={() => { setSelected(null); setSelectedIndex(null) }}
+      onSaved={afterSave}
+    />}
   </div>
 }
 
@@ -78,13 +112,60 @@ function CoverageSummary({ summary }: { summary: Summary }) {
   return <div className="coverage-summary"><Card><small>Rule-assigned</small><strong>{summary.counts.rule_assigned || 0}</strong></Card><Card><small>Manually assigned</small><strong>{summary.counts.manual_override || 0}</strong></Card><Card><small>Needs a category</small><strong>{summary.counts.unclassified_active || 0}</strong></Card><Card><small>Progress</small><strong>{percent}%</strong><small>{summary.progress_numerator} / {summary.active_categorization_denominator}</small></Card>{summary.needs_attention > 0 && <Card><small>Needs attention</small><strong>{summary.needs_attention}</strong></Card>}</div>
 }
 
-function CandidateReview({ detail, generation, categories, disabled, onClose, onSaved }: { detail: Detail; generation: string; categories: string[]; disabled: boolean; onClose: () => void; onSaved: (status: string) => void | Promise<void> }) {
+function CategoryCombobox({ id, categories, value, onChange, onCreate, disabled }: {
+  id: string; categories: string[]; value: string; onChange: (category: string) => void; onCreate: (name: string) => Promise<boolean>; disabled?: boolean
+}) {
+  const options = categories.filter(c => !c.startsWith('Internal /'))
+  const recent = loadRecentCategories().filter(c => options.includes(c))
+  const ordered = [...new Set([...recent, ...options])]
+  const [query, setQuery] = useState(value)
+  const [open, setOpen] = useState(false)
+  const [highlight, setHighlight] = useState(0)
+  const [creating, setCreating] = useState(false)
+  useEffect(() => { setQuery(value) }, [value])
+  const filtered = query.trim() ? ordered.filter(c => c.toLowerCase().includes(query.trim().toLowerCase())) : ordered
+  function choose(category: string) { onChange(category); setQuery(category); setOpen(false) }
+  async function createFromQuery() {
+    if (creating) return
+    setCreating(true)
+    try { if (await onCreate(query.trim())) choose(query.trim()) }
+    finally { setCreating(false) }
+  }
+  return <div className="category-combobox">
+    <label htmlFor={id}>Category</label>
+    <input id={id} role="combobox" aria-expanded={open} aria-autocomplete="list" aria-controls={`${id}-list`} autoComplete="off"
+      disabled={disabled} value={query} placeholder="Search or create a category…"
+      onChange={e => { setQuery(e.target.value); setOpen(true); setHighlight(0) }}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setTimeout(() => setOpen(false), 150)}
+      onKeyDown={e => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setHighlight(h => Math.min(h + 1, Math.max(filtered.length - 1, 0))) }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => Math.max(h - 1, 0)) }
+        else if (e.key === 'Enter') { e.preventDefault(); if (filtered[highlight]) choose(filtered[highlight]); else if (query.trim()) void createFromQuery() }
+        else if (e.key === 'Escape') { setOpen(false) }
+      }}
+    />
+    {open && <ul className="category-combobox-list" id={`${id}-list`}>
+      {filtered.map((category, i) => <li key={category}><button type="button" className={i === highlight ? 'is-active' : ''} onMouseDown={e => e.preventDefault()} onClick={() => choose(category)}>
+        <span>{category}</span>{recent[0] === category && category !== value && <span className="tag">Suggested</span>}
+      </button></li>)}
+      {!filtered.length && <li className="category-combobox-empty">No category matches "{query}".</li>}
+      {query.trim() && !options.includes(query.trim()) && query.trim().includes(' / ') && <li><button type="button" onMouseDown={e => e.preventDefault()} onClick={() => void createFromQuery()} disabled={creating}>{creating ? 'Creating…' : `Create "${query.trim()}"`}</button></li>}
+    </ul>}
+    {query.trim() && !options.includes(query.trim()) && !query.trim().includes(' / ') && <small>Type "Group / Name" to create a new category inline.</small>}
+  </div>
+}
+
+function CandidateReview({ detail, generation, categories, disabled, hasNext, onClose, onSaved }: {
+  detail: Detail; generation: string; categories: string[]; disabled: boolean; hasNext: boolean; onClose: () => void; onSaved: (status: string) => void | Promise<void>
+}) {
   const [scope, setScope] = useState<'one'|'selected'|'rule'>('rule')
   const [anchors, setAnchors] = useState(() => new Set(detail.records.map(row => row.anchor)))
   const [records, setRecords] = useState(detail.records)
   const [nextCursor, setNextCursor] = useState(detail.next_cursor ?? null)
   const [options, setOptions] = useState<RuleOption[]>([])
   const [option, setOption] = useState(0)
+  const [localCategories, setLocalCategories] = useState(categories)
   const [category, setCategory] = useState('')
   const [reason, setReason] = useState('')
   const [compiled, setCompiled] = useState<CompiledRule | null>(null)
@@ -92,18 +173,38 @@ function CandidateReview({ detail, generation, categories, disabled, onClose, on
   const [error, setError] = useState('')
   const [batching, setBatching] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [batchChecked, setBatchChecked] = useState(false)
   const variants = [...new Set(detail.records.map(row => row.merchant_normalized).filter((value): value is string => Boolean(value)))]
   const [aliasVariants, setAliasVariants] = useState<Set<string>>(() => new Set())
   const [aliasCanonical, setAliasCanonical] = useState(detail.candidate.label)
   const command = useLedgerCommand(generation, onSaved)
+  const categoryFieldId = useRef(`category-${detail.candidate.candidate_id}`).current
   useEffect(() => {
     api<{ options: RuleOption[] }>('categorization/derive-rule', { generation, anchors: detail.records.map(r => r.anchor) })
       .then(result => { setOptions(result.options); if (!result.options.length) setScope('one') })
       .catch(e => setError((e as Error).message))
   }, [detail, generation])
+  useEffect(() => {
+    const field = document.getElementById(categoryFieldId)
+    field?.focus()
+  }, [categoryFieldId])
+  useEffect(() => { if (command.previewed && category) rememberCategory(category) }, [command.previewed])
+  function resetChecks() { setCompiled(null); setBatchChecked(false); command.reset() }
+  async function createCategory(name: string) {
+    setError('')
+    try {
+      const requestId = crypto.randomUUID()
+      const body = { request_id: requestId, expected_generation: generation, kind: 'CATEGORY_CREATE', anchors: { category: name }, payload: { category: name, reason: `Created inline while categorizing ${detail.candidate.label}` } }
+      await api('preview', body)
+      await api('commands', body)
+      setLocalCategories(current => current.includes(name) ? current : [...current, name])
+      return true
+    } catch (e) { setError((e as Error).message); return false }
+  }
+  /** Impact check and rule preview are the same click: breadth no longer buys a shortcut past confirmation. */
   async function previewRule() {
     if (!options[option] || !category || !reason.trim()) return
-    setError(''); setCompiled(null); setCombinedImpact(null); command.reset()
+    setError(''); setCombinedImpact(null); command.reset()
     try {
       if (aliasVariants.size) {
         const preview = await api<{ impact: CompiledRule['impact'] }>('categorization/impact', {
@@ -112,17 +213,21 @@ function CandidateReview({ detail, generation, categories, disabled, onClose, on
         })
         setCombinedImpact(preview.impact)
       }
-      setCompiled(await compileRule(options[option].match, category, reason.trim()))
+      const compiledRule = await compileRule(options[option].match, category, reason.trim())
+      setCompiled(compiledRule)
+      await command.act(compiledRule.command)
     } catch (e) { setError((e as Error).message) }
   }
+  function checkedRecords() { return records.filter(row => anchors.has(row.anchor)) }
   async function applySelected() {
-    if (!category || !anchors.size || batching) return
+    if (!batchChecked || !category || !anchors.size || batching) return
     setBatching(true); setError('')
     try {
       const result = await api<{ status: string }>('batch', {
         request_id: crypto.randomUUID(), expected_generation: generation, reason: reason.trim(),
         items: [...anchors].map(entry => ({ kind: 'CATEGORY_OVERRIDE', anchors: { entry }, payload: { category, reason: reason.trim() } })),
       })
+      rememberCategory(category)
       await onSaved(result.status)
     } catch (e) { setError((e as Error).message) } finally { setBatching(false) }
   }
@@ -149,23 +254,44 @@ function CandidateReview({ detail, generation, categories, disabled, onClose, on
           compiled.command,
         ],
       })
+      rememberCategory(category)
       await onSaved(result.status)
     } catch (e) { setError((e as Error).message) } finally { setBatching(false) }
   }
-  const record = detail.records[0]
+  const onlyChecked = checkedRecords()
+  const onlyTarget = onlyChecked.length === 1 ? onlyChecked[0] : null
+  const notAllLoaded = records.length < detail.candidate.transaction_count
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
-    <DialogContent className="candidate-review candidate-review-dialog" showCloseButton={false} aria-label={`Review ${detail.candidate.label}`}>
+    <DialogContent className="candidate-review candidate-review-dialog" showCloseButton={false} aria-label={`Review ${detail.candidate.label}`} onKeyDown={e => { if (e.key === 'Escape') onClose() }}>
     <DialogHeader className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><DialogTitle>{detail.candidate.label}</DialogTitle><DialogDescription>{detail.candidate.transaction_count} similar transactions. Choose exactly what should change before saving.</DialogDescription></div><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></div></DialogHeader>
-    <div className="candidate-records">{records.map(row => <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next })}/><span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}</small></label>)}</div>
+    {notAllLoaded && <p className="candidate-records-note">Showing {records.length} of {detail.candidate.transaction_count} loaded so far. Selected counts below cover only loaded records, not the full group.</p>}
+    <div className="candidate-records">
+      <label key="all"><input type="checkbox" checked={anchors.size === records.length && records.length > 0} onChange={() => setAnchors(current => current.size === records.length ? new Set() : new Set(records.map(r => r.anchor)))}/><span>{anchors.size === records.length ? `Deselect all ${records.length} loaded` : `Select all ${records.length} loaded`}</span><strong/></label>
+      {records.map(row => <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}</small></label>)}
+    </div>
     {nextCursor && <Button variant="outline" size="sm" disabled={detailLoading} onClick={() => void loadMoreRecords()}>{detailLoading ? 'Loading records…' : 'Load more records'}</Button>}
-    <fieldset disabled={disabled || command.attempted || batching}><legend>Choose scope</legend><label><input type="radio" checked={scope === 'one'} onChange={() => { setScope('one'); setCompiled(null); command.reset() }}/> Only this transaction</label><label><input type="radio" checked={scope === 'selected'} onChange={() => { setScope('selected'); setCompiled(null); command.reset() }}/> Selected transactions ({anchors.size})</label><label><input type="radio" checked={scope === 'rule'} disabled={!options.length} onChange={() => { setScope('rule'); setCompiled(null); command.reset() }}/> All matching transactions, now and later</label></fieldset>
-    {scope === 'rule' && options.length > 1 && <label>Match scope<select value={option} onChange={e => { setOption(Number(e.target.value)); setCompiled(null); command.reset() }}>{options.map((item, index) => <option key={item.label} value={index}>{item.label}</option>)}</select></label>}
-    {scope === 'rule' && variants.length > 0 && <fieldset className="alias-step"><legend>Normalize statement-name variants <small>(optional)</small></legend><label>Canonical merchant name<input value={aliasCanonical} onChange={e => setAliasCanonical(e.target.value)} /></label>{variants.map(variant => <label key={variant}><input type="checkbox" checked={aliasVariants.has(variant)} onChange={() => setAliasVariants(current => { const next = new Set(current); next.has(variant) ? next.delete(variant) : next.add(variant); return next })}/>{variant}</label>)}</fieldset>}
-    <label>Category<select value={category} onChange={e => { setCategory(e.target.value); setCompiled(null); command.reset() }}><option value="" disabled>Choose a category</option>{categories.filter(c => !c.startsWith('Internal /')).map(c => <option key={c}>{c}</option>)}</select></label>
-    <label>Reason {(scope === 'one' || scope === 'selected') && <small>(optional)</small>}<input value={reason} onChange={e => { setReason(e.target.value); setCompiled(null); command.reset() }} /></label>
+    <fieldset disabled={disabled || command.attempted || batching}><legend>Choose scope</legend>
+      <label><input type="radio" checked={scope === 'one'} onChange={() => { setScope('one'); resetChecks() }}/> Only this transaction{onlyTarget ? ` — ${onlyTarget.date} · ${money(onlyTarget.amount, onlyTarget.currency)}${onlyTarget.description ? ` · ${onlyTarget.description}` : ''}` : ' (check exactly one below)'}</label>
+      <label><input type="radio" checked={scope === 'selected'} onChange={() => { setScope('selected'); resetChecks() }}/> Selected transactions ({anchors.size} of {records.length} loaded)</label>
+      <label><input type="radio" checked={scope === 'rule'} disabled={!options.length} onChange={() => { setScope('rule'); resetChecks() }}/> All matching transactions, now and later</label>
+    </fieldset>
+    {scope === 'one' && !onlyTarget && <p className="form-error">Check exactly one transaction above to act on it.</p>}
+    {scope === 'rule' && options.length > 1 && <label>Match scope<select value={option} onChange={e => { setOption(Number(e.target.value)); resetChecks() }}>{options.map((item, index) => <option key={item.label} value={index}>{item.label}</option>)}</select></label>}
+    {scope === 'rule' && variants.length > 0 && <fieldset className="alias-step"><legend>Normalize statement-name variants <small>(optional)</small></legend><label>Canonical merchant name<input value={aliasCanonical} onChange={e => setAliasCanonical(e.target.value)} /></label>{variants.map(variant => <label key={variant}><input type="checkbox" checked={aliasVariants.has(variant)} onChange={() => { setAliasVariants(current => { const next = new Set(current); next.has(variant) ? next.delete(variant) : next.add(variant); return next }); resetChecks() }}/>{variant}</label>)}</fieldset>}
+    <CategoryCombobox id={categoryFieldId} categories={localCategories} value={category} onChange={c => { setCategory(c); resetChecks() }} onCreate={createCategory} disabled={disabled || command.attempted || batching}/>
+    <label>Reason {(scope === 'one' || scope === 'selected') && <small>(optional)</small>}<input value={reason} onChange={e => { setReason(e.target.value); resetChecks() }} /></label>
     {error && <p className="form-error">{error}</p>}{command.error && <p className="form-error">{command.error}</p>}
-    {compiled && !command.previewed && <ImpactDetails impact={combinedImpact ?? compiled.impact}/>} 
-    <div className="dialog-actions">{scope === 'one' ? <Button disabled={disabled || !category || command.busy} onClick={() => void command.act({ kind: 'CATEGORY_OVERRIDE', anchors: { entry: record.anchor }, payload: { category, reason } })}>{command.previewed ? 'Save one transaction' : 'Preview one transaction'}</Button> : scope === 'selected' ? <Button disabled={disabled || !category || !anchors.size || batching} onClick={() => void applySelected()}>{batching ? 'Saving selected transactions…' : `Save ${anchors.size} selected transactions`}</Button> : aliasVariants.size ? <Button disabled={disabled || !compiled || !aliasCanonical.trim() || batching} onClick={() => void saveRuleWithAlias()}>{batching ? 'Saving alias and rule…' : 'Save alias and rule together'}</Button> : <Button disabled={disabled || !category || !reason.trim() || command.busy} onClick={() => { if (compiled) void command.act(compiled.command); else void previewRule() }}>{!compiled ? 'Check exact impact' : command.previewed ? 'Save rule' : 'Preview rule'}</Button>}</div>
+    {scope === 'rule' && compiled && command.previewed && !command.attempted && <ImpactDetails impact={combinedImpact ?? compiled.impact}/>}
+    {scope === 'selected' && batchChecked && <div className="preview" role="status"><Check size={16}/><div><strong>Ready to save</strong><p>{anchors.size} transaction{anchors.size === 1 ? '' : 's'} will be set to {category}.</p></div></div>}
+    <p className="keyboard-hint"><kbd>Esc</kbd> to close without saving.</p>
+    <div className="dialog-actions">
+      {scope === 'one' ? <Button disabled={disabled || !category || !onlyTarget || command.busy} onClick={() => void command.act({ kind: 'CATEGORY_OVERRIDE', anchors: { entry: onlyTarget!.anchor }, payload: { category, reason } })}>{command.previewed ? (hasNext ? 'Save and next' : 'Save one transaction') : 'Preview one transaction'}</Button>
+      : scope === 'selected' ? (!batchChecked
+        ? <Button disabled={disabled || !category || !anchors.size} onClick={() => setBatchChecked(true)}>Check {anchors.size} transaction{anchors.size === 1 ? '' : 's'}</Button>
+        : <Button disabled={disabled || batching} onClick={() => void applySelected()}>{batching ? 'Saving selected transactions…' : hasNext ? 'Save and next' : `Save ${anchors.size} selected transactions`}</Button>)
+      : aliasVariants.size ? <Button disabled={disabled || !command.previewed || !aliasCanonical.trim() || batching} onClick={() => void saveRuleWithAlias()}>{batching ? 'Saving alias and rule…' : 'Save alias and rule together'}</Button>
+      : <Button disabled={disabled || !category || !reason.trim() || command.busy} onClick={() => { if (command.previewed) void command.act(compiled!.command); else void previewRule() }}>{command.previewed ? (hasNext ? 'Save and next' : 'Save rule') : 'Preview rule'}</Button>}
+    </div>
     </DialogContent>
   </Dialog>
 }

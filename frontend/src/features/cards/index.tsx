@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
+import { dateLabel } from '@/lib/format'
 import { SourceComparison } from './SourceComparison'
 import {
   RECONCILIATION_LABEL,
@@ -12,12 +13,6 @@ import {
   type CardListRow,
   type CardsPage,
 } from './api'
-
-function dateLabel(value: string) {
-  return new Date(value + 'T12:00:00').toLocaleDateString('en-SG', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  })
-}
 
 function CardRow({ row, onOpen }: { row: CardListRow; onOpen: (id: string) => void }) {
   const latest = row.latest_statement

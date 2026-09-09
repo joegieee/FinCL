@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { AsyncView } from '@/components/AsyncView'
 import { api } from '@/lib/api'
 import { useLedgerCommand } from '@/lib/command'
 
@@ -62,11 +63,17 @@ export function ReviewHub({ freshness, onSaved, onOpenCategorization }: { freshn
   const afterSave = async (status: string) => { await onSaved(status); load() }
   const disabled = freshness === 'stale'
 
-  if (error && !page) {
-    return <div className="alert error" role="alert"><div><strong>We couldn’t load the review hub.</strong><p>{error}</p></div><Button variant="outline" onClick={load}>Try again</Button></div>
-  }
-  if (!page) return <div className="skeleton-page" aria-label="Loading review"><div /><div /></div>
+  return (
+    <AsyncView loading={!page && !error} error={error} data={page} onRetry={load} loadingLabel="Loading review" skeletonRows={2} errorTitle="We couldn’t load the review hub.">
+      {page => <ReviewHubContent page={page} disabled={disabled} afterSave={afterSave} unclassified={unclassified} onOpenCategorization={onOpenCategorization} showDeferred={showDeferred} setShowDeferred={setShowDeferred} />}
+    </AsyncView>
+  )
+}
 
+function ReviewHubContent({ page, disabled, afterSave, unclassified, onOpenCategorization, showDeferred, setShowDeferred }: {
+  page: ReviewPage; disabled: boolean; afterSave: (status: string) => Promise<void>; unclassified: number | null
+  onOpenCategorization?: () => void; showDeferred: boolean; setShowDeferred: (fn: (v: boolean) => boolean) => void
+}) {
   const active = page.issues.filter(i => !i.deferred)
   const deferred = page.issues.filter(i => i.deferred)
   const queues = [...new Set(active.map(i => i.queue))]

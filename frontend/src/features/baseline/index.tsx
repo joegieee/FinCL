@@ -3,6 +3,7 @@ import { AlertTriangle, CalendarRange, CheckCircle2, RefreshCw } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { AsyncView } from '@/components/AsyncView'
 import { money } from '@/lib/api'
 import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness, type Completeness, type CurrencyEstimate, type PocketReadiness, type Ratio } from './api'
 
@@ -51,12 +52,14 @@ export function BaselineView() {
   }, [])
   useEffect(() => { load() }, [load])
 
-  if (loading && !page) return <div className="skeleton-page" aria-label="Loading baseline readiness"><div /><div /><div /></div>
-  if (error && !page) {
-    return <div className="alert error" role="alert"><div><strong>We couldn’t load baseline readiness.</strong><p>{error}</p></div><Button variant="outline" onClick={load}>Try again</Button></div>
-  }
-  if (!page) return null
+  return (
+    <AsyncView loading={loading} error={error} data={page} onRetry={load} loadingLabel="Loading baseline readiness" errorTitle="We couldn’t load baseline readiness.">
+      {page => <BaselineContent page={page} estimate={estimate} loading={loading} load={load} />}
+    </AsyncView>
+  )
+}
 
+function BaselineContent({ page, estimate, loading, load }: { page: BaselineReadiness; estimate: BaselineEstimate | null; loading: boolean; load: () => void }) {
   const w = page.baseline_window
   const analysis = page.scope.analysis_window
 

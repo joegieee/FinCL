@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { AsyncView } from '@/components/AsyncView'
 import { useLedgerCommand } from '@/lib/command'
 import { api } from '@/lib/api'
 import { compileRule, loadRules, PREDICATES, type CompiledRule, type RulesPage } from './api'
@@ -35,13 +36,18 @@ export function RulesView({ generation, freshness, categories, onSaved }: {
 
   const afterSave = async (status: string) => { await onSaved(status); load() }
   const disabled = freshness === 'stale'
-  const inactiveRules = page?.inactive_rules ?? []
 
-  if (loading && !page) return <div className="skeleton-page" aria-label="Loading rules"><div /><div /><div /></div>
-  if (error && !page) {
-    return <div className="alert error" role="alert"><div><strong>We couldn’t load rules.</strong><p>{error}</p></div><Button variant="outline" onClick={load}>Try again</Button></div>
-  }
-  if (!page) return null
+  return (
+    <AsyncView loading={loading} error={error} data={page} onRetry={load} loadingLabel="Loading rules" errorTitle="We couldn’t load rules.">
+      {page => <RulesContent page={page} generation={generation} categories={categories} disabled={disabled} loading={loading} load={load} afterSave={afterSave} />}
+    </AsyncView>
+  )
+}
+
+function RulesContent({ page, generation, categories, disabled, loading, load, afterSave }: {
+  page: RulesPage; generation: string; categories: string[]; disabled: boolean; loading: boolean; load: () => void; afterSave: (status: string) => Promise<void>
+}) {
+  const inactiveRules = page.inactive_rules ?? []
 
   return (
     <div className="rules-view">

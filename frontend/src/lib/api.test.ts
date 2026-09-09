@@ -1,5 +1,29 @@
-import { describe, expect, it } from 'vitest'
-import { compareMoney, money, shortCategory } from './api'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { api, compareMoney, money, shortCategory } from './api'
+
+describe('api', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('shares one in-flight GET across concurrent callers for the same path', async () => {
+    let calls = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      calls++
+      await new Promise(resolve => setTimeout(resolve, 5))
+      return { ok: true, json: async () => ({ value: 'x' }) } as Response
+    }))
+    const [a, b] = await Promise.all([api('overview'), api('overview')])
+    expect(calls).toBe(1)
+    expect(a).toEqual(b)
+  })
+
+  it('issues a fresh request once the prior one has settled', async () => {
+    let calls = 0
+    vi.stubGlobal('fetch', vi.fn(async () => { calls++; return { ok: true, json: async () => ({ value: calls }) } as Response }))
+    await api('overview')
+    await api('overview')
+    expect(calls).toBe(2)
+  })
+})
 
 describe('money', () => {
   it('renders an unavailable amount as text, never as zero', () => {

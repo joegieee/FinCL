@@ -57,6 +57,17 @@ describe('ForecastView', () => {
     expect(screen.queryByText('SGD 0.00')).not.toBeInTheDocument()
   })
 
+  it('shows a missing period, not NaN, when the conservative case is shorter than the base case', async () => {
+    const shortConservative = scenario({ months: [scenario().months[0]] })
+    const longBase = scenario({ months: [scenario().months[0], { ...scenario().months[0], month: '2026-03', closing: '90.00' }] })
+    loadForecast.mockResolvedValue(page({ by_currency: { SGD: { available: true, starting_balance: '100.00', starting_balance_as_of: '2026-01-31', base: longBase, conservative: shortConservative, reserve_readiness: { available: false, reason: 'no reserve' } } } }))
+    render(<ForecastView />)
+
+    await screen.findByText('Balance by month')
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument()
+    expect(screen.getAllByText('Missing period').length).toBeGreaterThan(0)
+  })
+
   it('renders a backend refusal payload with no case_policy without crashing', async () => {
     loadForecast.mockResolvedValue({
       available: false,

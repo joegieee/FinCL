@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, PenLine, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { money } from '@/lib/api'
+import { BalanceObservationForm } from './BalanceObservationForm'
 import { loadCashPosition, type CashBridgePocket, type CashPocket, type CashPosition } from './api'
 
 /**
@@ -22,10 +23,13 @@ import { loadCashPosition, type CashBridgePocket, type CashPocket, type CashPosi
  * - A currency total the module withholds shows its stated reason, never a zero.
  * - A receivable is not cash: only settled bank and e-wallet pockets are liquid.
  */
-export function CashView() {
+export function CashView({
+  generation, onSaved,
+}: { generation: string; onSaved?: (status: string) => void | Promise<void> }) {
   const [page, setPage] = useState<CashPosition | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [observing, setObserving] = useState<CashPocket | null>(null)
   const seq = useRef(0)
 
   const load = useCallback(() => {
@@ -111,16 +115,34 @@ export function CashView() {
       <Card className="cash-pockets-card">
         <div className="panel-title"><div><p className="eyebrow">PER-ACCOUNT &amp; PER-POCKET NATIVE BALANCES</p><h2>{included.length === 0 ? 'No included pockets' : `${included.length} in liquid scope`}</h2></div></div>
         <table className="pocket-table">
-          <thead><tr><th>Account</th><th>Pocket</th><th>Native balance</th><th>Coverage-backed balance</th><th>Basis</th><th>As of</th><th>Scope</th></tr></thead>
+          <thead><tr><th>Account</th><th>Pocket</th><th>Native balance</th><th>Coverage-backed balance</th><th>Basis</th><th>As of</th><th>Scope</th><th><span className="sr-only">Manual observation</span></th></tr></thead>
           <tbody>
-            {page.pockets.map(pocket => <PocketRow key={`${pocket.account_id}:${pocket.currency_pocket}`} pocket={pocket} staleAfter={page.stale_after_days} />)}
+            {page.pockets.map(pocket => <PocketRow key={`${pocket.account_id}:${pocket.currency_pocket}`} pocket={pocket} staleAfter={page.stale_after_days} onObserve={() => setObserving(pocket)} />)}
           </tbody>
         </table>
         <p className="muted-note">
           <ShieldCheck size={13} /> A receivable is not cash. Only settled bank and e-wallet pockets are counted as liquid;
           credit-card facility pockets are an obligation and are excluded.
         </p>
+        <p className="muted-note">
+          <PenLine size={13} /> "Record balance" asserts a dated balance by hand — from a bank app or a passbook — for a
+          pocket with no statement to import. It carries the same weight as a printed statement close, but on its own it
+          proves only that one day; it does not certify the days around it.
+        </p>
       </Card>
+
+      {observing && (
+        <BalanceObservationForm
+          pocket={observing}
+          generation={generation}
+          onCancel={() => setObserving(null)}
+          onSaved={async (status) => {
+            setObserving(null)
+            load()
+            await onSaved?.(status)
+          }}
+        />
+      )}
 
       {excluded.length > 0 && (
         <Card className="cash-excluded-card">
@@ -173,7 +195,7 @@ export function CashView() {
   )
 }
 
-function PocketRow({ pocket, staleAfter }: { pocket: CashPocket; staleAfter: number }) {
+function PocketRow({ pocket, staleAfter, onObserve }: { pocket: CashPocket; staleAfter: number; onObserve: () => void }) {
   return (
     <tr>
       <td>
@@ -200,6 +222,16 @@ function PocketRow({ pocket, staleAfter }: { pocket: CashPocket; staleAfter: num
         {pocket.liquid
           ? <Badge variant="outline">Liquid</Badge>
           : <Badge variant="outline" className="review-badge" title={pocket.excluded_reason ?? undefined}>Excluded</Badge>}
+      </td>
+      <td>
+        <Button
+          variant="ghost" size="sm"
+          title="Record a manual balance observation for this pocket"
+          aria-label={`${pocket.manual_observation ? 'Update' : 'Record'} manual balance for ${pocket.display_name ?? pocket.account_id} ${pocket.currency_pocket}`}
+          onClick={onObserve}
+        >
+          <PenLine size={14} /> {pocket.manual_observation ? 'Update' : 'Record balance'}
+        </Button>
       </td>
     </tr>
   )

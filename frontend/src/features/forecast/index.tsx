@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ChartFrame } from '@/components/ChartFrame'
 import { money } from '@/lib/api'
+import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_SEMANTIC, CHART_TOOLTIP_STYLE, currencyTick } from '@/lib/chart-theme'
 import { loadForecast, type ForecastCase, type ForecastCurrency, type ForecastPage, type Milestone } from './api'
 
 function monthLabel(month: string) {
@@ -70,7 +72,7 @@ function CurrencyForecast({ currency, forecast }: { currency: string; forecast: 
     </Card>
     <BreachBanner base={forecast.base} conservative={forecast.conservative} />
     <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">MONTHLY CONTINUITY</p><h2>Both cases, side by side</h2></div></div><MonthTable currency={currency} base={forecast.base} conservative={forecast.conservative} /></Card>
-    <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">CLOSING BALANCE</p><h2>Balance by month</h2></div></div><BalanceChart currency={currency} base={forecast.base} conservative={forecast.conservative} /></Card>
+    <BalanceChart currency={currency} base={forecast.base} conservative={forecast.conservative} />
   </>
 }
 
@@ -87,8 +89,40 @@ function MonthTable({ currency, base, conservative }: { currency: string; base: 
 }
 
 function BalanceChart({ currency, base, conservative }: { currency: string; base: ForecastCase; conservative: ForecastCase }) {
-  const data = base.months.map((row, index) => ({ month: monthLabel(row.month), base: Number(row.closing), conservative: Number(conservative.months[index]?.closing) }))
-  return <div className="forecast-chart" role="img" aria-label={`Projected monthly closing balances in ${currency}; base and conservative cases`}><ResponsiveContainer width="100%" height={260}><LineChart data={data}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="month" /><YAxis /><Tooltip formatter={(value, name) => [money(String(value), currency), name === 'base' ? 'Base case' : 'Conservative case']} /><Legend formatter={value => value === 'base' ? 'Base case' : 'Conservative case'} /><Line type="monotone" dataKey="base" stroke="#247b69" strokeWidth={2} dot={false} isAnimationActive={false} /><Line type="monotone" dataKey="conservative" stroke="#b55a45" strokeWidth={2} dot={false} isAnimationActive={false} /></LineChart></ResponsiveContainer></div>
+  // A conservative case shorter than the base case emits an explicit gap
+  // (null), never NaN — matching TrendChart's gap handling.
+  const data = base.months.map((row, index) => {
+    const conservativeRow = conservative.months[index]
+    return { month: monthLabel(row.month), base: Number(row.closing), conservative: conservativeRow ? Number(conservativeRow.closing) : null }
+  })
+  const shorterConservative = conservative.months.length < base.months.length
+  return <ChartFrame
+    eyebrow="CLOSING BALANCE"
+    title="Balance by month"
+    ariaLabel={`Projected monthly closing balances in ${currency}; base and conservative cases`}
+    footer={shorterConservative ? 'The conservative case ends before the base case; gaps mean unavailable data, not a zero balance.' : 'Gaps mean unavailable data, not a zero balance.'}
+    legend={<>
+      <span><i style={{ background: CHART_SEMANTIC.base }} />Base case</span>
+      <span><i style={{ background: CHART_SEMANTIC.conservative }} />Conservative case</span>
+    </>}
+    table={<table>
+      <thead><tr><th>Month</th><th>Base closing</th><th>Conservative closing</th></tr></thead>
+      <tbody>{data.map(row => <tr key={row.month}><td>{row.month}</td><td>{money(String(row.base), currency)}</td><td>{row.conservative === null ? 'Missing period' : money(String(row.conservative), currency)}</td></tr>)}</tbody>
+    </table>}
+  >
+    <div className="forecast-chart">
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+          <XAxis dataKey="month" tick={CHART_AXIS_TICK} axisLine={{ stroke: CHART_GRID_STROKE }} tickLine={false} />
+          <YAxis tick={CHART_AXIS_TICK} axisLine={{ stroke: CHART_GRID_STROKE }} tickLine={false} tickFormatter={currencyTick(currency)} />
+          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [value === null ? 'Missing period' : money(String(value), currency), name === 'base' ? 'Base case' : 'Conservative case']} />
+          <Line type="monotone" dataKey="base" name="base" stroke={CHART_SEMANTIC.base} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
+          <Line type="monotone" dataKey="conservative" name="conservative" stroke={CHART_SEMANTIC.conservative} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  </ChartFrame>
 }
 
 function AssumptionsAndSources({ page }: { page: ForecastPage }) {
@@ -98,9 +132,9 @@ function AssumptionsAndSources({ page }: { page: ForecastPage }) {
   return <Card className="forecast-card"><details><summary><span className="eyebrow">ASSUMPTIONS &amp; SOURCES</span><h2>How this estimate was formed</h2></summary><div className="forecast-drill"><p><strong>Base case:</strong> {casePolicy.base}</p><p><strong>Conservative case:</strong> {casePolicy.conservative}</p><p><strong>Upper-spend assumption:</strong> observed stress case — it uses observed spending, not a percentile or confidence interval.</p>{casePolicy.strong_income_interruption && <p><strong>Income interruption:</strong> stress case, not the expected outcome. {casePolicy.strong_income_interruption_note}</p>}{Object.entries(page.metadata ?? {}).map(([label, detail]) => <p key={label}><strong>{label.replaceAll('_', ' ')}:</strong> {detail}</p>)}<h3>Source adapters</h3><ul className="issue-list">{(page.provenance ?? []).map(source => <li key={source.input}><strong>{source.input}</strong> · {source.available ? 'available' : 'unavailable'}<p>{source.reason ?? `${source.module}; used for ${source.consumed_by.join(', ')}`}</p></li>)}</ul><h3>Modelled source events · base case</h3>{events.length ? <ul className="issue-list">{events.map(({ currency, event }) => <li key={`${currency}:${event.event_id}`}><strong>{event.label}</strong> · {money(event.amount, currency)}<p>{eventTimingLabel(event)} · source {event.source_id}</p></li>)}</ul> : <p>There are no safely placed source events to display. That is a named input limitation, not a zero event.</p>}</div></details></Card>
 }
 
-export function ForecastEstimateSummary({ onOpen }: { onOpen: () => void }) {
-  const [page, setPage] = useState<ForecastPage | null>(null)
-  useEffect(() => { void loadForecast().then(setPage).catch(() => setPage(null)) }, [])
+// Takes the already-fetched page from OverviewActionPanel's own load instead
+// of issuing a second `loadForecast()` for the same data (PLAN-ui-cohesion.md §1.5).
+export function ForecastEstimateSummary({ page, onOpen }: { page: ForecastPage | null; onOpen: () => void }) {
   if (!page) return null
   const first = Object.entries(page.by_currency).find((entry): entry is [string, ForecastCurrency] => entry[1].available)
   return <button className="insight forecast-summary" onClick={onOpen}><span className="insight-icon sand"><AlertTriangle size={18} /></span><div><h3>Six-month forecast</h3><p>{first ? `${first[0]} conservative closing: ${money(first[1].conservative.closing_balance, first[0])}. Estimate only — open Forecast for cases and assumptions.` : `Forecast gap: ${page.reason ?? 'inputs are unavailable.'}`}</p></div><span>Forecast →</span></button>

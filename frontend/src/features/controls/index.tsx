@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { AsyncView } from '@/components/AsyncView'
 import { money, shortCategory } from '@/lib/api'
 import { loadSpendingControls, runSpendingWhatIf, type SpendingControlsPage, type WhatIfDraft } from './api'
 
@@ -31,10 +32,17 @@ export function ControlsView({ initialMonth, currency }: { initialMonth: string;
   }, [currency, month])
   useEffect(() => { setMonth(initialMonth); load(initialMonth) }, [currency, initialMonth])
 
-  if (loading && !page) return <div className="skeleton-page" aria-label="Loading spending controls"><div /><div /><div /></div>
-  if (error && !page) return <div className="alert error" role="alert"><div><strong>We couldn’t load spending controls.</strong><p>{error}</p></div><Button variant="outline" onClick={() => load()}>Try again</Button></div>
-  if (!page) return null
+  return (
+    <AsyncView loading={loading} error={error} data={page} onRetry={() => load()} loadingLabel="Loading spending controls" errorTitle="We couldn’t load spending controls.">
+      {page => <ControlsContent page={page} month={month} setMonth={setMonth} load={load} loading={loading} error={error} setPage={setPage} setError={setError} />}
+    </AsyncView>
+  )
+}
 
+function ControlsContent({ page, month, setMonth, load, loading, error, setPage, setError }: {
+  page: SpendingControlsPage; month: string; setMonth: (m: string) => void; load: (selected?: string) => void; loading: boolean
+  error: string; setPage: (p: SpendingControlsPage) => void; setError: (e: string) => void
+}) {
   return <div className="controls-view">
     <div className="scope-caption">
       <span>{page.horizon ? `Conservative path ${page.horizon.supported_cash_cutoff} → ${page.horizon.end}` : 'No supported forecast horizon'} · proposals never change recorded totals</span>

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AsyncView } from '@/components/AsyncView'
 import { ApiError } from '@/lib/api'
 import {
   ADAPTERS, MAX_BYTES, MAX_FILES,
@@ -44,31 +45,28 @@ export function SetupView({ onImported }: { onImported: () => void }) {
   }, [])
   useEffect(() => { load() }, [load])
 
-  if (loading && !setup) {
-    return <div className="skeleton-page" aria-label="Loading setup"><div /><div /><div /></div>
-  }
-  if (error && !setup) {
-    return (
-      <div className="alert error" role="alert">
-        <div><strong>We couldn’t load setup.</strong><p>{error}</p></div>
-        <Button variant="outline" onClick={load}>Try again</Button>
-      </div>
-    )
-  }
+  return (
+    <AsyncView loading={loading} error={error} data={setup} onRetry={load} loadingLabel="Loading setup" errorTitle="We couldn’t load setup.">
+      {setup => <SetupContent setup={setup} imports={imports} loading={loading} load={load} onImported={onImported} detail={detail} setDetail={setDetail} setError={setError} />}
+    </AsyncView>
+  )
+}
 
+function SetupContent({ setup, imports, loading, load, onImported, detail, setDetail, setError }: {
+  setup: SetupOptions; imports: ImportRun[] | null; loading: boolean; load: () => void; onImported: () => void
+  detail: ImportDetail | null; setDetail: (d: ImportDetail | null) => void; setError: (e: string) => void
+}) {
   return (
     <div className="setup-view">
-      {setup && (
-        <Card className="setup-summary">
-          <div className="panel-title"><div><p className="eyebrow">THIS LEDGER</p><h2>{setup.current_ledger}</h2></div>
-            <Badge variant="outline">{setup.state === 'ready' ? 'Ready' : setup.state}</Badge></div>
-          <dl className="detail-list">
-            <div><dt>Storage profile</dt><dd>{setup.storage_profile}</dd></div>
-            <div><dt>Workspace root</dt><dd className="mono">{setup.workspace_root}</dd></div>
-          </dl>
-          <p className="muted-note"><ShieldCheck size={13} /> New ledgers and switching are granted by the host launcher (<code>fincl setup --workspace-root</code>). This screen never takes an absolute path from the browser.</p>
-        </Card>
-      )}
+      <Card className="setup-summary">
+        <div className="panel-title"><div><p className="eyebrow">THIS LEDGER</p><h2>{setup.current_ledger}</h2></div>
+          <Badge variant="outline">{setup.state === 'ready' ? 'Ready' : setup.state}</Badge></div>
+        <dl className="detail-list">
+          <div><dt>Storage profile</dt><dd>{setup.storage_profile}</dd></div>
+          <div><dt>Workspace root</dt><dd className="mono">{setup.workspace_root}</dd></div>
+        </dl>
+        <p className="muted-note"><ShieldCheck size={13} /> New ledgers and switching are granted by the host launcher (<code>fincl setup --workspace-root</code>). This screen never takes an absolute path from the browser.</p>
+      </Card>
 
       <ImportWizard onDone={() => { load(); onImported() }} />
 

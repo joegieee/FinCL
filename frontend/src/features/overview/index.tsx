@@ -26,7 +26,7 @@ type Snapshot = {
 
 const unavailable = 'Evidence not available yet'
 
-export function OverviewActionPanel({ data, onOpen }: { data: Dashboard; onOpen: (destination: OverviewDestination) => void }) {
+export function OverviewActionPanel({ data, onOpen, onForecast }: { data: Dashboard; onOpen: (destination: OverviewDestination) => void; onForecast?: (page: ForecastPage | undefined) => void }) {
   const [snapshot, setSnapshot] = useState<Snapshot>({})
   const [loading, setLoading] = useState(true)
   const sequence = useRef(0)
@@ -34,20 +34,21 @@ export function OverviewActionPanel({ data, onOpen }: { data: Dashboard; onOpen:
   const load = useCallback(() => {
     const id = ++sequence.current
     setLoading(true)
-    setSnapshot({})
     void Promise.allSettled([
       loadImports(), loadBaselineReadiness(), loadBaselineEstimate(), loadCashPosition(),
       loadForecast(), loadNetWorth(), loadObligations(), loadRecurring(),
     ]).then(results => {
       if (id !== sequence.current) return
       const value = <T,>(index: number) => results[index].status === 'fulfilled' ? results[index].value as T : undefined
+      const forecast = value<ForecastPage>(4)
       setSnapshot({
         imports: value<ImportsPage>(0), readiness: value<BaselineReadiness>(1), estimate: value<BaselineEstimate>(2), cash: value<CashPosition>(3),
-        forecast: value<ForecastPage>(4), netWorth: value<NetWorthPage>(5), obligations: value<ObligationsPage>(6), recurring: value<RecurringPage>(7),
+        forecast, netWorth: value<NetWorthPage>(5), obligations: value<ObligationsPage>(6), recurring: value<RecurringPage>(7),
       })
+      onForecast?.(forecast)
       setLoading(false)
     })
-  }, [])
+  }, [onForecast])
   useEffect(() => { load() }, [load, data.generation])
 
   const reserve = reserveText(snapshot.estimate, data.currency)
@@ -61,7 +62,7 @@ export function OverviewActionPanel({ data, onOpen }: { data: Dashboard; onOpen:
   const estimate = snapshot.estimate
   const recurring = snapshot.recurring
 
-  return <>
+  return <div aria-busy={loading} className={loading && Object.keys(snapshot).length ? 'content-loading' : ''}>
     <section className="overview-lead" aria-label="Financial position and next actions">
       <div className="overview-lead-heading"><div><p className="eyebrow">START HERE</p><h2>Your evidence-backed position</h2></div>{loading && <small>Checking ledger evidence…</small>}</div>
       <div className="overview-position-grid">
@@ -91,7 +92,7 @@ export function OverviewActionPanel({ data, onOpen }: { data: Dashboard; onOpen:
       </ol>
       <p className="muted-note">The checklist never substitutes a typed spending estimate for statement evidence. A zero is shown only when the ledger actually observed one.</p>
     </Card>
-  </>
+  </div>
 }
 
 function OverviewCard({ title, value, note, icon, onClick, warning = false }: { title: string; value: string; note: string; icon: React.ReactNode; onClick: () => void; warning?: boolean }) {

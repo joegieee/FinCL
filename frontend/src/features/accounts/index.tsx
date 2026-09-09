@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { AsyncView } from '@/components/AsyncView'
 import { useLedgerCommand } from '@/lib/command'
 import { loadAccounts, type AccountRow, type AccountsPage, type PocketCoverage } from './api'
 
@@ -33,12 +34,16 @@ export function AccountsView({ freshness, onSaved }: { freshness: string; onSave
 
   const afterSave = async (status: string) => { await onSaved(status); load() }
 
-  if (loading && !page) return <div className="skeleton-page" aria-label="Loading accounts"><div /><div /><div /></div>
-  if (error && !page) {
-    return <div className="alert error" role="alert"><div><strong>We couldn’t load accounts.</strong><p>{error}</p></div><Button variant="outline" onClick={load}>Try again</Button></div>
-  }
-  if (!page) return null
+  return (
+    <AsyncView loading={loading} error={error} data={page} onRetry={load} loadingLabel="Loading accounts" errorTitle="We couldn’t load accounts.">
+      {page => <AccountsContent page={page} freshness={freshness} loading={loading} load={load} afterSave={afterSave} />}
+    </AsyncView>
+  )
+}
 
+function AccountsContent({ page, freshness, loading, load, afterSave }: {
+  page: AccountsPage; freshness: string; loading: boolean; load: () => void; afterSave: (status: string) => Promise<void>
+}) {
   const covered = page.global_coverage?.covered
   const reasons = page.global_coverage?.reasons ?? []
 

@@ -4,6 +4,7 @@ export type BoundaryDetail = {
   balance: string
   as_of: string
   basis: string
+  observation?: string
   [k: string]: unknown
 }
 
@@ -89,3 +90,53 @@ export type CashPosition = {
 }
 
 export const loadCashPosition = () => api<CashPosition>('position')
+
+export type CommandResult = { status: string }
+
+async function previewThenCommit(body: {
+  request_id: string
+  expected_generation: string
+  kind: string
+  anchors: Record<string, string>
+  payload: Record<string, unknown>
+}): Promise<CommandResult> {
+  await api('preview', body)
+  return api<CommandResult>('commands', body)
+}
+
+export type BalanceObservationInput = {
+  account_id: string
+  currency_pocket: string
+  observed_on: string
+  balance: string
+  reason: string
+}
+
+/** Assert a dated balance directly, for when there is no statement to import. */
+export function recordBalanceObservation(
+  generation: string,
+  input: BalanceObservationInput,
+): Promise<CommandResult> {
+  return previewThenCommit({
+    request_id: crypto.randomUUID(),
+    expected_generation: generation,
+    kind: 'BALANCE_OBSERVATION_SET',
+    anchors: { observation: crypto.randomUUID() },
+    payload: { ...input },
+  })
+}
+
+/** Withdraw a previously recorded manual observation; the read path falls back to the next-best basis. */
+export function retireBalanceObservation(
+  generation: string,
+  observationId: string,
+  reason: string,
+): Promise<CommandResult> {
+  return previewThenCommit({
+    request_id: crypto.randomUUID(),
+    expected_generation: generation,
+    kind: 'BALANCE_OBSERVATION_RETIRE',
+    anchors: { observation: observationId },
+    payload: { reason },
+  })
+}

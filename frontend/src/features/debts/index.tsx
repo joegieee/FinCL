@@ -3,7 +3,9 @@ import { ArrowLeft, ChevronRight, Plus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
+import { dateLabel } from '@/lib/format'
 import { EventForm } from './EventForm'
+import { NewDebtForm } from './NewDebtForm'
 import {
   RECONCILIATION_LABEL,
   lifecycleCommand,
@@ -13,12 +15,6 @@ import {
   type DebtDetail,
   type DebtsPage,
 } from './api'
-
-function dateLabel(value: string) {
-  return new Date(value + 'T12:00:00').toLocaleDateString('en-SG', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  })
-}
 
 function DebtRow({ debt, onOpen }: { debt: DebtCard; onOpen: (id: string) => void }) {
   return (
@@ -196,6 +192,7 @@ export function DebtsView({
 }: { generation: string; onSaved?: (status: string) => void | Promise<void> }) {
   const [page, setPage] = useState<DebtsPage | null>(null)
   const [detail, setDetail] = useState<DebtDetail | null>(null)
+  const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -209,12 +206,23 @@ export function DebtsView({
 
   function openDetail(id: string) {
     setError('')
+    setCreating(false)
     loadDebtDetail(id, { generation })
       .then(setDetail)
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Could not load that debt.'))
   }
 
   if (error) return <Card className="debt-list"><p className="debt-empty">{error}</p></Card>
+  if (creating) return (
+    <NewDebtForm
+      generation={generation}
+      onCancel={() => setCreating(false)}
+      onSaved={async (status) => {
+        setCreating(false)
+        await onSaved?.(status)
+      }}
+    />
+  )
   if (detail) return (
     <DebtDetailView
       detail={detail}
@@ -230,7 +238,10 @@ export function DebtsView({
 
   return (
     <div className="debts-view">
-      <p className="debts-asof">Balances as of {page.as_of}. Payables and receivables shown separately.</p>
+      <div className="debts-toolbar">
+        <p className="debts-asof">Balances as of {page.as_of}. Payables and receivables shown separately.</p>
+        <Button size="sm" onClick={() => setCreating(true)}><Plus size={14} /> New debt</Button>
+      </div>
       <div className="debts-columns">
         <DebtList
           title="I owe" caption="Money you still owe other people."

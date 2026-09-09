@@ -4,14 +4,10 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AsyncView } from '@/components/AsyncView'
 import { money } from '@/lib/api'
+import { dateLabel } from '@/lib/format'
 import { loadNetWorth, type NetWorthComponent, type NetWorthPage } from './api'
-
-function dateLabel(value: string) {
-  return new Date(value + 'T12:00:00').toLocaleDateString('en-SG', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  })
-}
 
 const KIND_LABEL: Record<NetWorthComponent['kind'], string> = {
   cash: 'Cash position',
@@ -49,19 +45,17 @@ export function NetWorthView() {
   }, [])
   useEffect(() => { load() }, [load])
 
-  if (loading && !page) {
-    return <div className="skeleton-page" aria-label="Loading tracked net worth"><div /><div /><div /></div>
-  }
-  if (error && !page) {
-    return (
-      <div className="alert error" role="alert">
-        <div><strong>We couldn’t load tracked net worth.</strong><p>{error}</p></div>
-        <Button variant="outline" onClick={() => load()}>Try again</Button>
-      </div>
-    )
-  }
-  if (!page) return null
+  return (
+    <AsyncView loading={loading} error={error} data={page} onRetry={() => load()} loadingLabel="Loading tracked net worth" errorTitle="We couldn’t load tracked net worth.">
+      {page => <NetWorthContent page={page} loading={loading} load={load} asOf={asOf} setAsOf={setAsOf} priorAsOf={priorAsOf} setPriorAsOf={setPriorAsOf} />}
+    </AsyncView>
+  )
+}
 
+function NetWorthContent({ page, loading, load, asOf, setAsOf, priorAsOf, setPriorAsOf }: {
+  page: NetWorthPage; loading: boolean; load: (params?: { as_of?: string; prior_as_of?: string }) => void
+  asOf: string; setAsOf: (v: string) => void; priorAsOf: string; setPriorAsOf: (v: string) => void
+}) {
   const currencies = Object.keys(page.per_currency).sort()
 
   return (

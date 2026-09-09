@@ -3,7 +3,9 @@ import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { AsyncView } from '@/components/AsyncView'
 import { money } from '@/lib/api'
+import { dateLabel } from '@/lib/format'
 import {
   loadObligations,
   type AmountBasis,
@@ -11,12 +13,6 @@ import {
   type ObligationOrigin,
   type ObligationsPage,
 } from './api'
-
-function dateLabel(value: string) {
-  return new Date(value + 'T12:00:00').toLocaleDateString('en-SG', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  })
-}
 
 const ORIGIN_LABEL: Record<ObligationOrigin, string> = {
   personal_debt: 'Personal debt',
@@ -87,19 +83,14 @@ export function ObligationsView() {
   }, [])
   useEffect(() => { load() }, [load])
 
-  if (loading && !page) {
-    return <div className="skeleton-page" aria-label="Loading obligations"><div /><div /><div /></div>
-  }
-  if (error && !page) {
-    return (
-      <div className="alert error" role="alert">
-        <div><strong>We couldn’t load obligations.</strong><p>{error}</p></div>
-        <Button variant="outline" onClick={load}>Try again</Button>
-      </div>
-    )
-  }
-  if (!page) return null
+  return (
+    <AsyncView loading={loading} error={error} data={page} onRetry={load} loadingLabel="Loading obligations" errorTitle="We couldn’t load obligations.">
+      {page => <ObligationsContent page={page} loading={loading} load={load} />}
+    </AsyncView>
+  )
+}
 
+function ObligationsContent({ page, loading, load }: { page: ObligationsPage; loading: boolean; load: () => void }) {
   const confirmed = page.obligations.filter(o => o.confidence === 'confirmed')
   const likely = page.obligations.filter(o => o.confidence === 'likely')
   const unresolved = page.obligations.filter(o => o.amount_basis === 'unknown')
