@@ -1,0 +1,3 @@
+Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance
+Topup,Current,2026-02-01 10:00:00,2026-02-01 10:00:01,ACME PAYROLL,5000.00,0.00,SGD,COMPLETED,5000.00
+Card Payment,Current,2026-02-05 10:00:00,2026-02-05 10:00:01,APARTMENT RENT,-1600.00,0.00,SGD,COMPLETED,3400.00

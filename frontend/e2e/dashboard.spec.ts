@@ -21,7 +21,7 @@ test('a category edit survives preview, save and a full page reload', async ({ p
   await expect(dialog).toBeVisible()
   const select = dialog.locator('form').getByRole('combobox').last()
   const options = await select.locator('option').allTextContents()
-  const target = options.find((o) => o.trim() && o.trim() !== original) as string
+  const target = options.find((o) => o.trim() && o.trim() !== 'Choose a category' && o.trim() !== original) as string
   await select.selectOption({ label: target })
   await dialog.locator('label', { hasText: 'Reason' }).locator('input').fill('End-to-end reclassification check')
 

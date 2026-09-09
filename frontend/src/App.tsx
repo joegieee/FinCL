@@ -27,9 +27,12 @@ import { CategorizationView } from '@/features/categorization/CategorizationView
 import { ForecastEstimateSummary, ForecastView } from '@/features/forecast'
 import { ControlsView } from '@/features/controls'
 import { OverviewActionPanel } from '@/features/overview'
+import { FundsView } from '@/features/funds'
+import { VarianceView } from '@/features/variance'
+import { MaintenanceView } from '@/features/maintenance'
 
 const colors=['#247b69','#64a994','#accbb3','#c8aa70','#809ba6','#aba7bf','#d7b7a6','#b5b8b0']
-const tabs=['Overview','Baseline','Cash','Forecast','Controls','Cash Flow','Analysis','Transactions','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup'] as const
+const tabs=['Overview','Baseline','Cash','Forecast','Annual funds','Variance','Controls','Cash Flow','Analysis','Transactions','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
 const navigationTabs=tabs.filter(t=>!['Analysis','Obligations','Plans','Recurring'].includes(t))
 type Tab=typeof tabs[number]
 function initialTab():Tab { const v=new URLSearchParams(location.search).get('view');return tabs.find(t=>t===v)||'Overview' }
@@ -108,6 +111,9 @@ export default function App(){
    {tab==='Cash'&&<CashView/>}
    {tab==='Forecast'&&<ForecastView/>}
    {tab==='Controls'&&<ControlsView initialMonth={(end || new Date().toISOString().slice(0, 7)).slice(0, 7)} currency={currency}/>}
+   {tab==='Annual funds'&&<FundsView onSaved={saved}/>}
+   {tab==='Variance'&&<VarianceView generation={data.generation} currency={currency} onSaved={saved}/>}
+   {tab==='Maintenance'&&<MaintenanceView/>}
    {tab==='Accounts'&&<AccountsView freshness={data.freshness} onSaved={saved}/>}
    {tab==='Setup'&&<SetupView onImported={()=>{void load()}}/>}
    </div>

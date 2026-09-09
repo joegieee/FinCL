@@ -234,7 +234,11 @@ def baseline_estimate(database: Path, *, today: date | None = None) -> dict[str,
             (_dec(income_monthly) - _dec(total_observed_monthly)).quantize(Decimal("0.01"))
         )
 
-        role_summary = roles["by_currency"][currency] if roles["available"] else None
+        # A composed read can legitimately have a currency in cost/income but
+        # no role rows for it (for example while every owner-cost component is
+        # withheld). That is unresolved reserve evidence, not a KeyError that
+        # should take down forecast and controls.
+        role_summary = roles.get("by_currency", {}).get(currency) if roles["available"] else None
         if role_summary is None or Decimal(role_summary["totals"]["unresolved"]) != 0:
             reserve = {
                 "available": False,

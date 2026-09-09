@@ -4,10 +4,12 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
+import shutil
 from dataclasses import asdict
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
@@ -153,6 +155,23 @@ class SpendingWhatIfDraft(StrictModel):
     category_cuts: list[CategoryCutDraft] = Field(default_factory=list, max_length=20)
     date_changes: list[EventDateChangeDraft] = Field(default_factory=list, max_length=20)
     hypothetical_income: list[HypotheticalIncomeDraft] = Field(default_factory=list, max_length=20)
+
+
+class FundConfirmationDraft(StrictModel):
+    proposal_id: str = Field(min_length=1, max_length=500)
+    generation: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class SnapshotDraft(StrictModel):
+    generation: str = Field(min_length=1, max_length=100)
+    currency: str = Field(pattern=r'^[A-Z]{3}$')
+    case: Literal['base', 'conservative'] = 'base'
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class BackupActionDraft(StrictModel):
+    backup_id: str | None = Field(default=None, pattern=r'^[A-Za-z0-9-]{1,100}$')
 
 
 class Entry(StrictModel):
@@ -713,6 +732,97 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .forecast import cash_timeline
         return cash_timeline(database)
 
+    @app.get('/api/v1/funds')
+    def funds_read(as_of: str | None = None) -> Any:
+        from .funds import sinking_funds_page
+        return sinking_funds_page(database, as_of=as_of)
+
+    @app.post('/api/v1/funds/confirm')
+    def fund_confirm(body: FundConfirmationDraft) -> Any:
+        """Confirm a complete evidence proposal without asking for an amount."""
+        from calendar import monthrange
+
+        from .funds import SINKING_FUND_SET, sinking_funds_page, validate_fund_payload
+
+        with ledger_writer(database) as writer:
+            connection = connect_readonly(database)
+            try:
+                generation = current_generation(connection)
+                if generation is None or generation['generation_token'] != body.generation:
+                    raise HTTPException(409, 'STALE_GENERATION: reload and confirm again.')
+            finally:
+                connection.close()
+            page = sinking_funds_page(database)
+            proposal = next((p for p in page['proposals'] if p['proposal_id'] == body.proposal_id), None)
+            if proposal is None:
+                raise HTTPException(404, 'This fund proposal is no longer available.')
+            if not proposal['complete']:
+                raise HTTPException(422, 'Missing evidence must be resolved before this fund can be confirmed.')
+            due_on = str(proposal['observed_date']['value'])
+            cursor = date.today().replace(day=1)
+            due = date.fromisoformat(due_on)
+            contribution_dates: list[str] = []
+            while cursor <= due:
+                day = min(due.day, monthrange(cursor.year, cursor.month)[1])
+                candidate = cursor.replace(day=day)
+                if candidate >= date.today() and candidate <= due:
+                    contribution_dates.append(candidate.isoformat())
+                cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+            fund_id = f"fund-{hashlib.sha256(body.proposal_id.encode()).hexdigest()[:20]}"
+            payload: dict[str, object] = {
+                'name': proposal['label'], 'currency': proposal['currency'],
+                'amount_due': proposal['observed_amount']['value'], 'due_on': due_on,
+                'amount_basis': proposal['amount_basis'], 'date_basis': proposal['date_basis'],
+                'source_reference': proposal['proposal_id'],
+                'contribution_dates': contribution_dates,
+                'linked_event_id': proposal['source'].get('obligation_id'), 'reason': body.reason,
+            }
+            anchors = {'fund': fund_id}
+            validate_fund_payload(SINKING_FUND_SET, anchors, payload)
+            intent = hashlib.sha256(canonical_json({'kind': SINKING_FUND_SET, 'anchors': anchors, 'payload': payload}).encode()).hexdigest()
+            receipt = record_decision(
+                database, request_id=str(uuid4()), intent_hash=intent,
+                decision_kind=SINKING_FUND_SET, anchors=anchors, payload=payload,
+                policy_version='sinking-fund-v1', snapshot=f'Confirmed sourced fund: {proposal["label"]}',
+                writer=writer,
+            )
+            return {'status': 'recorded_refresh_pending' if receipt.refresh_pending else 'applied', 'fund': fund_id}
+
+    @app.get('/api/v1/forecast/snapshots')
+    def forecast_snapshots_read() -> Any:
+        from .variance import forecast_snapshots_page
+        return forecast_snapshots_page(database)
+
+    @app.post('/api/v1/forecast/snapshots')
+    def forecast_snapshot_issue(body: SnapshotDraft) -> Any:
+        from .variance import FORECAST_SNAPSHOT_ISSUE, snapshot_payload, validate_variance_payload
+        with ledger_writer(database) as writer:
+            connection = connect_readonly(database)
+            try:
+                generation = current_generation(connection)
+                if generation is None or generation['generation_token'] != body.generation:
+                    raise HTTPException(409, 'STALE_GENERATION: reload and save the snapshot again.')
+            finally:
+                connection.close()
+            snapshot_id = f"snapshot-{uuid4().hex}"
+            anchors, payload = snapshot_payload(
+                database, snapshot=snapshot_id, currency=body.currency,
+                reason=body.reason, case=body.case,
+            )
+            validate_variance_payload(FORECAST_SNAPSHOT_ISSUE, anchors, payload)
+            intent = hashlib.sha256(canonical_json({'kind': FORECAST_SNAPSHOT_ISSUE, 'anchors': anchors, 'payload': payload}).encode()).hexdigest()
+            receipt = record_decision(
+                database, request_id=str(uuid4()), intent_hash=intent,
+                decision_kind=FORECAST_SNAPSHOT_ISSUE, anchors=anchors, payload=payload,
+                policy_version='forecast-variance-v1', snapshot=f'Issued {snapshot_id}', writer=writer,
+            )
+            return {'status': 'recorded_refresh_pending' if receipt.refresh_pending else 'applied', 'snapshot': snapshot_id}
+
+    @app.get('/api/v1/forecast/variance/{snapshot_id}')
+    def forecast_variance_read(snapshot_id: str, as_of: str | None = None) -> Any:
+        from .variance import forecast_variance_page
+        return forecast_variance_page(database, snapshot=snapshot_id, as_of=as_of)
+
     @app.get('/api/v1/forecast/validation')
     def forecast_validation_read() -> Any:
         """Read the Stage 3C temporal-holdout validation result."""
@@ -1140,6 +1250,42 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     def evidence(entry_id: str, generation: str) -> Any:
         from .downloads import evidence_response
         return evidence_response(database, evidence_dir or database.parent / 'evidence', entry_id, generation)
+
+    @app.get('/api/v1/maintenance/backups')
+    def backup_list() -> Any:
+        root = database.parent / 'backups'
+        backups = sorted((p.name for p in root.iterdir() if p.is_dir()), reverse=True) if root.is_dir() else []
+        return {'backups': backups}
+
+    @app.post('/api/v1/maintenance/backup')
+    def backup_create() -> Any:
+        from .backup import backup_ledger
+        evidence = evidence_dir or database.parent / 'evidence'
+        backup_id = f"backup-{uuid4().hex}"
+        output = database.parent / 'backups' / backup_id
+        output.parent.mkdir(mode=0o700, exist_ok=True)
+        result = backup_ledger(database, evidence, output)
+        return {'backup_id': backup_id, 'journal_seq': result.journal_seq, 'evidence_objects': result.evidence_objects, 'verified': True}
+
+    @app.post('/api/v1/maintenance/restore-verify')
+    def backup_restore_verify(body: BackupActionDraft) -> Any:
+        from .backup import restore_ledger, verify_backup_bundle
+        if not body.backup_id:
+            raise HTTPException(422, 'Choose a backup to restore and verify.')
+        bundle = database.parent / 'backups' / body.backup_id
+        if not bundle.is_dir():
+            raise HTTPException(404, 'That backup does not exist.')
+        verify_backup_bundle(bundle)
+        output = database.parent / 'restore-verifications' / f"{body.backup_id}-{uuid4().hex}"
+        result = restore_ledger(bundle, output)
+        restored_db = connect_readonly(output / 'fincl.sqlite3')
+        try:
+            generation = current_generation(restored_db)
+            token = generation['generation_token'] if generation is not None else None
+        finally:
+            restored_db.close()
+            shutil.rmtree(output)
+        return {'backup_id': body.backup_id, 'verified': True, 'ledger_id': result.ledger_id, 'evidence_objects': result.evidence_objects, 'generation': token}
 
     @app.post('/api/v1/refresh')
     def refresh() -> Any:

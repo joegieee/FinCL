@@ -412,6 +412,200 @@
         }
       }
     },
+    "/api/v1/funds": {
+      "get": {
+        "summary": "Funds Read",
+        "operationId": "funds_read_api_v1_funds_get",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Funds Read Api V1 Funds Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/funds/confirm": {
+      "post": {
+        "summary": "Fund Confirm",
+        "description": "Confirm a complete evidence proposal without asking for an amount.",
+        "operationId": "fund_confirm_api_v1_funds_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FundConfirmationDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Fund Confirm Api V1 Funds Confirm Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forecast/snapshots": {
+      "get": {
+        "summary": "Forecast Snapshots Read",
+        "operationId": "forecast_snapshots_read_api_v1_forecast_snapshots_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Forecast Snapshots Read Api V1 Forecast Snapshots Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Forecast Snapshot Issue",
+        "operationId": "forecast_snapshot_issue_api_v1_forecast_snapshots_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Forecast Snapshot Issue Api V1 Forecast Snapshots Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forecast/variance/{snapshot_id}": {
+      "get": {
+        "summary": "Forecast Variance Read",
+        "operationId": "forecast_variance_read_api_v1_forecast_variance__snapshot_id__get",
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Snapshot Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Forecast Variance Read Api V1 Forecast Variance  Snapshot Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/forecast/validation": {
       "get": {
         "summary": "Forecast Validation Read",
@@ -2532,6 +2726,80 @@
         }
       }
     },
+    "/api/v1/maintenance/backups": {
+      "get": {
+        "summary": "Backup List",
+        "operationId": "backup_list_api_v1_maintenance_backups_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Backup List Api V1 Maintenance Backups Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance/backup": {
+      "post": {
+        "summary": "Backup Create",
+        "operationId": "backup_create_api_v1_maintenance_backup_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Backup Create Api V1 Maintenance Backup Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance/restore-verify": {
+      "post": {
+        "summary": "Backup Restore Verify",
+        "operationId": "backup_restore_verify_api_v1_maintenance_restore_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupActionDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Backup Restore Verify Api V1 Maintenance Restore Verify Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/refresh": {
       "post": {
         "summary": "Refresh",
@@ -3643,6 +3911,25 @@
         ],
         "title": "AnalysisScopeDTO"
       },
+      "BackupActionDraft": {
+        "properties": {
+          "backup_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9-]{1,100}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backup Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "BackupActionDraft"
+      },
       "Batch": {
         "properties": {
           "request_id": {
@@ -4610,6 +4897,36 @@
         ],
         "title": "EventDateChangeDraft"
       },
+      "FundConfirmationDraft": {
+        "properties": {
+          "proposal_id": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Proposal Id"
+          },
+          "generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Generation"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "proposal_id",
+          "generation",
+          "reason"
+        ],
+        "title": "FundConfirmationDraft"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5070,6 +5387,44 @@
           "reason"
         ],
         "title": "RuleDraft"
+      },
+      "SnapshotDraft": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Generation"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "case": {
+            "type": "string",
+            "enum": [
+              "base",
+              "conservative"
+            ],
+            "title": "Case",
+            "default": "base"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "currency",
+          "reason"
+        ],
+        "title": "SnapshotDraft"
       },
       "SpendingWhatIfDraft": {
         "properties": {

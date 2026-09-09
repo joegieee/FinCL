@@ -214,7 +214,10 @@ def group_commitments(
 
 def _edit_href(event: dict[str, Any]) -> str:
     source = (event.get("provenance") or {}).get("source") or {}
-    kind = source.get("kind")
+    # Some obligation adapters carry a concise source label while richer
+    # adapters carry a mapping. Presentation routing must not make the whole
+    # controls read fail merely because provenance is the concise form.
+    kind = source.get("kind") if isinstance(source, dict) else None
     if kind == "personal_debt":
         return "?view=Debts"
     if kind in {"card_statement", "installment_plan"}:

@@ -38,6 +38,20 @@ def _manifest(balance: str = "1000.00") -> dict:
 
 
 class SpendingControlsTests(unittest.TestCase):
+    def test_concise_obligation_source_does_not_break_commitment_grouping(self) -> None:
+        grouped = group_commitments(
+            events=[{
+                "event_id": "annual-invoice", "source_id": "debt:annual",
+                "direction": DIRECTION_OUT, "amount": "3000.00",
+                "label": "Annual insurance invoice", "on": "2027-02-15",
+                "provenance": {"source": "personal debt opening balance", "tier": 2},
+            }],
+            role_by_category={},
+        )
+
+        items = [item for group in grouped["groups"].values() for item in group["items"]]
+        self.assertEqual(items[0]["edit_href"], "?view=Baseline")
+
     def test_known_bill_is_counted_once_across_disjoint_groups(self) -> None:
         category_id = "role:SGD:Housing / Rent"
         bill = ForecastEvent(
