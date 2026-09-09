@@ -157,6 +157,119 @@ def _paired_liquid_entries(
     return entries, links
 
 
+def _certified_periods(
+    connection: sqlite3.Connection, key: tuple[str, str], *, through: str,
+) -> list[tuple[str, str]]:
+    """Selected statement periods that prove a pocket's movement coverage.
+
+    A transaction CSV can reconcile its running balances but its first and last
+    rows do not prove that no rows were omitted.  It therefore cannot certify a
+    silent day for a cash bridge.  A selected, accepted statement with passing
+    blocking checks can: its stated period is the coverage evidence.
+    """
+    rows = connection.execute(
+        """
+        SELECT s.period_start AS start, s.period_end AS end
+        FROM statements s
+        JOIN extraction_runs x ON x.id=s.extraction_run_id
+        WHERE s.account_id=? AND x.status='ACCEPTED'
+          AND x.selection_state='SELECTED' AND s.selection_state='SELECTED'
+          AND s.period_start IS NOT NULL AND s.period_end IS NOT NULL
+          AND s.period_start <= ?
+          AND EXISTS (
+              SELECT 1 FROM document_reconciliation_checks ok
+              WHERE ok.statement_id=s.id AND ok.currency_pocket=?
+                AND ok.blocking=1 AND ok.passed=1
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM document_reconciliation_checks failed
+              WHERE failed.statement_id=s.id AND failed.currency_pocket=?
+                AND failed.blocking=1 AND failed.passed<>1
+          )
+        ORDER BY s.period_start, s.period_end
+        """,
+        (key[0], through, key[1], key[1]),
+    ).fetchall()
+    return [(str(row["start"][:10]), str(row["end"][:10])) for row in rows]
+
+
+def _interval_covered(start: str, end: str, periods: list[tuple[str, str]]) -> bool:
+    """Whether adjacent certified statement periods cover every calendar day."""
+    if start > end:
+        return True
+    cursor = date.fromisoformat(start)
+    final = date.fromisoformat(end)
+    for period_start, period_end in periods:
+        lo, hi = date.fromisoformat(period_start), date.fromisoformat(period_end)
+        if hi < cursor:
+            continue
+        if lo > cursor:
+            return False
+        cursor = max(cursor, hi + timedelta(days=1))
+        if cursor > final:
+            return True
+    return cursor > final
+
+
+def _derived_at(
+    key: tuple[str, str], target: str, boundaries: list[dict[str, Any]],
+    entries: list[sqlite3.Row], periods: list[tuple[str, str]],
+) -> dict[str, Any]:
+    """Derive one pocket through ``target`` from actual, complete movements."""
+    eligible = [boundary for boundary in boundaries if boundary["as_of"] <= target]
+    if not eligible:
+        return {"supported": False, "reason": "no trusted balance boundary on or before this date"}
+    boundary = eligible[-1]
+    if boundary["as_of"] == target:
+        # A source balance is itself evidence at its recorded as-of date.  Do
+        # not demand a second source merely because a running balance carries
+        # an intraday timestamp.
+        return {
+            "supported": True,
+            "balance": boundary["balance"], "coefficient": boundary["coefficient"], "scale": boundary["scale"],
+            "as_of": target, "basis": boundary["basis"],
+            "opening": boundary["balance"], "opening_as_of": boundary["as_of"],
+            "movement_count": 0, "coverage_periods": [],
+        }
+    # A balance captured at end-of-day needs coverage from the following day.
+    # A timestamped running balance can have later same-day movements, so that
+    # calendar day must itself be certified.
+    start = (
+        (date.fromisoformat(boundary["as_of"]) + timedelta(days=1)).isoformat()
+        if boundary["sort_at"].endswith("T23:59:59")
+        else boundary["as_of"]
+    )
+    if not _interval_covered(start, target, periods):
+        return {
+            "supported": False,
+            "reason": "complete actual-movement coverage is not established through this date",
+            "gap_start": start,
+        }
+    rows = [
+        row for row in entries
+        if (row["account_id"], row["currency_pocket"]) == key
+        and row["effective_at"] > boundary["sort_at"]
+        and row["effective_at"][:10] <= target
+    ]
+    if any(row["effective_precision"] != "DAY" for row in rows):
+        return {"supported": False, "reason": "movement date precision is insufficient for an exact daily balance"}
+    delta, delta_scale = _sum([
+        _money(row["amount_coefficient"], row["amount_scale"]) for row in rows
+    ])
+    scale = max(boundary["scale"], delta_scale)
+    coefficient = boundary["coefficient"] * 10 ** (scale - boundary["scale"])
+    coefficient += delta * 10 ** (scale - delta_scale)
+    return {
+        "supported": True,
+        "balance": format_decimal(coefficient, scale), "coefficient": coefficient, "scale": scale,
+        "as_of": target, "basis": "actual-movement-bridge",
+        "opening": boundary["balance"], "opening_as_of": boundary["as_of"],
+        "movement_count": len(rows), "coverage_periods": [
+            {"start": start, "end": end} for start, end in periods if end >= start
+        ],
+    }
+
+
 def _bridge(
     key: tuple[str, str], boundaries: list[dict[str, Any]],
     entries: list[sqlite3.Row], paired: set[str], connection: sqlite3.Connection,
@@ -272,9 +385,6 @@ def position_page(database: Path, *, today: date | None = None) -> dict[str, Any
         pockets: list[dict[str, Any]] = []
         bridges: list[dict[str, Any]] = []
         missing: list[dict[str, str]] = []
-        latest_dates: set[str] = set()
-        latest_instants: set[str] = set()
-        chosen_boundaries: dict[tuple[str, str], dict[str, Any]] = {}
         for key in sorted(scopes):
             account = accounts.get(key[0])
             boundaries = [
@@ -282,24 +392,8 @@ def position_page(database: Path, *, today: date | None = None) -> dict[str, Any
                 if boundary["as_of"] <= today.isoformat()
             ]
             chosen = boundaries[-1] if boundaries else None
-            if chosen:
-                chosen_boundaries[key] = chosen
             liquid = key in liquid_scopes
-            if liquid and chosen:
-                latest_dates.add(chosen["as_of"])
-                latest_instants.add(chosen["sort_at"])
             unavailable = None if chosen else "no supported balance boundary for this pocket"
-            if liquid and chosen and chosen["as_of"] < today.isoformat():
-                missing.append({
-                    "account_id": key[0], "currency_pocket": key[1],
-                    "start": (date.fromisoformat(chosen["as_of"]) + timedelta(days=1)).isoformat(),
-                    "end": today.isoformat(),
-                    "reason": "no complete actual-movement interval after the last supported balance",
-                })
-            elif liquid and not chosen:
-                missing.append({"account_id": key[0], "currency_pocket": key[1],
-                                "start": "unknown", "end": today.isoformat(),
-                                "reason": unavailable or "unknown"})
             age = (today - date.fromisoformat(chosen["as_of"])).days if chosen else None
             bridge = _bridge(key, boundaries, entries, paired, connection) if liquid else None
             if bridge:
@@ -326,25 +420,72 @@ def position_page(database: Path, *, today: date | None = None) -> dict[str, Any
                     if b["basis"] == "manual-observation"), None),
             })
         included = [p for p in pockets if p["liquid"]]
-        cutoff = (next(iter(latest_dates)) if included and len(latest_dates) == 1
-                  and len(latest_instants) == 1
-                  and all(p["balance"] is not None for p in included) else None)
+        periods_by_key = {
+            (pocket["account_id"], pocket["currency_pocket"]): _certified_periods(
+                connection, (pocket["account_id"], pocket["currency_pocket"]), through=today.isoformat(),
+            )
+            for pocket in included
+        }
+        candidate_dates = {today.isoformat()}
+        for pocket in included:
+            key = (pocket["account_id"], pocket["currency_pocket"])
+            candidate_dates.update(boundary["as_of"] for boundary in boundary_map.get(key, []) if boundary["as_of"] <= today.isoformat())
+            candidate_dates.update(end for _start, end in periods_by_key[key] if end <= today.isoformat())
+        cutoff: str | None = None
+        derived: dict[tuple[str, str], dict[str, Any]] = {}
+        for candidate in sorted(candidate_dates, reverse=True):
+            attempt = {
+                (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
+                    (pocket["account_id"], pocket["currency_pocket"]), candidate,
+                    boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
+                    entries, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+                )
+                for pocket in included
+            }
+            if included and all(result["supported"] for result in attempt.values()):
+                cutoff, derived = candidate, attempt
+                break
+        today_attempt = {
+            (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
+                (pocket["account_id"], pocket["currency_pocket"]), today.isoformat(),
+                boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
+                entries, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+            )
+            for pocket in included
+        }
+        for pocket in included:
+            key = (pocket["account_id"], pocket["currency_pocket"])
+            result = today_attempt[key]
+            if not result["supported"]:
+                missing.append({
+                    "account_id": key[0], "currency_pocket": key[1],
+                    "start": str(result.get("gap_start") or "unknown"), "end": today.isoformat(),
+                    "reason": str(result["reason"]),
+                })
+            if cutoff and key in derived:
+                pocket["derived_balance"] = derived[key]["balance"]
+                pocket["derived_as_of"] = cutoff
+                pocket["derived_basis"] = derived[key]["basis"]
+                pocket["coverage_status"] = "supported"
+            else:
+                pocket["derived_balance"] = None
+                pocket["derived_as_of"] = None
+                pocket["derived_basis"] = None
+                pocket["coverage_status"] = "unsupported"
         totals: dict[str, list[ExactMoney]] = defaultdict(list)
         if cutoff:
             for pocket in included:
-                chosen = chosen_boundaries[(pocket["account_id"], pocket["currency_pocket"])]
-                totals[pocket["currency_pocket"]].append(_money(chosen["coefficient"], chosen["scale"]))
+                result = derived[(pocket["account_id"], pocket["currency_pocket"])]
+                totals[pocket["currency_pocket"]].append(_money(result["coefficient"], result["scale"]))
         combined = {currency: format_decimal(*_sum(values))
                     for currency, values in sorted(totals.items())}
         reasons: list[str] = []
         if not included:
             reasons.append("no supported liquid account pockets were found")
         elif not cutoff:
-            reasons.append("included liquid pockets do not share a supported balance cutoff")
+            reasons.append("included liquid pockets do not share a coverage-backed balance cutoff")
         if cutoff != today.isoformat():
             reasons.append("complete actual movements from the supported cutoff through today are unavailable")
-        if any(not bridge["reconciled"] for bridge in bridges):
-            reasons.append("one or more balance bridges do not reconcile")
         combined_bridge: dict[str, dict[str, Any]] = {}
         for currency in sorted({bridge["currency_pocket"] for bridge in bridges}):
             members = [bridge for bridge in bridges if bridge["currency_pocket"] == currency]

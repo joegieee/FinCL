@@ -24,6 +24,10 @@ export type CashPocket = {
   unavailable_reason: string | null
   statement_running_balance: BoundaryDetail | null
   manual_observation: BoundaryDetail | null
+  derived_balance: string | null
+  derived_as_of: string | null
+  derived_basis: string | null
+  coverage_status: 'supported' | 'unsupported'
 }
 
 export type CashBridgePocket = {

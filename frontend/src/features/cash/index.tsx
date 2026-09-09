@@ -15,8 +15,8 @@ import { loadCashPosition, type CashBridgePocket, type CashPocket, type CashPosi
  * balance".
  *
  * Guardrails this view must keep:
- * - When today's opening cash is only modelled (no complete actual-movement
- *   interval from the supported cutoff through today) it is labelled modelled
+ * - When today's opening cash lacks complete actual-movement coverage it is
+ *   withheld. A historical common cutoff remains a dated observed-derived view,
  *   and no "available today" figure, reserve verdict or spending allowance is
  *   shown — the module never emits those and this view never invents them.
  * - A currency total the module withholds shows its stated reason, never a zero.
@@ -71,14 +71,14 @@ export function CashView() {
                 : 'Not observed as of today'}
             </h2>
           </div>
-          <Badge variant="outline" className={observedToday ? '' : 'review-badge'}>{observedToday ? 'Observed' : 'Modelled'}</Badge>
+          <Badge variant="outline" className={observedToday ? '' : 'review-badge'}>{observedToday ? 'Observed through today' : page.supported_cutoff ? `Observed through ${page.supported_cutoff}` : 'Not supported'}</Badge>
         </div>
         {observedToday
           ? <p className="muted-note"><CheckCircle2 size={14} /> Complete actual movements run from the supported cutoff through today.</p>
           : (
             <>
               <p className="muted-note">
-                Today’s opening cash is modelled, not observed. While the evidence is incomplete, no current-cash figure,
+                Today’s opening cash is not supported by complete actual-movement evidence. While coverage is incomplete, no current-cash figure,
                 reserve verdict or spending allowance is derived.
               </p>
               {page.current_position_reasons.length > 0 && (
@@ -88,8 +88,8 @@ export function CashView() {
               )}
               {carried.length > 0 && (
                 <p className="muted-note">
-                  Last supported combined balance{page.supported_cutoff ? ` · as of ${page.supported_cutoff}` : ''}:{' '}
-                  {carried.map(([c, v]) => money(v, c)).join(' · ')}. Carried forward for reference only.
+                  Last common supported balance{page.supported_cutoff ? ` · as of ${page.supported_cutoff}` : ''}:{' '}
+                  {carried.map(([c, v]) => money(v, c)).join(' · ')}. It is derived from observed movements through that date, not reported as today’s cash.
                 </p>
               )}
             </>
@@ -111,7 +111,7 @@ export function CashView() {
       <Card className="cash-pockets-card">
         <div className="panel-title"><div><p className="eyebrow">PER-ACCOUNT &amp; PER-POCKET NATIVE BALANCES</p><h2>{included.length === 0 ? 'No included pockets' : `${included.length} in liquid scope`}</h2></div></div>
         <table className="pocket-table">
-          <thead><tr><th>Account</th><th>Pocket</th><th>Native balance</th><th>Basis</th><th>As of</th><th>Scope</th></tr></thead>
+          <thead><tr><th>Account</th><th>Pocket</th><th>Native balance</th><th>Coverage-backed balance</th><th>Basis</th><th>As of</th><th>Scope</th></tr></thead>
           <tbody>
             {page.pockets.map(pocket => <PocketRow key={`${pocket.account_id}:${pocket.currency_pocket}`} pocket={pocket} staleAfter={page.stale_after_days} />)}
           </tbody>
@@ -188,6 +188,11 @@ function PocketRow({ pocket, staleAfter }: { pocket: CashPocket; staleAfter: num
         {pocket.stale && pocket.staleness_days !== null && (
           <small className="form-error">stale · {pocket.staleness_days} days &gt; {staleAfter}</small>
         )}
+      </td>
+      <td>
+        {pocket.derived_balance === null
+          ? <small className="muted-note">No common coverage-backed balance</small>
+          : <><strong>{money(pocket.derived_balance, pocket.currency_pocket)}</strong><small>{pocket.derived_basis} · through {pocket.derived_as_of}</small></>}
       </td>
       <td>{pocket.basis}{pocket.date_precision && pocket.date_precision !== 'DAY' && <small>{pocket.date_precision} precision</small>}</td>
       <td>{pocket.as_of ?? '—'}</td>

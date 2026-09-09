@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
 from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import replay_journal
@@ -43,6 +44,37 @@ _ROWS = [
 
 
 class PositionReadTests(unittest.TestCase):
+    def test_different_boundary_dates_bridge_to_a_common_coverage_cutoff(self) -> None:
+        """Raw balance dates need not coincide when both pockets are complete onward."""
+        rows = [
+            ["Topup", "Current", "2026-03-01 10:00:00", "2026-03-01 10:00:01",
+             "SGD seed", "900.00", "0.00", "SGD", "COMPLETED", "900.00"],
+            ["Topup", "Current", "2026-03-05 10:00:00", "2026-03-05 10:00:01",
+             "USD seed", "50.00", "0.00", "USD", "COMPLETED", "50.00"],
+        ]
+        database = _ledger(rows)
+        # The importer fixture is CSV-only, so it cannot itself prove a quiet
+        # interval.  This isolates the position rule from source parsing: a
+        # certified export/statement period does prove both pockets through 10th.
+        with patch("fincl.position.queries._certified_periods", return_value=[("2026-03-01", "2026-03-10")]):
+            page = position_page(database, today=date(2026, 3, 10))
+
+        self.assertTrue(page["current_position_supported"])
+        self.assertEqual(page["supported_cutoff"], "2026-03-10")
+        self.assertEqual(page["liquid_total"], {"SGD": "900.00", "USD": "50.00"})
+        self.assertEqual(page["included_pockets"][0]["derived_as_of"], "2026-03-10")
+
+    def test_uncertified_quiet_interval_does_not_bridge_a_boundary_forward(self) -> None:
+        database = _ledger(_ROWS)
+
+        page = position_page(database, today=date(2026, 3, 10))
+
+        self.assertFalse(page["current_position_supported"])
+        self.assertIn(
+            "complete actual-movement coverage is not established through this date",
+            {gap["reason"] for gap in page["missing_intervals"]},
+        )
+
     def test_latest_printed_running_balance_is_the_pocket_basis(self) -> None:
         database = _ledger(_ROWS)
 
@@ -171,8 +203,8 @@ class PositionReadTests(unittest.TestCase):
         self.assertEqual(page["supported_cutoff"], "2026-03-05")
         self.assertEqual(page["missing_intervals"], [{
             "account_id": _only_account_id(database), "currency_pocket": "SGD",
-            "start": "2026-03-06", "end": "2026-05-01",
-            "reason": "no complete actual-movement interval after the last supported balance",
+            "start": "2026-03-05", "end": "2026-05-01",
+            "reason": "complete actual-movement coverage is not established through this date",
         }])
 
     def test_missing_movement_support_prevents_an_exact_bridge_claim(self) -> None:

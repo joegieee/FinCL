@@ -13,6 +13,7 @@ function pocket(over: Record<string, unknown> = {}) {
     currency_pocket: 'SGD', liquid: true, excluded_reason: null, basis: 'statement-running-balance',
     balance: '360.00', as_of: '2026-03-05', date_precision: 'DAY', stale: false, staleness_days: 7,
     unavailable_reason: null, statement_running_balance: null, manual_observation: null,
+    derived_balance: '360.00', derived_as_of: '2026-03-05', derived_basis: 'actual-movement-bridge', coverage_status: 'supported',
     ...over,
   }
 }
@@ -44,17 +45,16 @@ function position(over: Record<string, unknown> = {}) {
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('CashView', () => {
-  it('labels a modelled cutoff and withholds the available-today figure', async () => {
+  it('labels a historical common cutoff and withholds the available-today figure', async () => {
     loadCashPosition.mockResolvedValue(position())
     render(<CashView />)
 
     expect(await screen.findByText('Not observed as of today')).toBeInTheDocument()
-    expect(screen.getByText('Modelled')).toBeInTheDocument()
+    expect(screen.getByText('Observed through 2026-03-05')).toBeInTheDocument()
     expect(screen.getByText(/complete actual movements from the supported cutoff through today are unavailable/)).toBeInTheDocument()
-    // No "available today" figure, reserve verdict or spending allowance while modelled.
+    // No "available today" figure, reserve verdict or spending allowance without today coverage.
     expect(screen.queryByText(/available today/i)).toBeNull()
-    // The last supported balance is carried forward only for reference.
-    expect(screen.getByText(/Carried forward for reference only/)).toBeInTheDocument()
+    expect(screen.getByText(/not reported as today’s cash/)).toBeInTheDocument()
   })
 
   it('shows a withheld currency total with its reason and never a zero', async () => {
