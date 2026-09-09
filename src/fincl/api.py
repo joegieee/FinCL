@@ -688,6 +688,12 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .forecast import cash_timeline
         return cash_timeline(database)
 
+    @app.get('/api/v1/forecast/validation')
+    def forecast_validation_read() -> Any:
+        """Read the Stage 3C temporal-holdout validation result."""
+        from .forecast import forecast_validation
+        return forecast_validation(database)
+
     @app.get('/api/v1/position')
     def position_read() -> Any:
         from .position import position_page

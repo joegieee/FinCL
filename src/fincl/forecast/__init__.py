@@ -9,6 +9,10 @@ limited-history estimate, or nothing at all.
 Stage 3B is the pure exact-money six-month cash timeline and its manifest-gated
 base and conservative scenario construction.  It deliberately exposes no API
 route; presentation is owned by the later UI stage.
+
+Stage 3C is the minimal temporal-holdout validation harness.  It reports direct
+errors and observed cash misses without turning backtest improvement into a
+release gate.
 """
 
 from .engine import (
@@ -27,18 +31,30 @@ from .manifest import (
     READINESS_UNAVAILABLE,
     forecast_input_manifest,
 )
+from .validation import (
+    CashBridge,
+    MonthlyObservation,
+    ReviewPolicyVersion,
+    forecast_validation,
+    temporal_holdout_validation,
+)
 
 __all__ = [
     "FORECAST_READINESS_LEVELS",
+    "CashBridge",
     "ForecastEvent",
     "READINESS_ESTABLISHED",
     "READINESS_LIMITED",
     "READINESS_UNAVAILABLE",
+    "ReviewPolicyVersion",
     "ResidualCategory",
     "TimelineEvent",
+    "MonthlyObservation",
     "build_cash_timeline",
     "cash_timeline",
     "forecast_cash_timeline",
     "forecast_input_manifest",
+    "forecast_validation",
     "run_timeline",
+    "temporal_holdout_validation",
 ]
