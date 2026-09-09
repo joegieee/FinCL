@@ -90,13 +90,13 @@ DBS_PAYLAH_LINKER = SameCurrencyLinker(
 DBS_REVOLUT_CARD_TOPUP_LINKER = SameCurrencyLinker(
     DBS_REVOLUT_CARD_TOPUP_LINK_VERSION,
     EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "OUT", frozenset({"CARD_PAYMENT"})),
-    EligibleLinkLeg("REVOLUT_CSV", "SGD", "IN", frozenset({"TOPUP", "TRANSFER"})),
+    EligibleLinkLeg("REVOLUT_PDF", "SGD", "IN", frozenset({"TOPUP", "TRANSFER"})),
     max_days=1,
 )
 DBS_REVOLUT_PAYNOW_TOPUP_LINKER = SameCurrencyLinker(
     DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION,
     EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "OUT", frozenset({"TRANSFER"})),
-    EligibleLinkLeg("REVOLUT_CSV", "SGD", "IN", frozenset({"TOPUP", "TRANSFER"})),
+    EligibleLinkLeg("REVOLUT_PDF", "SGD", "IN", frozenset({"TOPUP", "TRANSFER"})),
     max_days=2,
 )
 # DBS PayNow that funds a MariBank savings inflow.  Both legs print the same
@@ -118,8 +118,8 @@ MARI_SAVINGS_CARD_REPAYMENT_LINKER = SameCurrencyLinker(
 )
 REVOLUT_EXCHANGE_LINKER = ExchangeLinker(
     REVOLUT_EXCHANGE_LINK_VERSION,
-    EligibleLinkLeg("REVOLUT_CSV", None, "OUT", frozenset({"EXCHANGE"})),
-    EligibleLinkLeg("REVOLUT_CSV", None, "IN", frozenset({"EXCHANGE"})),
+    EligibleLinkLeg("REVOLUT_PDF", None, "OUT", frozenset({"EXCHANGE"})),
+    EligibleLinkLeg("REVOLUT_PDF", None, "IN", frozenset({"EXCHANGE"})),
 )
 AUTOMATIC_SAME_CURRENCY_LINK_METHODS = (
     DBS_PAYLAH_LINKER.method_version,
@@ -196,12 +196,13 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
         SELECT e.id, substr(e.effective_at, 1, 10) AS posted_date,
                e.currency_pocket, e.amount_coefficient, e.amount_scale,
                e.amount_text, e.event_kind, e.economic_direction,
-               'REVOLUT_CSV' AS source_type, r.description_raw
+               s.source_type, r.description_raw
         FROM ledger_entries e
-        JOIN raw_records r ON r.id = e.raw_record_id
-        JOIN extraction_runs x ON x.id = e.extraction_run_id
-        WHERE e.source_family = 'CSV'
-          AND x.selection_state = 'SELECTED' AND e.analytics_eligible = 1
+        JOIN document_records r ON r.id = e.document_record_id
+        JOIN statements s ON s.id = e.statement_id
+        WHERE e.source_family = 'DOCUMENT'
+          AND s.source_type = 'REVOLUT_PDF'
+          AND s.selection_state = 'SELECTED' AND e.analytics_eligible = 1
           AND e.economic_direction = 'IN'
           AND e.event_kind IN ('TOPUP', 'TRANSFER')
         """
@@ -441,17 +442,22 @@ def _is_revolut_paynow_topup(description: str | None) -> bool:
 
 def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
     """Link complete Revolut exchange pairs and retain their exact implied rate."""
+    # The retired CSV export carried a started/completed timestamp pair, so
+    # exchange legs paired on the exact `Started Date`. The PDF prints one date
+    # per row at DAY precision, so the two legs of a same-day exchange pair on
+    # the completed date within one statement's extraction run.
     rows = connection.execute(
         """
         SELECT e.id, e.extraction_run_id,
-               COALESCE(e.alt_date_value, e.effective_at) AS started_at,
+               substr(e.effective_at, 1, 10) AS started_at,
                e.currency_pocket, e.amount_text, e.amount_coefficient, e.amount_scale,
-               e.economic_direction, e.event_kind, a.source_type
+               e.economic_direction, e.event_kind, s.source_type, r.raw_fields_json
         FROM ledger_entries e
-        JOIN extraction_runs x ON x.id = e.extraction_run_id
-        JOIN accounts a ON a.id = e.account_id
-        WHERE e.source_family = 'CSV'
-          AND x.selection_state = 'SELECTED' AND e.analytics_eligible = 1
+        JOIN statements s ON s.id = e.statement_id
+        LEFT JOIN document_records r ON r.id = e.document_record_id
+        WHERE e.source_family = 'DOCUMENT'
+          AND s.source_type = 'REVOLUT_PDF'
+          AND s.selection_state = 'SELECTED' AND e.analytics_eligible = 1
           AND e.lifecycle_state = 'COMPLETED'
         ORDER BY e.extraction_run_id, started_at, e.id
         """
@@ -468,53 +474,95 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
 
     created = 0
     for group in groups.values():
-        if len(group) != 2:
-            continue
         outgoing = [row for row in group if row["economic_direction"] == "OUT"]
         incoming = [row for row in group if row["economic_direction"] == "IN"]
-        if len(outgoing) != 1 or len(incoming) != 1:
-            continue
-        left, right = outgoing[0], incoming[0]
-        if left["currency_pocket"] == right["currency_pocket"]:
-            continue
-        numerator = abs(right["amount_coefficient"]) * 10**left["amount_scale"]
-        denominator = abs(left["amount_coefficient"]) * 10**right["amount_scale"]
-        divisor = gcd(numerator, denominator)
-        link_id = _stable_id(
-            "link", left["id"], right["id"], REVOLUT_EXCHANGE_LINKER.method_version
-        )
-        cursor = connection.execute(
-            """
-            INSERT OR IGNORE INTO transfer_links(
-                id, left_entry_id, right_entry_id,
-                link_kind, left_currency, left_amount_text, left_amount_coefficient,
-                left_amount_scale, right_currency, right_amount_text, right_amount_coefficient,
-                right_amount_scale, implied_rate_numerator, implied_rate_denominator,
-                method_version, status, evidence_json, created_at
-            ) VALUES (?, ?, ?, 'CURRENCY_EXCHANGE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                      'CONFIRMED', ?, ?)
-            """,
-            (
-                link_id,
-                left["id"],
-                right["id"],
-                left["currency_pocket"],
-                left["amount_text"].lstrip("-"),
-                abs(left["amount_coefficient"]),
-                left["amount_scale"],
-                right["currency_pocket"],
-                right["amount_text"].lstrip("-"),
-                abs(right["amount_coefficient"]),
-                right["amount_scale"],
-                numerator // divisor,
-                denominator // divisor,
-                REVOLUT_EXCHANGE_LINKER.method_version,
-                _json({"started_at": left["started_at"], "unique_pair": True}),
-                _now(),
-            ),
-        )
-        created += cursor.rowcount
+        for left, right in _pair_revolut_exchange_legs(outgoing, incoming):
+            if left["currency_pocket"] == right["currency_pocket"]:
+                continue
+            numerator = abs(right["amount_coefficient"]) * 10**left["amount_scale"]
+            denominator = abs(left["amount_coefficient"]) * 10**right["amount_scale"]
+            divisor = gcd(numerator, denominator)
+            link_id = _stable_id(
+                "link", left["id"], right["id"], REVOLUT_EXCHANGE_LINKER.method_version
+            )
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO transfer_links(
+                    id, left_entry_id, right_entry_id,
+                    link_kind, left_currency, left_amount_text, left_amount_coefficient,
+                    left_amount_scale, right_currency, right_amount_text,
+                    right_amount_coefficient, right_amount_scale,
+                    implied_rate_numerator, implied_rate_denominator,
+                    method_version, status, evidence_json, created_at
+                ) VALUES (?, ?, ?, 'CURRENCY_EXCHANGE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                          'CONFIRMED', ?, ?)
+                """,
+                (
+                    link_id,
+                    left["id"],
+                    right["id"],
+                    left["currency_pocket"],
+                    left["amount_text"].lstrip("-"),
+                    abs(left["amount_coefficient"]),
+                    left["amount_scale"],
+                    right["currency_pocket"],
+                    right["amount_text"].lstrip("-"),
+                    abs(right["amount_coefficient"]),
+                    right["amount_scale"],
+                    numerator // divisor,
+                    denominator // divisor,
+                    REVOLUT_EXCHANGE_LINKER.method_version,
+                    _json({"started_at": left["started_at"], "unique_pair": True}),
+                    _now(),
+                ),
+            )
+            created += cursor.rowcount
     return created
+
+
+def _revolut_counterpart_amount(raw_fields_json: str | None) -> str | None:
+    if not raw_fields_json:
+        return None
+    try:
+        fields = json.loads(raw_fields_json)
+    except (TypeError, ValueError):
+        return None
+    counterpart = fields.get("counterpart")
+    if not isinstance(counterpart, str):
+        return None
+    return counterpart.replace("S$", "").replace("$", "").replace(",", "").lstrip("-")
+
+
+def _pair_revolut_exchange_legs(
+    outgoing: list[sqlite3.Row], incoming: list[sqlite3.Row]
+) -> list[tuple[sqlite3.Row, sqlite3.Row]]:
+    """Match the OUT and IN legs of same-day Revolut exchanges.
+
+    With one leg of each direction the pairing is unambiguous. When a day holds
+    more than one exchange — the CSV export told them apart by their exact
+    ``Started Date``, which the PDF does not print — pair a leg to the opposite
+    leg whose printed counterpart figure equals this leg's own posted amount.
+    """
+    if len(outgoing) == 1 and len(incoming) == 1:
+        return [(outgoing[0], incoming[0])]
+    pairs: list[tuple[sqlite3.Row, sqlite3.Row]] = []
+    remaining = list(incoming)
+    for out_row in outgoing:
+        out_amount = out_row["amount_text"].lstrip("-")
+        match = next(
+            (
+                in_row
+                for in_row in remaining
+                if _revolut_counterpart_amount(in_row["raw_fields_json"]) == out_amount
+                or _revolut_counterpart_amount(out_row["raw_fields_json"])
+                == in_row["amount_text"].lstrip("-")
+            ),
+            None,
+        )
+        if match is not None:
+            remaining.remove(match)
+            pairs.append((out_row, match))
+    return pairs
 
 
 def _candidate_pairs(

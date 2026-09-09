@@ -211,7 +211,7 @@ def _latest_report_data(connection: sqlite3.Connection) -> dict[str, Any]:
     ).fetchone()
     if statement is None:
         data: dict[str, Any] = {
-            "kind": "REVOLUT_CSV",
+            "kind": "REVOLUT_PDF",
             "extraction_id": extraction["id"],
             "status": extraction["status"],
             "profile": extraction["source_profile_version"],
@@ -444,11 +444,6 @@ def _required_source_families(connection: sqlite3.Connection) -> list[str]:
         str(row[0])
         for row in connection.execute("SELECT DISTINCT source_type FROM statements")
     }
-    if connection.execute(
-        "SELECT 1 FROM extraction_runs "
-        "WHERE source_profile_version LIKE 'revolut-csv-%' LIMIT 1"
-    ).fetchone():
-        families.add("REVOLUT_CSV")
     return sorted(families)
 
 
@@ -457,26 +452,10 @@ def _family_eligible_intervals(
 ) -> tuple[list[DateInterval], str, bool]:
     """Accepted, analytically selected intervals for one source family.
 
-    Returns ``(intervals, basis, completeness_established)``. Revolut has no
-    statement-period table, so its first/last posted entry dates are its
-    coverage proxy under the ``observed_entry_span`` basis, and export
-    completeness is not independently established (§2).
+    Returns ``(intervals, basis, completeness_established)``. Every current
+    source is a statement document with a printed period, so coverage is the
+    union of ``statement_period`` intervals (§2).
     """
-    if family == "REVOLUT_CSV":
-        rows = connection.execute(
-            """
-            SELECT min(substr(e.effective_at, 1, 10)) AS lo,
-                   max(substr(e.effective_at, 1, 10)) AS hi
-            FROM extraction_runs x
-            JOIN ledger_entries e ON e.extraction_run_id = x.id
-            WHERE e.source_family = 'CSV'
-              AND x.source_profile_version LIKE 'revolut-csv-%'
-              AND x.status = 'ACCEPTED' AND x.selection_state = 'SELECTED'
-            GROUP BY x.id
-            """
-        ).fetchall()
-        spans = [DateInterval(row["lo"], row["hi"]) for row in rows if row["lo"] and row["hi"]]
-        return spans, "observed_entry_span", False
     rows = connection.execute(
         """
         SELECT s.period_start AS lo, s.period_end AS hi
@@ -491,20 +470,13 @@ def _family_eligible_intervals(
 
 
 def _family_evidence_refs(connection: sqlite3.Connection, family: str) -> list[str]:
-    if family == "REVOLUT_CSV":
-        rows = connection.execute(
-            "SELECT DISTINCT evidence_sha256 FROM extraction_runs "
-            "WHERE source_profile_version LIKE 'revolut-csv-%' "
-            "AND status = 'ACCEPTED' AND selection_state = 'SELECTED'"
-        )
-    else:
-        rows = connection.execute(
-            "SELECT DISTINCT s.evidence_sha256 FROM statements s "
-            "JOIN extraction_runs x ON x.id = s.extraction_run_id "
-            "WHERE s.source_type = ? AND x.status = 'ACCEPTED' "
-            "AND s.selection_state = 'SELECTED'",
-            (family,),
-        )
+    rows = connection.execute(
+        "SELECT DISTINCT s.evidence_sha256 FROM statements s "
+        "JOIN extraction_runs x ON x.id = s.extraction_run_id "
+        "WHERE s.source_type = ? AND x.status = 'ACCEPTED' "
+        "AND s.selection_state = 'SELECTED'",
+        (family,),
+    )
     return sorted(str(row[0]) for row in rows if row[0])
 
 
@@ -891,27 +863,4 @@ def _economic_flow_coverage(connection: sqlite3.Connection) -> list[dict[str, An
             """
         )
     ]
-    # CSV does not have a statement-period table. Its accepted transaction dates
-    # are its coverage fact, so retrieve them through the entry table instead.
-    for row in connection.execute(
-        """
-        SELECT min(substr(e.effective_at, 1, 10)) AS period_start,
-               max(substr(e.effective_at, 1, 10)) AS period_end,
-               x.status, x.selection_state
-        FROM extraction_runs x JOIN ledger_entries e ON e.extraction_run_id = x.id
-        WHERE e.source_family = 'CSV'
-          AND x.source_profile_version LIKE 'revolut-csv-%'
-        GROUP BY x.id, x.status, x.selection_state
-        ORDER BY period_start
-        """
-    ):
-        coverage.append(
-            {
-                "source_type": "REVOLUT_CSV",
-                "period_start": row["period_start"],
-                "period_end": row["period_end"],
-                "status": row["status"],
-                "selection_state": row["selection_state"],
-            }
-        )
     return coverage

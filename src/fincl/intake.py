@@ -16,7 +16,15 @@ from .service import FinCLService
 MAX_FILES = 20
 MAX_FILE_BYTES = 50 * 1024 * 1024
 ADAPTERS = frozenset(
-    {"REVOLUT", "DBS_CONSOLIDATED", "DBS_PAYLAH", "MARI_SAVINGS", "MARI_CARD", "TRUST_SAVINGS"}
+    {
+        "REVOLUT",
+        "REVOLUT_PDF",
+        "DBS_CONSOLIDATED",
+        "DBS_PAYLAH",
+        "MARI_SAVINGS",
+        "MARI_CARD",
+        "TRUST_SAVINGS",
+    }
 )
 
 
@@ -70,6 +78,7 @@ def import_stream(
                 "MARI_SAVINGS": service.import_maribank,
                 "MARI_CARD": service.import_mari_card,
                 "TRUST_SAVINGS": service.import_trust,
+                "REVOLUT_PDF": service.import_revolut_pdf,
             }[adapter]
             result = method(path, writer=writer)
         return {**asdict(result), "filename": Path(filename).name, "adapter": adapter}

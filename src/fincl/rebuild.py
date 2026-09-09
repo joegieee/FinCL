@@ -37,6 +37,7 @@ from .service import FinCLService
 # dispatch.
 _ADAPTERS: dict[str, str] = {
     "revolut-": "REVOLUT_CSV",
+    "revolut-pdf-": "REVOLUT_PDF",
     "dbs-consolidated-": "DBS_CONSOLIDATED",
     "dbs-paylah-": "DBS_PAYLAH",
     "mari-savings-": "MARI_SAVINGS",
@@ -66,10 +67,13 @@ class _Source:
 
 
 def _family_for_profile(profile: str) -> str | None:
+    # Longest matching prefix wins, so "revolut-pdf-" is never shadowed by the
+    # broader "revolut-" CSV prefix while both are registered.
+    best: tuple[int, str] | None = None
     for prefix, family in _ADAPTERS.items():
-        if profile.startswith(prefix):
-            return family
-    return None
+        if profile.startswith(prefix) and (best is None or len(prefix) > best[0]):
+            best = (len(prefix), family)
+    return best[1] if best is not None else None
 
 
 def rebuild_database(database: Path, evidence_directory: Path, output: Path) -> RebuildResult:
@@ -362,6 +366,8 @@ def _import_source(database: Path, evidence_directory: Path, source: Path, famil
         return service.import_mari_card(source).status
     if family == "TRUST_SAVINGS":
         return service.import_trust(source).status
+    if family == "REVOLUT_PDF":
+        return service.import_revolut_pdf(source).status
     raise FinCLError(f"unsupported source family for reconstruction: {family}")
 
 

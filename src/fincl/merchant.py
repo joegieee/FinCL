@@ -137,7 +137,7 @@ def _recipient(description_raw: str | None) -> str | None:
 
 def _profile_family(source_profile_version: str) -> str:
     for prefix, family in (
-        ("revolut-csv-", "revolut"),
+        ("revolut-pdf-", "revolut"),
         ("dbs-consolidated-", "doc"),
         ("dbs-paylah-", "doc"),
         ("mari-savings-", "doc"),

@@ -15,7 +15,7 @@ from ..money import ExactMoney, exact_sum, format_decimal
 from .models import STALE_AFTER_DAYS
 
 _LIQUID_SOURCE_TYPES = frozenset({
-    "REVOLUT_CSV", "DBS_CONSOLIDATED", "DBS_PAYLAH",
+    "REVOLUT_PDF", "DBS_CONSOLIDATED", "DBS_PAYLAH",
     "MARI_SAVINGS", "TRUST_SAVINGS",
 })
 

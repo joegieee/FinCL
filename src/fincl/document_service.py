@@ -22,6 +22,7 @@ from .documents import (
     parse_mari_card,
     parse_maribank_savings,
     parse_paylah,
+    parse_revolut_pdf,
     parse_trust_savings,
 )
 from .errors import EvidenceError, FinCLError
@@ -50,6 +51,7 @@ _DOCUMENT_PARSERS = {
     "MARI_SAVINGS": parse_maribank_savings,
     "MARI_CARD": parse_mari_card,
     "TRUST_SAVINGS": parse_trust_savings,
+    "REVOLUT_PDF": parse_revolut_pdf,
 }
 
 
@@ -113,6 +115,11 @@ class DocumentImportService:
         self, source_path: Path, *, writer: WriterContext | None = None
     ) -> DocumentImportResult:
         return self._import(source_path, "TRUST_SAVINGS", writer=writer)
+
+    def import_revolut_pdf(
+        self, source_path: Path, *, writer: WriterContext | None = None
+    ) -> DocumentImportResult:
+        return self._import(source_path, "REVOLUT_PDF", writer=writer)
 
     def _import(
         self, source_path: Path, source_type: str, *, writer: WriterContext | None = None
@@ -710,7 +717,12 @@ def _insert_document_entry(
     record_id: str,
     record: DocumentRecord,
 ) -> None:
-    if parsed.source_type in ("DBS_CONSOLIDATED", "MARI_SAVINGS", "TRUST_SAVINGS"):
+    if parsed.source_type in (
+        "DBS_CONSOLIDATED",
+        "MARI_SAVINGS",
+        "TRUST_SAVINGS",
+        "REVOLUT_PDF",
+    ):
         source_amount = record.credit if record.credit is not None else record.debit
         assert source_amount is not None
         coefficient = source_amount.coefficient if record.credit is not None else -source_amount.coefficient
@@ -721,7 +733,9 @@ def _insert_document_entry(
     assert record.date_value and record.currency_raw
     amount_text = format_decimal(coefficient, source_amount.scale)
     direction = "IN" if coefficient > 0 else "OUT" if coefficient < 0 else "ZERO"
-    event_kind = _event_kind(parsed.source_type, record.description_raw or "")
+    event_kind = _event_kind(
+        parsed.source_type, record.description_raw or "", record.raw_fields
+    )
     natural_anchor = f"{evidence_sha256}:{record.source_anchor}:{record.ordinal}"
     alt_role = record.alt_date_role
     alt_precision = "DAY" if alt_role is not None else None
@@ -774,8 +788,17 @@ def _insert_document_entry(
     )
 
 
-def _event_kind(source_type: str, description: str) -> str:
+def _event_kind(
+    source_type: str, description: str, raw_fields: dict[str, object] | None = None
+) -> str:
     """Classify a document line into the canonical ledger vocabulary."""
+    if source_type == "REVOLUT_PDF" and raw_fields is not None:
+        # The Revolut PDF parser classifies each row from its printed card
+        # marker and direction (revolut_pdf_event_kind); the generic keyword
+        # ladder below would misclassify most of these.
+        parser_kind = raw_fields.get("event_kind")
+        if isinstance(parser_kind, str) and parser_kind in LEDGER_EVENT_KINDS:
+            return parser_kind
     upper = description.upper()
     if "TOP-UP TO PAYLAH" in upper or "TOP UP WALLET" in upper:
         kind = "TOPUP"
