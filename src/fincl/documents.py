@@ -3277,9 +3277,14 @@ def _revolut_finalize(pending: _RevolutOpen | None) -> None:
     signed = delta.coefficient if inflow else -delta.coefficient
     signed_delta = ExactMoney(signed, scale, format_decimal(signed, scale))
     card_present = bool(pending.fields.get("card_present"))
+    raw_description = record.description_raw or ""
     event_kind = revolut_pdf_event_kind(
-        record.description_raw or "", card_present=card_present, inflow=inflow
+        raw_description, card_present=card_present, inflow=inflow
     )
+    # "Payment from <party>" is a wire-in top-up; the counterparty is the useful
+    # description once the kind is fixed.
+    if raw_description.startswith("Payment from "):
+        record.description_raw = raw_description[len("Payment from ") :].strip() or None
     record.raw_fields = {
         **pending.fields,
         "balance_delta": signed_delta.text,
