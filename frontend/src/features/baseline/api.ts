@@ -61,3 +61,67 @@ export type BaselineReadiness = {
 }
 
 export const loadBaselineReadiness = () => api<BaselineReadiness>('baseline/readiness')
+
+export type Ratio =
+  | { available: true; numerator: string; denominator: string; value: string }
+  | { available: false; reason: string; numerator: string; denominator: string }
+
+export type MonthDecomposition = {
+  month: string
+  owner_cost_recorded: string
+  identified_recurring: string
+  unresolved_irregular: string
+  adjustments: string
+  routine_variable_residual: string
+  reconciles: boolean
+  income: string
+}
+
+export type CurrencyEstimate = {
+  months: MonthDecomposition[]
+  fixed_recurring_monthly: string
+  variable_residual_monthly: string
+  variable_residual_median: string
+  variable_residual_min: string
+  variable_residual_max: string
+  irregular_allowance_monthly: string
+  routine_lifestyle_baseline: string
+  total_observed_monthly: string
+  net_received_income_monthly: string
+  historical_surplus_monthly: string
+  savings_rate: Ratio
+  fixed_cost_ratio: Ratio
+  reserve: { available: false; reason: string }
+  irregular_risk_entries: { month: string; currency: string; category_key: string; amount: string; threshold: string }[]
+}
+
+export type IncomeStream = {
+  payer: string
+  currency: string
+  certainty: 'likely'
+  occurrence_count: number
+  months_seen: string[]
+  first_month: string
+  last_month: string
+  total_received: string
+  min_amount: string
+  max_amount: string
+  note: string
+}
+
+export type BaselineEstimate =
+  | { available: false; reason: string; baseline_window: BaselineWindow; tasks: ReadinessTask[] }
+  | {
+      available: true
+      generation: string
+      baseline_window: BaselineWindow
+      currencies: string[]
+      sample: { months: string[]; month_count: number; quality: string; method_version: string; residual_method: string; outlier_method: string }
+      by_currency: Record<string, CurrencyEstimate>
+      income_streams: IncomeStream[]
+      reconciliation: Record<string, { balances: boolean; owner_cost_recorded_total: string; owner_cost_baseline_total: string; [k: string]: unknown }>
+      limitations: string[]
+      tasks: ReadinessTask[]
+    }
+
+export const loadBaselineEstimate = () => api<BaselineEstimate>('baseline/estimate')

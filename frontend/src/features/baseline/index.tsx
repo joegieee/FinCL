@@ -3,7 +3,8 @@ import { AlertTriangle, CalendarRange, CheckCircle2, RefreshCw } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { loadBaselineReadiness, type BaselineReadiness, type Completeness, type PocketReadiness } from './api'
+import { money } from '@/lib/api'
+import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness, type Completeness, type CurrencyEstimate, type PocketReadiness, type Ratio } from './api'
 
 const COMPLETENESS_LABEL: Record<Completeness, string> = {
   established: 'Established',
@@ -35,6 +36,7 @@ const TASK_LABEL: Record<string, string> = {
  */
 export function BaselineView() {
   const [page, setPage] = useState<BaselineReadiness | null>(null)
+  const [estimate, setEstimate] = useState<BaselineEstimate | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const seq = useRef(0)
@@ -42,8 +44,8 @@ export function BaselineView() {
   const load = useCallback(() => {
     const id = ++seq.current
     setLoading(true); setError('')
-    loadBaselineReadiness()
-      .then(p => { if (id === seq.current) setPage(p) })
+    Promise.all([loadBaselineReadiness(), loadBaselineEstimate()])
+      .then(([p, e]) => { if (id === seq.current) { setPage(p); setEstimate(e) } })
       .catch(e => { if (id === seq.current) setError((e as Error).message) })
       .finally(() => { if (id === seq.current) setLoading(false) })
   }, [])
@@ -83,6 +85,8 @@ export function BaselineView() {
           <p className="muted-note">This window rests on observed-only months. Any figure derived from it is a labelled limited-history estimate, not a normal baseline.</p>
         )}
       </Card>
+
+      {estimate && <EstimateSection estimate={estimate} />}
 
       <Card className="baseline-tasks-card">
         <div className="panel-title"><div><p className="eyebrow">BEFORE A BASELINE</p><h2>{page.tasks.length === 0 ? 'Nothing blocking' : `${page.tasks.length} evidence task${page.tasks.length === 1 ? '' : 's'}`}</h2></div></div>
@@ -139,6 +143,89 @@ function PocketCard({ pocket }: { pocket: PocketReadiness }) {
         <p className="form-error">Missing: {pocket.missing_intervals.map(iv => `${iv.start}→${iv.end}`).join(', ')}</p>
       )}
       {pocket.warnings.map((warning, i) => <p key={i} className="muted-note"><AlertTriangle size={13} /> {warning}</p>)}
+    </Card>
+  )
+}
+
+function ratioText(ratio: Ratio): string {
+  return ratio.available ? ratio.value : `Unavailable — ${ratio.reason}`
+}
+
+function EstimateSection({ estimate }: { estimate: BaselineEstimate }) {
+  if (!estimate.available) {
+    return (
+      <Card className="baseline-window-card">
+        <div className="panel-title"><div><p className="eyebrow">WHAT YOUR NORMAL LIFE COSTS</p><h2>Not derivable yet</h2></div></div>
+        <p className="muted-note">{estimate.reason}</p>
+      </Card>
+    )
+  }
+  return (
+    <>
+      {estimate.currencies.map(currency => (
+        <EstimateCard key={currency} currency={currency} est={estimate.by_currency[currency]} quality={estimate.sample.quality} />
+      ))}
+      <Card className="baseline-tasks-card">
+        <div className="panel-title"><div><p className="eyebrow">METHOD &amp; LIMITS</p><h2>{estimate.sample.method_version}</h2></div></div>
+        <p className="muted-note">{estimate.sample.month_count} month sample · {estimate.sample.residual_method} · {estimate.sample.outlier_method}</p>
+        <ul className="issue-list">
+          {estimate.limitations.map((limit, i) => <li key={i}><p>{limit}</p></li>)}
+        </ul>
+        {estimate.income_streams.length > 0 && (
+          <>
+            <p className="eyebrow" style={{ marginTop: 16 }}>LIKELY INCOME STREAMS</p>
+            <ul className="issue-list">
+              {estimate.income_streams.map((stream, i) => (
+                <li key={i}>
+                  <strong>{stream.payer}</strong> · {stream.currency}
+                  <p>{stream.occurrence_count} receipts {stream.first_month}–{stream.last_month} · {money(stream.min_amount, stream.currency)}–{money(stream.max_amount, stream.currency)} · Likely, never Confirmed</p>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </Card>
+    </>
+  )
+}
+
+function EstimateCard({ currency, est, quality }: { currency: string; est: CurrencyEstimate; quality: string }) {
+  return (
+    <Card className="baseline-pocket-card">
+      <div className="panel-title">
+        <div><p className="eyebrow">WHAT YOUR NORMAL LIFE COSTS · {currency}</p><h2>{money(est.routine_lifestyle_baseline, currency)} / month</h2></div>
+        <Badge variant="outline" className={quality === 'normal' ? '' : 'review-badge'}>{QUALITY_LABEL[quality] ?? quality}</Badge>
+      </div>
+      <dl className="baseline-metrics">
+        <div><dt>Fixed recurring</dt><dd>{money(est.fixed_recurring_monthly, currency)}</dd></div>
+        <div><dt>Variable residual (mean)</dt><dd>{money(est.variable_residual_monthly, currency)}</dd></div>
+        <div><dt>· median / min / max</dt><dd>{money(est.variable_residual_median, currency)} · {money(est.variable_residual_min, currency)} · {money(est.variable_residual_max, currency)}</dd></div>
+        <div><dt>Irregular allowance (mean)</dt><dd>{money(est.irregular_allowance_monthly, currency)}</dd></div>
+        <div><dt>Total observed monthly</dt><dd>{money(est.total_observed_monthly, currency)}</dd></div>
+        <div><dt>Net received income (mean)</dt><dd>{money(est.net_received_income_monthly, currency)}</dd></div>
+        <div><dt>Historical surplus</dt><dd>{money(est.historical_surplus_monthly, currency)}</dd></div>
+        <div><dt>Savings rate</dt><dd>{ratioText(est.savings_rate)}</dd></div>
+        <div><dt>Fixed-cost ratio</dt><dd>{ratioText(est.fixed_cost_ratio)}</dd></div>
+        <div><dt>Minimum reserve</dt><dd>Withheld — {est.reserve.reason}</dd></div>
+      </dl>
+      <table className="pocket-table">
+        <thead><tr><th>Month</th><th>Owner cost</th><th>Recurring</th><th>Irregular</th><th>Adjustments</th><th>Routine residual</th></tr></thead>
+        <tbody>
+          {est.months.map(row => (
+            <tr key={row.month}>
+              <td>{row.month}</td>
+              <td>{money(row.owner_cost_recorded, currency)}</td>
+              <td>{money(row.identified_recurring, currency)}</td>
+              <td>{money(row.unresolved_irregular, currency)}</td>
+              <td>{money(row.adjustments, currency)}</td>
+              <td>{money(row.routine_variable_residual, currency)}{!row.reconciles && <small className="form-error">does not reconcile</small>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {est.irregular_risk_entries.length > 0 && (
+        <p className="muted-note"><AlertTriangle size={13} /> {est.irregular_risk_entries.length} entr{est.irregular_risk_entries.length === 1 ? 'y' : 'ies'} held out as irregular risk (still in the historical total, out of the routine residual).</p>
+      )}
     </Card>
   )
 }

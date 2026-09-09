@@ -184,6 +184,11 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .baseline-month.is-provisional{border-color:var(--border);background:var(--background)}
 .baseline-month.is-missing{border-color:#c26b4d;background:color-mix(in srgb,#c26b4d 10%,transparent)}
 .baseline-pocket-card .muted-note{margin:6px 0 0;display:flex;align-items:center;gap:6px}
+.baseline-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 20px;margin:14px 0 4px;font-size:11px}
+.baseline-metrics>div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding:5px 0}
+.baseline-metrics dt{color:var(--muted)}
+.baseline-metrics dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.baseline-pocket-card .pocket-table td small{color:var(--destructive,#c26b4d)}
 .alias-section{padding:20px!important}
 @media(max-width:700px){.form-row-3{grid-template-columns:1fr}.pocket-table{display:block;overflow-x:auto}}
 

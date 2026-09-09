@@ -2,9 +2,42 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 
 const loadBaselineReadiness = vi.fn()
-vi.mock('./api', () => ({ loadBaselineReadiness: () => loadBaselineReadiness() }))
+const loadBaselineEstimate = vi.fn()
+vi.mock('./api', () => ({
+  loadBaselineReadiness: () => loadBaselineReadiness(),
+  loadBaselineEstimate: () => loadBaselineEstimate(),
+}))
+vi.mock('@/lib/api', () => ({ money: (v: string, c = 'SGD') => `${c} ${v}` }))
 
 const { BaselineView } = await import('./index')
+
+function estimate(over: Record<string, unknown> = {}) {
+  return {
+    available: true,
+    generation: 'g1',
+    baseline_window: { quality: 'limited-history', reason: 'x', start_month: '2026-03', end_month: '2026-03', month_count: 1, basis: 'all-established' },
+    currencies: ['SGD'],
+    sample: { months: ['2026-03'], month_count: 1, quality: 'limited-history', method_version: 'baseline-estimator-v1', residual_method: 'arithmetic-mean-of-monthly-routine-residual', outlier_method: 'outlier-v1' },
+    by_currency: {
+      SGD: {
+        months: [{ month: '2026-03', owner_cost_recorded: '960.00', identified_recurring: '0.00', unresolved_irregular: '900.00', adjustments: '0.00', routine_variable_residual: '60.00', reconciles: true, income: '0' }],
+        fixed_recurring_monthly: '0.00', variable_residual_monthly: '60.00', variable_residual_median: '60.00',
+        variable_residual_min: '60.00', variable_residual_max: '60.00', irregular_allowance_monthly: '900.00',
+        routine_lifestyle_baseline: '60.00', total_observed_monthly: '960.00', net_received_income_monthly: '0.00',
+        historical_surplus_monthly: '-960.00',
+        savings_rate: { available: false, reason: 'no classified income in the baseline window', numerator: '-960.00', denominator: '0.00' },
+        fixed_cost_ratio: { available: true, numerator: '0.00', denominator: '60.00', value: '0.0000' },
+        reserve: { available: false, reason: 'essential-vs-discretionary roles are unresolved' },
+        irregular_risk_entries: [{ month: '2026-03', currency: 'SGD', category_key: 'Unclassified / Unclassified', amount: '900.00', threshold: '180.00' }],
+      },
+    },
+    income_streams: [],
+    reconciliation: { SGD: { balances: true, owner_cost_recorded_total: '960.00', owner_cost_baseline_total: '960.00' } },
+    limitations: ['essential / discretionary / tier roles are not yet assigned'],
+    tasks: [],
+    ...over,
+  }
+}
 
 function readiness(over: Record<string, unknown> = {}) {
   return {
@@ -34,15 +67,27 @@ afterEach(() => { cleanup(); vi.clearAllMocks() })
 describe('BaselineView', () => {
   it('shows the recommended window, the month grid and the missing-evidence task', async () => {
     loadBaselineReadiness.mockResolvedValue(readiness())
+    loadBaselineEstimate.mockResolvedValue(estimate())
     render(<BaselineView />)
 
-    expect(await screen.findByText('Limited history')).toBeInTheDocument()
+    expect(await screen.findAllByText('Limited history')).not.toHaveLength(0)
     expect(screen.getByText(/only 1 consecutive established month/)).toBeInTheDocument()
     expect(screen.getByText('Import missing statements')).toBeInTheDocument()
     expect(screen.getByText(/2026-02-01 → 2026-02-28/)).toBeInTheDocument()
-    // The month grid renders every classified month with its state.
     expect(screen.getByTitle(/2026-02 · Missing/)).toBeInTheDocument()
     expect(screen.getAllByText('Established').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('renders the estimate decomposition and withholds the reserve', async () => {
+    loadBaselineReadiness.mockResolvedValue(readiness())
+    loadBaselineEstimate.mockResolvedValue(estimate())
+    render(<BaselineView />)
+
+    expect(await screen.findByText(/WHAT YOUR NORMAL LIFE COSTS · SGD/)).toBeInTheDocument()
+    expect(screen.getByText('SGD 60.00 / month')).toBeInTheDocument()
+    expect(screen.getByText(/Withheld — essential-vs-discretionary/)).toBeInTheDocument()
+    expect(screen.getByText(/Unavailable — no classified income/)).toBeInTheDocument()
+    expect(screen.getByText(/1 entry held out as irregular risk/)).toBeInTheDocument()
   })
 
   it('reports a clean bill when there are no evidence tasks', async () => {
@@ -50,6 +95,7 @@ describe('BaselineView', () => {
       tasks: [],
       baseline_window: { quality: 'normal', reason: '6 consecutive fully-established months; using the latest 6', start_month: '2026-01', end_month: '2026-06', month_count: 6, basis: 'all-established' },
     }))
+    loadBaselineEstimate.mockResolvedValue(estimate())
     render(<BaselineView />)
 
     expect(await screen.findByText('Normal baseline')).toBeInTheDocument()
