@@ -39,6 +39,7 @@ from .db import (
     SCHEMA_16_TABLES_SQL,
     SCHEMA_17_TABLES_SQL,
     SCHEMA_18_TABLES_SQL,
+    SCHEMA_19_TABLES_SQL,
     SCHEMA_VERSION,
     connect_sqlite,
 )
@@ -153,6 +154,16 @@ def _migrate_17_to_18(connection: sqlite3.Connection) -> None:
     """Add v0.6 budget, goal and recurring planning projections."""
     _apply_table_ddl(connection, SCHEMA_18_TABLES_SQL)
 
+
+def _migrate_18_to_19(connection: sqlite3.Connection) -> None:
+    """Add the schema-19 `balance_observations` projection table; no data rewrite.
+
+    Populated by the next journal replay from the `BALANCE_OBSERVATION_SET` /
+    `_RETIRE` decision kinds; empty until an operator records a manual balance
+    observation.
+    """
+    _apply_table_ddl(connection, SCHEMA_19_TABLES_SQL)
+
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
 # edit to that DDL is a new migration rather than a silent change under one id.
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
@@ -185,6 +196,9 @@ MIGRATION_16_TO_17_CHECKSUM = "sha256:" + hashlib.sha256(
 MIGRATION_17_TO_18_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_18_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_18_TO_19_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_19_TABLES_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
@@ -198,6 +212,7 @@ MIGRATIONS: dict[int, Migration] = {
     15: Migration(15, 16, MIGRATION_15_TO_16_CHECKSUM, _migrate_15_to_16),
     16: Migration(16, 17, MIGRATION_16_TO_17_CHECKSUM, _migrate_16_to_17),
     17: Migration(17, 18, MIGRATION_17_TO_18_CHECKSUM, _migrate_17_to_18),
+    18: Migration(18, 19, MIGRATION_18_TO_19_CHECKSUM, _migrate_18_to_19),
 }
 
 

@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -241,6 +241,32 @@ CREATE TABLE IF NOT EXISTS recurring_occurrences (
     dangling_reason TEXT,
     PRIMARY KEY (commitment, scheduled_on)
 ) STRICT;
+"""
+
+
+# Schema 19 derived table (cash-flow framework Stage 1, docs/PLAN-cashflow-framework.md
+# §"Stage 1 — Liquid position"). One row per non-retired manual balance observation,
+# anchored on the journal UUID. An observation is an absolute as-of balance for one
+# `(account_id, currency_pocket)`, never a delta — the same rule the savings-goal
+# observations follow. The as-of liquid position is computed on read in
+# `fincl.position.queries`; nothing here is a mutable authoritative balance. Rebuilt
+# by every journal replay from `BALANCE_OBSERVATION_SET` / `_RETIRE`. Shared verbatim
+# between a fresh `initialize_schema` and the registered 18->19 migration.
+SCHEMA_19_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS balance_observations (
+    observation TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    currency_pocket TEXT NOT NULL,
+    observed_on TEXT NOT NULL,
+    balance_coefficient INTEGER NOT NULL
+        CHECK (balance_coefficient BETWEEN {-MAX_ABS_COEFFICIENT} AND {MAX_ABS_COEFFICIENT}),
+    balance_scale INTEGER NOT NULL CHECK (balance_scale BETWEEN 0 AND {MAX_SCALE}),
+    journal_seq INTEGER NOT NULL,
+    retired INTEGER NOT NULL DEFAULT 0 CHECK (retired IN (0, 1))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS balance_observations_scope
+    ON balance_observations(account_id, currency_pocket, observed_on);
 """
 
 
@@ -830,6 +856,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_16_TABLES_SQL
         + SCHEMA_17_TABLES_SQL
         + SCHEMA_18_TABLES_SQL
+        + SCHEMA_19_TABLES_SQL
     )
 
 
