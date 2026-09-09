@@ -190,6 +190,15 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .baseline-metrics dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
 .baseline-pocket-card .pocket-table td small{color:var(--destructive,#c26b4d)}
 .alias-section{padding:20px!important}
+
+/* Stage 2B — read-only unified obligations surface */
+.obligations-view{display:flex;flex-direction:column;gap:18px}
+.obligations-view .obl-card{padding:20px!important}
+.obligations-view .pocket-table td strong{font-size:11px}
+.obligations-view .pocket-table td small{color:var(--muted)}
+.obl-group-likely .panel-title h2{color:#977c3d}
+.obl-gap{color:#a64136;font-weight:600}
+@media(prefers-color-scheme:dark){.obl-group-likely .panel-title h2{color:#d3c18d}.obl-gap{color:#edb3a8}}
 @media(max-width:700px){.form-row-3{grid-template-columns:1fr}.pocket-table{display:block;overflow-x:auto}}
 
 /* v0.5 slice 3 — rules and custom category management */
