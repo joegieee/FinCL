@@ -249,9 +249,9 @@ class RebuildTests(unittest.TestCase):
         with open_database(output) as connection:
             self.assertEqual(
                 connection.execute(
-                    "SELECT count(*) FROM ledger_entries WHERE source_family = 'CSV'"
+                    "SELECT count(*) FROM ledger_entries WHERE source_family = 'DOCUMENT'"
                 ).fetchone()[0],
-                imported.ledger_entry_count,
+                imported.transaction_count,
             )
             self.assertEqual(
                 connection.execute("SELECT original_path FROM source_content").fetchone()[0],
@@ -269,8 +269,8 @@ class RebuildTests(unittest.TestCase):
         data = profile_report_data(self.database)
 
         self.assertEqual(len(data["profiles"]), 1)
-        self.assertEqual(data["profiles"][0]["source_profile_version"], "revolut-csv-en-sg-2026-v1")
-        self.assertIn("revolut-csv-en-sg-2026-v1", build_profile_report(self.database))
+        self.assertEqual(data["profiles"][0]["source_profile_version"], "revolut-pdf-en-sg-2026-v1")
+        self.assertIn("revolut-pdf-en-sg-2026-v1", build_profile_report(self.database))
 
     def test_revolut_exchange_is_linked_with_reduced_implied_rate(self):
         self.source.write_bytes(
@@ -293,7 +293,10 @@ class RebuildTests(unittest.TestCase):
             ).fetchone()
         self.assertEqual(link, ("CURRENCY_EXCHANGE", "SGD", "100.00", "USD", "75.00", 3, 4))
 
-    def test_incomplete_revolut_exchange_is_quarantined(self):
+    def test_lone_revolut_exchange_leg_is_accepted_but_not_linked(self):
+        # A single exchange leg in an issued statement is valid evidence; the
+        # PDF path reconciles the printed balance and simply leaves it unlinked
+        # (the retired CSV export quarantined it).
         self.source.write_bytes(
             _csv_bytes(
                 [["Exchange", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "SGD to USD", "-100.00", "0.00", "SGD", "COMPLETED", "900.00"]]
@@ -302,14 +305,8 @@ class RebuildTests(unittest.TestCase):
 
         result = self.service.import_revolut_pdf(self.source)
 
-        self.assertEqual(result.status, "QUARANTINED")
+        self.assertEqual(result.status, "ACCEPTED")
         with open_database(self.database) as connection:
-            self.assertEqual(
-                connection.execute(
-                    "SELECT count(*) FROM extraction_issues WHERE code = 'EXCHANGE_PAIRING_INCOMPLETE'"
-                ).fetchone()[0],
-                1,
-            )
             self.assertEqual(connection.execute("SELECT count(*) FROM transfer_links").fetchone()[0], 0)
 
 
@@ -369,7 +366,7 @@ class EconomicFlowReportTests(unittest.TestCase):
             "covered_window": {"start": "2026-01-01", "end": "2026-01-02"},
             "analysis_window": {"start": "2026-01-01", "end": "2026-01-02"},
         }])
-        self.assertEqual(data["coverage"][0]["source_type"], "REVOLUT_CSV")
+        self.assertEqual(data["coverage"][0]["source_type"], "REVOLUT_PDF")
 
 
 _INBOUND_BUCKET_ROWS = [

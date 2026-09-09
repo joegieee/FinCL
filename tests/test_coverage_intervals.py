@@ -216,18 +216,18 @@ class CoverageContractDatabaseTests(unittest.TestCase):
         )
         connection.commit()
 
-    def test_single_revolut_source_is_covered_with_observed_entry_span_basis(self) -> None:
+    def test_single_revolut_source_is_covered_on_the_statement_period_basis(self) -> None:
         data = economic_flow_report_data(self.database)
         self.assertEqual(data["coverage_policy_version"], "coverage-intervals-v1")
         self.assertEqual(data["coverage_status"], "COVERED")
-        self.assertEqual(data["required_sources"], ["REVOLUT_CSV"])
+        self.assertEqual(data["required_sources"], ["REVOLUT_PDF"])
         self.assertEqual(
             data["covered_intervals"], [{"start": "2026-01-05", "end": "2026-03-20"}]
         )
-        revolut = data["source_intervals"]["REVOLUT_CSV"]
-        self.assertEqual(revolut["basis"], "observed_entry_span")
-        self.assertFalse(revolut["completeness_established"])
-        self.assertTrue(revolut["warnings"])
+        revolut = data["source_intervals"]["REVOLUT_PDF"]
+        self.assertEqual(revolut["basis"], "statement_period")
+        self.assertTrue(revolut["completeness_established"])
+        self.assertFalse(revolut["warnings"])
 
     def test_quarantined_pdf_family_stays_required_and_makes_coverage_unavailable(self) -> None:
         self._add_pdf_statement(
@@ -237,7 +237,7 @@ class CoverageContractDatabaseTests(unittest.TestCase):
             selection_state="QUARANTINED",
         )
         data = economic_flow_report_data(self.database)
-        self.assertEqual(data["required_sources"], ["DBS_CONSOLIDATED", "REVOLUT_CSV"])
+        self.assertEqual(data["required_sources"], ["DBS_CONSOLIDATED", "REVOLUT_PDF"])
         self.assertEqual(data["coverage_status"], "UNAVAILABLE")
         self.assertEqual(data["covered_intervals"], [])
         self.assertIn(
@@ -251,9 +251,12 @@ class CoverageContractDatabaseTests(unittest.TestCase):
     def test_empty_export_does_not_invent_bounds(self) -> None:
         connection = self._connect()
         connection.execute("DELETE FROM ledger_entries")
+        # A statement with no resolvable period contributes no interval, yet its
+        # family stays required.
+        connection.execute("UPDATE statements SET period_start = NULL, period_end = NULL")
         connection.commit()
         data = economic_flow_report_data(self.database)
-        self.assertEqual(data["required_sources"], ["REVOLUT_CSV"])
+        self.assertEqual(data["required_sources"], ["REVOLUT_PDF"])
         self.assertEqual(data["covered_intervals"], [])
         self.assertEqual(data["coverage_status"], "UNAVAILABLE")
         self.assertIsNone(data["consolidated_sgd_total"])
@@ -329,7 +332,7 @@ class CoverageContractDatabaseTests(unittest.TestCase):
         data = coverage_report_data(self.database)
         self.assertEqual(data["coverage_policy_version"], "coverage-intervals-v1")
         self.assertEqual(data["coverage_status"], "COVERED")
-        self.assertEqual(data["required_sources"], ["REVOLUT_CSV"])
+        self.assertEqual(data["required_sources"], ["REVOLUT_PDF"])
 
     def test_cli_economic_flow_json_carries_the_contract_fields(self) -> None:
         result = CliRunner().invoke(

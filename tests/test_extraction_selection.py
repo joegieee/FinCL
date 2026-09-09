@@ -91,16 +91,16 @@ class SelectionTests(unittest.TestCase):
             "SELECT natural_anchor FROM ledger_entries ORDER BY id LIMIT 1"
         ).fetchone()[0]
         self._clone_row(
-            "raw_records",
-            "id = (SELECT raw_record_id FROM ledger_entries ORDER BY id LIMIT 1)",
-            {"id": "raw_twin_stale", "extraction_run_id": stale_id,
+            "document_records",
+            "id = (SELECT document_record_id FROM ledger_entries ORDER BY id LIMIT 1)",
+            {"id": "doc_twin_stale", "extraction_run_id": stale_id,
              "source_anchor": "twin", "extraction_ordinal": 999},
         )
         self._clone_row(
             "ledger_entries",
             "id = (SELECT id FROM ledger_entries ORDER BY id LIMIT 1)",
             {"id": "entry_twin_stale", "extraction_run_id": stale_id,
-             "raw_record_id": "raw_twin_stale", "natural_anchor": anchor},
+             "document_record_id": "doc_twin_stale", "natural_anchor": anchor},
         )
         self.connection.commit()
         return stale_id
@@ -165,14 +165,14 @@ class SelectionTests(unittest.TestCase):
             "SELECT natural_anchor FROM ledger_entries ORDER BY id LIMIT 1"
         ).fetchone()[0]
         self._clone_row(
-            "raw_records",
-            "id = (SELECT raw_record_id FROM ledger_entries ORDER BY id LIMIT 1)",
-            {"id": "raw_ambig_twin", "source_anchor": "ambig", "extraction_ordinal": 998},
+            "document_records",
+            "id = (SELECT document_record_id FROM ledger_entries ORDER BY id LIMIT 1)",
+            {"id": "doc_ambig_twin", "source_anchor": "ambig", "extraction_ordinal": 998},
         )
         self._clone_row(
             "ledger_entries",
             "id = (SELECT id FROM ledger_entries ORDER BY id LIMIT 1)",
-            {"id": "entry_ambig_twin", "raw_record_id": "raw_ambig_twin"},
+            {"id": "entry_ambig_twin", "document_record_id": "doc_ambig_twin"},
         )
         self.connection.execute("UPDATE extraction_runs SET selection_state = 'QUARANTINED'")
         self.connection.commit()

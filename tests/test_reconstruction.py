@@ -69,10 +69,10 @@ class ReconstructionTests(unittest.TestCase):
 
     def test_two_profile_versions_of_one_family_are_a_single_input(self) -> None:
         connection = self._rw()
-        self._add_run(connection, self._sha(connection), "revolut-csv-en-sg-2025-v1")
+        self._add_run(connection, self._sha(connection), "revolut-pdf-en-sg-2025-v1")
         dispatchable, unsupported = _inventory_evidence(self.database)
         self.assertEqual(len(dispatchable), 1)
-        self.assertEqual(dispatchable[0].family, "REVOLUT_CSV")
+        self.assertEqual(dispatchable[0].family, "REVOLUT_PDF")
         self.assertEqual(unsupported, [])
         result = rebuild_database(self.database, self.evidence, self.output)
         self.assertEqual(result.sources_rebuilt, 1)
@@ -82,7 +82,7 @@ class ReconstructionTests(unittest.TestCase):
         connection.execute("UPDATE extraction_runs SET selection_state = 'SUPERSEDED'")
         connection.commit()
         dispatchable, unsupported = _inventory_evidence(self.database)
-        self.assertEqual([s.family for s in dispatchable], ["REVOLUT_CSV"])
+        self.assertEqual([s.family for s in dispatchable], ["REVOLUT_PDF"])
         self.assertEqual(unsupported, [])
 
     def test_conflicting_families_refuse_reconstruction(self) -> None:
@@ -117,7 +117,7 @@ class ReconstructionTests(unittest.TestCase):
         # The known revolut run keeps this blob dispatchable, so it is not
         # unsupported; but a blob whose *only* profile is unknown is.
         dispatchable, unsupported = _inventory_evidence(self.database)
-        self.assertEqual([s.family for s in dispatchable], ["REVOLUT_CSV"])
+        self.assertEqual([s.family for s in dispatchable], ["REVOLUT_PDF"])
         self.assertEqual(unsupported, [])
 
     # --- schema gating -------------------------------------------------- #
