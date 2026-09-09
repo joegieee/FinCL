@@ -6,10 +6,20 @@ pins them to a single ledger generation, and classifies — per forecast output,
 never globally — whether the evidence supports an established-input estimate, a
 limited-history estimate, or nothing at all.
 
-The cash timeline, the scenarios and the forecast arithmetic are a later task
-and deliberately live nowhere in this package yet.
+Stage 3B is the pure exact-money six-month cash timeline and its manifest-gated
+base and conservative scenario construction.  It deliberately exposes no API
+route; presentation is owned by the later UI stage.
 """
 
+from .engine import (
+    ForecastEvent,
+    ResidualCategory,
+    TimelineEvent,
+    build_cash_timeline,
+    cash_timeline,
+    forecast_cash_timeline,
+    run_timeline,
+)
 from .manifest import (
     FORECAST_READINESS_LEVELS,
     READINESS_ESTABLISHED,
@@ -20,8 +30,15 @@ from .manifest import (
 
 __all__ = [
     "FORECAST_READINESS_LEVELS",
+    "ForecastEvent",
     "READINESS_ESTABLISHED",
     "READINESS_LIMITED",
     "READINESS_UNAVAILABLE",
+    "ResidualCategory",
+    "TimelineEvent",
+    "build_cash_timeline",
+    "cash_timeline",
+    "forecast_cash_timeline",
     "forecast_input_manifest",
+    "run_timeline",
 ]

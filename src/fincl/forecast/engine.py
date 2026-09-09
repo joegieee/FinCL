@@ -1,0 +1,1863 @@
+"""Stage 3B — the pure cash-timeline arithmetic.
+
+The arithmetic core takes a starting balance, sourced cash events and an
+optional reserve target, then returns the day-by-day and month-by-month
+consequence without mutating the ledger.  :func:`cash_timeline` is the thin
+read-only composition layer over the Stage 3A manifest and the established
+source adapters.  Keeping scenario construction pure is what makes the two
+failures that matter testable in isolation:
+
+* a month that closes positive while an earlier day inside it went to zero —
+  month-end arithmetic alone cannot see that, a daily walk can; and
+* the monotonicity property — raising an outflow or lowering an inflow must
+  never *improve* any balance on any day.  That holds by construction here
+  (the balance is a running sum of the event amounts), and the tests exercise
+  this function directly rather than a whole ledger read so a regression names
+  the arithmetic rather than a fixture.
+
+Money is integer minor units at one declared scale throughout.  The caller
+chooses the scale (never below two) and formats on the way out; no float and
+no rounding ever happens inside the walk.
+
+Declared conventions
+--------------------
+Three modelling assumptions are unavoidable and all three are stated in the
+output rather than buried here: :data:`SAME_DAY_CONVENTION` (what to do when
+the evidence does not order two events on one day), :data:`DAILY_ALLOCATION_RULE`
+(how an unscheduled monthly cost becomes daily amounts) and
+:data:`PARTIAL_MONTH_RULE` (what a partial month costs).
+"""
+
+from __future__ import annotations
+
+import calendar
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Any
+
+from ..baseline.estimators import baseline_estimate
+from ..cards.cash_conversion import card_cash_conversion
+from ..money import ExactMoney, format_decimal
+from ..obligations.queries import obligations_page
+from ..planning.queries import recurring_page
+from ..planning.schedules import occurrences as schedule_occurrences
+from .manifest import READINESS_UNAVAILABLE, forecast_input_manifest
+
+ENGINE_VERSION = "cash-timeline-engine-v1"
+HORIZON_MONTHS = 6
+
+# --- the output columns -----------------------------------------------------
+# Lifestyle cost, liability settlement, irregular cost and forward allocation
+# answer different questions and must never be netted into one "expenses" line:
+# a month whose lifestyle is flat and whose card settlement doubled is not the
+# same month as its mirror image.
+COLUMN_INCOME = "income"
+COLUMN_LIFESTYLE = "lifestyle_costs"
+COLUMN_DEBT_CARD = "debt_and_card_payments"
+COLUMN_IRREGULAR = "known_irregular_costs"
+COLUMN_ALLOCATION = "future_allocations"
+EXPENSE_COLUMNS = (
+    COLUMN_LIFESTYLE,
+    COLUMN_DEBT_CARD,
+    COLUMN_IRREGULAR,
+    COLUMN_ALLOCATION,
+)
+COLUMNS = (COLUMN_INCOME, *EXPENSE_COLUMNS)
+
+DIRECTION_IN = "inflow"
+DIRECTION_OUT = "outflow"
+
+# --- timing vocabulary ------------------------------------------------------
+TIMING_KNOWN = "known"
+TIMING_INFERRED = "inferred"
+TIMING_UNRESOLVED = "unresolved"
+
+PRECISION_DAY = "day"
+PRECISION_WINDOW = "window"
+PRECISION_UNRESOLVED = "unresolved"
+
+SAME_DAY_CONVENTION = (
+    "same-day-outflows-first-v1: when several events land on one day and no "
+    "evidence orders them, every outflow is applied before every inflow. The "
+    "day's low point is therefore the worst ordering that day admits, so an "
+    "intra-day shortfall is never hidden by a receipt that may in fact arrive "
+    "later in the day. This is a stress convention, not a claim about the "
+    "actual order."
+)
+
+DAILY_ALLOCATION_RULE = (
+    "daily-cent-allocation-v1: an unscheduled monthly cost is divided into "
+    "equal whole minor units across the days it covers; the remainder of N "
+    "units is added one unit per day to the first N days. The period total is "
+    "exact; no single day is. This is a declared modelling assumption about "
+    "when unscheduled money leaves, never evidence that it leaves then."
+)
+
+PARTIAL_MONTH_RULE = (
+    "remaining-day-rate-v1: a partial month carries the monthly rate for the "
+    "days that remain in it (monthly amount x remaining days / days in month), "
+    "never the monthly amount less what was already spent. Spending recorded "
+    "earlier in the month is history, not credit against the groceries still "
+    "to come."
+)
+
+CONVENTIONS = {
+    "engine_version": ENGINE_VERSION,
+    "same_day_ordering": SAME_DAY_CONVENTION,
+    "daily_allocation": DAILY_ALLOCATION_RULE,
+    "partial_month": PARTIAL_MONTH_RULE,
+}
+
+CONFIDENCE_CONFIRMED = "confirmed"
+CONFIDENCE_LIKELY = "likely"
+CONFIDENCE_POSSIBLE = "possible"
+CONFIDENCE_LEVELS = (
+    CONFIDENCE_CONFIRMED,
+    CONFIDENCE_LIKELY,
+    CONFIDENCE_POSSIBLE,
+)
+
+LIKELY_INCLUDE = "include"
+LIKELY_EXCLUDE = "exclude"
+LIKELY_POLICIES = (LIKELY_INCLUDE, LIKELY_EXCLUDE)
+
+SCENARIO_BASE = "base"
+SCENARIO_CONSERVATIVE = "conservative"
+
+
+@dataclass(frozen=True, slots=True)
+class TimelineEvent:
+    """One dated cash movement, already resolved onto a scenario's calendar.
+
+    ``source_id`` is the canonical identifier of the thing being settled (an
+    obligation id, a card settlement source id, an allocation slice key).  It
+    is what :func:`settlement_reconciliation` checks for exactly-once, so two
+    events that settle the same underlying money must carry the same
+    ``source_id`` and a scenario must never emit it twice.
+    """
+
+    event_id: str
+    source_id: str
+    column: str
+    direction: str
+    on: str
+    amount_minor: int
+    label: str
+    timing_basis: str = TIMING_KNOWN
+    window_earliest: str | None = None
+    window_latest: str | None = None
+    conditional: bool = False
+    condition: str | None = None
+    provenance: dict[str, Any] = field(default_factory=dict, compare=False)
+
+    def __post_init__(self) -> None:
+        if self.column not in COLUMNS:
+            raise ValueError(f"unknown timeline column: {self.column!r}")
+        if self.direction not in (DIRECTION_IN, DIRECTION_OUT):
+            raise ValueError(f"unknown direction: {self.direction!r}")
+        if self.amount_minor < 0:
+            raise ValueError("a timeline event carries a magnitude, never a sign")
+        if self.timing_basis not in (TIMING_KNOWN, TIMING_INFERRED, TIMING_UNRESOLVED):
+            raise ValueError(f"unknown timing basis: {self.timing_basis!r}")
+        event_day = date.fromisoformat(self.on)
+        earliest = date.fromisoformat(self.window_earliest or self.on)
+        latest = date.fromisoformat(self.window_latest or self.on)
+        if earliest > event_day or event_day > latest:
+            raise ValueError("the event date must fall inside its timing window")
+        if self.conditional and not self.condition:
+            raise ValueError("a conditional event must state its condition")
+
+    def as_dict(self, scale: int) -> dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "source_id": self.source_id,
+            "column": self.column,
+            "direction": self.direction,
+            "on": self.on,
+            "amount": format_decimal(self.amount_minor, scale),
+            "label": self.label,
+            "timing": {
+                "basis": self.timing_basis,
+                "earliest": self.window_earliest or self.on,
+                "latest": self.window_latest or self.on,
+                "precision": (
+                    PRECISION_DAY if self.timing_basis == TIMING_KNOWN
+                    else PRECISION_UNRESOLVED if self.timing_basis == TIMING_UNRESOLVED
+                    else PRECISION_WINDOW
+                ),
+            },
+            "conditional": self.conditional,
+            "condition": self.condition,
+            "provenance": dict(self.provenance),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ForecastEvent:
+    """A sourced external movement before scenario timing is resolved.
+
+    Amounts remain source-text decimals until a currency-wide exact scale is
+    chosen.  ``source_id`` is the canonical source/event identifier; when it is
+    absent the engine preserves the item as a limitation instead of attempting
+    fuzzy de-duplication.
+    """
+
+    event_id: str
+    source_id: str
+    currency: str
+    amount: str
+    column: str
+    direction: str
+    label: str
+    on: str | None = None
+    timing_basis: str = TIMING_KNOWN
+    window_earliest: str | None = None
+    window_latest: str | None = None
+    confidence: str = CONFIDENCE_CONFIRMED
+    fixed: bool = True
+    recurring_salary: bool = False
+    conditional: bool = False
+    condition: str | None = None
+    residual_category: str | None = None
+    residual_on: str | None = None
+    residual_amount: str | None = None
+    removes_from_residual: bool = False
+    provenance: dict[str, Any] = field(default_factory=dict, compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.currency:
+            raise ValueError("a sourced forecast event needs a currency")
+        money = ExactMoney.parse(self.amount)
+        if money.coefficient < 0:
+            raise ValueError("a forecast event carries a magnitude, never a sign")
+        if self.column not in COLUMNS:
+            raise ValueError(f"unknown timeline column: {self.column!r}")
+        if self.direction not in (DIRECTION_IN, DIRECTION_OUT):
+            raise ValueError(f"unknown direction: {self.direction!r}")
+        if self.confidence not in CONFIDENCE_LEVELS:
+            raise ValueError(f"unknown confidence: {self.confidence!r}")
+        if self.timing_basis not in (TIMING_KNOWN, TIMING_INFERRED, TIMING_UNRESOLVED):
+            raise ValueError(f"unknown timing basis: {self.timing_basis!r}")
+        if self.on is not None:
+            date.fromisoformat(self.on)
+        if self.window_earliest is not None:
+            date.fromisoformat(self.window_earliest)
+        if self.window_latest is not None:
+            date.fromisoformat(self.window_latest)
+        if self.residual_on is not None:
+            date.fromisoformat(self.residual_on)
+        if self.residual_amount is not None and ExactMoney.parse(
+            self.residual_amount
+        ).coefficient < 0:
+            raise ValueError("a residual replacement amount must not be negative")
+        if self.conditional and not self.condition:
+            raise ValueError("a conditional event must state its condition")
+        if self.removes_from_residual and not self.residual_category:
+            raise ValueError("a residual replacement must identify its matching category")
+
+
+@dataclass(frozen=True, slots=True)
+class ResidualCategory:
+    """One unscheduled category retained independently in the daily model."""
+
+    category_id: str
+    currency: str
+    mean_monthly: str
+    highest_observed_monthly: str
+    label: str
+    column: str = COLUMN_LIFESTYLE
+    provenance: dict[str, Any] = field(default_factory=dict, compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.category_id:
+            raise ValueError("a residual category needs a stable category_id")
+        mean = ExactMoney.parse(self.mean_monthly)
+        high = ExactMoney.parse(self.highest_observed_monthly)
+        if mean.coefficient < 0 or high.coefficient < 0:
+            raise ValueError("residual spending assumptions must not be negative")
+        if self.column not in EXPENSE_COLUMNS:
+            raise ValueError("a residual category must use an expense column")
+
+
+# --- calendar helpers -------------------------------------------------------
+
+
+def add_months(anchor: date, months: int, day: int | None = None) -> date:
+    """``anchor`` rolled forward, clamped to the target month's length."""
+    total = anchor.month - 1 + months
+    year = anchor.year + total // 12
+    month = total % 12 + 1
+    return date(year, month, min(day or anchor.day, calendar.monthrange(year, month)[1]))
+
+
+def day_range(start: str, end: str) -> list[str]:
+    """Every ISO day in the inclusive ``[start, end]`` span."""
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    if first > last:
+        return []
+    return [
+        (first + timedelta(days=offset)).isoformat()
+        for offset in range((last - first).days + 1)
+    ]
+
+
+def month_of(day: str) -> str:
+    return day[:7]
+
+
+def days_in_month(month: str) -> int:
+    year, index = (int(part) for part in month.split("-"))
+    return calendar.monthrange(year, index)[1]
+
+
+def allocate_daily_cents(total_minor: int, days: int) -> list[int]:
+    """Split ``total_minor`` across ``days`` exactly, per :data:`DAILY_ALLOCATION_RULE`.
+
+    Negative totals are not accepted: a negative unscheduled cost would be an
+    inflow wearing an expense's name, and the caller has to say which it means.
+    """
+    if days <= 0:
+        return []
+    if total_minor < 0:
+        raise ValueError("an unscheduled cost allocation must not be negative")
+    base, remainder = divmod(total_minor, days)
+    return [base + (1 if index < remainder else 0) for index in range(days)]
+
+
+def remaining_day_amount(monthly_minor: int, covered_days: int, month: str) -> int:
+    """A partial month's share of a monthly rate, per :data:`PARTIAL_MONTH_RULE`."""
+    if monthly_minor < 0:
+        raise ValueError("a monthly rate must not be negative")
+    length = days_in_month(month)
+    if covered_days >= length:
+        return monthly_minor
+    return monthly_minor * covered_days // length
+
+
+# --- the walk ---------------------------------------------------------------
+
+
+def _day_timing(
+    events: Sequence[TimelineEvent], day: str, prior: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    inferred = [
+        event
+        for event in events
+        if event.timing_basis in (TIMING_INFERRED, TIMING_UNRESOLVED)
+    ]
+    prior_ids = list((prior or {}).get("inferred_event_ids", []))
+    if not inferred and not prior_ids:
+        return {
+            "precision": PRECISION_DAY,
+            "earliest": day,
+            "latest": day,
+            "inferred_event_ids": [],
+        }
+    unresolved = (
+        (prior or {}).get("precision") == PRECISION_UNRESOLVED
+        or any(event.timing_basis == TIMING_UNRESOLVED for event in inferred)
+    )
+    earliest = min(
+        [day]
+        + ([str(prior["earliest"])] if prior_ids and prior is not None else [])
+        + [event.window_earliest or event.on for event in inferred]
+    )
+    latest = max(
+        [day]
+        + ([str(prior["latest"])] if prior_ids and prior is not None else [])
+        + [event.window_latest or event.on for event in inferred]
+    )
+    return {
+        "precision": PRECISION_UNRESOLVED if unresolved else PRECISION_WINDOW,
+        "earliest": earliest,
+        "latest": latest,
+        "inferred_event_ids": list(
+            dict.fromkeys(prior_ids + [event.event_id for event in inferred])
+        ),
+    }
+
+
+def _milestone(
+    *,
+    occurs: bool,
+    day: str | None,
+    amount_minor: int | None,
+    scale: int,
+    timing: dict[str, Any] | None,
+    preceded_by_inferred: bool,
+    note: str,
+) -> dict[str, Any]:
+    if not occurs:
+        return {"occurs": False, "on": None, "amount": None, "note": note}
+    assert day is not None and timing is not None
+    return {
+        "occurs": True,
+        "on": day if timing["precision"] == PRECISION_DAY else None,
+        "modelled_on": day,
+        "amount": None if amount_minor is None else format_decimal(amount_minor, scale),
+        "precision": timing["precision"],
+        "window": {"earliest": timing["earliest"], "latest": timing["latest"]},
+        "preceded_by_inferred_timing": preceded_by_inferred,
+        "note": note,
+    }
+
+
+def run_timeline(
+    *,
+    currency: str,
+    scale: int,
+    opening_minor: int,
+    start: str,
+    end: str,
+    events: Iterable[TimelineEvent],
+    reserve_minor: int | None = None,
+) -> dict[str, Any]:
+    """Walk the days from ``start`` (exclusive) to ``end`` (inclusive).
+
+    ``opening_minor`` is the balance standing at the close of ``start`` — the
+    supported cash cutoff — so the first modelled day is the day after it.
+
+    An event dated on or before the cutoff is *repositioned* onto the first
+    modelled day rather than dropped: an overdue obligation with no payment
+    evidence is still money that has to leave.  It is reported separately, and
+    its timing precision is unresolved because the ledger does not say when.
+    An event dated after ``end`` leaves no cash inside the horizon and is
+    reported as settling beyond it.
+    """
+    if scale < 2:
+        raise ValueError("the timeline works at a minor-unit scale of at least two")
+    days = day_range(
+        (date.fromisoformat(start) + timedelta(days=1)).isoformat(), end
+    )
+    if not days:
+        raise ValueError("the timeline horizon contains no modelled day")
+    first_day, last_day = days[0], days[-1]
+
+    ordered = sorted(events, key=lambda item: (item.on, item.source_id, item.event_id))
+    applied: list[TimelineEvent] = []
+    repositioned: list[dict[str, Any]] = []
+    beyond: list[dict[str, Any]] = []
+    for event in ordered:
+        if event.on > last_day:
+            beyond.append(event.as_dict(scale))
+            continue
+        if event.on < first_day:
+            moved = TimelineEvent(
+                event_id=event.event_id,
+                source_id=event.source_id,
+                column=event.column,
+                direction=event.direction,
+                on=first_day,
+                amount_minor=event.amount_minor,
+                label=event.label,
+                timing_basis=TIMING_UNRESOLVED,
+                window_earliest=first_day,
+                window_latest=last_day,
+                conditional=event.conditional,
+                condition=event.condition,
+                provenance=dict(event.provenance),
+            )
+            repositioned.append(
+                {
+                    **moved.as_dict(scale),
+                    "original_date": event.on,
+                    "reason": (
+                        "the stated date is on or before the supported cash cutoff "
+                        "and no payment is recorded; the money still has to move, so "
+                        "it is modelled on the first day of the horizon and its "
+                        "timing is reported unresolved rather than exact"
+                    ),
+                }
+            )
+            applied.append(moved)
+            continue
+        applied.append(event)
+
+    by_day: dict[str, list[TimelineEvent]] = {}
+    for event in applied:
+        by_day.setdefault(event.on, []).append(event)
+
+    balance = opening_minor
+    day_rows: list[dict[str, Any]] = []
+    lowest_minor = opening_minor
+    lowest_day: str | None = None
+    lowest_timing: dict[str, Any] | None = None
+    lowest_preceded = False
+    highest_minor = opening_minor
+    highest_day: str | None = None
+    highest_timing: dict[str, Any] | None = None
+    highest_preceded = False
+    cutoff_timing = {
+        "precision": PRECISION_DAY,
+        "earliest": start,
+        "latest": start,
+        "inferred_event_ids": [],
+    }
+    zero_day: str | None = start if opening_minor <= 0 else None
+    zero_timing: dict[str, Any] | None = cutoff_timing if zero_day else None
+    zero_preceded = False
+    breach_day: str | None = (
+        start
+        if reserve_minor is not None and opening_minor < reserve_minor
+        else None
+    )
+    breach_timing: dict[str, Any] | None = cutoff_timing if breach_day else None
+    breach_preceded = False
+    seen_inferred = False
+    cumulative_timing: dict[str, Any] | None = None
+    column_totals = dict.fromkeys(COLUMNS, 0)
+
+    for day in days:
+        day_events = by_day.get(day, [])
+        outflow = sum(
+            event.amount_minor for event in day_events if event.direction == DIRECTION_OUT
+        )
+        inflow = sum(
+            event.amount_minor for event in day_events if event.direction == DIRECTION_IN
+        )
+        for event in day_events:
+            column_totals[event.column] += event.amount_minor
+        opening_of_day = balance
+        # The declared same-day convention: outflows first, so `low` is the
+        # worst point the day can reach under any ordering the evidence allows.
+        low = opening_of_day - outflow
+        close = low + inflow
+        timing = _day_timing(day_events, day, cumulative_timing)
+        cumulative_timing = timing
+        day_rows.append(
+            {
+                "date": day,
+                "opening": format_decimal(opening_of_day, scale),
+                "inflow": format_decimal(inflow, scale),
+                "outflow": format_decimal(outflow, scale),
+                "low_point": format_decimal(low, scale),
+                "closing": format_decimal(close, scale),
+                "event_ids": [event.event_id for event in day_events],
+                "timing": timing,
+            }
+        )
+        if low < lowest_minor:
+            lowest_minor, lowest_day, lowest_timing = low, day, timing
+            lowest_preceded = seen_inferred
+        if close > highest_minor:
+            highest_minor, highest_day, highest_timing = close, day, timing
+            highest_preceded = seen_inferred
+        if zero_day is None and low <= 0:
+            zero_day, zero_timing, zero_preceded = day, timing, seen_inferred
+        if (
+            reserve_minor is not None
+            and breach_day is None
+            and low < reserve_minor
+        ):
+            breach_day, breach_timing, breach_preceded = day, timing, seen_inferred
+        if timing["precision"] != PRECISION_DAY:
+            seen_inferred = True
+        balance = close
+
+    months = _month_rows(day_rows, days, opening_minor, scale, reserve_minor, by_day)
+
+    if lowest_day is None:
+        lowest = {
+            "occurs": True,
+            "on": start,
+            "amount": format_decimal(opening_minor, scale),
+            "precision": PRECISION_DAY,
+            "window": {"earliest": start, "latest": start},
+            "preceded_by_inferred_timing": False,
+            "note": "no modelled day falls below the starting balance",
+        }
+    else:
+        lowest = _milestone(
+            occurs=True, day=lowest_day, amount_minor=lowest_minor, scale=scale,
+            timing=lowest_timing, preceded_by_inferred=lowest_preceded,
+            note=(
+                "the lowest point any modelled day reaches under the same-day "
+                "stress convention (outflows before inflows)"
+            ),
+        )
+
+    maximum = (
+        _milestone(
+            occurs=True, day=highest_day, amount_minor=highest_minor, scale=scale,
+            timing=highest_timing, preceded_by_inferred=highest_preceded,
+            note="the highest closing balance any modelled day reaches",
+        )
+        if highest_day is not None
+        else {
+            "occurs": True, "on": start,
+            "amount": format_decimal(opening_minor, scale),
+            "precision": PRECISION_DAY,
+            "window": {"earliest": start, "latest": start},
+            "preceded_by_inferred_timing": False,
+            "note": "no modelled day closes above the starting balance",
+        }
+    )
+
+    first_zero = _milestone(
+        occurs=zero_day is not None, day=zero_day,
+        amount_minor=None, scale=scale, timing=zero_timing,
+        preceded_by_inferred=zero_preceded,
+        note=(
+            "the first day whose low point reaches zero or below; a month may "
+            "still close positive around it"
+        ),
+    )
+
+    if reserve_minor is None:
+        reserve_breach: dict[str, Any] = {
+            "available": False,
+            "reason": (
+                "no reserve target is available, so no reserve breach is stated; "
+                "the cash balances above are unaffected"
+            ),
+        }
+        reserve_gaps: dict[str, Any] = {
+            "available": False,
+            "reason": (
+                "no reserve target is available, so no funding gap is stated; "
+                "the cash balances above are unaffected"
+            ),
+        }
+    else:
+        reserve_breach = {
+            "available": True,
+            **_milestone(
+                occurs=breach_day is not None, day=breach_day,
+                amount_minor=reserve_minor, scale=scale, timing=breach_timing,
+                preceded_by_inferred=breach_preceded,
+                note=(
+                    "the first day whose low point falls below the reserve target"
+                ),
+            ),
+            "reserve_target": format_decimal(reserve_minor, scale),
+        }
+        gap_months = [
+            {
+                "month": row["month"],
+                "closing": row["closing"],
+                "lowest_balance": row["lowest_balance"],
+                "gap": row["reserve_gap"],
+            }
+            for row in months
+            if row["reserve_gap"] is not None and row["reserve_gap"] != format_decimal(0, scale)
+        ]
+        largest = max(
+            (int(_unformat(row["gap"], scale)) for row in gap_months), default=0
+        )
+        reserve_gaps = {
+            "available": True,
+            "reserve_target": format_decimal(reserve_minor, scale),
+            "months_below_target": gap_months,
+            "largest_gap": format_decimal(largest, scale),
+            "ever_fully_funded": len(gap_months) < len(months),
+            "basis": (
+                "per month row, the reserve target less that month's lowest "
+                "intra-month balance under the same-day stress convention"
+            ),
+        }
+
+    continuity_holds = (
+        bool(months)
+        and months[0]["opening"] == format_decimal(opening_minor, scale)
+        and months[-1]["closing"] == format_decimal(balance, scale)
+        and all(
+            months[index]["closing"] == months[index + 1]["opening"]
+            for index in range(len(months) - 1)
+        )
+    )
+
+    return {
+        "currency": currency,
+        "scale": scale,
+        "starting_balance": format_decimal(opening_minor, scale),
+        "starting_balance_as_of": start,
+        "horizon": {
+            "start": start,
+            "first_modelled_day": first_day,
+            "end": last_day,
+            "modelled_days": len(days),
+        },
+        "days": day_rows,
+        "months": months,
+        "closing_balance": format_decimal(balance, scale),
+        "totals": {
+            "income": format_decimal(column_totals[COLUMN_INCOME], scale),
+            "expense": format_decimal(
+                sum(column_totals[column] for column in EXPENSE_COLUMNS), scale
+            ),
+            "net": format_decimal(
+                column_totals[COLUMN_INCOME]
+                - sum(column_totals[column] for column in EXPENSE_COLUMNS),
+                scale,
+            ),
+            "by_column": {
+                column: format_decimal(column_totals[column], scale)
+                for column in COLUMNS
+            },
+        },
+        "lowest_balance": lowest,
+        "maximum_cash": maximum,
+        "first_zero": first_zero,
+        "first_reserve_breach": reserve_breach,
+        "reserve_funding_gaps": reserve_gaps,
+        "continuity": {
+            "holds": continuity_holds,
+            "basis": (
+                "every month row opens on the previous row's closing balance, the "
+                "first opens on the starting balance and the last closes on the "
+                "horizon's closing balance"
+            ),
+        },
+        "events": {
+            "applied": len(applied),
+            "items": [event.as_dict(scale) for event in applied],
+            "repositioned": repositioned,
+            "settling_beyond_horizon": beyond,
+            "same_day_convention": SAME_DAY_CONVENTION,
+        },
+        "settlement": settlement_reconciliation(applied, beyond),
+    }
+
+
+def _unformat(value: str, scale: int) -> int:
+    sign = -1 if value.startswith("-") else 1
+    digits = value.lstrip("+-").replace(".", "")
+    return sign * int(digits or "0")
+
+
+def _month_rows(
+    day_rows: list[dict[str, Any]],
+    days: list[str],
+    opening_minor: int,
+    scale: int,
+    reserve_minor: int | None,
+    by_day: dict[str, list[TimelineEvent]],
+) -> list[dict[str, Any]]:
+    """Group the daily walk into month rows with opening/closing continuity."""
+    rows: list[dict[str, Any]] = []
+    order: list[str] = []
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in day_rows:
+        month = month_of(row["date"])
+        if month not in grouped:
+            grouped[month] = []
+            order.append(month)
+        grouped[month].append(row)
+
+    running = opening_minor
+    for month in order:
+        member_rows = grouped[month]
+        covered = len(member_rows)
+        column_totals = dict.fromkeys(COLUMNS, 0)
+        for row in member_rows:
+            for event in by_day.get(row["date"], []):
+                column_totals[event.column] += event.amount_minor
+        opening = running
+        closing = _unformat(member_rows[-1]["closing"], scale)
+        low_row = min(member_rows, key=lambda item: _unformat(item["low_point"], scale))
+        low_minor = _unformat(low_row["low_point"], scale)
+        gap = (
+            None
+            if reserve_minor is None
+            else format_decimal(max(reserve_minor - low_minor, 0), scale)
+        )
+        rows.append(
+            {
+                "month": month,
+                "partial": covered < days_in_month(month),
+                "days_covered": covered,
+                "days_in_month": days_in_month(month),
+                "first_day": member_rows[0]["date"],
+                "last_day": member_rows[-1]["date"],
+                "opening": format_decimal(opening, scale),
+                "closing": format_decimal(closing, scale),
+                "income": format_decimal(column_totals[COLUMN_INCOME], scale),
+                "expense": format_decimal(
+                    sum(column_totals[column] for column in EXPENSE_COLUMNS), scale
+                ),
+                "by_column": {
+                    column: format_decimal(column_totals[column], scale)
+                    for column in COLUMNS
+                },
+                "lowest_balance": {
+                    "amount": format_decimal(low_minor, scale),
+                    "on": (
+                        low_row["date"]
+                        if low_row["timing"]["precision"] == PRECISION_DAY
+                        else None
+                    ),
+                    "modelled_on": low_row["date"],
+                    "precision": low_row["timing"]["precision"],
+                    "window": {
+                        "earliest": low_row["timing"]["earliest"],
+                        "latest": low_row["timing"]["latest"],
+                    },
+                    "note": (
+                        "the lowest point inside the month; a month can close "
+                        "positive and still reach this"
+                    ),
+                },
+                "closes_positive_over_an_intra_month_low": (
+                    closing > 0 and low_minor <= 0
+                ),
+                "reserve_gap": gap,
+            }
+        )
+        running = closing
+    return rows
+
+
+def settlement_reconciliation(
+    applied: Sequence[TimelineEvent], beyond: Sequence[dict[str, Any]]
+) -> dict[str, Any]:
+    """Every sourced external event settles exactly once, checked by identity.
+
+    Slices of one deterministic allocation (a monthly cost spread over its
+    days) share a source but are not one settlement each; they carry distinct
+    source ids per slice for exactly that reason, so a duplicate here is always
+    a real double-settlement rather than an artefact of the spreading rule.
+    """
+    counts: dict[str, int] = {}
+    for event in applied:
+        counts[event.source_id] = counts.get(event.source_id, 0) + 1
+    for row in beyond:
+        counts[str(row["source_id"])] = counts.get(str(row["source_id"]), 0) + 1
+    duplicated = sorted(key for key, count in counts.items() if count > 1)
+    return {
+        "settled_exactly_once": not duplicated,
+        "distinct_source_ids": len(counts),
+        "duplicated_source_ids": duplicated,
+        "contract": (
+            "each sourced external event converts to cash exactly once: its "
+            "canonical source identifier appears on exactly one settlement, "
+            "inside the horizon or beyond it"
+        ),
+    }
+
+
+# --- scenario construction -------------------------------------------------
+
+
+def _minor(value: str, scale: int) -> int:
+    return ExactMoney.parse(value).rescaled_coefficient(scale)
+
+
+def _middle_day(earliest: str, latest: str) -> str:
+    first = date.fromisoformat(earliest)
+    last = date.fromisoformat(latest)
+    return (first + timedelta(days=(last - first).days // 2)).isoformat()
+
+
+def _resolve_event(
+    event: ForecastEvent, *, scenario: str, scale: int
+) -> TimelineEvent | None:
+    """Place an event without erasing the date evidence behind that placement."""
+    if event.timing_basis == TIMING_UNRESOLVED and not (
+        event.on or event.window_earliest or event.window_latest
+    ):
+        return None
+    earliest = event.window_earliest or event.on
+    latest = event.window_latest or event.on
+    if earliest is None or latest is None:
+        return None
+    if earliest > latest:
+        raise ValueError(f"event {event.event_id!r} has an inverted timing window")
+    if event.timing_basis == TIMING_KNOWN:
+        if event.on is None:
+            return None
+        resolved = event.on
+    elif scenario == SCENARIO_CONSERVATIVE:
+        resolved = latest if event.direction == DIRECTION_IN else earliest
+    else:
+        resolved = event.on or _middle_day(earliest, latest)
+    if not earliest <= resolved <= latest:
+        raise ValueError(f"event {event.event_id!r} falls outside its timing window")
+    return TimelineEvent(
+        event_id=event.event_id,
+        source_id=event.source_id,
+        column=event.column,
+        direction=event.direction,
+        on=resolved,
+        amount_minor=_minor(event.amount, scale),
+        label=event.label,
+        timing_basis=event.timing_basis,
+        window_earliest=earliest,
+        window_latest=latest,
+        conditional=event.conditional,
+        condition=event.condition,
+        provenance={
+            **event.provenance,
+            "confidence": event.confidence,
+            "fixed": event.fixed,
+            "recurring_salary": event.recurring_salary,
+            "scenario_date_rule": (
+                "known date governs"
+                if event.timing_basis == TIMING_KNOWN
+                else "later receipt / earlier payment"
+                if scenario == SCENARIO_CONSERVATIVE
+                else "source date or midpoint of the observed window"
+            ),
+        },
+    )
+
+
+def _included(
+    event: ForecastEvent,
+    *,
+    scenario: str,
+    likely_income_policy: str,
+    strong_income_interruption: bool,
+) -> bool:
+    if event.confidence == CONFIDENCE_POSSIBLE:
+        return False
+    if event.direction == DIRECTION_OUT:
+        return True
+    if scenario == SCENARIO_BASE:
+        return event.confidence in (CONFIDENCE_CONFIRMED, CONFIDENCE_LIKELY)
+    if strong_income_interruption and event.recurring_salary:
+        return False
+    return event.confidence == CONFIDENCE_CONFIRMED or (
+        event.confidence == CONFIDENCE_LIKELY
+        and likely_income_policy == LIKELY_INCLUDE
+    )
+
+
+def _calendar_months(start: str, end: str) -> list[tuple[str, list[str]]]:
+    modelled = day_range(
+        (date.fromisoformat(start) + timedelta(days=1)).isoformat(), end
+    )
+    grouped: dict[str, list[str]] = {}
+    for day in modelled:
+        grouped.setdefault(month_of(day), []).append(day)
+    return list(grouped.items())
+
+
+def _residual_events(
+    *,
+    categories: Sequence[ResidualCategory],
+    sourced: Sequence[ForecastEvent],
+    resolved: Sequence[TimelineEvent],
+    scenario: str,
+    currency: str,
+    scale: int,
+    start: str,
+    end: str,
+) -> tuple[list[TimelineEvent], list[dict[str, Any]], list[str]]:
+    """Allocate every category independently and remove only matching costs."""
+    result: list[TimelineEvent] = []
+    allocations: list[dict[str, Any]] = []
+    limitations: list[str] = []
+    resolved_by_event = {item.event_id: item for item in resolved}
+    for category in categories:
+        if category.currency != currency:
+            continue
+        mean = _minor(category.mean_monthly, scale)
+        highest = _minor(category.highest_observed_monthly, scale)
+        monthly = mean if scenario == SCENARIO_BASE else max(mean, highest)
+        for month, covered_days in _calendar_months(start, end):
+            prorated = remaining_day_amount(monthly, len(covered_days), month)
+            removals: list[dict[str, Any]] = []
+            removed = 0
+            for source in sourced:
+                if (
+                    source.currency != currency
+                    or not source.removes_from_residual
+                    or source.residual_category != category.category_id
+                    or source.event_id not in resolved_by_event
+                ):
+                    continue
+                placed = resolved_by_event[source.event_id]
+                residual_day = source.residual_on or placed.on
+                if month_of(residual_day) != month or not (start < residual_day <= end):
+                    continue
+                amount = _minor(source.residual_amount or source.amount, scale)
+                removed += amount
+                removals.append(
+                    {
+                        "event_id": source.event_id,
+                        "source_id": source.source_id,
+                        "residual_on": residual_day,
+                        "amount": format_decimal(amount, scale),
+                    }
+                )
+            if removed > prorated:
+                limitations.append(
+                    f"{format_decimal(removed - prorated, scale)} {currency} of dated "
+                    f"cost in {category.category_id} during {month} exceeds that "
+                    "category's matching residual; the matching residual is reduced "
+                    "to zero and no other category is touched"
+                )
+            remaining = max(prorated - removed, 0)
+            slices = allocate_daily_cents(remaining, len(covered_days))
+            for day, amount in zip(covered_days, slices, strict=True):
+                if amount == 0:
+                    continue
+                source_id = (
+                    f"residual:{scenario}:{currency}:{category.category_id}:{month}:{day}"
+                )
+                result.append(
+                    TimelineEvent(
+                        event_id=source_id,
+                        source_id=source_id,
+                        column=category.column,
+                        direction=DIRECTION_OUT,
+                        on=day,
+                        amount_minor=amount,
+                        label=category.label,
+                        timing_basis=TIMING_INFERRED,
+                        window_earliest=covered_days[0],
+                        window_latest=covered_days[-1],
+                        provenance={
+                            **category.provenance,
+                            "kind": "unscheduled_residual_allocation",
+                            "category_id": category.category_id,
+                            "scenario": scenario,
+                            "allocation_rule": DAILY_ALLOCATION_RULE,
+                        },
+                    )
+                )
+            allocations.append(
+                {
+                    "category_id": category.category_id,
+                    "label": category.label,
+                    "currency": currency,
+                    "column": category.column,
+                    "month": month,
+                    "case": scenario,
+                    "monthly_assumption": format_decimal(monthly, scale),
+                    "covered_days": len(covered_days),
+                    "prorated_before_dated_costs": format_decimal(prorated, scale),
+                    "dated_costs_removed": removals,
+                    "allocated_residual": format_decimal(remaining, scale),
+                    "assumption": DAILY_ALLOCATION_RULE,
+                }
+            )
+    return result, allocations, limitations
+
+
+def _scenario(
+    *,
+    name: str,
+    currency: str,
+    scale: int,
+    opening_minor: int,
+    reserve_minor: int | None,
+    start: str,
+    end: str,
+    sourced_events: Sequence[ForecastEvent],
+    residual_categories: Sequence[ResidualCategory],
+    likely_income_policy: str,
+    strong_income_interruption: bool,
+) -> dict[str, Any]:
+    selected_sources = [
+        event
+        for event in sourced_events
+        if event.currency == currency
+        and _included(
+            event,
+            scenario=name,
+            likely_income_policy=likely_income_policy,
+            strong_income_interruption=strong_income_interruption,
+        )
+    ]
+    limitations: list[str] = []
+    placed: list[TimelineEvent] = []
+    identity_counts: dict[str, int] = {}
+    for event in selected_sources:
+        if event.source_id:
+            identity_counts[event.source_id] = identity_counts.get(event.source_id, 0) + 1
+    duplicated = {source_id for source_id, count in identity_counts.items() if count > 1}
+    if duplicated:
+        limitations.append(
+            "canonical source identifiers occur more than once and are withheld "
+            "rather than double-settled: " + ", ".join(sorted(duplicated))
+        )
+    for event in selected_sources:
+        if not event.source_id:
+            limitations.append(
+                f"{event.event_id or '<unidentified event>'} lacks sufficient "
+                "canonical identity for safe deduplication; it remains an explicit "
+                "limitation and is not settled under a guessed identifier"
+            )
+            continue
+        if event.source_id in duplicated:
+            continue
+        resolved = _resolve_event(event, scenario=name, scale=scale)
+        if resolved is None:
+            limitations.append(
+                f"{event.source_id} has no safe date or timing window; it remains "
+                "an explicit unsettled limitation and is not assigned a guessed date"
+            )
+        else:
+            placed.append(resolved)
+    residual, allocations, allocation_limits = _residual_events(
+        categories=residual_categories,
+        sourced=selected_sources,
+        resolved=placed,
+        scenario=name,
+        currency=currency,
+        scale=scale,
+        start=start,
+        end=end,
+    )
+    limitations.extend(allocation_limits)
+    result = run_timeline(
+        currency=currency,
+        scale=scale,
+        opening_minor=opening_minor,
+        start=start,
+        end=end,
+        events=[*placed, *residual],
+        reserve_minor=reserve_minor,
+    )
+    result["case"] = name
+    result["available"] = not limitations and result["settlement"]["settled_exactly_once"]
+    result["limitations"] = limitations
+    result["allocation_metadata"] = allocations
+    result["policy"] = {
+        "income": (
+            "Confirmed and evidence-derived Likely income"
+            if name == SCENARIO_BASE
+            else (
+                "Confirmed income; all recurring salary is excluded as an explicit "
+                "strong income-interruption scenario, not presented as the likely outcome"
+                if strong_income_interruption
+                else f"Confirmed income; Likely income policy: {likely_income_policy}"
+            )
+        ),
+        "spending": (
+            "observed routine baseline plus known obligations and unresolved irregular allowance"
+            if name == SCENARIO_BASE
+            else (
+                "no automatic cuts; fixed obligations stay fixed and variable residual "
+                "uses the greater of its mean and highest observed comparable month"
+            )
+        ),
+        "upper_spend_label": (
+            None
+            if name == SCENARIO_BASE
+            else "observed stress case"
+        ),
+    }
+    result["actual_and_projected"] = {
+        "actual": {
+            "through": start,
+            "starting_balance": format_decimal(opening_minor, scale),
+            "forecast_values_in_actual_totals": False,
+        },
+        "projected": {
+            "start": result["horizon"]["first_modelled_day"],
+            "end": end,
+            "totals": result["totals"],
+        },
+        "rule": (
+            "recent actual evidence ends at the supported cash cutoff; every later "
+            "number is projected and no forecast number enters an actual report or total"
+        ),
+    }
+    return result
+
+
+def _manifest_categories(
+    manifest: dict[str, Any], estimate: dict[str, Any] | None
+) -> list[ResidualCategory]:
+    """Make the aggregate fallback the manifest can support without inventing detail."""
+    categories: list[ResidualCategory] = []
+    if not estimate or not estimate.get("available"):
+        return categories
+    for currency, cell in estimate.get("by_currency", {}).items():
+        allowance_cell = manifest.get("reserve_and_allowance", {}).get(
+            "by_currency", {}
+        ).get(currency, {}).get("allowance", {})
+        if not allowance_cell.get("available"):
+            continue
+        categories.extend(
+            [
+                ResidualCategory(
+                    category_id=f"manifest:routine:{currency}",
+                    currency=currency,
+                    mean_monthly=str(cell["variable_residual_monthly"]),
+                    highest_observed_monthly=str(cell["variable_residual_max"]),
+                    label="Observed routine residual spending",
+                    provenance={
+                        "source": "fincl.baseline.estimators.baseline_estimate",
+                        "method": manifest.get("methods", {}).get("residual_method"),
+                        "sparse_categories_retained": True,
+                    },
+                ),
+                ResidualCategory(
+                    category_id=f"manifest:irregular:{currency}",
+                    currency=currency,
+                    mean_monthly=str(cell["irregular_allowance_monthly"]),
+                    highest_observed_monthly=str(cell["irregular_allowance_monthly"]),
+                    label="Unresolved irregular allowance",
+                    column=COLUMN_IRREGULAR,
+                    provenance={
+                        "source": "Stage 3A manifest reserve_and_allowance",
+                        "treatment": "retained; never treated as zero",
+                    },
+                ),
+            ]
+        )
+    return categories
+
+
+def _gap_attribution(base: dict[str, Any], conservative: dict[str, Any]) -> dict[str, Any]:
+    scale = int(base["scale"])
+    income = _unformat(base["totals"]["income"], scale) - _unformat(
+        conservative["totals"]["income"], scale
+    )
+    expense_and_timing = _unformat(conservative["totals"]["expense"], scale) - _unformat(
+        base["totals"]["expense"], scale
+    )
+    closing_gap = _unformat(base["closing_balance"], scale) - _unformat(
+        conservative["closing_balance"], scale
+    )
+    lowest_gap = _unformat(base["lowest_balance"]["amount"], scale) - _unformat(
+        conservative["lowest_balance"]["amount"], scale
+    )
+    return {
+        "base_minus_conservative_closing": format_decimal(closing_gap, scale),
+        "income_contribution": format_decimal(income, scale),
+        "expense_and_timing_contribution": format_decimal(expense_and_timing, scale),
+        "closing_reconciles": closing_gap == income + expense_and_timing,
+        "base_minus_conservative_lowest_balance": format_decimal(lowest_gap, scale),
+        "timing_note": (
+            "earlier payments and later receipts can deepen or move the lowest-balance "
+            "window without changing the horizon total; that effect is kept with the "
+            "expense/timing contribution, separate from omitted income"
+        ),
+    }
+
+
+def _monotonicity(base: dict[str, Any], conservative: dict[str, Any]) -> dict[str, Any]:
+    scale = int(base["scale"])
+    failures = [
+        left["date"]
+        for left, right in zip(base["days"], conservative["days"], strict=True)
+        if _unformat(right["closing"], scale) > _unformat(left["closing"], scale)
+        or _unformat(right["low_point"], scale) > _unformat(left["low_point"], scale)
+    ]
+    return {
+        "holds": not failures,
+        "failure_dates": failures,
+        "contract": (
+            "under identical cuts, lower or later income and higher or earlier "
+            "spending must never improve conservative cash on any day"
+        ),
+    }
+
+
+def build_cash_timeline(
+    manifest: dict[str, Any],
+    *,
+    sourced_events: Sequence[ForecastEvent] = (),
+    residual_categories: Sequence[ResidualCategory] = (),
+    likely_income_policy: str = LIKELY_EXCLUDE,
+    strong_income_interruption: bool = False,
+    estimate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build independent base and conservative six-month cash timelines.
+
+    The manifest owns readiness, account/currency scope, cutoff, reserve policy
+    and provenance.  Extra sourced events are explicit because Stage 3A does
+    not fabricate identities or dates that its adapters do not expose.
+    """
+    if likely_income_policy not in LIKELY_POLICIES:
+        raise ValueError(f"likely_income_policy must be one of {LIKELY_POLICIES}")
+    if manifest.get("stale"):
+        return {
+            "available": False,
+            "reason": "the Stage 3A manifest is stale; mixed-generation inputs are not forecast",
+            "generation": manifest.get("generation"),
+            "by_currency": {},
+            "limitations": list(manifest.get("stale_reasons", [])),
+        }
+    cutoff_cell = manifest.get("cutoff") or {}
+    cutoff = cutoff_cell.get("supported_cutoff")
+    if cutoff is None:
+        return {
+            "available": False,
+            "reason": "the Stage 3A manifest has no supported cash cutoff",
+            "generation": manifest.get("generation"),
+            "by_currency": {},
+            "limitations": list(cutoff_cell.get("reasons", [])),
+        }
+    end = add_months(date.fromisoformat(str(cutoff)), HORIZON_MONTHS).isoformat()
+    categories = list(residual_categories) or _manifest_categories(manifest, estimate)
+    result_by_currency: dict[str, Any] = {}
+    global_limits: list[str] = []
+    possible_income = [
+        event
+        for event in sourced_events
+        if event.direction == DIRECTION_IN and event.confidence == CONFIDENCE_POSSIBLE
+    ]
+    for currency, cash in manifest.get("cash", {}).get("by_currency", {}).items():
+        if cash.get("readiness") == READINESS_UNAVAILABLE or cash.get("balance") is None:
+            result_by_currency[currency] = {
+                "available": False,
+                "reason": cash.get("reason") or "no supported opening balance",
+            }
+            continue
+        values = [str(cash["balance"])]
+        scoped_events = [event for event in sourced_events if event.currency == currency]
+        scoped_categories = [category for category in categories if category.currency == currency]
+        values.extend(event.amount for event in scoped_events)
+        values.extend(
+            event.residual_amount
+            for event in scoped_events
+            if event.residual_amount is not None
+        )
+        for category in scoped_categories:
+            values.extend((category.mean_monthly, category.highest_observed_monthly))
+        reserve = manifest.get("reserve_and_allowance", {}).get("by_currency", {}).get(
+            currency, {}
+        ).get("reserve", {})
+        if reserve.get("available") and reserve.get("amount") is not None:
+            values.append(str(reserve["amount"]))
+        scale = max(2, *(ExactMoney.parse(value).scale for value in values))
+        opening = _minor(str(cash["balance"]), scale)
+        reserve_minor = (
+            _minor(str(reserve["amount"]), scale)
+            if reserve.get("available") and reserve.get("amount") is not None
+            else None
+        )
+        base = _scenario(
+            name=SCENARIO_BASE,
+            currency=currency,
+            scale=scale,
+            opening_minor=opening,
+            reserve_minor=reserve_minor,
+            start=str(cutoff),
+            end=end,
+            sourced_events=scoped_events,
+            residual_categories=scoped_categories,
+            likely_income_policy=likely_income_policy,
+            strong_income_interruption=False,
+        )
+        conservative = _scenario(
+            name=SCENARIO_CONSERVATIVE,
+            currency=currency,
+            scale=scale,
+            opening_minor=opening,
+            reserve_minor=reserve_minor,
+            start=str(cutoff),
+            end=end,
+            sourced_events=scoped_events,
+            residual_categories=scoped_categories,
+            likely_income_policy=likely_income_policy,
+            strong_income_interruption=strong_income_interruption,
+        )
+        monotonicity = _monotonicity(base, conservative)
+        if not monotonicity["holds"]:
+            conservative["available"] = False
+            conservative["limitations"].append(
+                "the conservative-case monotonicity contract failed"
+            )
+        scoped_possible = [event for event in possible_income if event.currency == currency]
+        result_by_currency[currency] = {
+            "available": base["available"] and conservative["available"],
+            "starting_balance": format_decimal(opening, scale),
+            "starting_balance_as_of": cutoff,
+            "scale": scale,
+            "base": base,
+            "conservative": conservative,
+            "gap_attribution": _gap_attribution(base, conservative),
+            "monotonicity": monotonicity,
+            "possible_income_upside": {
+                "included_in_base": False,
+                "included_in_conservative": False,
+                "events": [
+                    {
+                        "source_id": event.source_id,
+                        "event_id": event.event_id,
+                        "amount": event.amount,
+                        "currency": event.currency,
+                        "label": event.label,
+                        "timing": {
+                            "basis": event.timing_basis,
+                            "on": event.on,
+                            "earliest": event.window_earliest,
+                            "latest": event.window_latest,
+                        },
+                    }
+                    for event in scoped_possible
+                ],
+                "policy": "Possible income is upside only and never enters either base total",
+            },
+            "reserve_readiness": (
+                {"available": True, "target": format_decimal(reserve_minor, scale)}
+                if reserve_minor is not None
+                else {
+                    "available": False,
+                    "reason": reserve.get("reason") or "reserve readiness is unavailable",
+                    "cash_balance_results_blocked": False,
+                }
+            ),
+        }
+        if not scoped_categories:
+            message = (
+                f"{currency} has no supported residual-spending input; known-event "
+                "cash arithmetic is shown but a complete base or conservative case is unavailable"
+            )
+            global_limits.append(message)
+            result_by_currency[currency]["available"] = False
+            base["available"] = False
+            conservative["available"] = False
+            base["limitations"].append(message)
+            conservative["limitations"].append(message)
+    return {
+        "available": bool(result_by_currency) and all(
+            cell.get("available", False) for cell in result_by_currency.values()
+        ),
+        "generation": manifest.get("generation"),
+        "manifest_as_of": manifest.get("as_of"),
+        "source": "Stage 3A forecast input manifest",
+        "horizon": {
+            "supported_cash_cutoff": cutoff,
+            "end": end,
+            "months": HORIZON_MONTHS,
+            "boundary_rule": (
+                "the cutoff is the opening close; modelled days run from the next "
+                "day through the same calendar day six months later, so partial "
+                "first and last months are retained"
+            ),
+        },
+        "by_currency": result_by_currency,
+        "currency_policy": "independent timelines; unlike currencies are never added",
+        "case_policy": {
+            "base": "Confirmed plus evidence-derived Likely income",
+            "conservative": f"Confirmed income; Likely-inclusion policy: {likely_income_policy}",
+            "strong_income_interruption": strong_income_interruption,
+            "strong_income_interruption_note": (
+                "all recurring salary is excluded explicitly; this is a strong "
+                "interruption scenario and is not presented as the likely outcome"
+                if strong_income_interruption
+                else None
+            ),
+        },
+        "metadata": {
+            **CONVENTIONS,
+            "timing_windows": (
+                "known dates govern; inferred receipts use the later observed bound "
+                "and inferred payments the earlier bound in the conservative case"
+            ),
+            "conditionality": (
+                "conditional events remain labelled with their condition in every event row"
+            ),
+            "allocation_rules": [DAILY_ALLOCATION_RULE, PARTIAL_MONTH_RULE],
+        },
+        "provenance": manifest.get("sources", []),
+        "limitations": [*manifest.get("limitations", []), *global_limits],
+    }
+
+
+def _obligation_events(
+    page: dict[str, Any], *, start: str, end: str
+) -> tuple[list[ForecastEvent], list[str]]:
+    events: list[ForecastEvent] = []
+    limitations: list[str] = []
+    first = date.fromisoformat(start) + timedelta(days=1)
+    last = date.fromisoformat(end)
+    for obligation in page.get("obligations", []):
+        if not obligation.get("stays_visible", True):
+            continue
+        origin = str(obligation["origin"])
+        cash_effect = obligation.get("cash_effect")
+        # Card cash is sourced only from the three-way conversion contract.
+        if origin == "card_statement" or cash_effect == "via_card_statement":
+            continue
+        amount_cell = obligation.get("remaining_amount")
+        if amount_cell is None:
+            limitations.append(
+                f"{obligation['obligation_id']} has no supported remaining amount"
+            )
+            continue
+        if cash_effect not in ("bank_withdrawal", None):
+            limitations.append(
+                f"{obligation['obligation_id']} has unresolved cash effect {cash_effect!r}"
+            )
+            continue
+        direction = (
+            DIRECTION_IN if obligation.get("direction") == "inflow" else DIRECTION_OUT
+        )
+        column = COLUMN_INCOME if direction == DIRECTION_IN else (
+            COLUMN_LIFESTYLE if origin == "recurring_commitment" else COLUMN_DEBT_CARD
+        )
+        confidence = str(obligation.get("confidence") or CONFIDENCE_LIKELY)
+        date_basis = obligation.get("date_basis", {})
+        residual_category = f"manifest:routine:{obligation['currency']}"
+        link = obligation.get("baseline_link", {})
+        residual_amount = (
+            str(link["monthly_baseline_portion"])
+            if link.get("available") and link.get("monthly_baseline_portion") is not None
+            else None
+        )
+        if origin == "recurring_commitment" and date_basis.get("schedule"):
+            scheduled = schedule_occurrences(date_basis["schedule"], first, last)
+            for occurrence in scheduled:
+                iso = occurrence.isoformat()
+                events.append(
+                    ForecastEvent(
+                        event_id=f"{obligation['obligation_id']}:{iso}",
+                        source_id=f"{obligation['obligation_id']}:{iso}",
+                        currency=str(obligation["currency"]),
+                        amount=str(amount_cell["value"]),
+                        column=column,
+                        direction=direction,
+                        label=str(obligation["label"]),
+                        on=iso,
+                        confidence=confidence,
+                        residual_category=residual_category if residual_amount else None,
+                        residual_on=iso,
+                        residual_amount=residual_amount,
+                        removes_from_residual=residual_amount is not None,
+                        provenance={
+                            "source": obligation["source"],
+                            "obligation_id": obligation["obligation_id"],
+                            "date_basis": date_basis,
+                            "baseline_link": link,
+                        },
+                    )
+                )
+            continue
+        schedule = obligation.get("schedule")
+        if schedule:
+            for index, row in enumerate(schedule):
+                on = row.get("due_on")
+                if on is None:
+                    limitations.append(
+                        f"{obligation['obligation_id']} schedule row {index} has no due date"
+                    )
+                    continue
+                events.append(
+                    ForecastEvent(
+                        event_id=f"{obligation['obligation_id']}:schedule:{index}",
+                        source_id=(
+                            f"{obligation['obligation_id']}:schedule:"
+                            f"{row.get('schedule_index', index)}"
+                        ),
+                        currency=str(obligation["currency"]),
+                        amount=str(row["amount"]),
+                        column=column,
+                        direction=direction,
+                        label=str(obligation["label"]),
+                        on=str(on),
+                        confidence=confidence,
+                        provenance={
+                            "source": obligation["source"],
+                            "obligation_id": obligation["obligation_id"],
+                            "date_basis": date_basis,
+                        },
+                    )
+                )
+            continue
+        on = date_basis.get("value")
+        if on is None:
+            limitations.append(
+                f"{obligation['obligation_id']} has no safe settlement date; "
+                "the obligation remains explicit and is not guessed"
+            )
+            continue
+        events.append(
+            ForecastEvent(
+                event_id=str(obligation["obligation_id"]),
+                source_id=str(obligation["obligation_id"]),
+                currency=str(obligation["currency"]),
+                amount=str(amount_cell["value"]),
+                column=column,
+                direction=direction,
+                label=str(obligation["label"]),
+                on=str(on),
+                confidence=confidence,
+                provenance={
+                    "source": obligation["source"],
+                    "obligation_id": obligation["obligation_id"],
+                    "date_basis": date_basis,
+                },
+            )
+        )
+    return events, limitations
+
+
+def _candidate_income_events(
+    page: dict[str, Any], *, start: str, end: str
+) -> tuple[list[ForecastEvent], list[str]]:
+    events: list[ForecastEvent] = []
+    limitations: list[str] = []
+    first = date.fromisoformat(start) + timedelta(days=1)
+    last = date.fromisoformat(end)
+    for candidate in page.get("income_candidates", []):
+        candidate_id = candidate.get("candidate")
+        if not candidate_id:
+            limitations.append(
+                f"income candidate {candidate.get('merchant_key', '<unknown>')} has no "
+                "canonical identity and is not guessed"
+            )
+            continue
+        timing = candidate.get("timing_window", {})
+        cadence = candidate.get("cadence")
+        windows: list[tuple[str, str]] = []
+        if cadence == "monthly" and timing.get("day_of_month_min") is not None:
+            current = date(first.year, first.month, 1)
+            while current <= last:
+                length = calendar.monthrange(current.year, current.month)[1]
+                earliest = date(
+                    current.year,
+                    current.month,
+                    min(int(timing["day_of_month_min"]), length),
+                )
+                latest = date(
+                    current.year,
+                    current.month,
+                    min(int(timing.get("day_of_month_max", timing["day_of_month_min"])), length),
+                )
+                if latest >= first and earliest <= last:
+                    windows.append(
+                        (max(earliest, first).isoformat(), min(latest, last).isoformat())
+                    )
+                current = add_months(current, 1, 1)
+        elif timing.get("next_expected_between"):
+            low, high = (date.fromisoformat(value) for value in timing["next_expected_between"])
+            min_gap = int(timing.get("min_gap_days", 7))
+            max_gap = int(timing.get("max_gap_days", min_gap))
+            while low <= last:
+                if high >= first:
+                    windows.append(
+                        (max(low, first).isoformat(), min(high, last).isoformat())
+                    )
+                low += timedelta(days=min_gap)
+                high += timedelta(days=max_gap)
+        else:
+            limitations.append(
+                f"income candidate {candidate_id} has no observed timing window and "
+                "is not assigned a forecast date"
+            )
+            continue
+        for index, (window_start, window_end) in enumerate(windows):
+            source_id = f"{candidate_id}:occurrence:{index}:{window_start}:{window_end}"
+            events.append(
+                ForecastEvent(
+                    event_id=source_id,
+                    source_id=source_id,
+                    currency=str(candidate["currency"]),
+                    amount=str(candidate["expected_amount"]),
+                    column=COLUMN_INCOME,
+                    direction=DIRECTION_IN,
+                    label=str(candidate["merchant_key"]),
+                    timing_basis=TIMING_INFERRED,
+                    window_earliest=window_start,
+                    window_latest=window_end,
+                    confidence=CONFIDENCE_LIKELY,
+                    recurring_salary=True,
+                    provenance={
+                        "candidate": candidate_id,
+                        "source_count": candidate.get("source_count"),
+                        "amount_variation": candidate.get("amount_variation"),
+                        "observed_timing_window": timing,
+                    },
+                )
+            )
+    return events, limitations
+
+
+def _card_events(
+    conversion: dict[str, Any], *, prospective: Sequence[dict[str, Any]]
+) -> tuple[list[ForecastEvent], list[str]]:
+    events: list[ForecastEvent] = []
+    limitations: list[str] = []
+    prospective_by_id = {str(item["id"]): item for item in prospective if item.get("id")}
+    for card in conversion.get("cards", []):
+        plan = card.get("plan", {})
+        reconciliation = card.get("reconciliation", {})
+        if not plan.get("available") or not reconciliation.get("reconciled"):
+            limitations.append(
+                f"card {card.get('account_id')} {card.get('currency')} has no "
+                "reconciled exactly-once settlement plan"
+            )
+            limitations.extend(
+                str(item.get("detail") or item) for item in plan.get("unresolved", [])
+            )
+            continue
+        for row in plan.get("settlements", []):
+            source_id = str(row["source_id"])
+            inferred = row.get("basis") == "projected_cycle_due_date"
+            purchase = prospective_by_id.get(source_id)
+            events.append(
+                ForecastEvent(
+                    event_id=f"card_cash:{card['account_id']}:{source_id}",
+                    source_id=source_id,
+                    currency=str(row["currency"]),
+                    amount=str(row["amount"]),
+                    column=COLUMN_DEBT_CARD,
+                    direction=DIRECTION_OUT,
+                    label=str(card["label"]),
+                    on=str(row["settle_on"]),
+                    timing_basis=TIMING_INFERRED if inferred else TIMING_KNOWN,
+                    window_earliest=str(row["settle_on"]),
+                    window_latest=str(row["settle_on"]),
+                    confidence=CONFIDENCE_CONFIRMED,
+                    residual_category=(
+                        f"manifest:routine:{row['currency']}" if purchase else None
+                    ),
+                    residual_on=str(row.get("purchased_on")) if purchase else None,
+                    residual_amount=str(row["amount"]) if purchase else None,
+                    removes_from_residual=purchase is not None,
+                    provenance={
+                        "contract": conversion.get("contract_version"),
+                        "partition": row.get("partition"),
+                        "basis": row.get("basis"),
+                        "card_account_id": card.get("account_id"),
+                        "card_reconciliation": reconciliation,
+                    },
+                )
+            )
+    return events, limitations
+
+
+def cash_timeline(
+    database: Path,
+    *,
+    today: date | None = None,
+    likely_income_policy: str = LIKELY_EXCLUDE,
+    strong_income_interruption: bool = False,
+    prospective_card_purchases: Sequence[dict[str, Any]] = (),
+    sourced_events: Sequence[ForecastEvent] = (),
+    residual_categories: Sequence[ResidualCategory] = (),
+) -> dict[str, Any]:
+    """Read the Stage 3A/adapters and produce the backend Stage 3B result."""
+    today = today or date.today()
+    manifest = forecast_input_manifest(database, today=today)
+    cutoff_cell = manifest.get("cutoff") or {}
+    cutoff = cutoff_cell.get("supported_cutoff")
+    if manifest.get("stale") or cutoff is None:
+        return build_cash_timeline(
+            manifest,
+            sourced_events=sourced_events,
+            residual_categories=residual_categories,
+            likely_income_policy=likely_income_policy,
+            strong_income_interruption=strong_income_interruption,
+        )
+    # Obligations and the manifest must describe the balance boundary, not a
+    # later wall-clock day for which the position adapter has already said the
+    # actual cash bridge is incomplete.
+    if manifest.get("as_of") != cutoff:
+        manifest = forecast_input_manifest(database, today=today, as_of=str(cutoff))
+    end = add_months(date.fromisoformat(str(cutoff)), HORIZON_MONTHS).isoformat()
+    estimate = baseline_estimate(database, today=today)
+    obligations = obligations_page(database, as_of=str(cutoff), today=today)
+    recurring = recurring_page(database)
+    cards = card_cash_conversion(
+        database,
+        as_of=str(cutoff),
+        horizon_months=HORIZON_MONTHS,
+        prospective_purchases=list(prospective_card_purchases),
+    )
+    reported = {
+        "manifest": manifest.get("generation"),
+        "baseline_estimate": estimate.get("generation"),
+        "obligations_page": obligations.get("generation"),
+        "recurring_page": recurring.get("generation"),
+        "card_cash_conversion": cards.get("generation"),
+    }
+    if len({token for token in reported.values() if token is not None}) != 1:
+        return {
+            "available": False,
+            "reason": "Stage 3B refused mixed-generation source adapters",
+            "generation": manifest.get("generation"),
+            "reported_generations": reported,
+            "by_currency": {},
+            "limitations": ["refresh the ledger and retry"],
+        }
+    obligation_events, obligation_limits = _obligation_events(
+        obligations, start=str(cutoff), end=end
+    )
+    income_events, income_limits = _candidate_income_events(
+        recurring, start=str(cutoff), end=end
+    )
+    card_events, card_limits = _card_events(
+        cards, prospective=prospective_card_purchases
+    )
+    result = build_cash_timeline(
+        manifest,
+        sourced_events=[
+            *obligation_events,
+            *income_events,
+            *card_events,
+            *sourced_events,
+        ],
+        residual_categories=residual_categories,
+        likely_income_policy=likely_income_policy,
+        strong_income_interruption=strong_income_interruption,
+        estimate=estimate,
+    )
+    adapter_limits = [*obligation_limits, *income_limits, *card_limits]
+    result["limitations"].extend(adapter_limits)
+    result["source_contracts"] = {
+        "obligations": obligations.get("rules", []),
+        "card_cash_conversion": {
+            "contract_version": cards.get("contract_version"),
+            "unresolved": cards.get("unresolved", []),
+            "partition_policy": (
+                "existing billed, posted-unbilled and prospective purchases are "
+                "taken only from the card conversion plan; card obligations and "
+                "via-card installments are not emitted a second time"
+            ),
+        },
+    }
+    if adapter_limits:
+        result["available"] = False
+    return result
+
+
+forecast_cash_timeline = cash_timeline
+
+
+__all__ = [
+    "COLUMNS",
+    "COLUMN_ALLOCATION",
+    "COLUMN_DEBT_CARD",
+    "COLUMN_INCOME",
+    "COLUMN_IRREGULAR",
+    "COLUMN_LIFESTYLE",
+    "CONFIDENCE_CONFIRMED",
+    "CONFIDENCE_LEVELS",
+    "CONFIDENCE_LIKELY",
+    "CONFIDENCE_POSSIBLE",
+    "CONVENTIONS",
+    "DAILY_ALLOCATION_RULE",
+    "DIRECTION_IN",
+    "DIRECTION_OUT",
+    "ENGINE_VERSION",
+    "EXPENSE_COLUMNS",
+    "HORIZON_MONTHS",
+    "LIKELY_EXCLUDE",
+    "LIKELY_INCLUDE",
+    "LIKELY_POLICIES",
+    "PARTIAL_MONTH_RULE",
+    "PRECISION_DAY",
+    "PRECISION_UNRESOLVED",
+    "PRECISION_WINDOW",
+    "SAME_DAY_CONVENTION",
+    "SCENARIO_BASE",
+    "SCENARIO_CONSERVATIVE",
+    "TIMING_INFERRED",
+    "TIMING_KNOWN",
+    "TIMING_UNRESOLVED",
+    "ForecastEvent",
+    "ResidualCategory",
+    "TimelineEvent",
+    "add_months",
+    "allocate_daily_cents",
+    "build_cash_timeline",
+    "cash_timeline",
+    "day_range",
+    "days_in_month",
+    "month_of",
+    "forecast_cash_timeline",
+    "remaining_day_amount",
+    "run_timeline",
+    "settlement_reconciliation",
+]
