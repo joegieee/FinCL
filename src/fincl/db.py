@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -267,6 +267,33 @@ CREATE TABLE IF NOT EXISTS balance_observations (
 
 CREATE INDEX IF NOT EXISTS balance_observations_scope
     ON balance_observations(account_id, currency_pocket, observed_on);
+"""
+
+
+# Schema 20 (cash-flow framework Stage 2B, the card cash-conversion contract).
+# One provenance row per emitted analysis component, carrying the *ledger* source
+# of the movement rather than its merchant label: the account the entry belongs
+# to, that account's source type, and the settlement channel the money actually
+# travelled through. A card purchase and a bank purchase at the same merchant are
+# indistinguishable by label and must never be settled the same way, so the
+# channel is projected from the account, never inferred from `merchant_key`.
+# Rebuilt wholesale with `analysis_components` by every refresh. Shared verbatim
+# between a fresh `initialize_schema` and the registered 19->20 migration.
+SCHEMA_20_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS component_provenance (
+    component_id TEXT PRIMARY KEY,
+    generation_token TEXT NOT NULL,
+    entry_id TEXT NOT NULL,
+    source_account_id TEXT,
+    account_source_type TEXT,
+    payment_channel TEXT NOT NULL
+        CHECK (payment_channel IN ('card', 'bank', 'off_ledger'))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS component_provenance_channel
+    ON component_provenance(generation_token, payment_channel);
+CREATE INDEX IF NOT EXISTS component_provenance_account
+    ON component_provenance(generation_token, source_account_id);
 """
 
 
@@ -857,6 +884,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_17_TABLES_SQL
         + SCHEMA_18_TABLES_SQL
         + SCHEMA_19_TABLES_SQL
+        + SCHEMA_20_TABLES_SQL
     )
 
 

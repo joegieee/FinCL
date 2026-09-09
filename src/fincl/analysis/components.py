@@ -23,6 +23,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Literal
 
+from ..cards.models import CARD_SOURCE_TYPES
 from ..intervals import DateInterval, covers_date, month_span
 from ..money import ExactMoney, exact_sum, format_decimal
 
@@ -54,6 +55,13 @@ WITH entries AS (
            e.economic_direction, e.event_kind,
            e.evidence_sha256,
            a.display_name AS account,
+           e.account_id AS source_account_id,
+           a.source_type AS account_source_type,
+           CASE WHEN a.source_type IN ({card_source_types})
+                     OR EXISTS (SELECT 1 FROM statements cs
+                                JOIN card_statement_facts cf ON cf.statement_id = cs.id
+                                WHERE cs.account_id = a.id)
+                THEN 'card' ELSE 'bank' END AS payment_channel,
            COALESCE(ec.group_name || ' / ' || ec.category,
                     'Unclassified / Unclassified') AS category_key,
            COALESCE(mo.merchant_canonical, mo.merchant_normalized) AS merchant_key,
@@ -93,7 +101,9 @@ LEFT JOIN inbound_classifications i
 LEFT JOIN category_overrides co
        ON co.bound = 1 AND co.entry_anchor = entries.entry_anchor
 ORDER BY entries.currency, entries.posted_date, entries.source_family, entries.entry_id
-"""
+""".format(
+    card_source_types=", ".join(f"'{name}'" for name in sorted(CARD_SOURCE_TYPES))
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +131,12 @@ class Component:
     evidence_sha256: str
     decision_seqs: tuple[int, ...]
     nets: bool
+    # Ledger provenance, not a merchant label: the account the movement belongs
+    # to and the channel it settles through. `off_ledger` is a synthetic
+    # component with no account of its own (a personal-debt event).
+    source_account_id: str | None = None
+    account_source_type: str | None = None
+    payment_channel: Literal["card", "bank", "off_ledger"] = "off_ledger"
 
     @property
     def origin_component_id(self) -> str:
@@ -442,6 +458,9 @@ def build_components(
             "source_location": row["source_location"],
             "evidence_sha256": row["evidence_sha256"],
             "decision_seqs": decision_seqs,
+            "source_account_id": row["source_account_id"],
+            "account_source_type": row["account_source_type"],
+            "payment_channel": row["payment_channel"],
         }
 
         magnitude = abs(int(row["amount_coefficient"]))

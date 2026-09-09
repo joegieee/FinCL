@@ -41,12 +41,14 @@ def materialize_components(
 
     The caller owns the transaction. Returns the number of component rows written.
     """
+    connection.execute("DELETE FROM component_provenance")
     connection.execute("DELETE FROM component_source_refs")
     connection.execute("DELETE FROM component_relationships")
     connection.execute("DELETE FROM analysis_components")
 
     components = []
     source_refs = []
+    provenance = []
     for component in projection.components:
         component_id = component.component_id(generation_token)
         components.append(
@@ -81,11 +83,31 @@ def materialize_components(
         source_refs.append(
             (component_id, component.evidence_sha256, component.source_location)
         )
+        provenance.append(
+            (
+                component_id,
+                generation_token,
+                component.entry_id,
+                component.source_account_id,
+                component.account_source_type,
+                component.payment_channel,
+            )
+        )
 
     connection.executemany(_INSERT_COMPONENT, components)
     connection.executemany(
         "INSERT OR IGNORE INTO component_source_refs("
         "component_id, evidence_sha256, locator) VALUES (?, ?, ?)",
         source_refs,
+    )
+    # Ledger provenance for the card cash-conversion contract: which account the
+    # movement came from and which channel it settles through. Written from the
+    # same projection in the same transaction, so a component can never be read
+    # with a channel that belongs to a different generation.
+    connection.executemany(
+        "INSERT OR REPLACE INTO component_provenance("
+        "component_id, generation_token, entry_id, source_account_id, "
+        "account_source_type, payment_channel) VALUES (?, ?, ?, ?, ?, ?)",
+        provenance,
     )
     return len(components)
