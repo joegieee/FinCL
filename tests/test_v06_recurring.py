@@ -122,15 +122,15 @@ class RecurringProjectionTests(unittest.TestCase):
             replay_journal(self.connection)
 
     def test_real_entry_anchor_survives_as_a_commitment_seed(self) -> None:
-        # A real CSV-sourced natural anchor is ~202 characters (evidence sha +
-        # ":csv:" + two more sha256 hex values + row/line indices); the seed
+        # A real document natural anchor is ~143 characters (evidence sha +
+        # ":pdf:revolut:" + the record sha256 hex + the ordinal); the seed
         # anchor field must carry it verbatim into the projection.
         refresh_ledger(self.database)
         entry_id = self.connection.execute(
             "SELECT id FROM ledger_entries ORDER BY id LIMIT 1"
         ).fetchone()["id"]
         anchor = entry_anchor(self.connection, entry_id)
-        self.assertGreater(len(anchor), 200)
+        self.assertGreater(len(anchor), 120)
 
         self._append(
             "RECURRING_COMMITMENT_SET", {"commitment": self.commitment},

@@ -39,7 +39,7 @@ _ROWS = [
      "Seed", "1500.00", "0.00", "SGD", "COMPLETED", "1500.00"],
     ["Card Payment", "Current", "2026-02-05 10:00:00", "2026-02-05 10:00:01",
      "Groceries", "-40.00", "0.00", "SGD", "COMPLETED", "1460.00"],
-    ["Card Payment", "Current", "2026-03-05 10:00:00", "2026-03-05 10:00:01",
+    ["Card Payment", "Current", "2026-03-31 10:00:00", "2026-03-31 10:00:01",
      "Insurance", "-460.00", "0.00", "SGD", "COMPLETED", "1000.00"],
 ]
 
@@ -389,7 +389,7 @@ class SinkingFundsPageTests(unittest.TestCase):
             allocations=[("a1", "2026-03-01", "200.00")],
         )
 
-        page = sinking_funds_page(database, as_of="2026-03-05")
+        page = sinking_funds_page(database, as_of="2026-03-31")
 
         cell = page["cash_separation"]["by_currency"]["SGD"]
         self.assertTrue(cell["available"])
@@ -408,7 +408,7 @@ class SinkingFundsPageTests(unittest.TestCase):
             allocations=[("a1", "2026-03-01", "60.00")],
         )
 
-        fund = sinking_funds_page(database, as_of="2026-03-05")["funds"][0]
+        fund = sinking_funds_page(database, as_of="2026-03-31")["funds"][0]
 
         self.assertEqual(fund["target"]["amount_due"], "300.00")
         self.assertEqual(fund["recorded_allocation"]["allocated_now"], "60.00")
@@ -450,7 +450,7 @@ class SinkingFundsPageTests(unittest.TestCase):
             allocations=[("a1", "2026-03-01", "120.00")],
         )
 
-        fund = sinking_funds_page(database, as_of="2026-03-05")["funds"][0]
+        fund = sinking_funds_page(database, as_of="2026-03-31")["funds"][0]
 
         self.assertEqual(fund["shortfall"], "380.00")
         self.assertFalse(fund["fully_allocated"])
@@ -468,7 +468,7 @@ class SinkingFundsPageTests(unittest.TestCase):
             allocations=[("a1", "2026-02-01", "100.00")],
         )
 
-        fund = sinking_funds_page(database, as_of="2026-03-05")["funds"][0]
+        fund = sinking_funds_page(database, as_of="2026-03-31")["funds"][0]
 
         self.assertEqual(fund["status"], "overdue")
         immediate = fund["immediate_funding_requirement"]
@@ -485,7 +485,7 @@ class SinkingFundsPageTests(unittest.TestCase):
             release=("2026-03-05", "200.00"),
         )
 
-        page = sinking_funds_page(database, as_of="2026-03-05")
+        page = sinking_funds_page(database, as_of="2026-03-31")
 
         fund = page["funds"][0]
         self.assertEqual(fund["status"], "released")
@@ -504,7 +504,7 @@ class SinkingFundsPageTests(unittest.TestCase):
             allocations=[("a1", "2026-02-01", "1200.00")],
         )
 
-        page = sinking_funds_page(database, as_of="2026-03-05")
+        page = sinking_funds_page(database, as_of="2026-03-31")
 
         cell = page["cash_separation"]["by_currency"]["SGD"]
         self.assertTrue(cell["unfunded"])
@@ -524,7 +524,7 @@ class SinkingFundsPageTests(unittest.TestCase):
             source_reference="fund-proposal:irregular:SGD:home:2026-02",
         )
 
-        fund = sinking_funds_page(database, as_of="2026-03-05")["funds"][0]
+        fund = sinking_funds_page(database, as_of="2026-03-31")["funds"][0]
 
         self.assertEqual(fund["status"], "incomplete")
         self.assertFalse(fund["target"]["available"])
@@ -544,7 +544,7 @@ class SinkingFundsPageTests(unittest.TestCase):
             source_reference="fund-proposal:goal:laptop",
         )
 
-        fund = sinking_funds_page(database, as_of="2026-03-05")["funds"][0]
+        fund = sinking_funds_page(database, as_of="2026-03-31")["funds"][0]
 
         self.assertTrue(fund["target"]["manual_basis"])
         self.assertIn("evidence that cash exists",
