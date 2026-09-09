@@ -15,8 +15,8 @@ type CandidateRecord = { anchor: string; description: string | null; account: st
 type Detail = { candidate: Candidate; records: CandidateRecord[]; next_cursor?: string | null }
 type RuleOption = { label: string; match: Record<string, unknown> }
 
-export function CategorizationView({ generation, freshness, categories, onSaved }: {
-  generation: string; freshness: string; categories: string[]; onSaved: (status: string) => void | Promise<void>
+export function CategorizationView({ generation, freshness, categories, start = '', end = '', onSaved }: {
+  generation: string; freshness: string; categories: string[]; start?: string; end?: string; onSaved: (status: string) => void | Promise<void>
 }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [page, setPage] = useState<CandidatesPage | null>(null)
@@ -27,8 +27,6 @@ export function CategorizationView({ generation, freshness, categories, onSaved 
   const [kind, setKind] = useState('')
   const [account, setAccount] = useState('')
   const [currency, setCurrency] = useState('')
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
   const filters = new URLSearchParams({ direction, lifecycle, kind, account, currency, start, end })
   function candidateQuery(cursor = '') {
     const query = new URLSearchParams({ generation, ...Object.fromEntries(filters) })
@@ -61,7 +59,7 @@ export function CategorizationView({ generation, freshness, categories, onSaved 
   const disabled = freshness === 'stale'
   return <div className="categorization-view">
     {error && <div className="alert error" role="alert">{error}</div>}
-    <div className="scope-caption"><span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision.</span><span className="categorization-filters"><select aria-label="Filter categorization candidate kind" value={kind} onChange={e => setKind(e.target.value)}><option value="">All group types</option><option value="merchant">Merchant</option><option value="paynow_recipient">PayNow recipient</option><option value="description">Description</option><option value="missing_merchant">Missing merchant</option></select><select aria-label="Filter categorization direction" value={direction} onChange={e => setDirection(e.target.value)}><option value="">All directions</option><option value="OUT">Outgoing</option><option value="IN">Incoming</option></select><select aria-label="Filter categorization lifecycle" value={lifecycle} onChange={e => setLifecycle(e.target.value)}><option value="">All lifecycle states</option><option value="COMPLETED">Active only</option><option value="PENDING">Pending</option><option value="REVERTED">Reverted</option></select><input aria-label="Filter categorization account" value={account} onChange={e => setAccount(e.target.value)} placeholder="Account ID"/><input aria-label="Filter categorization currency" value={currency} onChange={e => setCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="Currency"/><input aria-label="Filter categorization start date" type="date" value={start} onChange={e => setStart(e.target.value)}/><input aria-label="Filter categorization end date" type="date" value={end} onChange={e => setEnd(e.target.value)}/><Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button></span></div>
+    <div className="scope-caption"><span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision.</span><span className="categorization-filters"><select aria-label="Filter categorization candidate kind" value={kind} onChange={e => setKind(e.target.value)}><option value="">All group types</option><option value="merchant">Merchant</option><option value="paynow_recipient">PayNow recipient</option><option value="description">Description</option><option value="missing_merchant">Missing merchant</option></select><select aria-label="Filter categorization direction" value={direction} onChange={e => setDirection(e.target.value)}><option value="">All directions</option><option value="OUT">Outgoing</option><option value="IN">Incoming</option></select><select aria-label="Filter categorization lifecycle" value={lifecycle} onChange={e => setLifecycle(e.target.value)}><option value="">All lifecycle states</option><option value="COMPLETED">Active only</option><option value="PENDING">Pending</option><option value="REVERTED">Reverted</option></select><input aria-label="Filter categorization account" value={account} onChange={e => setAccount(e.target.value)} placeholder="Account ID"/><input aria-label="Filter categorization currency" value={currency} onChange={e => setCurrency(e.target.value.toUpperCase())} maxLength={3} placeholder="Currency"/><Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button></span></div>
     {summary && <CoverageSummary summary={summary}/>} 
     <Card className="candidate-list">
       <div className="panel-title"><div><p className="eyebrow">CATEGORIZATION INBOX</p><h2>{page ? `${page.total} groups need review` : 'Loading groups…'}</h2></div></div>
