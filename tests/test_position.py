@@ -149,6 +149,72 @@ class PositionReadTests(unittest.TestCase):
         self.assertEqual(bridge["closing"], "360.00")
         self.assertTrue(bridge["reconciled"])
 
+    def test_a_chain_of_adjacent_statements_bridges_across_statement_boundaries(self) -> None:
+        """Two separate statements with no gap between them still certify the
+        full span, even though no single statement covers it end to end."""
+        root = Path(tempfile.mkdtemp())
+        database = root / "ledger.sqlite3"
+        service = DocumentImportService.plaintext_phase2(database, root / "evidence")
+        first = root / "first.csv"
+        first.write_bytes(csv_bytes([
+            ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01",
+             "Seed", "900.00", "0.00", "SGD", "COMPLETED", "900.00"],
+            ["Card Payment", "Current", "2026-01-31 10:00:00", "2026-01-31 10:00:01",
+             "Groceries", "-40.00", "0.00", "SGD", "COMPLETED", "860.00"],
+        ]))
+        service.import_revolut_pdf(first)
+        second = root / "second.csv"
+        second.write_bytes(csv_bytes([
+            ["Card Payment", "Current", "2026-02-01 10:00:00", "2026-02-01 10:00:01",
+             "Rent", "-100.00", "0.00", "SGD", "COMPLETED", "760.00"],
+            ["Card Payment", "Current", "2026-02-15 10:00:00", "2026-02-15 10:00:01",
+             "Utilities", "-20.00", "0.00", "SGD", "COMPLETED", "740.00"],
+        ]))
+        service.import_revolut_pdf(second)
+        refresh_ledger(database)
+
+        bridge = position_page(database, today=date(2026, 2, 15))["cash_bridge"]["pockets"][0]
+
+        self.assertEqual(bridge["opening_as_of"], "2025-12-31")
+        self.assertEqual(bridge["closing_as_of"], "2026-02-15")
+        self.assertEqual(bridge["calculated_closing"], "740.00")
+        self.assertEqual(bridge["closing"], "740.00")
+        self.assertTrue(bridge["reconciled"])
+        self.assertIsNone(bridge["unsupported_reason"])
+
+    def test_a_gap_between_statements_prevents_the_bridge_across_it(self) -> None:
+        """When a day between two statements is not covered by any certified
+        period, the span cannot be certified as complete even if the two
+        statements individually reconcile."""
+        root = Path(tempfile.mkdtemp())
+        database = root / "ledger.sqlite3"
+        service = DocumentImportService.plaintext_phase2(database, root / "evidence")
+        first = root / "first.csv"
+        first.write_bytes(csv_bytes([
+            ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01",
+             "Seed", "900.00", "0.00", "SGD", "COMPLETED", "900.00"],
+            ["Card Payment", "Current", "2026-01-31 10:00:00", "2026-01-31 10:00:01",
+             "Groceries", "-40.00", "0.00", "SGD", "COMPLETED", "860.00"],
+        ]))
+        service.import_revolut_pdf(first)
+        second = root / "second.csv"
+        second.write_bytes(csv_bytes([
+            ["Card Payment", "Current", "2026-02-05 10:00:00", "2026-02-05 10:00:01",
+             "Rent", "-100.00", "0.00", "SGD", "COMPLETED", "760.00"],
+            ["Card Payment", "Current", "2026-02-15 10:00:00", "2026-02-15 10:00:01",
+             "Utilities", "-20.00", "0.00", "SGD", "COMPLETED", "740.00"],
+        ]))
+        service.import_revolut_pdf(second)
+        refresh_ledger(database)
+
+        bridge = position_page(database, today=date(2026, 2, 15))["cash_bridge"]["pockets"][0]
+
+        self.assertFalse(bridge["reconciled"])
+        self.assertEqual(
+            bridge["unsupported_reason"],
+            "intervening movement completeness is not supported",
+        )
+
     def test_internal_transfer_legs_remain_per_pocket_and_cancel_once_combined(self) -> None:
         rows = [
             ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01",

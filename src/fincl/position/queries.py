@@ -180,6 +180,7 @@ def _certified_periods(
               SELECT 1 FROM document_reconciliation_checks ok
               WHERE ok.statement_id=s.id AND ok.currency_pocket=?
                 AND ok.blocking=1 AND ok.passed=1
+                AND ok.check_type IN ('STATEMENT_BALANCE', 'SECTION_CLOSING_BALANCE')
           )
           AND NOT EXISTS (
               SELECT 1 FROM document_reconciliation_checks failed
@@ -289,16 +290,20 @@ def _bridge(
         and opening["basis"] == "statement-derived-opening"
         and closing["basis"] == "statement-closing-balance"
     )
-    unchecked_rows = [
-        row for row in rows
-        if row["source_family"] == "CSV" and not connection.execute(
-            "SELECT 1 FROM reconciliation_checks WHERE current_raw_record_id=? AND passed=1",
-            (row["raw_record_id"],),
-        ).fetchone()
-    ]
-    evidence_complete = same_certified_statement or (
-        bool(rows) and not unchecked_rows
-        and all(row["source_family"] == "CSV" for row in rows)
+    # A single statement can certify its own span, but a boundary pair further
+    # apart than one statement needs a chain of adjacent, passing statements
+    # covering every day in between -- the same coverage proof the as-of read
+    # uses in `_derived_at`. Nothing populates a row-level CSV check anymore
+    # (that ingestion path is retired), so this chain is the only remaining
+    # way to certify movement completeness across multiple statements.
+    coverage_start = (
+        (date.fromisoformat(opening["as_of"]) + timedelta(days=1)).isoformat()
+        if opening["sort_at"].endswith("T23:59:59")
+        else opening["as_of"]
+    )
+    certified_periods = _certified_periods(connection, key, through=closing["as_of"])
+    evidence_complete = same_certified_statement or _interval_covered(
+        coverage_start, closing["as_of"], certified_periods
     )
     buckets: dict[str, list[ExactMoney]] = defaultdict(list)
     net: list[ExactMoney] = []
