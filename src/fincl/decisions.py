@@ -34,6 +34,13 @@ from .debts import (
 )
 from .decision_journal import GENESIS_HASH, JournalRecord, default_journal_path, read_records
 from .errors import FinCLError
+
+# The vocabulary, projection and validation submodules are imported directly:
+# `fincl.funds` also exposes the Stage 4A read, which composes adapters that
+# would import this module back.
+from .funds.models import FUND_DECISION_KINDS
+from .funds.projection import apply_fund_decision
+from .funds.validation import validate_fund_payload
 from .installments import (
     INSTALLMENT_DECISION_KINDS,
     apply_installment,
@@ -100,6 +107,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | INSTALLMENT_DECISION_KINDS
     | PLANNING_DECISION_KINDS
     | POSITION_DECISION_KINDS
+    | FUND_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -258,6 +266,9 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "installment_occurrences",
             "installment_plans",
             "balance_observations",
+            "sinking_fund_releases",
+            "sinking_fund_allocations",
+            "sinking_funds",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -506,6 +517,20 @@ def _apply_record(
             payload=record.payload,
             journal_seq=record.seq,
         )
+    elif record.decision_kind in FUND_DECISION_KINDS:
+        try:
+            validate_fund_payload(
+                record.decision_kind, record.anchors, record.payload
+            )
+            apply_fund_decision(
+                connection,
+                decision_kind=record.decision_kind,
+                anchors=record.anchors,
+                payload=record.payload,
+                journal_seq=record.seq,
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
 
 
 def _binding(reason: str | None, override: str | None) -> tuple[int, str | None]:

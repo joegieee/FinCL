@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -294,6 +294,70 @@ CREATE INDEX IF NOT EXISTS component_provenance_channel
     ON component_provenance(generation_token, payment_channel);
 CREATE INDEX IF NOT EXISTS component_provenance_account
     ON component_provenance(generation_token, source_account_id);
+"""
+
+
+# Schema 21 projection tables (cash-flow framework Stage 4A, minimal sinking
+# funds). Three tables because a fund keeps three quantities that must never
+# collapse into one:
+#
+#   `sinking_funds`            — the *target*: a sourced amount and due date,
+#                                each carrying the basis it came from. Both are
+#                                nullable: an evidenced irregular expense whose
+#                                amount or date is unknown stays a fund with an
+#                                unknown side rather than a guessed number.
+#   `sinking_fund_allocations` — the *recorded allocation*: dated contributions
+#                                that were actually journalled. Their sum is the
+#                                earmark. Time passing adds nothing here, so a
+#                                planned contribution that never happened never
+#                                appears as saved cash.
+#   `sinking_fund_releases`    — the earmark released when the due expense
+#                                settles. One row per fund (the primary key is
+#                                what makes "released exactly once" structural
+#                                rather than a convention).
+#
+# A contribution is a movement *within* liquid cash: it raises the earmark and
+# lowers unallocated cash and never changes total cash. Nothing here stores
+# total cash, unallocated cash or a balance — those are read from the Stage 2A
+# position adapter and separated arithmetically in `fincl.funds.models`.
+# Rebuilt by every journal replay from the `SINKING_FUND_*` kinds. Shared
+# verbatim between a fresh `initialize_schema` and the registered 20->21
+# migration.
+SCHEMA_21_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS sinking_funds (
+    fund TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    amount_due_coefficient INTEGER,
+    amount_due_scale INTEGER
+        CHECK (amount_due_scale IS NULL OR amount_due_scale BETWEEN 0 AND {MAX_SCALE}),
+    due_on TEXT,
+    amount_basis TEXT NOT NULL,
+    date_basis TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    contribution_dates_json TEXT NOT NULL,
+    linked_event_id TEXT,
+    journal_seq INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS sinking_fund_allocations (
+    fund TEXT NOT NULL,
+    allocation TEXT NOT NULL,
+    allocated_on TEXT NOT NULL,
+    amount_coefficient INTEGER NOT NULL,
+    amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
+    journal_seq INTEGER NOT NULL,
+    retired INTEGER NOT NULL CHECK (retired IN (0, 1)),
+    PRIMARY KEY (fund, allocation)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS sinking_fund_releases (
+    fund TEXT PRIMARY KEY,
+    released_on TEXT NOT NULL,
+    amount_coefficient INTEGER NOT NULL,
+    amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
+    journal_seq INTEGER NOT NULL
+) STRICT;
 """
 
 
@@ -885,6 +949,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_18_TABLES_SQL
         + SCHEMA_19_TABLES_SQL
         + SCHEMA_20_TABLES_SQL
+        + SCHEMA_21_TABLES_SQL
     )
 
 

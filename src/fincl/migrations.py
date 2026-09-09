@@ -41,6 +41,7 @@ from .db import (
     SCHEMA_18_TABLES_SQL,
     SCHEMA_19_TABLES_SQL,
     SCHEMA_20_TABLES_SQL,
+    SCHEMA_21_TABLES_SQL,
     SCHEMA_VERSION,
     connect_sqlite,
 )
@@ -176,6 +177,17 @@ def _migrate_19_to_20(connection: sqlite3.Connection) -> None:
     """
     _apply_table_ddl(connection, SCHEMA_20_TABLES_SQL)
 
+
+def _migrate_20_to_21(connection: sqlite3.Connection) -> None:
+    """Add the schema-21 sinking-fund projection tables; no data rewrite.
+
+    Populated by the next journal replay from the `SINKING_FUND_*` decision
+    kinds; empty until an operator confirms a fund, which is exactly right —
+    a migrated ledger has no earmarks, so its whole liquid position stays
+    unallocated cash rather than acquiring silent reservations.
+    """
+    _apply_table_ddl(connection, SCHEMA_21_TABLES_SQL)
+
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
 # edit to that DDL is a new migration rather than a silent change under one id.
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
@@ -214,6 +226,9 @@ MIGRATION_18_TO_19_CHECKSUM = "sha256:" + hashlib.sha256(
 MIGRATION_19_TO_20_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_20_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_20_TO_21_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_21_TABLES_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
@@ -229,6 +244,7 @@ MIGRATIONS: dict[int, Migration] = {
     17: Migration(17, 18, MIGRATION_17_TO_18_CHECKSUM, _migrate_17_to_18),
     18: Migration(18, 19, MIGRATION_18_TO_19_CHECKSUM, _migrate_18_to_19),
     19: Migration(19, 20, MIGRATION_19_TO_20_CHECKSUM, _migrate_19_to_20),
+    20: Migration(20, 21, MIGRATION_20_TO_21_CHECKSUM, _migrate_20_to_21),
 }
 
 
