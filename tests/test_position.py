@@ -13,7 +13,6 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
-from unittest.mock import patch
 
 from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import replay_journal
