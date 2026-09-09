@@ -46,7 +46,6 @@ from .report import (
     latest_report_data,
     profile_report_data,
 )
-from .service import FinCLService
 
 app = typer.Typer(
     name="fincl",
@@ -102,36 +101,6 @@ recurring_app = typer.Typer(help="Recurring commitments, candidate dismissals an
 app.add_typer(recurring_app, name="recurring")
 console = Console()
 error_console = Console(stderr=True)
-
-
-@app.command("import-revolut")
-def import_revolut(
-    source: Path,
-    database: Path = typer.Option(..., "--database"),
-    evidence_dir: Path = typer.Option(..., "--evidence-dir"),
-    plain: bool = typer.Option(False, "--plain", help="Emit stable plain text."),
-    json_output: bool = typer.Option(False, "--json", help="Emit JSON."),
-) -> None:
-    """Capture and extract one Revolut CSV."""
-    try:
-        result = FinCLService.plaintext_phase1(database, evidence_dir).import_revolut(source)
-        data = {
-            "status": result.status,
-            "import_run": result.import_run_id,
-            "extraction_run": result.extraction_run_id,
-            "evidence_sha256": result.evidence_sha256,
-            "evidence_reused": result.evidence_reused,
-            "extraction_reused": result.extraction_reused,
-            "raw_records": result.raw_record_count,
-            "ledger_entries": result.ledger_entry_count,
-            "blocking_issues": result.blocking_issue_count,
-            "warning_issues": result.warning_issue_count,
-        }
-        _emit_mapping(data, plain, json_output)
-        if result.status != "ACCEPTED":
-            raise typer.Exit(2)
-    except (FinCLError, OSError) as exc:
-        _fail(exc)
 
 
 @app.command("import-dbs")

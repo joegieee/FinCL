@@ -29,14 +29,12 @@ from .evidence import PlaintextEvidenceStore
 from .historical import require_reconstructable_schema
 from .reconciliation import link_narrow_transfers
 from .selection import recompute_selection
-from .service import FinCLService
 
 # Profile-version prefix -> the source family it dispatches to. One family may
 # have several parser/profile versions; they are one input to the current
 # adapter (§5). This is the single source of truth for both grouping and
 # dispatch.
 _ADAPTERS: dict[str, str] = {
-    "revolut-": "REVOLUT_CSV",
     "revolut-pdf-": "REVOLUT_PDF",
     "dbs-consolidated-": "DBS_CONSOLIDATED",
     "dbs-paylah-": "DBS_PAYLAH",
@@ -129,7 +127,7 @@ def rebuild_database(database: Path, evidence_directory: Path, output: Path) -> 
         # database (F24).
         _initialize_staging_association(database, staging)
         for source in sources:
-            suffix = ".csv" if source.family == "REVOLUT_CSV" else ".pdf"
+            suffix = ".pdf"
             materialized_path: Path | None = None
             try:
                 with (
@@ -353,8 +351,6 @@ def _initialize_staging_association(source: Path, staging: Path) -> None:
 
 
 def _import_source(database: Path, evidence_directory: Path, source: Path, family: str) -> str:
-    if family == "REVOLUT_CSV":
-        return FinCLService.plaintext_phase1(database, evidence_directory).import_revolut(source).status
     service = DocumentImportService.plaintext_phase2(database, evidence_directory)
     if family == "DBS_CONSOLIDATED":
         return service.import_dbs(source).status

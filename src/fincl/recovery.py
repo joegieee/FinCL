@@ -95,19 +95,7 @@ def _recover_extraction_locked(
                 "DELETE FROM statements WHERE extraction_run_id = ?", (extraction_run_id,)
             )
             connection.execute(
-                "DELETE FROM reconciliation_checks WHERE extraction_run_id = ?",
-                (extraction_run_id,),
-            )
-            connection.execute(
                 "DELETE FROM extraction_issues WHERE extraction_run_id = ?", (extraction_run_id,)
-            )
-            connection.execute(
-                "DELETE FROM ledger_entries WHERE extraction_run_id = ? "
-                "AND source_family = 'CSV'",
-                (extraction_run_id,),
-            )
-            connection.execute(
-                "DELETE FROM raw_records WHERE extraction_run_id = ?", (extraction_run_id,)
             )
             connection.execute(
                 "UPDATE import_runs SET extraction_run_id = NULL WHERE extraction_run_id = ?",

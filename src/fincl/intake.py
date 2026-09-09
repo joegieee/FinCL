@@ -6,18 +6,16 @@ import os
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import BinaryIO
 
 from .document_service import DocumentImportService
 from .errors import FinCLError
 from .locking import WriterContext
-from .service import FinCLService
 
 MAX_FILES = 20
 MAX_FILE_BYTES = 50 * 1024 * 1024
 ADAPTERS = frozenset(
     {
-        "REVOLUT",
         "REVOLUT_PDF",
         "DBS_CONSOLIDATED",
         "DBS_PAYLAH",
@@ -45,9 +43,7 @@ def import_stream(
     if adapter not in ADAPTERS:
         raise FinCLError("Choose a supported source adapter")
     suffix = Path(filename).suffix.lower()
-    if adapter == "REVOLUT" and suffix != ".csv":
-        raise FinCLError("Revolut intake requires a CSV file")
-    if adapter != "REVOLUT" and suffix != ".pdf":
+    if suffix != ".pdf":
         raise FinCLError("Statement intake requires a PDF file")
     descriptor, temp_name = tempfile.mkstemp(prefix="fincl-intake-", suffix=suffix)
     path = Path(temp_name)
@@ -66,21 +62,16 @@ def import_stream(
             os.fsync(output.fileno())
         if size == 0:
             raise FinCLError("The uploaded file is empty")
-        if adapter == "REVOLUT":
-            result: Any = FinCLService.plaintext_phase1(database, evidence_directory).import_revolut(
-                path, writer=writer
-            )
-        else:
-            service = DocumentImportService.plaintext_phase2(database, evidence_directory)
-            method = {
-                "DBS_CONSOLIDATED": service.import_dbs,
-                "DBS_PAYLAH": service.import_paylah,
-                "MARI_SAVINGS": service.import_maribank,
-                "MARI_CARD": service.import_mari_card,
-                "TRUST_SAVINGS": service.import_trust,
-                "REVOLUT_PDF": service.import_revolut_pdf,
-            }[adapter]
-            result = method(path, writer=writer)
+        service = DocumentImportService.plaintext_phase2(database, evidence_directory)
+        method = {
+            "DBS_CONSOLIDATED": service.import_dbs,
+            "DBS_PAYLAH": service.import_paylah,
+            "MARI_SAVINGS": service.import_maribank,
+            "MARI_CARD": service.import_mari_card,
+            "TRUST_SAVINGS": service.import_trust,
+            "REVOLUT_PDF": service.import_revolut_pdf,
+        }[adapter]
+        result = method(path, writer=writer)
         return {**asdict(result), "filename": Path(filename).name, "adapter": adapter}
     finally:
         path.unlink(missing_ok=True)

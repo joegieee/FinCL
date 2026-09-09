@@ -1,7 +1,7 @@
-"""Deterministic helpers shared by the CSV and document import services.
+"""Deterministic helpers shared across the document import and rebuild paths.
 
-These produce persisted identifiers, timestamps, and canonical JSON. Both
-services must produce byte-identical output, so the one definition lives here.
+These produce persisted identifiers, timestamps, and canonical JSON. Every
+caller must produce byte-identical output, so the one definition lives here.
 """
 
 from __future__ import annotations

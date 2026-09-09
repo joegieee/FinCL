@@ -33,15 +33,6 @@ from .documents import (
     REVOLUT_PDF_PROFILE,
     TRUST_SAVINGS_PROFILE,
 )
-from .revolut import (
-    EXTRACTION_POLICY_VERSION as REVOLUT_POLICY_VERSION,
-)
-from .revolut import (
-    PARSER_VERSION as REVOLUT_PARSER_VERSION,
-)
-from .revolut import (
-    SOURCE_PROFILE_VERSION as REVOLUT_PROFILE_VERSION,
-)
 
 # Every ``(source_profile_version, parser_version, extraction_policy_version)``
 # triple the current importers can produce. A run whose triple is not in here was
@@ -62,11 +53,8 @@ _PDF_PROFILES = (
     REVOLUT_PDF_PROFILE,
 )
 CURRENT_EXTRACTION_TRIPLES: frozenset[tuple[str, str, str]] = frozenset(
-    {(REVOLUT_PROFILE_VERSION, REVOLUT_PARSER_VERSION, REVOLUT_POLICY_VERSION)}
-    | {
-        (profile, PDF_PARSER_VERSION, PDF_EXTRACTION_POLICY_VERSION)
-        for profile in _PDF_PROFILES
-    }
+    (profile, PDF_PARSER_VERSION, PDF_EXTRACTION_POLICY_VERSION)
+    for profile in _PDF_PROFILES
 )
 
 

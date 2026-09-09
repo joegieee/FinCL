@@ -1,3 +1,3 @@
-"""FinCL's narrow Revolut Phase 1 implementation."""
+"""FinCL: a local, evidence-backed personal finance ledger."""
 
 __version__ = "0.1.0"

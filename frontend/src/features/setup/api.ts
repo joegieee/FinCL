@@ -44,11 +44,11 @@ export type UploadResult = { results: UploadOutcome[]; accepted: number }
 
 // Closed adapter identifiers. Selection is an ID, never a free-text format name.
 export const ADAPTERS: { id: string; label: string }[] = [
-  { id: 'REVOLUT', label: 'Revolut — CSV export' },
-  { id: 'DBS', label: 'DBS / POSB — CSV export' },
+  { id: 'REVOLUT_PDF', label: 'Revolut — PDF statement' },
+  { id: 'DBS', label: 'DBS / POSB — PDF statement' },
   { id: 'PAYLAH', label: 'DBS PayLah! — PDF statement' },
-  { id: 'MARIBANK', label: 'MariBank — CSV export' },
-  { id: 'MARI_CARD', label: 'Mari Credit Card — CSV export' },
+  { id: 'MARIBANK', label: 'MariBank — PDF statement' },
+  { id: 'MARI_CARD', label: 'Mari Credit Card — PDF statement' },
   { id: 'TRUST_SAVINGS', label: 'Trust Bank — PDF statement' },
 ]
 
