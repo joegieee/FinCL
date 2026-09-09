@@ -11,11 +11,11 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from fincl.cli import app
+from fincl.document_service import DocumentImportService
 from fincl.locking import WRITER_LOCK_NAME
 from fincl.refresh import refresh_ledger
 from fincl.report import economic_flow_report_data
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Card Payment", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01",
@@ -34,7 +34,7 @@ class WriterSerializationTests(unittest.TestCase):
         self.database = self.ledger / "fincl.sqlite3"
         src = self.root / "revolut.csv"
         src.write_bytes(csv_bytes(_ROWS))
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(src)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(src)
         refresh_ledger(self.database)
 
     def _hold_lock(self) -> int:
@@ -71,9 +71,9 @@ class WriterSerializationTests(unittest.TestCase):
              "Tea", "-2.00", "0.00", "SGD", "COMPLETED", "94.00"],
         ]))
         self._assert_blocks_then_completes(
-            lambda: FinCLService.plaintext_phase1(
+            lambda: DocumentImportService.plaintext_phase2(
                 self.database, self.evidence
-            ).import_revolut(other)
+            ).import_revolut_pdf(other)
         )
 
     def test_a_decision_command_waits_for_the_writer_lock(self) -> None:

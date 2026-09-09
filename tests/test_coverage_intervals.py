@@ -7,8 +7,6 @@ and the refusal to produce a numeric total across a coverage gap.
 
 from __future__ import annotations
 
-import csv
-import io
 import json
 import sqlite3
 import tempfile
@@ -19,6 +17,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from fincl.cli import app
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.intervals import (
     DateInterval,
@@ -33,18 +32,11 @@ from fincl.report import (
     coverage_report_data,
     economic_flow_report_data,
 )
-from fincl.revolut import EXPECTED_HEADER
-from fincl.service import FinCLService
-
-_HEADER = list(EXPECTED_HEADER)
+from tests.revolut_pdf import revolut_pdf_bytes
 
 
-def _csv_bytes(rows: list[list[str]]) -> bytes:
-    output = io.StringIO(newline="")
-    writer = csv.writer(output, lineterminator="\r\n")
-    writer.writerow(_HEADER)
-    writer.writerows(rows)
-    return output.getvalue().encode("utf-8")
+def _csv_bytes(rows) -> bytes:
+    return revolut_pdf_bytes(rows)
 
 
 def _row(kind: str, date: str, amount: str, balance: str, description: str) -> list[str]:
@@ -160,7 +152,7 @@ class CoverageContractDatabaseTests(unittest.TestCase):
                 ]
             )
         )
-        FinCLService.plaintext_phase1(self.database, self.root / "evidence").import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.root / "evidence").import_revolut_pdf(source)
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database)

@@ -15,10 +15,10 @@ from pathlib import Path
 from fincl.application import record_decision
 from fincl.backup import backup_ledger, restore_ledger
 from fincl.decision_journal import default_journal_path, read_records
+from fincl.document_service import DocumentImportService
 from fincl.queries import dashboard
 from fincl.refresh import refresh_ledger
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01",
@@ -40,7 +40,7 @@ class BackupAfterUiWriteTests(unittest.TestCase):
         self.evidence = self.database.parent / "evidence"
         source = self.root / "revolut.csv"
         source.write_bytes(csv_bytes(_ROWS))
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(source)
         refresh_ledger(self.database)
 
     def test_decision_and_report_values_survive_backup_restore_reopen(self) -> None:

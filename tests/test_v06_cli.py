@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import csv
-import io
 import json
 import tempfile
 import unittest
@@ -13,8 +11,8 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from fincl.cli import app
-from fincl.revolut import EXPECTED_HEADER
-from fincl.service import FinCLService
+from fincl.document_service import DocumentImportService
+from tests.revolut_pdf import revolut_pdf_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "500.00", "0.00", "SGD", "COMPLETED", "500.00"],
@@ -23,11 +21,7 @@ _ROWS = [
 
 
 def _csv() -> bytes:
-    buffer = io.StringIO(newline="")
-    writer = csv.writer(buffer, lineterminator="\r\n")
-    writer.writerow(EXPECTED_HEADER)
-    writer.writerows(_ROWS)
-    return buffer.getvalue().encode()
+    return revolut_pdf_bytes(_ROWS)
 
 
 class V06CliTests(unittest.TestCase):
@@ -38,7 +32,7 @@ class V06CliTests(unittest.TestCase):
         source = root / "revolut.csv"
         source.write_bytes(_csv())
         self.database = root / "ledger.sqlite3"
-        result = FinCLService.plaintext_phase1(self.database, root / "evidence").import_revolut(source)
+        result = DocumentImportService.plaintext_phase2(self.database, root / "evidence").import_revolut_pdf(source)
         self.assertEqual(result.status, "ACCEPTED")
         self.runner = CliRunner()
         self.assertEqual(self._raw("refresh").exit_code, 0)

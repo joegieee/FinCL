@@ -8,9 +8,7 @@ framework's refusals, rollback, and post-migration reads.
 
 from __future__ import annotations
 
-import csv
 import fcntl
-import io
 import json
 import os
 import sqlite3
@@ -29,12 +27,12 @@ from fincl.backup import (
 from fincl.db import SCHEMA_VERSION, connect_sqlite, initialize_schema
 from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import entry_anchor, replay_journal
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError, SchemaVersionError
 from fincl.locking import WRITER_LOCK_NAME
 from fincl.migrations import Migration, apply_pending_migrations
 from fincl.report import economic_flow_report_data
-from fincl.revolut import EXPECTED_HEADER
-from fincl.service import FinCLService
+from tests.revolut_pdf import revolut_pdf_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "200.00", "0.00", "USD", "COMPLETED", "200.00"],
@@ -43,11 +41,7 @@ _ROWS = [
 
 
 def _csv_bytes() -> bytes:
-    out = io.StringIO(newline="")
-    writer = csv.writer(out, lineterminator="\r\n")
-    writer.writerow(EXPECTED_HEADER)
-    writer.writerows(_ROWS)
-    return out.getvalue().encode("utf-8")
+    return revolut_pdf_bytes(_ROWS)
 
 
 class BackupRestoreTests(unittest.TestCase):
@@ -61,7 +55,7 @@ class BackupRestoreTests(unittest.TestCase):
         source = self.root / "revolut.csv"
         source.write_bytes(_csv_bytes())
         self.database = self.ledger / "fincl.sqlite3"
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(source)
         self.journal = default_journal_path(self.database)
         connection = connect_sqlite(self.database)
         self.addCleanup(connection.close)
@@ -230,7 +224,7 @@ class MigrationFrameworkTests(unittest.TestCase):
         source = self.root / "revolut.csv"
         source.write_bytes(_csv_bytes())
         self.database = self.ledger / "fincl.sqlite3"
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(source)
 
     def _backup(self) -> Path:
         out = self.root / "bundle"
@@ -267,7 +261,7 @@ class MigrationFrameworkTests(unittest.TestCase):
         other_source = other_root / "r.csv"
         other_source.write_bytes(_csv_bytes())
         other_db = other_root / "fincl.sqlite3"
-        FinCLService.plaintext_phase1(other_db, other_root / "evidence").import_revolut(other_source)
+        DocumentImportService.plaintext_phase2(other_db, other_root / "evidence").import_revolut_pdf(other_source)
         other_bundle = self.root / "other-bundle"
         backup_ledger(other_db, other_root / "evidence", other_bundle)
 

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import csv
-import io
 import tempfile
 import unittest
 import uuid
@@ -12,9 +10,9 @@ from pathlib import Path
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import replay_journal
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
-from fincl.revolut import EXPECTED_HEADER
-from fincl.service import FinCLService
+from tests.revolut_pdf import revolut_pdf_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "500.00", "0.00", "SGD", "COMPLETED", "500.00"],
@@ -22,11 +20,7 @@ _ROWS = [
 
 
 def _csv() -> bytes:
-    buffer = io.StringIO(newline="")
-    writer = csv.writer(buffer, lineterminator="\r\n")
-    writer.writerow(EXPECTED_HEADER)
-    writer.writerows(_ROWS)
-    return buffer.getvalue().encode()
+    return revolut_pdf_bytes(_ROWS)
 
 
 class BudgetProjectionTests(unittest.TestCase):
@@ -37,7 +31,7 @@ class BudgetProjectionTests(unittest.TestCase):
         source = self.root / "revolut.csv"
         source.write_bytes(_csv())
         self.database = self.root / "fincl.sqlite3"
-        FinCLService.plaintext_phase1(self.database, self.root / "evidence").import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.root / "evidence").import_revolut_pdf(source)
         self.connection = connect_sqlite(self.database)
         self.addCleanup(self.connection.close)
         initialize_schema(self.connection)

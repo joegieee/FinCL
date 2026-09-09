@@ -9,8 +9,6 @@ path.
 
 from __future__ import annotations
 
-import csv
-import io
 import sqlite3
 import tempfile
 import unittest
@@ -18,11 +16,11 @@ import uuid
 from pathlib import Path
 
 from fincl.db import SCHEMA_VERSION
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError, SchemaVersionError
 from fincl.rebuild import _inventory_evidence, _publish_without_clobber, rebuild_database
 from fincl.report import economic_flow_report_data
-from fincl.revolut import EXPECTED_HEADER
-from fincl.service import FinCLService
+from tests.revolut_pdf import revolut_pdf_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "200.00", "0.00", "USD", "COMPLETED", "200.00"],
@@ -31,11 +29,7 @@ _ROWS = [
 
 
 def _csv_bytes() -> bytes:
-    output = io.StringIO(newline="")
-    writer = csv.writer(output, lineterminator="\r\n")
-    writer.writerow(EXPECTED_HEADER)
-    writer.writerows(_ROWS)
-    return output.getvalue().encode("utf-8")
+    return revolut_pdf_bytes(_ROWS)
 
 
 class ReconstructionTests(unittest.TestCase):
@@ -47,7 +41,7 @@ class ReconstructionTests(unittest.TestCase):
         self.source = self.root / "revolut.csv"
         self.source.write_bytes(_csv_bytes())
         self.database = self.root / "fincl.sqlite3"
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(self.source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(self.source)
         self.output = self.root / "rebuilt.sqlite3"
 
     def _rw(self) -> sqlite3.Connection:

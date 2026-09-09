@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from fincl.db import connect_readonly, connect_sqlite
+from fincl.document_service import DocumentImportService
 from fincl.errors import SchemaVersionError
 from fincl.refresh import refresh_ledger
 from fincl.report import (
@@ -16,8 +17,7 @@ from fincl.report import (
     latest_report_data,
     profile_report_data,
 )
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Card Payment", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01",
@@ -39,9 +39,9 @@ class PureReadTests(unittest.TestCase):
         self.database = root / "ledger.sqlite3"
         source = root / "revolut.csv"
         source.write_bytes(csv_bytes(_ROWS))
-        result = FinCLService.plaintext_phase1(
+        result = DocumentImportService.plaintext_phase2(
             self.database, root / "evidence"
-        ).import_revolut(source)
+        ).import_revolut_pdf(source)
         self.assertEqual(result.status, "ACCEPTED")
         refresh_ledger(self.database)
 

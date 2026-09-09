@@ -19,6 +19,7 @@ from typer.testing import CliRunner
 from fincl.backup import backup_ledger, restore_ledger
 from fincl.cli import app
 from fincl.db import SCHEMA_VERSION
+from fincl.document_service import DocumentImportService
 from fincl.errors import SchemaVersionError
 from fincl.migrations import (
     MIGRATION_8_TO_9_CHECKSUM,
@@ -39,8 +40,7 @@ from fincl.migrations import (
 )
 from fincl.refresh import refresh_ledger
 from fincl.report import economic_flow_report_data
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Card Payment", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01",
@@ -142,7 +142,7 @@ class Schema9MigrationTests(unittest.TestCase):
         self.database = self.ledger / "fincl.sqlite3"
         source = self.root / "revolut.csv"
         source.write_bytes(csv_bytes(_ROWS))
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(source)
 
     def _stored_version(self) -> int:
         connection = sqlite3.connect(self.database)

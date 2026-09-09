@@ -17,10 +17,10 @@ from decimal import Decimal
 from pathlib import Path
 
 from fincl.application import record_debt_decision
+from fincl.document_service import DocumentImportService
 from fincl.networth import assemble_components, net_worth_page, summarise
 from fincl.refresh import refresh_ledger
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 # --------------------------------------------------------------------------- #
 # Pure composition tests — no ledger required.
@@ -261,7 +261,7 @@ def _ledger() -> Path:
     database = root / "ledger.sqlite3"
     source = root / "revolut.csv"
     source.write_bytes(csv_bytes(_ROWS))
-    FinCLService.plaintext_phase1(database, root / "evidence").import_revolut(source)
+    DocumentImportService.plaintext_phase2(database, root / "evidence").import_revolut_pdf(source)
     refresh_ledger(database)
     return database
 

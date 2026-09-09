@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import replay_journal
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.forecast.engine import (
     COLUMN_IRREGULAR,
@@ -31,8 +32,7 @@ from fincl.funds import (
     validate_fund_payload,
 )
 from fincl.refresh import refresh_ledger
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01",
@@ -49,7 +49,7 @@ def _ledger(rows: list[list[str]] | None = None) -> Path:
     database = root / "ledger.sqlite3"
     source = root / "revolut.csv"
     source.write_bytes(csv_bytes(rows if rows is not None else _ROWS))
-    FinCLService.plaintext_phase1(database, root / "evidence").import_revolut(source)
+    DocumentImportService.plaintext_phase2(database, root / "evidence").import_revolut_pdf(source)
     refresh_ledger(database)
     return database
 

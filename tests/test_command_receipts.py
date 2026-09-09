@@ -12,8 +12,8 @@ from fincl.application import RequestIdConflict, record_decision
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.decision_journal import append_decision, default_journal_path, read_records
 from fincl.decisions import replay_journal
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from fincl.document_service import DocumentImportService
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Card Payment", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01",
@@ -29,7 +29,7 @@ class CommandReceiptTests(unittest.TestCase):
         self.database = root / "ledger.sqlite3"
         source = root / "revolut.csv"
         source.write_bytes(csv_bytes(_ROWS))
-        FinCLService.plaintext_phase1(self.database, root / "evidence").import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, root / "evidence").import_revolut_pdf(source)
         self.anchor = self._first_anchor()
 
     def _first_anchor(self) -> str:

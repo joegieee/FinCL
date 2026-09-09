@@ -9,11 +9,11 @@ from typer.testing import CliRunner
 
 from fincl.cli import app
 from fincl.db import SCHEMA_VERSION, connect_readonly
+from fincl.document_service import DocumentImportService
 from fincl.generation import current_generation
 from fincl.refresh import refresh_ledger
-from fincl.service import FinCLService
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 from tests.test_fx_rates import _MAS_CSV
-from tests.test_revolut_import import csv_bytes
 
 _ROWS = [
     ["Card Payment", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01",
@@ -30,9 +30,9 @@ class GenerationTokenTests(unittest.TestCase):
         self.database = self.root / "ledger.sqlite3"
         source = self.root / "revolut.csv"
         source.write_bytes(csv_bytes(_ROWS))
-        result = FinCLService.plaintext_phase1(
+        result = DocumentImportService.plaintext_phase2(
             self.database, self.root / "evidence"
-        ).import_revolut(source)
+        ).import_revolut_pdf(source)
         self.assertEqual(result.status, "ACCEPTED")
 
     def _cli(self, *args: str) -> None:

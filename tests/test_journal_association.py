@@ -7,8 +7,6 @@ journals, legacy adoption, and an interrupted initialization.
 
 from __future__ import annotations
 
-import csv
-import io
 import json
 import sqlite3
 import tempfile
@@ -25,10 +23,10 @@ from fincl.association import (
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.decision_journal import JOURNAL_FILENAME, append_decision, default_journal_path
 from fincl.decisions import entry_anchor, replay_journal
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.rebuild import rebuild_database
-from fincl.revolut import EXPECTED_HEADER
-from fincl.service import FinCLService
+from tests.revolut_pdf import revolut_pdf_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "200.00", "0.00", "USD", "COMPLETED", "200.00"],
@@ -37,11 +35,7 @@ _ROWS = [
 
 
 def _csv_bytes() -> bytes:
-    output = io.StringIO(newline="")
-    writer = csv.writer(output, lineterminator="\r\n")
-    writer.writerow(EXPECTED_HEADER)
-    writer.writerows(_ROWS)
-    return output.getvalue().encode("utf-8")
+    return revolut_pdf_bytes(_ROWS)
 
 
 class AssociationTests(unittest.TestCase):
@@ -53,7 +47,7 @@ class AssociationTests(unittest.TestCase):
         self.source = self.root / "revolut.csv"
         self.source.write_bytes(_csv_bytes())
         self.database = self.root / "fincl.sqlite3"
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(self.source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(self.source)
         self.journal = default_journal_path(self.database)
 
     def _connect(self) -> sqlite3.Connection:
@@ -161,7 +155,7 @@ class AssociationTests(unittest.TestCase):
         other_db = other_dir / "fincl.sqlite3"
         other_source = other_dir / "revolut.csv"
         other_source.write_bytes(_csv_bytes())
-        FinCLService.plaintext_phase1(other_db, other_dir / "evidence").import_revolut(other_source)
+        DocumentImportService.plaintext_phase2(other_db, other_dir / "evidence").import_revolut_pdf(other_source)
         other_conn = connect_sqlite(other_db)
         self.addCleanup(other_conn.close)
         initialize_schema(other_conn)

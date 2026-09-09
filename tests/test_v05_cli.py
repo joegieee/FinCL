@@ -10,9 +10,9 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from fincl.cli import app
-from fincl.service import FinCLService
+from fincl.document_service import DocumentImportService
 from fincl.v05 import accounts_page, categories_page
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "500.00", "0.00", "SGD", "COMPLETED", "500.00"],
@@ -28,7 +28,7 @@ class V05CliTests(unittest.TestCase):
         self.database = root / "ledger.sqlite3"
         source = root / "revolut.csv"
         source.write_bytes(csv_bytes(_ROWS))
-        result = FinCLService.plaintext_phase1(self.database, root / "evidence").import_revolut(source)
+        result = DocumentImportService.plaintext_phase2(self.database, root / "evidence").import_revolut_pdf(source)
         self.assertEqual(result.status, "ACCEPTED")
         self.runner = CliRunner()
         refreshed = self.runner.invoke(app, ["refresh", "--database", str(self.database)])

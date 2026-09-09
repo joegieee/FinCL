@@ -8,8 +8,6 @@ projection self-heal, rebind across a rebuild, and the review CLI error paths.
 
 from __future__ import annotations
 
-import csv
-import io
 import json
 import sqlite3
 import tempfile
@@ -29,10 +27,10 @@ from fincl.decision_journal import (
     read_records,
 )
 from fincl.decisions import entry_anchor, replay_journal, resolve_anchor
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.rebuild import rebuild_database
-from fincl.revolut import EXPECTED_HEADER
-from fincl.service import FinCLService
+from tests.revolut_pdf import revolut_pdf_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "100.00", "0.00", "SGD", "COMPLETED", "100.00"],
@@ -44,12 +42,8 @@ _EXCHANGE_INCOMPLETE_ROWS = [
 ]
 
 
-def _csv_bytes(rows: list[list[str]] | None = None) -> bytes:
-    buffer = io.StringIO(newline="")
-    writer = csv.writer(buffer, lineterminator="\r\n")
-    writer.writerow(EXPECTED_HEADER)
-    writer.writerows(rows or _ROWS)
-    return buffer.getvalue().encode("utf-8")
+def _csv_bytes(rows=None) -> bytes:
+    return revolut_pdf_bytes(rows or _ROWS)
 
 
 class JournalIntegrityTests(unittest.TestCase):
@@ -150,7 +144,7 @@ class JournalReplayTests(unittest.TestCase):
         self.source.write_bytes(_csv_bytes())
         self.database = self.root / "fincl.sqlite3"
         self.evidence = self.root / "evidence"
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(self.source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(self.source)
         self.connection = connect_sqlite(self.database)
         self.addCleanup(self.connection.close)
         initialize_schema(self.connection)
@@ -265,7 +259,7 @@ class JournalKindClosureTests(unittest.TestCase):
         self.source.write_bytes(_csv_bytes())
         self.database = self.root / "fincl.sqlite3"
         self.evidence = self.root / "evidence"
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(self.source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(self.source)
         self.connection = connect_sqlite(self.database)
         self.addCleanup(self.connection.close)
         initialize_schema(self.connection)
@@ -335,9 +329,9 @@ class ReviewCliErrorPathTests(unittest.TestCase):
         self.source = self.root / "revolut.csv"
         self.source.write_bytes(_csv_bytes())
         self.database = self.root / "fincl.sqlite3"
-        FinCLService.plaintext_phase1(
+        DocumentImportService.plaintext_phase2(
             self.database, self.root / "evidence"
-        ).import_revolut(self.source)
+        ).import_revolut_pdf(self.source)
         self.runner = CliRunner()
 
     def test_confirm_link_rejects_unresolvable_anchors(self) -> None:
@@ -433,9 +427,9 @@ class InvariantEscapeLivenessTests(unittest.TestCase):
     def _import(self, rows: list[list[str]] | None = None) -> str:
         source = self.root / "revolut.csv"
         source.write_bytes(_csv_bytes(rows))
-        return FinCLService.plaintext_phase1(
+        return DocumentImportService.plaintext_phase2(
             self.database, self.root / "evidence"
-        ).import_revolut(source).status
+        ).import_revolut_pdf(source).status
 
     def _anchor_of(self, event_kind: str) -> str:
         connection = sqlite3.connect(self.database)
@@ -502,7 +496,7 @@ class DanglingDecisionSurfacingTests(unittest.TestCase):
         self.source.write_bytes(_csv_bytes())
         self.database = self.root / "fincl.sqlite3"
         self.evidence = self.root / "evidence"
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(self.source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(self.source)
         append_decision(
             default_journal_path(self.database),
             decision_kind="INBOUND_CLASSIFICATION",

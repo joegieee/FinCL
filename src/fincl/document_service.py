@@ -741,6 +741,11 @@ def _insert_document_entry(
     alt_precision = "DAY" if alt_role is not None else None
     foreign = record.foreign_amount
     fee = record.fee
+    # The Revolut PDF carries a reconciled per-row running balance; keep it on
+    # the ledger entry so the liquid-position read has a statement-running
+    # balance basis, exactly as the retired CSV path provided. Other document
+    # sources leave it NULL and fall back to the printed closing balance.
+    balance = record.balance if parsed.source_type == "REVOLUT_PDF" else None
     connection.execute(
         """
         INSERT INTO ledger_entries(
@@ -757,7 +762,7 @@ def _insert_document_entry(
         ) VALUES (
             ?, 'DOCUMENT', ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             'COMPLETED', 0,
-            ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL,
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?
         )
         """,
@@ -784,6 +789,9 @@ def _insert_document_entry(
             fee.text if fee is not None else None,
             fee.coefficient if fee is not None else None,
             fee.scale if fee is not None else None,
+            balance.text if balance is not None else None,
+            balance.coefficient if balance is not None else None,
+            balance.scale if balance is not None else None,
             record.foreign_currency,
             foreign.text if foreign is not None else None,
             foreign.coefficient if foreign is not None else None,

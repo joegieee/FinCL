@@ -15,11 +15,11 @@ from typer.testing import CliRunner
 from fincl.application import record_debt_decision
 from fincl.cli import app
 from fincl.decisions import replay_journal
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.refresh import refresh_ledger
-from fincl.service import FinCLService
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 from tests.test_api import ApiTestBase
-from tests.test_revolut_import import csv_bytes
 
 
 def _intent(kind: str, anchors: dict, payload: dict) -> str:
@@ -438,7 +438,7 @@ class DebtCliTests(unittest.TestCase):
             ["Card Payment", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01",
              "Coffee", "-4.00", "0.00", "SGD", "COMPLETED", "96.00"],
         ]))
-        FinCLService.plaintext_phase1(self.database, self.evidence).import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.evidence).import_revolut_pdf(source)
         refresh_ledger(self.database)
         self.runner = CliRunner()
 

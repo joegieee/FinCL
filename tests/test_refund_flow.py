@@ -9,9 +9,9 @@ from typer.testing import CliRunner
 
 from fincl.cli import app
 from fincl.db import connect_sqlite
+from fincl.document_service import DocumentImportService
 from fincl.report import build_economic_flow_report, economic_flow_report_data
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 
 class RefundFlowTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class RefundFlowTests(unittest.TestCase):
             ["Card Payment", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Purchase", "-10.00", "0.00", "SGD", "COMPLETED", "90.00"],
             ["Card Refund", "Current", "2026-02-01 10:00:00", "2026-02-01 10:00:01", "Refund", "5.00", "0.00", "SGD", "COMPLETED", "95.00"],
         ]))
-        result = FinCLService.plaintext_phase1(self.database, root / "evidence").import_revolut(source)
+        result = DocumentImportService.plaintext_phase2(self.database, root / "evidence").import_revolut_pdf(source)
         self.assertEqual(result.status, "ACCEPTED")
 
     def test_refund_nets_in_receipt_period_without_becoming_income(self) -> None:

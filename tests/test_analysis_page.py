@@ -17,13 +17,13 @@ from fincl.analysis.scopes import (
     normalize_scope,
     resolve_comparison,
 )
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.intervals import DateInterval
 from fincl.queries import analysis_page, contributors_page
 from fincl.refresh import refresh_ledger
 from fincl.report import economic_flow_report_data
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "900.00", "0.00", "SGD", "COMPLETED", "900.00"],
@@ -41,7 +41,7 @@ def _ledger(rows: list[list[str]] = _ROWS) -> Path:
     database = root / "ledger.sqlite3"
     source = root / "revolut.csv"
     source.write_bytes(csv_bytes(rows))
-    FinCLService.plaintext_phase1(database, root / "evidence").import_revolut(source)
+    DocumentImportService.plaintext_phase2(database, root / "evidence").import_revolut_pdf(source)
     refresh_ledger(database)
     return database
 

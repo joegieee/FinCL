@@ -14,11 +14,11 @@ from fincl.analysis.allocations import claimed_amount, open_residual
 from fincl.application import record_batch, record_debt_decision
 from fincl.decision_journal import default_journal_path, read_records
 from fincl.decisions import replay_journal
+from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.refresh import refresh_ledger
 from fincl.report import economic_flow_report_data
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Topup", "Current", "2026-03-01 09:00:00", "2026-03-01 09:00:01", "Seed", "2000.00", "0.00", "SGD", "COMPLETED", "2000.00"],
@@ -40,7 +40,7 @@ class Slice2Base(unittest.TestCase):
         self.database = self.root / "ledger.sqlite3"
         source = self.root / "revolut.csv"
         source.write_bytes(csv_bytes(_ROWS))
-        FinCLService.plaintext_phase1(self.database, self.root / "evidence").import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.root / "evidence").import_revolut_pdf(source)
         refresh_ledger(self.database)
 
     def anchor_for(self, *, coefficient: int, direction: str) -> str:

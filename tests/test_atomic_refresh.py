@@ -9,9 +9,9 @@ from unittest import mock
 
 from fincl import refresh as refresh_module
 from fincl.decision_journal import append_decision, default_journal_path
+from fincl.document_service import DocumentImportService
 from fincl.refresh import refresh_ledger
-from fincl.service import FinCLService
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _ROWS = [
     ["Card Payment", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01",
@@ -29,7 +29,7 @@ class AtomicRefreshTests(unittest.TestCase):
         self.database = self.root / "ledger.sqlite3"
         source = self.root / "revolut.csv"
         source.write_bytes(csv_bytes(_ROWS))
-        FinCLService.plaintext_phase1(self.database, self.root / "evidence").import_revolut(source)
+        DocumentImportService.plaintext_phase2(self.database, self.root / "evidence").import_revolut_pdf(source)
         self.good = refresh_ledger(self.database)
 
     def _coffee_anchor(self) -> str:

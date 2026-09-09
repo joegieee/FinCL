@@ -24,15 +24,15 @@ from unittest.mock import patch
 
 import fincl.forecast.manifest as manifest_module
 from fincl.api import create_app
+from fincl.document_service import DocumentImportService
 from fincl.forecast import (
     FORECAST_READINESS_LEVELS,
     READINESS_UNAVAILABLE,
     forecast_input_manifest,
 )
 from fincl.refresh import refresh_ledger
-from fincl.service import FinCLService
 from tests.asgi_client import ASGITestClient
-from tests.test_revolut_import import csv_bytes
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
 _TODAY = date(2026, 4, 10)
 
@@ -65,7 +65,7 @@ def _ledger(rows: list[list[str]]) -> Path:
     database = root / "fincl.sqlite3"
     source = root / "revolut.csv"
     source.write_bytes(csv_bytes(rows))
-    FinCLService.plaintext_phase1(database, root / "evidence").import_revolut(source)
+    DocumentImportService.plaintext_phase2(database, root / "evidence").import_revolut_pdf(source)
     refresh_ledger(database)
     return database
 
