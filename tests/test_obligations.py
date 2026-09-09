@@ -228,8 +228,8 @@ class ObligationsLedgerTests(unittest.TestCase):
                     entry_anchor(connection, row["id"])
                     for row in connection.execute(
                         "SELECT e.id FROM ledger_entries e "
-                        "JOIN raw_records r ON r.id = e.raw_record_id "
-                        "WHERE r.description_raw = ? ORDER BY e.effective_at",
+                        "JOIN document_records d ON d.id = e.document_record_id "
+                        "WHERE d.description_raw = ? ORDER BY e.effective_at",
                         (merchant,),
                     )
                 ]
