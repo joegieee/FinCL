@@ -172,6 +172,18 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .form-row-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .form-row-3 label{margin-bottom:8px}
 .account-details-form{border-top:1px solid var(--border);margin-top:12px;padding-top:14px}
+.baseline-view{display:flex;flex-direction:column;gap:18px}
+.baseline-window-card,.baseline-tasks-card,.baseline-pocket-card{padding:20px!important}
+.baseline-window-card h2,.baseline-pocket-card h2{display:flex;align-items:center;gap:8px;font-size:15px}
+.baseline-month-grid{list-style:none;display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 4px;padding:0}
+.baseline-month{border:1px solid var(--border);border-radius:8px;padding:8px 10px;min-width:76px;display:flex;flex-direction:column;gap:2px}
+.baseline-month-label{font-size:11px;font-weight:600}
+.baseline-month-state{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.baseline-month-count{font-size:9px;color:var(--muted)}
+.baseline-month.is-established{border-color:var(--primary);background:color-mix(in srgb,var(--primary) 9%,transparent)}
+.baseline-month.is-provisional{border-color:var(--border);background:var(--background)}
+.baseline-month.is-missing{border-color:#c26b4d;background:color-mix(in srgb,#c26b4d 10%,transparent)}
+.baseline-pocket-card .muted-note{margin:6px 0 0;display:flex;align-items:center;gap:6px}
 .alias-section{padding:20px!important}
 @media(max-width:700px){.form-row-3{grid-template-columns:1fr}.pocket-table{display:block;overflow-x:auto}}
 
