@@ -743,6 +743,11 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .position import position_page
         return position_page(database)
 
+    @app.get('/api/v1/net-worth')
+    def net_worth_read(as_of: str | None = None, prior_as_of: str | None = None) -> Any:
+        from .networth import net_worth_page
+        return net_worth_page(database, as_of=as_of, prior_as_of=prior_as_of)
+
     @app.get('/api/v1/categories')
     def categories_read() -> Any:
         from .v05 import categories_page
