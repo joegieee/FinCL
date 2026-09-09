@@ -824,6 +824,7 @@ def _build_document_report(
             f"sections: {', '.join(sections)}",
             f"confirmed_transfer_links: {links}",
             f"dangling_decisions: {_dangling_decisions(connection)}",
+            *_category_lines(_category_warnings(connection)),
         )
     )
 

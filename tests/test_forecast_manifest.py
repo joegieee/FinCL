@@ -80,6 +80,12 @@ class MissingOpeningCashTests(unittest.TestCase):
             connection.execute(
                 "UPDATE ledger_entries SET balance_coefficient=NULL, balance_scale=NULL"
             )
+            # Also drop the statement's reconciled close and period, so no
+            # statement-derived opening boundary remains either.
+            connection.execute("DELETE FROM document_reconciliation_checks")
+            connection.execute(
+                "UPDATE statements SET period_start=NULL, period_end=NULL"
+            )
             connection.commit()
         finally:
             connection.close()

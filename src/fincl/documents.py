@@ -3456,12 +3456,16 @@ def _reconcile_revolut_pdf(
                 {"currency": currency, "endpoint": "closing"},
             )
         )
-    if any(check.blocking and check.passed is not True for check in checks):
+    failed = [check for check in checks if check.blocking and check.passed is not True]
+    if failed:
+        anchor = failed[0].context.get("source_anchor")
         problems.append(
             DocumentProblem(
                 "BLOCKING",
                 "REVOLUT_PDF_BALANCE_MISMATCH",
                 "Revolut PDF balance equation failed",
+                {"currency": failed[0].currency_pocket},
+                anchor if isinstance(anchor, str) else None,
             )
         )
     return checks

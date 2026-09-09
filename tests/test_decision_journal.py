@@ -37,8 +37,9 @@ _ROWS = [
     ["Card Payment", "Current", "2026-01-02 11:00:00", "2026-01-02 11:00:01", "Shop", "-10.00", "0.00", "SGD", "COMPLETED", "90.00"],
 ]
 
-_EXCHANGE_INCOMPLETE_ROWS = [
-    ["Exchange", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "SGD leg only", "-100.00", "0.00", "SGD", "COMPLETED", "900.00"],
+_BALANCE_MISMATCH_ROWS = [
+    ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01", "Seed", "1000.00", "0.00", "SGD", "COMPLETED", "1000.00"],
+    ["Card Payment", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01", "Shop", "-10.00", "0.00", "SGD", "COMPLETED", "988.00"],
 ]
 
 
@@ -456,13 +457,13 @@ class InvariantEscapeLivenessTests(unittest.TestCase):
         self.assertEqual(read_records(default_journal_path(self.database)), [])
 
     def test_escape_accepted_for_a_live_violation(self) -> None:
-        self.assertEqual(self._import(_EXCHANGE_INCOMPLETE_ROWS), "QUARANTINED")
-        anchor = self._anchor_of("EXCHANGE")
+        self.assertEqual(self._import(_BALANCE_MISMATCH_ROWS), "QUARANTINED")
+        anchor = self._anchor_of("CARD_PAYMENT")
         result = self.runner.invoke(
             app,
             [
-                "review", "escape-invariant", "--code", "EXCHANGE_PAIRING_INCOMPLETE",
-                "--anchors", anchor, "--reason", "single-leg export, second leg is in the next file",
+                "review", "escape-invariant", "--code", "REVOLUT_PDF_BALANCE_MISMATCH",
+                "--anchors", anchor, "--reason", "printed balance is off by two cents; accepted knowingly",
                 "--database", str(self.database),
             ],
         )
@@ -470,11 +471,11 @@ class InvariantEscapeLivenessTests(unittest.TestCase):
         records = read_records(default_journal_path(self.database))
         self.assertEqual(len(records), 1)
         self.assertEqual(records[0].decision_kind, "INVARIANT_ESCAPE")
-        self.assertEqual(records[0].payload["code"], "EXCHANGE_PAIRING_INCOMPLETE")
+        self.assertEqual(records[0].payload["code"], "REVOLUT_PDF_BALANCE_MISMATCH")
 
     def test_escape_refused_for_the_wrong_code_on_a_live_violation(self) -> None:
-        self.assertEqual(self._import(_EXCHANGE_INCOMPLETE_ROWS), "QUARANTINED")
-        anchor = self._anchor_of("EXCHANGE")
+        self.assertEqual(self._import(_BALANCE_MISMATCH_ROWS), "QUARANTINED")
+        anchor = self._anchor_of("CARD_PAYMENT")
         result = self.runner.invoke(
             app,
             [

@@ -221,14 +221,36 @@ def invariant_violation_is_live(
             tuple(entry_ids),
         )
     ]
-    if not record_ids:
+    if record_ids:
+        record_placeholders = ",".join("?" for _ in record_ids)
+        hit = connection.execute(
+            f"SELECT 1 FROM extraction_issues "
+            f"WHERE code = ? AND severity = 'BLOCKING' "
+            f"AND raw_record_id IN ({record_placeholders}) LIMIT 1",
+            (code, *record_ids),
+        ).fetchone()
+        if hit is not None:
+            return True
+    # Document-path sources anchor a blocking issue through the offending
+    # document record's `source_anchor`, kept in the issue's context JSON.
+    doc_anchors = [
+        row[0]
+        for row in connection.execute(
+            f"SELECT dr.source_anchor FROM ledger_entries le "
+            f"JOIN document_records dr ON dr.id = le.document_record_id "
+            f"WHERE le.id IN ({entry_placeholders})",
+            tuple(entry_ids),
+        )
+        if row[0] is not None
+    ]
+    if not doc_anchors:
         return False
-    record_placeholders = ",".join("?" for _ in record_ids)
+    doc_placeholders = ",".join("?" for _ in doc_anchors)
     hit = connection.execute(
         f"SELECT 1 FROM extraction_issues "
         f"WHERE code = ? AND severity = 'BLOCKING' "
-        f"AND raw_record_id IN ({record_placeholders}) LIMIT 1",
-        (code, *record_ids),
+        f"AND json_extract(context_json, '$.source_anchor') IN ({doc_placeholders}) LIMIT 1",
+        (code, *doc_anchors),
     ).fetchone()
     return hit is not None
 
