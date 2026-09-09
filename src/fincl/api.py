@@ -25,6 +25,7 @@ from .generation import build_manifest, current_generation, generation_token
 from .locking import LedgerBusyError, ledger_writer
 from .planning import PLANNING_DECISION_KINDS
 from .plans import validate_plan
+from .position import POSITION_DECISION_KINDS
 from .queries import analysis_page, contributors_page, dashboard, transactions_page
 from .refresh import refresh_ledger
 
@@ -60,6 +61,8 @@ _SINGLE_KINDS = Literal[
     'GOAL_OBSERVATION_SET','GOAL_OBSERVATION_RETIRE','GOAL_ARCHIVE_SET',
     'RECURRING_COMMITMENT_SET','RECURRING_CANDIDATE_DISMISS',
     'RECURRING_OCCURRENCE_SET','RECURRING_OCCURRENCE_RETIRE',
+    # Stage 2A liquid-position observations
+    'BALANCE_OBSERVATION_SET','BALANCE_OBSERVATION_RETIRE',
 ]
 
 _DEBT_KINDS = frozenset({
@@ -501,6 +504,20 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         elif command.kind in PLANNING_DECISION_KINDS:
             from .planning import validate_planning
             validate_planning(command.kind, command.anchors, command.payload)
+        elif command.kind in POSITION_DECISION_KINDS:
+            from .position import validate_position_payload
+            validate_position_payload(command.kind, command.anchors, command.payload)
+            if command.kind == 'BALANCE_OBSERVATION_SET':
+                account_id = str(command.payload['account_id'])
+                if not connection.execute(
+                    'SELECT 1 FROM accounts WHERE id=?', (account_id,)
+                ).fetchone():
+                    raise FinCLError('The selected account no longer exists')
+            elif not connection.execute(
+                'SELECT 1 FROM balance_observations WHERE observation=? AND retired=0',
+                (command.anchors['observation'],),
+            ).fetchone():
+                raise FinCLError('The balance observation is not active')
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')

@@ -41,6 +41,11 @@ from .installments import (
     validate_installment_payload,
 )
 from .planning import PLANNING_DECISION_KINDS, apply_planning
+from .position import (
+    POSITION_DECISION_KINDS,
+    apply_balance_observation,
+    validate_position_payload,
+)
 from .relationships import (
     DECISION_BATCH,
     RELATIONSHIP_DECISION_KINDS,
@@ -94,6 +99,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | CARD_DECISION_KINDS
     | INSTALLMENT_DECISION_KINDS
     | PLANNING_DECISION_KINDS
+    | POSITION_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -251,6 +257,7 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "installment_schedule",
             "installment_occurrences",
             "installment_plans",
+            "balance_observations",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -485,6 +492,20 @@ def _apply_record(
             raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
     elif record.decision_kind in PLANNING_DECISION_KINDS:
         apply_planning(connection, record, batch_index=batch_index)
+    elif record.decision_kind in POSITION_DECISION_KINDS:
+        try:
+            validate_position_payload(
+                record.decision_kind, record.anchors, record.payload
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
+        apply_balance_observation(
+            connection,
+            decision_kind=record.decision_kind,
+            anchors=record.anchors,
+            payload=record.payload,
+            journal_seq=record.seq,
+        )
 
 
 def _binding(reason: str | None, override: str | None) -> tuple[int, str | None]:

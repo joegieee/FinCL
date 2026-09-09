@@ -14,6 +14,8 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from fincl.decision_journal import append_decision, default_journal_path
+from fincl.decisions import replay_journal
 from fincl.position import position_page
 from fincl.refresh import refresh_ledger
 from fincl.service import FinCLService
@@ -103,6 +105,159 @@ class PositionReadTests(unittest.TestCase):
         self.assertEqual(pocket["basis"], "statement-running-balance")
         self.assertEqual(pocket["balance"], "360.00")
 
+    def test_known_opening_reconciles_external_movements_to_closing(self) -> None:
+        database = _ledger(_ROWS)
+
+        bridge = position_page(database, today=date(2026, 3, 5))["cash_bridge"]["pockets"][0]
+
+        self.assertEqual(bridge["opening"], "900.00")
+        self.assertEqual(bridge["external_inflows"], "0")
+        self.assertEqual(bridge["external_outflows"], "540.00")
+        self.assertEqual(bridge["calculated_closing"], "360.00")
+        self.assertEqual(bridge["closing"], "360.00")
+        self.assertTrue(bridge["reconciled"])
+
+    def test_internal_transfer_legs_remain_per_pocket_and_cancel_once_combined(self) -> None:
+        rows = [
+            ["Topup", "Current", "2026-01-01 10:00:00", "2026-01-01 10:00:01",
+             "Seed", "1000.00", "0.00", "SGD", "COMPLETED", "1000.00"],
+            ["Transfer", "Current", "2026-01-02 10:00:00", "2026-01-02 10:00:01",
+             "Move out", "-100.00", "0.00", "SGD", "COMPLETED", "900.00"],
+            ["Transfer", "Current", "2026-01-03 10:00:00", "2026-01-03 10:00:01",
+             "Move in", "100.00", "0.00", "SGD", "COMPLETED", "1000.00"],
+        ]
+        database = _ledger(rows)
+        connection = sqlite3.connect(database)
+        try:
+            legs = connection.execute(
+                "SELECT id FROM ledger_entries ORDER BY effective_at"
+            ).fetchall()[1:]
+            connection.execute(
+                """INSERT INTO transfer_links(
+                    id,left_entry_id,right_entry_id,link_kind,left_currency,
+                    left_amount_text,left_amount_coefficient,left_amount_scale,
+                    right_currency,right_amount_text,right_amount_coefficient,
+                    right_amount_scale,method_version,status,evidence_json,created_at)
+                    VALUES ('owned-pair',?,?,'SAME_CURRENCY_TRANSFER','SGD','100.00',10000,2,
+                            'SGD','100.00',10000,2,'test-v1','CONFIRMED','{}','2026-01-03')""",
+                (legs[0][0], legs[1][0]),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        page = position_page(database, today=date(2026, 1, 3))
+        bridge = page["cash_bridge"]["pockets"][0]
+
+        self.assertEqual(bridge["owned_transfer_inflows"], "100.00")
+        self.assertEqual(bridge["owned_transfer_outflows"], "100.00")
+        self.assertEqual(bridge["external_inflows"], "0")
+        self.assertEqual(bridge["external_outflows"], "0")
+        self.assertEqual(page["cash_bridge"]["combined"]["owned_transfer_pairs_cancelled"], 1)
+        self.assertEqual(page["cash_bridge"]["combined"]["by_currency"]["SGD"], {
+            "opening": "1000.00", "external_inflows": "0",
+            "external_outflows": "0", "closing": "1000.00",
+            "reconciled": True, "owned_transfer_pairs_cancelled": 1,
+        })
+        self.assertEqual(page["combined_liquid_position"], {"SGD": "1000.00"})
+
+    def test_stale_position_names_the_missing_movement_interval(self) -> None:
+        database = _ledger(_ROWS)
+
+        page = position_page(database, today=date(2026, 5, 1))
+
+        self.assertFalse(page["current_position_supported"])
+        self.assertTrue(page["stale"])
+        self.assertEqual(page["supported_cutoff"], "2026-03-05")
+        self.assertEqual(page["missing_intervals"], [{
+            "account_id": _only_account_id(database), "currency_pocket": "SGD",
+            "start": "2026-03-06", "end": "2026-05-01",
+            "reason": "no complete actual-movement interval after the last supported balance",
+        }])
+
+    def test_missing_movement_support_prevents_an_exact_bridge_claim(self) -> None:
+        database = _ledger(_ROWS)
+        connection = sqlite3.connect(database)
+        try:
+            connection.execute(
+                "DELETE FROM reconciliation_checks WHERE current_raw_record_id=("
+                "SELECT raw_record_id FROM ledger_entries ORDER BY effective_at LIMIT 1 OFFSET 1)"
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+        page = position_page(database, today=date(2026, 3, 5))
+        bridge = page["cash_bridge"]["pockets"][0]
+
+        self.assertFalse(bridge["reconciled"])
+        self.assertEqual(
+            bridge["unsupported_reason"],
+            "intervening movement completeness is not supported",
+        )
+        self.assertFalse(page["current_position_supported"])
+
+    def test_card_balance_is_excluded_from_liquid_cash(self) -> None:
+        database = _ledger(_ROWS)
+        connection = sqlite3.connect(database)
+        try:
+            connection.execute("UPDATE accounts SET source_type='MARI_CARD'")
+            connection.commit()
+        finally:
+            connection.close()
+
+        page = position_page(database, today=date(2026, 3, 5))
+
+        self.assertFalse(page["pockets"][0]["liquid"])
+        self.assertIn("obligation", page["pockets"][0]["excluded_reason"])
+        self.assertEqual(page["included_pockets"], [])
+        self.assertEqual(page["combined_liquid_position"], {})
+
+    def test_unsupported_current_position_keeps_last_known_amount(self) -> None:
+        database = _ledger(_ROWS)
+
+        page = position_page(database, today=date(2026, 3, 20))
+
+        self.assertFalse(page["current_position_supported"])
+        self.assertEqual(page["included_pockets"][0]["balance"], "360.00")
+        self.assertEqual(page["included_pockets"][0]["as_of"], "2026-03-05")
+        self.assertTrue(page["current_position_reasons"])
+
+    def test_balance_observation_set_and_retire_replay_through_the_journal(self) -> None:
+        database = _ledger(_ROWS)
+        observation = "11111111-1111-4111-8111-111111111111"
+        journal = default_journal_path(database)
+        append_decision(
+            journal, decision_kind="BALANCE_OBSERVATION_SET",
+            anchors={"observation": observation},
+            payload={"account_id": _only_account_id(database), "currency_pocket": "SGD",
+                     "observed_on": "2026-04-02", "balance": "355.10", "reason": "verified"},
+            policy_version="position-v1", snapshot="manual balance",
+        )
+        connection = sqlite3.connect(database)
+        try:
+            replay_journal(connection)
+        finally:
+            connection.close()
+        self.assertEqual(
+            position_page(database, today=date(2026, 4, 2))["pockets"][0]["balance"],
+            "355.10",
+        )
+        append_decision(
+            journal, decision_kind="BALANCE_OBSERVATION_RETIRE",
+            anchors={"observation": observation}, payload={"reason": "superseded"},
+            policy_version="position-v1", snapshot="retire manual balance",
+        )
+        connection = sqlite3.connect(database)
+        try:
+            replay_journal(connection)
+        finally:
+            connection.close()
+        self.assertEqual(
+            position_page(database, today=date(2026, 4, 2))["pockets"][0]["balance"],
+            "360.00",
+        )
+
 
 def page_currency_total(database: Path, today: date) -> dict[str, str]:
     return position_page(database, today=today)["liquid_total"]
@@ -127,12 +282,7 @@ def _project_observation(
     balance: str,
     retired: bool = False,
 ) -> None:
-    """Insert straight into the schema-19 projection.
-
-    Stage 2 will write these rows from a ``BALANCE_OBSERVATION_SET`` journal
-    record; until that kind is wired, the read path is exercised by projecting
-    the row directly.
-    """
+    """Insert straight into the schema-19 projection for isolated read tests."""
     whole, _, fraction = balance.partition(".")
     coefficient = int(whole + fraction)
     scale = len(fraction)
