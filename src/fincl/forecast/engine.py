@@ -1404,6 +1404,7 @@ def build_cash_timeline(
             )
             global_limits.append(message)
             result_by_currency[currency]["available"] = False
+            result_by_currency[currency]["reason"] = message
             base["available"] = False
             conservative["available"] = False
             base["limitations"].append(message)
