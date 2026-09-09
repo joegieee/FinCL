@@ -265,6 +265,24 @@
         }
       }
     },
+    "/api/v1/baseline/estimate": {
+      "get": {
+        "summary": "Baseline Estimate Read",
+        "operationId": "baseline_estimate_read_api_v1_baseline_estimate_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Baseline Estimate Read Api V1 Baseline Estimate Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categories": {
       "get": {
         "summary": "Categories Read",

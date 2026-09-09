@@ -7,7 +7,8 @@ what is only observed, and what is missing, so a fabricated zero month can never
 slip into a baseline total.
 """
 
+from .estimators import baseline_estimate
 from .queries import cost_income_table
 from .readiness import baseline_readiness
 
-__all__ = ["baseline_readiness", "cost_income_table"]
+__all__ = ["baseline_estimate", "baseline_readiness", "cost_income_table"]
