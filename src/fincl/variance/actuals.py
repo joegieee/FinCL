@@ -1,0 +1,242 @@
+"""Stage 5A — actual bank cash receipts and payments, on a cash basis.
+
+This is deliberately **not** the economic component projection.  That projection
+answers "what did this cost me", so it drops confirmed internal transfers
+entirely and counts a card purchase on the day it was made.  Both are right for
+economic reporting and both are wrong here, because a forecast timeline is a
+statement about a *bank balance*:
+
+* a credit-card purchase moved a liability, not a bank balance.  It is not a
+  cash movement and must never be matched against the settlement the forecast
+  modelled — doing so scores the same money twice, once early against the
+  purchase and once late against the payment; and
+* the bank leg of a card repayment or a transfer *is* cash leaving an account,
+  even though the economic lens nets it away as internal.  The Stage 3B engine
+  models card settlements and repayments as outflows, so the actual side has to
+  see them, or every settled statement reads as a missing payment.
+
+So the channel decides membership, exactly as it does in
+:mod:`fincl.cards.cash_conversion`: bank-channel entries are cash, card-channel
+entries are not.  Card-channel entries are returned in their own list rather
+than filtered out silently, so a caller can show that the purchase was seen and
+deliberately not counted.
+
+Coverage is reported, never assumed.  A window the accepted evidence does not
+completely cover yields ``covered: False`` and the caller must report the period
+unresolved: a month nobody has a statement for is not a month in which no money
+moved.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+from typing import Any
+
+from ..cards.models import CARD_SOURCE_TYPES
+from ..db import connect_readonly
+from ..intervals import contains_range, uncovered_dates
+from ..money import format_decimal
+from ..report import _coverage_contract
+from .models import CASH_BASIS_RULE, DIRECTION_IN, DIRECTION_OUT
+
+CHANNEL_BANK = "bank"
+CHANNEL_CARD = "card"
+
+ROLE_AMOUNT = "amount"
+ROLE_FEE = "fee"
+
+# The same eligibility predicate the economic projection uses, and the same
+# channel derivation — only the membership rule after it differs (see module
+# docstring). Kept as one statement so the two reads cannot drift apart on which
+# ledger rows exist.
+_MOVEMENT_SELECT = """
+SELECT e.id AS entry_id,
+       e.natural_anchor AS entry_anchor,
+       e.currency_pocket AS currency,
+       substr(e.effective_at, 1, 10) AS posted_date,
+       e.effective_precision,
+       e.amount_coefficient, e.amount_scale,
+       COALESCE(e.fee_coefficient, 0) AS fee_coefficient,
+       COALESCE(e.fee_scale, 0) AS fee_scale,
+       e.economic_direction, e.event_kind,
+       a.display_name AS account,
+       e.account_id AS source_account_id,
+       a.source_type AS account_source_type,
+       CASE WHEN a.source_type IN ({card_source_types})
+                 OR EXISTS (SELECT 1 FROM statements cs
+                            JOIN card_statement_facts cf ON cf.statement_id = cs.id
+                            WHERE cs.account_id = a.id)
+            THEN 'card' ELSE 'bank' END AS payment_channel,
+       COALESCE(ma.display_name, mo.merchant_canonical, mo.merchant_normalized,
+                r.description_raw, d.description_raw,
+                'Unlabelled movement') AS label,
+       -- One entry can carry several confirmed link rows; the aggregates keep
+       -- the row count at one per entry and the result deterministic.
+       MAX(CASE WHEN tl.id IS NULL THEN 0 ELSE 1 END) AS is_linked,
+       MAX(ld.link_purpose) AS link_purpose
+FROM ledger_entries e
+JOIN extraction_runs x ON x.id = e.extraction_run_id
+JOIN accounts a ON a.id = e.account_id
+LEFT JOIN statements s ON s.id = e.statement_id
+LEFT JOIN merchant_observations mo ON mo.entry_id = e.id
+LEFT JOIN merchant_aliases ma ON ma.canonical = mo.merchant_canonical
+LEFT JOIN raw_records r ON r.id = e.raw_record_id
+LEFT JOIN document_records d ON d.id = e.document_record_id
+LEFT JOIN transfer_links tl
+       ON tl.status = 'CONFIRMED'
+      AND (tl.left_entry_id = e.id OR tl.right_entry_id = e.id)
+LEFT JOIN link_decisions ld
+       ON ld.decision = 'CONFIRM' AND ld.bound = 1
+      AND (ld.left_anchor = e.natural_anchor OR ld.right_anchor = e.natural_anchor)
+WHERE e.analytics_eligible = 1 AND e.lifecycle_state = 'COMPLETED'
+  AND x.selection_state = 'SELECTED'
+  AND (e.source_family = 'CSV' OR s.selection_state = 'SELECTED')
+  AND e.natural_anchor NOT IN (SELECT suppressed_anchor FROM duplicate_suppressions)
+  AND e.currency_pocket = ?
+  AND substr(e.effective_at, 1, 10) >= ?
+  AND substr(e.effective_at, 1, 10) <= ?
+GROUP BY e.id
+ORDER BY posted_date, e.natural_anchor, e.id
+""".format(
+    card_source_types=", ".join(f"'{name}'" for name in sorted(CARD_SOURCE_TYPES))
+)
+
+
+def movement_id(entry_anchor: str, role: str) -> str:
+    """The stable identity a match binds to.
+
+    A ledger entry id is regenerated by a rebuild; its ``natural_anchor`` is not
+    (that is what anchors are for), so a journalled match survives a rebuild the
+    same way every other decision does.
+    """
+    return f"cash:{entry_anchor}:{role}"
+
+
+def _rows_to_movements(rows: list[sqlite3.Row]) -> dict[str, Any]:
+    cash: list[dict[str, Any]] = []
+    card_channel: list[dict[str, Any]] = []
+    undated: list[dict[str, Any]] = []
+
+    for row in rows:
+        shared = {
+            "on": str(row["posted_date"]),
+            "label": str(row["label"]),
+            "account": str(row["account"]),
+            "entry_anchor": str(row["entry_anchor"]),
+            "event_kind": str(row["event_kind"]),
+            "internal_transfer": bool(row["is_linked"]),
+            "link_purpose": row["link_purpose"],
+        }
+        parts: list[tuple[str, str, int, int]] = []
+        amount = int(row["amount_coefficient"])
+        if amount and row["economic_direction"] in ("IN", "OUT"):
+            parts.append(
+                (
+                    ROLE_AMOUNT,
+                    DIRECTION_IN if row["economic_direction"] == "IN" else DIRECTION_OUT,
+                    abs(amount),
+                    int(row["amount_scale"]),
+                )
+            )
+        fee = int(row["fee_coefficient"])
+        if fee:
+            # A fee is cash out of the same account on the same day, whichever
+            # way the amount it accompanies went.
+            parts.append((ROLE_FEE, DIRECTION_OUT, abs(fee), int(row["fee_scale"])))
+        if not parts:
+            continue
+
+        if str(row["payment_channel"]) == CHANNEL_CARD:
+            card_channel.append(
+                {
+                    **shared,
+                    "movement_id": movement_id(str(row["entry_anchor"]), ROLE_AMOUNT),
+                    "amount": format_decimal(abs(amount), int(row["amount_scale"])),
+                    "excluded_because": (
+                        "this movement is on a card account: it moved a liability, "
+                        "not a bank balance, and converts to cash later through the "
+                        "statement cycle the forecast already modelled"
+                    ),
+                }
+            )
+            continue
+
+        for role, direction, magnitude, scale in parts:
+            item = {
+                **shared,
+                "movement_id": movement_id(str(row["entry_anchor"]), role),
+                "role": role,
+                "direction": direction,
+                "amount_coefficient": magnitude,
+                "amount_scale": scale,
+                "amount": format_decimal(magnitude, scale),
+                "channel": CHANNEL_BANK,
+            }
+            if str(row["effective_precision"]) != "DAY":
+                undated.append(
+                    {
+                        **item,
+                        "precision": str(row["effective_precision"]),
+                        "unresolved_because": (
+                            "the evidence dates this movement only to "
+                            f"{row['effective_precision'].lower()} precision, so it "
+                            "cannot be placed on a forecast day; it is held out of "
+                            "the dated totals rather than assigned a guessed date"
+                        ),
+                    }
+                )
+            else:
+                cash.append(item)
+    return {"cash": cash, "card_channel": card_channel, "undated": undated}
+
+
+def cash_movements(
+    connection: sqlite3.Connection, *, currency: str, start: str, end: str
+) -> dict[str, Any]:
+    """Bank cash movements in ``[start, end]``, with coverage stated."""
+    rows = connection.execute(_MOVEMENT_SELECT, (currency, start, end)).fetchall()
+    split = _rows_to_movements(rows)
+    contract = _coverage_contract(connection)
+    covered = contains_range(contract.covered_intervals, start, end)
+    gaps = uncovered_dates(contract.covered_intervals, start, end)
+    return {
+        "currency": currency,
+        "window": {"start": start, "end": end},
+        "basis": CASH_BASIS_RULE,
+        "movements": split["cash"],
+        "excluded_card_channel": split["card_channel"],
+        "undated": split["undated"],
+        "coverage": {
+            "covered": covered,
+            "status": contract.status,
+            "reasons": list(contract.reasons),
+            "uncovered": [interval.as_dict() for interval in gaps],
+            "rule": (
+                "actual totals are stated only for a window the accepted evidence "
+                "covers completely; an uncovered day makes the period unresolved, "
+                "never zero"
+            ),
+        },
+    }
+
+
+def cash_movements_page(
+    database: Path, *, currency: str, start: str, end: str
+) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return cash_movements(connection, currency=currency, start=start, end=end)
+    finally:
+        connection.close()
+
+
+__all__ = [
+    "CHANNEL_BANK",
+    "CHANNEL_CARD",
+    "ROLE_AMOUNT",
+    "ROLE_FEE",
+    "cash_movements",
+    "cash_movements_page",
+    "movement_id",
+]

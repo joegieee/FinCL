@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -358,6 +358,60 @@ CREATE TABLE IF NOT EXISTS sinking_fund_releases (
     amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
     journal_seq INTEGER NOT NULL
 ) STRICT;
+"""
+
+
+# Schema 22 projection tables (cash-flow framework Stage 5A, forecast versus
+# actual). Two tables, and deliberately not three:
+#
+#   `forecast_snapshots`       — one row per *issued* forecast, holding the
+#                                journalled document verbatim plus the digest
+#                                that covers it. The document is the only copy
+#                                of what was issued; no input, event, output or
+#                                setting is also stored in a column of its own,
+#                                so nothing here can drift away from the bytes
+#                                the operator was shown. Re-issuing an id is
+#                                refused by `fincl.variance.projection`, which
+#                                is what makes "live recalculation never
+#                                rewrites a saved snapshot" structural.
+#   `forecast_actual_matches`  — one row per operator-recorded binding of an
+#                                actual cash movement to an issued cash event.
+#                                Matching is manual at this stage: nothing
+#                                infers a binding from a similar amount or a
+#                                nearby date.
+#
+# There is no table of actual movements or computed variances. Actuals are read
+# from the ledger on demand in `fincl.variance.actuals` and every difference is
+# arithmetic over the document and these matches, so a stored variance can never
+# disagree with the numbers behind it. Rebuilt by every journal replay from the
+# `FORECAST_SNAPSHOT_ISSUE` / `FORECAST_MATCH_*` kinds. Shared verbatim between a
+# fresh `initialize_schema` and the registered 21->22 migration.
+SCHEMA_22_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS forecast_snapshots (
+    snapshot TEXT PRIMARY KEY,
+    issued_at TEXT NOT NULL,
+    document_json TEXT NOT NULL,
+    document_digest TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS forecast_actual_matches (
+    snapshot TEXT NOT NULL,
+    match TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    movement_id TEXT NOT NULL,
+    matched_on TEXT NOT NULL,
+    amount_coefficient INTEGER NOT NULL
+        CHECK (amount_coefficient BETWEEN 0 AND {MAX_ABS_COEFFICIENT}),
+    amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
+    match_kind TEXT NOT NULL CHECK (match_kind IN ('full', 'partial')),
+    journal_seq INTEGER NOT NULL,
+    retired INTEGER NOT NULL CHECK (retired IN (0, 1)),
+    PRIMARY KEY (snapshot, match)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS forecast_actual_matches_event
+    ON forecast_actual_matches(snapshot, event_id, retired);
 """
 
 
@@ -950,6 +1004,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_19_TABLES_SQL
         + SCHEMA_20_TABLES_SQL
         + SCHEMA_21_TABLES_SQL
+        + SCHEMA_22_TABLES_SQL
     )
 
 

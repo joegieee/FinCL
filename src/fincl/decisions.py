@@ -64,6 +64,13 @@ from .relationships import (
     resolve as resolve_relationships,
 )
 
+# As with `fincl.funds`, only the journal side is imported: `fincl.variance`
+# also exposes the Stage 5A read, which composes the Stage 3 forecast engine and
+# the coverage contract — both of which import this module back.
+from .variance.models import VARIANCE_DECISION_KINDS
+from .variance.projection import apply_variance_decision
+from .variance.validation import validate_variance_payload
+
 NATURAL_ANCHOR_VERSION = "natural-anchor-v1"
 
 V05_DECISION_KINDS = frozenset(
@@ -108,6 +115,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | PLANNING_DECISION_KINDS
     | POSITION_DECISION_KINDS
     | FUND_DECISION_KINDS
+    | VARIANCE_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -269,6 +277,8 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "sinking_fund_releases",
             "sinking_fund_allocations",
             "sinking_funds",
+            "forecast_actual_matches",
+            "forecast_snapshots",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -523,6 +533,20 @@ def _apply_record(
                 record.decision_kind, record.anchors, record.payload
             )
             apply_fund_decision(
+                connection,
+                decision_kind=record.decision_kind,
+                anchors=record.anchors,
+                payload=record.payload,
+                journal_seq=record.seq,
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
+    elif record.decision_kind in VARIANCE_DECISION_KINDS:
+        try:
+            validate_variance_payload(
+                record.decision_kind, record.anchors, record.payload
+            )
+            apply_variance_decision(
                 connection,
                 decision_kind=record.decision_kind,
                 anchors=record.anchors,
