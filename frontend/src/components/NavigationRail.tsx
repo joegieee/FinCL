@@ -1,12 +1,16 @@
 import { useRef } from 'react'
-import { ChevronsLeft, ChevronsRight, Layers3 } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, History, Layers3, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Tooltip } from '@/components/Tooltip'
 import { railSections, tabLabel, tabMeta, type RailSection } from '@/lib/tabs'
 
 function sectionId(name: string) { return `rail-section-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` }
 
-export function NavigationRail({ tab, onSelect, reviewCount, proposalCount, collapsed, onToggleCollapse, ledgerLabel, drawer = false }: {
+export function NavigationRail({
+  tab, onSelect, reviewCount, proposalCount, collapsed, onToggleCollapse, ledgerLabel, drawer = false,
+  onHistory, historyDisabled, onRefresh, refreshDisabled, refreshing, demo,
+}: {
   tab: string
   onSelect: (tab: string) => void
   reviewCount: number
@@ -15,6 +19,12 @@ export function NavigationRail({ tab, onSelect, reviewCount, proposalCount, coll
   onToggleCollapse: () => void
   ledgerLabel: string
   drawer?: boolean
+  onHistory: () => void
+  historyDisabled: boolean
+  onRefresh: () => void
+  refreshDisabled: boolean
+  refreshing: boolean
+  demo: boolean
 }) {
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const flatTabs = railSections.flatMap((s: RailSection) => s.tabs)
@@ -65,8 +75,21 @@ export function NavigationRail({ tab, onSelect, reviewCount, proposalCount, coll
         </div>
       })}
     </div>
+    <div className="rail-actions">
+      {maybeTooltip(collapsed && !drawer, 'History', <Button variant="ghost" size="sm" disabled={historyDisabled} onClick={onHistory}><History size={16}/><span className="rail-label">History</span></Button>)}
+      {maybeTooltip(collapsed && !drawer, 'Local & private', <span className="local"><ShieldCheck size={14}/><span className="rail-label">Local & private</span></span>)}
+      {demo && (collapsed && !drawer ? <Tooltip label="Synthetic demo"><Badge variant="outline" className="rail-demo-badge">D</Badge></Tooltip> : <Badge variant="outline">Synthetic demo</Badge>)}
+      <div className="rail-actions-row">
+        {maybeTooltip(collapsed && !drawer, 'Personal workspace', <span className="avatar" aria-label="Personal workspace">J</span>)}
+        {maybeTooltip(collapsed && !drawer, 'Refresh', <Button variant="ghost" size="sm" disabled={refreshDisabled} onClick={onRefresh}><RefreshCw size={14} className={refreshing ? 'spin' : ''}/><span className="rail-label">Refresh</span></Button>)}
+      </div>
+    </div>
     {!drawer && <Button variant="ghost" size="sm" className="rail-collapse-toggle" aria-expanded={!collapsed} onClick={onToggleCollapse}>
       {collapsed ? <ChevronsRight size={16}/> : <ChevronsLeft size={16}/>}<span className="rail-label">Collapse</span>
     </Button>}
   </nav>
+}
+
+function maybeTooltip(wrap: boolean, label: string, element: React.ReactElement<{ 'aria-describedby'?: string }>) {
+  return wrap ? <Tooltip label={label}>{element}</Tooltip> : element
 }

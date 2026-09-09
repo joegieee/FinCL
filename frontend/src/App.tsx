@@ -99,13 +99,13 @@ export default function App(){
  const railActiveTab=tabAliases[tab]??tab
  return <div className="app-shell">
   <a className="skip-link" href="#main-content">Skip to content</a>
-  <NavigationRail tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} collapsed={railCollapsed} onToggleCollapse={()=>setRailCollapsed(c=>!c)} ledgerLabel={health?.label||'Your money, understood'}/>
+  <NavigationRail tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} collapsed={railCollapsed} onToggleCollapse={()=>setRailCollapsed(c=>!c)} ledgerLabel={health?.label||'Your money, understood'} onHistory={showHistory} historyDisabled={!data} onRefresh={refresh} refreshDisabled={loading||!data} refreshing={loading} demo={!!health?.demo}/>
   {drawerOpen&&<div className="rail-backdrop" onClick={()=>setDrawerOpen(false)}/>}
   {drawerOpen&&<div className="rail-drawer" ref={drawerRef} role="dialog" aria-modal="true" aria-label="Main navigation">
-   <NavigationRail drawer tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} collapsed={false} onToggleCollapse={()=>{}} ledgerLabel={health?.label||'Your money, understood'}/>
+   <NavigationRail drawer tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} collapsed={false} onToggleCollapse={()=>{}} ledgerLabel={health?.label||'Your money, understood'} onHistory={showHistory} historyDisabled={!data} onRefresh={refresh} refreshDisabled={loading||!data} refreshing={loading} demo={!!health?.demo}/>
   </div>}
+  <Button variant="ghost" size="sm" className="rail-drawer-toggle" aria-label="Open navigation" aria-expanded={drawerOpen} onClick={()=>setDrawerOpen(o=>!o)}><Menu size={18}/></Button>
   <div className="app-main-col">
-  <header className="top-bar"><Button variant="ghost" size="sm" className="rail-drawer-toggle" aria-label="Open navigation" aria-expanded={drawerOpen} onClick={()=>setDrawerOpen(o=>!o)}><Menu size={18}/></Button><div className="header-actions"><Button variant="ghost" size="sm" disabled={!data} onClick={showHistory}>History</Button><span className="local"><ShieldCheck size={14}/> Local & private</span>{health?.demo&&<Badge variant="outline">Synthetic demo</Badge>}<span className="avatar" aria-label="Personal workspace">J</span><Button variant="ghost" size="sm" onClick={refresh} disabled={loading||!data}><RefreshCw size={14} className={loading?'spin':''}/>Refresh</Button></div></header>
   <main id="main-content" tabIndex={-1} className={tab==='Transactions'?'wide':''}>
    {error&&<div className="alert error" role="alert"><div><strong>We couldn’t complete that.</strong><p>{error}</p></div>{health&&<Button variant="outline" onClick={()=>load()}>Try again</Button>}</div>}
    {notice&&<div className="alert success" role="status"><span><Check size={15}/>{notice}</span><button aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={16}/></button></div>}
