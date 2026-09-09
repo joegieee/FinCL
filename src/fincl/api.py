@@ -635,6 +635,11 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             raise HTTPException(404,'Account not found')
         return {'generation':page['generation'],'account':account}
 
+    @app.get('/api/v1/baseline/readiness')
+    def baseline_readiness_read() -> Any:
+        from .baseline import baseline_readiness
+        return baseline_readiness(database)
+
     @app.get('/api/v1/categories')
     def categories_read() -> Any:
         from .v05 import categories_page

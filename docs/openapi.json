@@ -229,6 +229,24 @@
         }
       }
     },
+    "/api/v1/baseline/readiness": {
+      "get": {
+        "summary": "Baseline Readiness Read",
+        "operationId": "baseline_readiness_read_api_v1_baseline_readiness_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Baseline Readiness Read Api V1 Baseline Readiness Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categories": {
       "get": {
         "summary": "Categories Read",
