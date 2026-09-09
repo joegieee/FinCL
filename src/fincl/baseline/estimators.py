@@ -21,8 +21,9 @@ The estimate is deliberately simple and labelled as such:
   review — it stays in the historical total, it is only removed from the
   routine residual.
 
-The reserve amount is withheld until essential-vs-discretionary roles exist
-(Stage 1B part 2); the metrics that do not need them are still published.
+The reserve amount is derived only when the deterministic role read has no
+unresolved owner-cost contribution.  This deliberately makes an unclassified
+purchase or an unlinked receipt adjustment block a protective claim.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
 from .queries import cost_income_table
+from .roles import RESERVE_MONTHS, baseline_roles
 
 _METHOD_VERSION = "baseline-estimator-v1"
 _OUTLIER_METHOD = "outlier-v1: entry ≥ 3× category median-month and ≥ 150"
@@ -179,6 +181,7 @@ def baseline_estimate(database: Path, *, today: date | None = None) -> dict[str,
         connection.close()
     entries = _entry_spending(database, token, span_start, span_end)
     recurring_flat = _confirmed_recurring_flat(database)
+    roles = baseline_roles(database, today=today)
 
     by_currency: dict[str, Any] = {}
     for currency in table["currencies"]:
@@ -231,6 +234,27 @@ def baseline_estimate(database: Path, *, today: date | None = None) -> dict[str,
             (_dec(income_monthly) - _dec(total_observed_monthly)).quantize(Decimal("0.01"))
         )
 
+        role_summary = roles["by_currency"][currency] if roles["available"] else None
+        if role_summary is None or Decimal(role_summary["totals"]["unresolved"]) != 0:
+            reserve = {
+                "available": False,
+                "reason": (
+                    "essential role coverage is incomplete; unresolved owner-cost "
+                    "contributions must be reviewed before a reserve amount is derived"
+                ),
+            }
+        else:
+            essential_monthly = _mean(
+                [Decimal(row["essential"]) for row in role_summary["months"]], scale
+            )
+            reserve = {
+                "available": True,
+                "months": str(RESERVE_MONTHS),
+                "essential_monthly": essential_monthly,
+                "amount": str((Decimal(essential_monthly) * RESERVE_MONTHS).quantize(Decimal("0.01"))),
+                "basis": "default three months of mean essential owner cost",
+            }
+
         by_currency[currency] = {
             "months": month_decomp,
             "fixed_recurring_monthly": str(fixed_flat.quantize(Decimal("0.01"))),
@@ -251,21 +275,17 @@ def baseline_estimate(database: Path, *, today: date | None = None) -> dict[str,
                 str(fixed_flat.quantize(Decimal("0.01"))), routine_lifestyle_baseline,
                 zero_reason="routine lifestyle baseline is zero",
             ),
-            "reserve": {
-                "available": False,
-                "reason": (
-                    "essential-vs-discretionary roles are unresolved (Stage 1B part 2); "
-                    "a reserve amount needs the essential baseline"
-                ),
-            },
+            "roles": role_summary,
+            "role_groups": [group for group in roles.get("groups", []) if group["currency"] == currency],
+            "reserve": reserve,
             "irregular_risk_entries": flagged,
         }
 
     limitations = [
         "confirmed recurring schedules are not matched per month; fixed_recurring_monthly "
         "is the flat sum of active commitments only",
-        "essential / discretionary / tier roles are not yet assigned, so the reserve amount "
-        "and essential/discretionary splits are withheld",
+        "automatic category defaults carry their source and review status; unmapped categories "
+        "and unlinked receipt adjustments remain unresolved",
         "the upper-spend comparison statistics are observed dispersion, not a calibrated interval",
     ]
     if window["basis"] == "some-provisional":

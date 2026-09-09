@@ -27,13 +27,15 @@ function estimate(over: Record<string, unknown> = {}) {
         historical_surplus_monthly: '-960.00',
         savings_rate: { available: false, reason: 'no classified income in the baseline window', numerator: '-960.00', denominator: '0.00' },
         fixed_cost_ratio: { available: true, numerator: '0.00', denominator: '60.00', value: '0.0000' },
-        reserve: { available: false, reason: 'essential-vs-discretionary roles are unresolved' },
+        roles: { months: [{ month: '2026-03', essential: '0.00', discretionary: '60.00', unresolved: '900.00', total: '960.00', reconciles: true }], totals: { essential: '0.00', discretionary: '60.00', unresolved: '900.00', total: '960.00', reconciles: true } },
+        role_groups: [{ category_key: 'Unclassified / Unclassified', cost_pattern: 'unresolved', essential_status: 'unresolved', tier: null, basis: 'unmapped or unclassified category', review_status: 'unresolved', amount: '900.00', source_count: 1 }],
+        reserve: { available: false, reason: 'essential role coverage is incomplete' },
         irregular_risk_entries: [{ month: '2026-03', currency: 'SGD', category_key: 'Unclassified / Unclassified', amount: '900.00', threshold: '180.00' }],
       },
     },
     income_streams: [],
     reconciliation: { SGD: { balances: true, owner_cost_recorded_total: '960.00', owner_cost_baseline_total: '960.00' } },
-    limitations: ['essential / discretionary / tier roles are not yet assigned'],
+    limitations: ['automatic category defaults carry their source and review status'],
     tasks: [],
     ...over,
   }
@@ -78,14 +80,15 @@ describe('BaselineView', () => {
     expect(screen.getAllByText('Established').length).toBeGreaterThanOrEqual(2)
   })
 
-  it('renders the estimate decomposition and withholds the reserve', async () => {
+  it('renders the estimate decomposition and unresolved role review', async () => {
     loadBaselineReadiness.mockResolvedValue(readiness())
     loadBaselineEstimate.mockResolvedValue(estimate())
     render(<BaselineView />)
 
     expect(await screen.findByText(/WHAT YOUR NORMAL LIFE COSTS · SGD/)).toBeInTheDocument()
-    expect(screen.getByText('SGD 60.00 / month')).toBeInTheDocument()
-    expect(screen.getByText(/Withheld — essential-vs-discretionary/)).toBeInTheDocument()
+    expect(screen.getAllByText('SGD 60.00 / month')).not.toHaveLength(0)
+    expect(screen.getByText(/Unavailable — essential role coverage is incomplete/)).toBeInTheDocument()
+    expect(screen.getByText('Discretionary (sample total)')).toBeInTheDocument()
     expect(screen.getByText(/Unavailable — no classified income/)).toBeInTheDocument()
     expect(screen.getByText(/1 entry held out as irregular risk/)).toBeInTheDocument()
   })

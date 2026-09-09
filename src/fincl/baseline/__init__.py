@@ -10,5 +10,6 @@ slip into a baseline total.
 from .estimators import baseline_estimate
 from .queries import cost_income_table
 from .readiness import baseline_readiness
+from .roles import baseline_roles
 
-__all__ = ["baseline_estimate", "baseline_readiness", "cost_income_table"]
+__all__ = ["baseline_estimate", "baseline_readiness", "baseline_roles", "cost_income_table"]

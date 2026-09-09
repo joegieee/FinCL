@@ -265,6 +265,24 @@
         }
       }
     },
+    "/api/v1/baseline/roles": {
+      "get": {
+        "summary": "Baseline Roles Read",
+        "operationId": "baseline_roles_read_api_v1_baseline_roles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Baseline Roles Read Api V1 Baseline Roles Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/baseline/estimate": {
       "get": {
         "summary": "Baseline Estimate Read",

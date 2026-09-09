@@ -206,8 +206,22 @@ function EstimateCard({ currency, est, quality }: { currency: string; est: Curre
         <div><dt>Historical surplus</dt><dd>{money(est.historical_surplus_monthly, currency)}</dd></div>
         <div><dt>Savings rate</dt><dd>{ratioText(est.savings_rate)}</dd></div>
         <div><dt>Fixed-cost ratio</dt><dd>{ratioText(est.fixed_cost_ratio)}</dd></div>
-        <div><dt>Minimum reserve</dt><dd>Withheld — {est.reserve.reason}</dd></div>
+        {est.roles && <>
+          <div><dt>Essential (sample total)</dt><dd>{money(est.roles.totals.essential, currency)}</dd></div>
+          <div><dt>Discretionary (sample total)</dt><dd>{money(est.roles.totals.discretionary, currency)}</dd></div>
+          <div><dt>Unresolved (sample total)</dt><dd>{money(est.roles.totals.unresolved, currency)}</dd></div>
+        </>}
+        <div><dt>Minimum reserve</dt><dd>{est.reserve.available ? `${money(est.reserve.amount, currency)} · ${est.reserve.basis}` : `Unavailable — ${est.reserve.reason}`}</dd></div>
       </dl>
+      {est.roles && <table className="pocket-table">
+        <thead><tr><th>Month</th><th>Essential</th><th>Discretionary</th><th>Unresolved</th><th>Total</th></tr></thead>
+        <tbody>{est.roles.months.map(row => <tr key={row.month}><td>{row.month}</td><td>{money(row.essential, currency)}</td><td>{money(row.discretionary, currency)}</td><td>{money(row.unresolved, currency)}</td><td>{money(row.total, currency)}{!row.reconciles && <small className="form-error">does not reconcile</small>}</td></tr>)}</tbody>
+      </table>}
+      <p className="muted-note">Role defaults are source-backed category rules; confirmed recurring occurrences are marked separately. Unmapped categories and unlinked receipts stay unresolved for review.</p>
+      {est.role_groups.length > 0 && <table className="pocket-table">
+        <thead><tr><th>Category / source group</th><th>Pattern</th><th>Need</th><th>Tier</th><th>Review</th><th>Observed cost</th></tr></thead>
+        <tbody>{est.role_groups.map((group, i) => <tr key={`${group.category_key}:${group.cost_pattern}:${i}`}><td>{group.category_key}<small>{group.source_count} source row{group.source_count === 1 ? '' : 's'}</small></td><td>{group.cost_pattern.replaceAll('_', ' ')}</td><td>{group.essential_status}</td><td>{group.tier === null ? 'Unresolved' : `Tier ${group.tier}`}</td><td title={group.basis}>{group.review_status}</td><td>{money(group.amount, currency)}</td></tr>)}</tbody>
+      </table>}
       <table className="pocket-table">
         <thead><tr><th>Month</th><th>Owner cost</th><th>Recurring</th><th>Irregular</th><th>Adjustments</th><th>Routine residual</th></tr></thead>
         <tbody>

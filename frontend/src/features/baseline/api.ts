@@ -91,7 +91,14 @@ export type CurrencyEstimate = {
   historical_surplus_monthly: string
   savings_rate: Ratio
   fixed_cost_ratio: Ratio
-  reserve: { available: false; reason: string }
+  roles: {
+    months: { month: string; essential: string; discretionary: string; unresolved: string; total: string; reconciles: boolean }[]
+    totals: { essential: string; discretionary: string; unresolved: string; total: string; reconciles: boolean }
+  } | null
+  role_groups: { category_key: string; cost_pattern: string; essential_status: string; tier: number | null; basis: string; review_status: string; amount: string; source_count: number }[]
+  reserve:
+    | { available: false; reason: string }
+    | { available: true; months: string; essential_monthly: string; amount: string; basis: string }
   irregular_risk_entries: { month: string; currency: string; category_key: string; amount: string; threshold: string }[]
 }
 
