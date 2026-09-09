@@ -67,7 +67,7 @@ export type ForecastPage = {
   reason?: string
   horizon?: { supported_cash_cutoff: string; end: string; months: number; boundary_rule: string }
   by_currency: Record<string, ForecastCurrency | { available: false; reason: string }>
-  case_policy: { base: string; conservative: string; strong_income_interruption: boolean; strong_income_interruption_note: string | null }
+  case_policy?: { base: string; conservative: string; strong_income_interruption: boolean; strong_income_interruption_note: string | null }
   metadata?: Record<string, string>
   provenance?: Array<{ input: string; module: string; available: boolean; reason: string | null; consumed_by: string[] }>
   source_contracts?: Record<string, unknown>

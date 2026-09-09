@@ -56,4 +56,17 @@ describe('ForecastView', () => {
     expect(screen.getByText(/missing reconciled liquid balance/)).toBeInTheDocument()
     expect(screen.queryByText('SGD 0.00')).not.toBeInTheDocument()
   })
+
+  it('renders a backend refusal payload with no case_policy without crashing', async () => {
+    loadForecast.mockResolvedValue({
+      available: false,
+      reason: 'Stage 3B refused mixed-generation source adapters',
+      by_currency: {},
+      limitations: ['refresh the ledger and retry'],
+    })
+    render(<ForecastView />)
+
+    expect(await screen.findAllByText(/Stage 3B refused mixed-generation source adapters/)).not.toHaveLength(0)
+    expect(screen.queryByText('How this estimate was formed')).not.toBeInTheDocument()
+  })
 })
