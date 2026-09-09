@@ -53,16 +53,15 @@ class PositionReadTests(unittest.TestCase):
              "USD seed", "50.00", "0.00", "USD", "COMPLETED", "50.00"],
         ]
         database = _ledger(rows)
-        # The importer fixture is CSV-only, so it cannot itself prove a quiet
-        # interval.  This isolates the position rule from source parsing: a
-        # certified export/statement period does prove both pockets through 10th.
-        with patch("fincl.position.queries._certified_periods", return_value=[("2026-03-01", "2026-03-10")]):
-            page = position_page(database, today=date(2026, 3, 10))
+        # The Revolut PDF statement itself certifies its period now, so no
+        # patching is needed: both pockets are proven through the statement's
+        # printed close on the 5th even though their last rows differ by date.
+        page = position_page(database, today=date(2026, 3, 5))
 
         self.assertTrue(page["current_position_supported"])
-        self.assertEqual(page["supported_cutoff"], "2026-03-10")
+        self.assertEqual(page["supported_cutoff"], "2026-03-05")
         self.assertEqual(page["liquid_total"], {"SGD": "900.00", "USD": "50.00"})
-        self.assertEqual(page["included_pockets"][0]["derived_as_of"], "2026-03-10")
+        self.assertEqual(page["included_pockets"][0]["derived_as_of"], "2026-03-05")
 
     def test_uncertified_quiet_interval_does_not_bridge_a_boundary_forward(self) -> None:
         database = _ledger(_ROWS)
@@ -83,7 +82,7 @@ class PositionReadTests(unittest.TestCase):
         self.assertEqual(len(page["pockets"]), 1)
         pocket = page["pockets"][0]
         self.assertEqual(pocket["currency_pocket"], "SGD")
-        self.assertEqual(pocket["basis"], "statement-running-balance")
+        self.assertEqual(pocket["basis"], "statement-closing-balance")
         self.assertEqual(pocket["balance"], "360.00")
         self.assertEqual(pocket["as_of"], "2026-03-05")
         self.assertTrue(pocket["liquid"])
@@ -134,7 +133,7 @@ class PositionReadTests(unittest.TestCase):
 
         pocket = position_page(database, today=date(2026, 4, 5))["pockets"][0]
 
-        self.assertEqual(pocket["basis"], "statement-running-balance")
+        self.assertEqual(pocket["basis"], "statement-closing-balance")
         self.assertEqual(pocket["balance"], "360.00")
 
     def test_known_opening_reconciles_external_movements_to_closing(self) -> None:
@@ -142,8 +141,10 @@ class PositionReadTests(unittest.TestCase):
 
         bridge = position_page(database, today=date(2026, 3, 5))["cash_bridge"]["pockets"][0]
 
-        self.assertEqual(bridge["opening"], "900.00")
-        self.assertEqual(bridge["external_inflows"], "0")
+        # The statement period opens before the seed row, so the seed reads as
+        # an external inflow and the derived opening is zero.
+        self.assertEqual(bridge["opening"], "0.00")
+        self.assertEqual(bridge["external_inflows"], "900.00")
         self.assertEqual(bridge["external_outflows"], "540.00")
         self.assertEqual(bridge["calculated_closing"], "360.00")
         self.assertEqual(bridge["closing"], "360.00")
@@ -183,11 +184,11 @@ class PositionReadTests(unittest.TestCase):
 
         self.assertEqual(bridge["owned_transfer_inflows"], "100.00")
         self.assertEqual(bridge["owned_transfer_outflows"], "100.00")
-        self.assertEqual(bridge["external_inflows"], "0")
+        self.assertEqual(bridge["external_inflows"], "1000.00")
         self.assertEqual(bridge["external_outflows"], "0")
         self.assertEqual(page["cash_bridge"]["combined"]["owned_transfer_pairs_cancelled"], 1)
         self.assertEqual(page["cash_bridge"]["combined"]["by_currency"]["SGD"], {
-            "opening": "1000.00", "external_inflows": "0",
+            "opening": "0.00", "external_inflows": "1000.00",
             "external_outflows": "0", "closing": "1000.00",
             "reconciled": True, "owned_transfer_pairs_cancelled": 1,
         })
@@ -203,7 +204,7 @@ class PositionReadTests(unittest.TestCase):
         self.assertEqual(page["supported_cutoff"], "2026-03-05")
         self.assertEqual(page["missing_intervals"], [{
             "account_id": _only_account_id(database), "currency_pocket": "SGD",
-            "start": "2026-03-05", "end": "2026-05-01",
+            "start": "2026-03-06", "end": "2026-05-01",
             "reason": "complete actual-movement coverage is not established through this date",
         }])
 
@@ -212,8 +213,7 @@ class PositionReadTests(unittest.TestCase):
         connection = sqlite3.connect(database)
         try:
             connection.execute(
-                "DELETE FROM reconciliation_checks WHERE current_raw_record_id=("
-                "SELECT raw_record_id FROM ledger_entries ORDER BY effective_at LIMIT 1 OFFSET 1)"
+                "DELETE FROM document_reconciliation_checks WHERE check_type = 'STATEMENT_BALANCE'"
             )
             connection.commit()
         finally:

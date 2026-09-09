@@ -3370,32 +3370,65 @@ def _reconcile_revolut_pdf(
                     )
                 )
             continue
+        # Walk `prior + balance_delta == printed balance` through the whole
+        # section. It collapses to one STATEMENT_BALANCE check per currency
+        # pocket whose `actual` is the pocket's closing balance, so the liquid
+        # position read can use it directly (as it does for PayLah / Trust).
         prior = opening
+        delta_total = 0
+        mismatch: tuple[ExactMoney, ExactMoney, str] | None = None
         for record in transactions:
             delta = _revolut_money(str(record.raw_fields["balance_delta"]))
-            scale = max(prior.scale, delta.scale)
+            assert record.balance is not None
+            scale = max(prior.scale, delta.scale, record.balance.scale)
+            delta_total += delta.rescaled_coefficient(2)
             expected_coefficient = prior.rescaled_coefficient(
                 scale
             ) + delta.rescaled_coefficient(scale)
-            expected = ExactMoney(
-                expected_coefficient, scale, format_decimal(expected_coefficient, scale)
-            )
-            assert record.balance is not None
+            if mismatch is None and expected_coefficient != record.balance.rescaled_coefficient(
+                scale
+            ):
+                mismatch = (
+                    ExactMoney(
+                        expected_coefficient,
+                        scale,
+                        format_decimal(expected_coefficient, scale),
+                    ),
+                    record.balance,
+                    record.source_anchor,
+                )
+            prior = record.balance
+        last_balance = transactions[-1].balance
+        assert last_balance is not None
+        if mismatch is not None:
             checks.append(
                 _make_check(
                     currency,
                     "STATEMENT_BALANCE",
                     REVOLUT_PDF_BALANCE_EQUATION_VERSION,
-                    expected,
-                    record.balance,
+                    mismatch[0],
+                    mismatch[1],
                     True,
-                    {
-                        "source_anchor": record.source_anchor,
-                        "page_number": record.page_number,
-                    },
+                    {"currency": currency, "source_anchor": mismatch[2]},
                 )
             )
-            prior = record.balance
+        else:
+            walked = ExactMoney(
+                opening.rescaled_coefficient(2) + delta_total,
+                2,
+                format_decimal(opening.rescaled_coefficient(2) + delta_total, 2),
+            )
+            checks.append(
+                _make_check(
+                    currency,
+                    "STATEMENT_BALANCE",
+                    REVOLUT_PDF_BALANCE_EQUATION_VERSION,
+                    walked,
+                    last_balance,
+                    True,
+                    {"currency": currency, "rows": len(transactions)},
+                )
+            )
         checks.append(
             _make_check(
                 currency,
@@ -3412,7 +3445,7 @@ def _reconcile_revolut_pdf(
                 currency,
                 "PRINTED_SUMMARY_IDENTITY",
                 REVOLUT_PDF_SUMMARY_EQUATION_VERSION,
-                prior,
+                last_balance,
                 closing,
                 True,
                 {"currency": currency, "endpoint": "closing"},
@@ -3505,8 +3538,13 @@ def parse_revolut_pdf(data: bytes) -> ParsedDocument:
                     section_kind = _REVOLUT_SECTION_KINDS[heading.group(1)]
                     start = _revolut_parse_heading_date(heading.group(2))
                     end = _revolut_parse_heading_date(heading.group(3))
-                    if period_start is None and start is not None and end is not None:
-                        period_start, period_end = start, end
+                    # The period spans the whole document: every currency
+                    # section prints its own from/to, and an empty currency
+                    # pocket prints none at all, so widen to the union.
+                    if start is not None:
+                        period_start = start if period_start is None else min(period_start, start)
+                    if end is not None:
+                        period_end = end if period_end is None else max(period_end, end)
                     key = (currency, section_kind)
                     if key in section_by_key:
                         section_ordinal = section_by_key[key]
