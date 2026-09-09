@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDownLeft, ArrowRight, ArrowUpRight, BarChart3, Check, ChevronLeft, ChevronRight, CircleHelp, CreditCard, Layers3, Plus, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Target, Wallet, X } from 'lucide-react'
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, BarChart3, Check, ChevronLeft, ChevronRight, CircleHelp, CreditCard, Layers3, Menu, Plus, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Target, Wallet, X } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api, ApiError, bootstrap, money, shortCategory, type Command, type Dashboard, type Entry, type Plan, type Proposal, type TransactionsPage } from '@/lib/api'
-import { tabMeta } from '@/lib/tabs'
+import { tabAliases, tabMeta } from '@/lib/tabs'
 import { PeriodPicker } from '@/components/PeriodPicker'
+import { NavigationRail } from '@/components/NavigationRail'
+import { CommandPalette } from '@/components/CommandPalette'
 import { AnalysisView } from '@/features/analysis'
 import { RelationshipEditor } from '@/features/review/RelationshipEditor'
 import { DebtsView } from '@/features/debts'
@@ -35,7 +37,6 @@ import { MaintenanceView } from '@/features/maintenance'
 
 const colors=['#247b69','#64a994','#accbb3','#c8aa70','#809ba6','#aba7bf','#d7b7a6','#b5b8b0']
 const tabs=['Overview','Baseline','Cash','Forecast','Annual funds','Variance','Controls','Cash Flow','Analysis','Transactions','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
-const navigationTabs=tabs.filter(t=>!['Analysis','Obligations','Plans','Recurring'].includes(t))
 type Tab=typeof tabs[number]
 function initialTab():Tab { const v=new URLSearchParams(location.search).get('view');return tabs.find(t=>t===v)||'Overview' }
 function dateLabel(value:string) { return new Date(value+'T12:00:00').toLocaleDateString('en-SG',{month:'short',day:'numeric',year:'numeric'}) }
@@ -53,6 +54,28 @@ export default function App(){
  const [entry,setEntry]=useState<Entry|null>(null),[dialog,setDialog]=useState<'category'|'budget'|'goal'|null>(null),[editingPlan,setEditingPlan]=useState<Plan|null>(null)
  const [historyRows,setHistoryRows]=useState<Array<{sequence:number;date:string;kind:string;reason:string;category:string}>|null>(null)
  async function showHistory(){try{setHistoryRows(await api('history'))}catch(e){setError((e as Error).message)}}
+ const [railCollapsed,setRailCollapsed]=useState(()=>{try{return localStorage.getItem('fincl.rail.collapsed')==='1'}catch{return false}})
+ useEffect(()=>{try{localStorage.setItem('fincl.rail.collapsed',railCollapsed?'1':'0')}catch{/* private browsing or storage disabled */}},[railCollapsed])
+ const [drawerOpen,setDrawerOpen]=useState(false)
+ const [paletteOpen,setPaletteOpen]=useState(false)
+ useEffect(()=>{function onKey(e:KeyboardEvent){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setPaletteOpen(o=>!o)}}document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey)},[])
+ const drawerRef=useRef<HTMLDivElement>(null)
+ useEffect(()=>{
+  if(!drawerOpen)return
+  const focusable=()=>Array.from(drawerRef.current?.querySelectorAll<HTMLElement>('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')||[]).filter(el=>!el.hasAttribute('disabled'))
+  focusable()[0]?.focus()
+  function onKey(e:KeyboardEvent){
+   if(e.key==='Escape'){setDrawerOpen(false);return}
+   if(e.key!=='Tab')return
+   const items=focusable();if(!items.length)return
+   const first=items[0],last=items[items.length-1]
+   if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
+   else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
+  }
+  document.addEventListener('keydown',onKey)
+  return()=>document.removeEventListener('keydown',onKey)
+ },[drawerOpen])
+ function goTo(t:string){setTab(t as Tab);setDrawerOpen(false)}
  const seq=useRef(0)
  async function load(s=start,e=end,c=currency){const id=++seq.current;setLoading(true);setError('');try{const q=new URLSearchParams({currency:c});if(s&&e){q.set('start',s);q.set('end',e)}const d=await api<Dashboard>('overview?'+q);if(id===seq.current){setData(d);setStart(d.start);setEnd(d.end);setCurrency(d.currency)}}catch(e){if(id===seq.current)setError((e as Error).message)}finally{if(id===seq.current)setLoading(false)}}
  useEffect(()=>{let mounted=true;bootstrap().then(h=>{if(mounted){setHealth(h);void load()}}).catch(e=>{if(mounted){setError(e.message);setLoading(false)}});return()=>{mounted=false}},[])
@@ -73,10 +96,17 @@ export default function App(){
  const reviewCount=data?.review_count||0
  const proposalCount=data?.transfer_proposals.length||0
  const meta=tabMeta[tab]
+ const railActiveTab=tabAliases[tab]??tab
  return <div className="app-shell">
-  <header className="app-header"><a className="brand" href="?view=Overview" onClick={e=>{e.preventDefault();setTab('Overview')}}><span className="brand-icon"><Layers3 size={19}/></span>fincl<span className="brand-divider"/><span className="ledger-name">{health?.label||'Your money, understood'}</span></a><div className="header-actions"><Button variant="ghost" size="sm" disabled={!data} onClick={showHistory}>History</Button><span className="local"><ShieldCheck size={14}/> Local & private</span>{health?.demo&&<Badge variant="outline">Synthetic demo</Badge>}<span className="avatar" aria-label="Personal workspace">J</span></div></header>
-  <nav className="navigation" aria-label="Main navigation"><div>{navigationTabs.map(t=><button key={t} aria-current={tab===t?'page':undefined} onClick={()=>setTab(t)}>{t}{t==='Transactions'&&reviewCount>0&&<span className="nav-count">{reviewCount}</span>}{t==='Review'&&proposalCount>0&&<span className="nav-count">{proposalCount}</span>}</button>)}</div><Button variant="ghost" size="sm" onClick={refresh} disabled={loading||!data}><RefreshCw size={14} className={loading?'spin':''}/>Refresh</Button></nav>
-  <main className={tab==='Transactions'?'wide':''}>
+  <a className="skip-link" href="#main-content">Skip to content</a>
+  <NavigationRail tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} collapsed={railCollapsed} onToggleCollapse={()=>setRailCollapsed(c=>!c)} ledgerLabel={health?.label||'Your money, understood'}/>
+  {drawerOpen&&<div className="rail-backdrop" onClick={()=>setDrawerOpen(false)}/>}
+  {drawerOpen&&<div className="rail-drawer" ref={drawerRef} role="dialog" aria-modal="true" aria-label="Main navigation">
+   <NavigationRail drawer tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} collapsed={false} onToggleCollapse={()=>{}} ledgerLabel={health?.label||'Your money, understood'}/>
+  </div>}
+  <div className="app-main-col">
+  <header className="top-bar"><Button variant="ghost" size="sm" className="rail-drawer-toggle" aria-label="Open navigation" aria-expanded={drawerOpen} onClick={()=>setDrawerOpen(o=>!o)}><Menu size={18}/></Button><div className="header-actions"><Button variant="ghost" size="sm" disabled={!data} onClick={showHistory}>History</Button><span className="local"><ShieldCheck size={14}/> Local & private</span>{health?.demo&&<Badge variant="outline">Synthetic demo</Badge>}<span className="avatar" aria-label="Personal workspace">J</span><Button variant="ghost" size="sm" onClick={refresh} disabled={loading||!data}><RefreshCw size={14} className={loading?'spin':''}/>Refresh</Button></div></header>
+  <main id="main-content" tabIndex={-1} className={tab==='Transactions'?'wide':''}>
    {error&&<div className="alert error" role="alert"><div><strong>We couldn’t complete that.</strong><p>{error}</p></div>{health&&<Button variant="outline" onClick={()=>load()}>Try again</Button>}</div>}
    {notice&&<div className="alert success" role="status"><span><Check size={15}/>{notice}</span><button aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={16}/></button></div>}
    {!data&&loading?<div className="skeleton-page" aria-label="Loading dashboard"><div/><div/><div/></div>:!data?<Card className="empty"><Wallet/><h1>Open your personal ledger</h1><p>Launch FinCL locally, then open its private link. Your financial data stays on this computer.</p><code>fincl serve --database var/fincl.sqlite3</code></Card>:<>
@@ -127,6 +157,8 @@ export default function App(){
    {dialog&&<CreateDialog type={dialog} plan={editingPlan} data={data} onClose={()=>{setDialog(null);setEditingPlan(null)}} onSaved={saved}/>}
    </>}
   </main>
+  </div>
+  <CommandPalette open={paletteOpen} onClose={()=>setPaletteOpen(false)} onSelect={goTo}/>
  </div>
 }
 
