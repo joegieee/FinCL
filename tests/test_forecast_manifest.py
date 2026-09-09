@@ -208,6 +208,28 @@ class ManifestEndpointTests(unittest.TestCase):
         self.assertFalse(pinned["position_page"])
         self.assertTrue(pinned["obligations_page"])
 
+    def test_forecast_endpoint_returns_the_stage_3b_shape(self) -> None:
+        database = _ledger(_rows())
+        root = database.parent
+        app = create_app(
+            database, port=8765, bootstrap_secret="test-secret",
+            evidence_dir=root / "evidence",
+        )
+        client = ASGITestClient(app, base_url="http://127.0.0.1:8765")
+        self.addCleanup(client.close)
+        client.post(
+            "/session", json={"secret": "test-secret"},
+            headers={"origin": "http://127.0.0.1:8765", "content-type": "application/json"},
+        )
+
+        response = client.get("/api/v1/forecast")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertIn("by_currency", body)
+        self.assertIn("case_policy", body)
+        self.assertIn("limitations", body)
+
 
 if __name__ == "__main__":
     unittest.main()

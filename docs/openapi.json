@@ -393,6 +393,25 @@
         }
       }
     },
+    "/api/v1/forecast": {
+      "get": {
+        "summary": "Forecast Read",
+        "description": "Read the Stage 3B timeline without changing its construction or arithmetic.",
+        "operationId": "forecast_read_api_v1_forecast_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Forecast Read Api V1 Forecast Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/position": {
       "get": {
         "summary": "Position Read",

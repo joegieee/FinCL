@@ -682,6 +682,12 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .forecast import forecast_input_manifest
         return forecast_input_manifest(database, as_of=as_of)
 
+    @app.get('/api/v1/forecast')
+    def forecast_read() -> Any:
+        """Read the Stage 3B timeline without changing its construction or arithmetic."""
+        from .forecast import cash_timeline
+        return cash_timeline(database)
+
     @app.get('/api/v1/position')
     def position_read() -> Any:
         from .position import position_page
