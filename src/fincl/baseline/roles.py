@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -158,7 +158,11 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
 
     # (month, currency, status) exact signed owner-cost contributions.
     totals: dict[tuple[str, str, str], list[ExactMoney]] = defaultdict(list)
-    groups: dict[tuple[str, str, str, str, str | None, str, str], list[ExactMoney]] = defaultdict(list)
+    groups: dict[tuple[str, str, str, str, int | None, str, str], list[ExactMoney]] = defaultdict(list)
+    group_months: dict[
+        tuple[str, str, str, str, int | None, str, str],
+        dict[str, list[ExactMoney]],
+    ] = defaultdict(lambda: defaultdict(list))
     for row in rows:
         month, currency, bucket = row["period"], row["currency"], row["bucket"]
         if month not in months:
@@ -193,6 +197,7 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
         totals[(month, currency, status)].append(amount)
         key = (currency, category, role["cost_pattern"], status, role["tier"], role["basis"], role["review_status"])
         groups[key].append(amount)
+        group_months[key][month].append(amount)
 
     by_currency: dict[str, Any] = {}
     for currency in table["currencies"]:
@@ -216,12 +221,39 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
                        "reconciles": total == table["reconciliation"][currency]["owner_cost_recorded_total"]},
         }
 
-    role_groups = [
-        {"currency": key[0], "category_key": key[1], "cost_pattern": key[2],
-         "essential_status": key[3], "tier": key[4], "basis": key[5],
-         "review_status": key[6], "amount": _sum(values), "source_count": len(values)}
-        for key, values in sorted(groups.items())
-    ]
+    role_groups = []
+    for key, group_values in sorted(groups.items()):
+        role_month_values: list[Decimal] = [
+            Decimal(_sum(group_months[key].get(month, [])))
+            for month in months
+        ]
+        role_groups.append(
+            {
+                "currency": key[0],
+                "category_key": key[1],
+                "cost_pattern": key[2],
+                "essential_status": key[3],
+                "tier": key[4],
+                "basis": key[5],
+                "review_status": key[6],
+                "amount": _sum(group_values),
+                "source_count": len(group_values),
+                # Stage 4B consumes category-level monthly assumptions.  These
+                # are additive fields: the strict historical totals above stay
+                # unchanged, while the forecast gets the source-backed category
+                # identity it needs for a real what-if cut.
+                "mean_monthly": str(
+                    (sum(role_month_values, Decimal(0)) / Decimal(len(months))).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                ),
+                "highest_observed_monthly": str(
+                    max(role_month_values, default=Decimal(0)).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
+                ),
+            }
+        )
     return {"available": True, "generation": token, "baseline_window": table["baseline_window"],
             "currencies": table["currencies"], "by_currency": by_currency, "groups": role_groups,
             "rule_version": ROLE_RULE_VERSION, "tasks": table["tasks"]}

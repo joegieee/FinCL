@@ -1455,7 +1455,11 @@ def build_cash_timeline(
 
 
 def _obligation_events(
-    page: dict[str, Any], *, start: str, end: str
+    page: dict[str, Any],
+    *,
+    start: str,
+    end: str,
+    residual_category_ids: frozenset[str] = frozenset(),
 ) -> tuple[list[ForecastEvent], list[str]]:
     events: list[ForecastEvent] = []
     limitations: list[str] = []
@@ -1488,8 +1492,17 @@ def _obligation_events(
         )
         confidence = str(obligation.get("confidence") or CONFIDENCE_LIKELY)
         date_basis = obligation.get("date_basis", {})
-        residual_category = f"manifest:routine:{obligation['currency']}"
         link = obligation.get("baseline_link", {})
+        detailed_residual = (
+            f"role:{obligation['currency']}:{link.get('category_key')}"
+            if link.get("category_key")
+            else None
+        )
+        residual_category = (
+            detailed_residual
+            if detailed_residual in residual_category_ids
+            else f"manifest:routine:{obligation['currency']}"
+        )
         residual_amount = (
             str(link["monthly_baseline_portion"])
             if link.get("available") and link.get("monthly_baseline_portion") is not None
@@ -1772,7 +1785,12 @@ def cash_timeline(
             "limitations": ["refresh the ledger and retry"],
         }
     obligation_events, obligation_limits = _obligation_events(
-        obligations, start=str(cutoff), end=end
+        obligations,
+        start=str(cutoff),
+        end=end,
+        residual_category_ids=frozenset(
+            category.category_id for category in residual_categories
+        ),
     )
     income_events, income_limits = _candidate_income_events(
         recurring, start=str(cutoff), end=end

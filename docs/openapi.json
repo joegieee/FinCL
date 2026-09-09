@@ -412,6 +412,120 @@
         }
       }
     },
+    "/api/v1/forecast/validation": {
+      "get": {
+        "summary": "Forecast Validation Read",
+        "description": "Read the Stage 3C temporal-holdout validation result.",
+        "operationId": "forecast_validation_read_api_v1_forecast_validation_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Forecast Validation Read Api V1 Forecast Validation Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spending-controls": {
+      "get": {
+        "summary": "Spending Controls Read",
+        "operationId": "spending_controls_read_api_v1_spending_controls_get",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "default": "SGD",
+              "title": "Currency"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Spending Controls Read Api V1 Spending Controls Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/spending-controls/what-if": {
+      "post": {
+        "summary": "Spending Controls Scenario",
+        "operationId": "spending_controls_scenario_api_v1_spending_controls_what_if_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpendingWhatIfDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Spending Controls Scenario Api V1 Spending Controls What If Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/position": {
       "get": {
         "summary": "Position Read",
@@ -3759,6 +3873,29 @@
         ],
         "title": "CategoryCost"
       },
+      "CategoryCutDraft": {
+        "properties": {
+          "category_id": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Category Id"
+          },
+          "monthly_reduction": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Monthly Reduction"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "category_id",
+          "monthly_reduction"
+        ],
+        "title": "CategoryCutDraft"
+      },
       "Command": {
         "properties": {
           "request_id": {
@@ -4389,6 +4526,28 @@
         ],
         "title": "Entry"
       },
+      "EventDateChangeDraft": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Event Id"
+          },
+          "new_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "title": "New Date"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "new_date"
+        ],
+        "title": "EventDateChangeDraft"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -4401,6 +4560,41 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HypotheticalIncomeDraft": {
+        "properties": {
+          "amount": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "on": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "title": "On"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "default": "Hypothetical income"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "amount",
+          "currency",
+          "on"
+        ],
+        "title": "HypotheticalIncomeDraft"
       },
       "MerchantRank": {
         "properties": {
@@ -4814,6 +5008,51 @@
           "reason"
         ],
         "title": "RuleDraft"
+      },
+      "SpendingWhatIfDraft": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}$",
+            "title": "Month"
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency"
+          },
+          "category_cuts": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCutDraft"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Category Cuts"
+          },
+          "date_changes": {
+            "items": {
+              "$ref": "#/components/schemas/EventDateChangeDraft"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Date Changes"
+          },
+          "hypothetical_income": {
+            "items": {
+              "$ref": "#/components/schemas/HypotheticalIncomeDraft"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Hypothetical Income"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "month",
+          "currency"
+        ],
+        "title": "SpendingWhatIfDraft"
       },
       "SummaryCell": {
         "properties": {

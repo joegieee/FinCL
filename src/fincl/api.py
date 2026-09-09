@@ -130,6 +130,31 @@ class Bootstrap(StrictModel):
     secret: str = Field(max_length=256)
 
 
+class CategoryCutDraft(StrictModel):
+    category_id: str = Field(min_length=1, max_length=300)
+    monthly_reduction: str = Field(min_length=1, max_length=40)
+
+
+class EventDateChangeDraft(StrictModel):
+    event_id: str = Field(min_length=1, max_length=500)
+    new_date: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
+
+
+class HypotheticalIncomeDraft(StrictModel):
+    amount: str = Field(min_length=1, max_length=40)
+    currency: str = Field(pattern=r'^[A-Z]{3}$')
+    on: str = Field(pattern=r'^\d{4}-\d{2}-\d{2}$')
+    label: str = Field(default='Hypothetical income', min_length=1, max_length=120)
+
+
+class SpendingWhatIfDraft(StrictModel):
+    month: str = Field(pattern=r'^\d{4}-\d{2}$')
+    currency: str = Field(pattern=r'^[A-Z]{3}$')
+    category_cuts: list[CategoryCutDraft] = Field(default_factory=list, max_length=20)
+    date_changes: list[EventDateChangeDraft] = Field(default_factory=list, max_length=20)
+    hypothetical_income: list[HypotheticalIncomeDraft] = Field(default_factory=list, max_length=20)
+
+
 class Entry(StrictModel):
     id: str
     anchor: str
@@ -693,6 +718,25 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         """Read the Stage 3C temporal-holdout validation result."""
         from .forecast import forecast_validation
         return forecast_validation(database)
+
+    @app.get('/api/v1/spending-controls')
+    def spending_controls_read(
+        month: str | None = None, currency: str = Query('SGD', pattern=r'^[A-Z]{3}$')
+    ) -> Any:
+        from .controls import spending_controls_page
+        return spending_controls_page(database, month=month, currency=currency)
+
+    @app.post('/api/v1/spending-controls/what-if')
+    def spending_controls_scenario(body: SpendingWhatIfDraft) -> Any:
+        from .controls import spending_controls_what_if
+        return spending_controls_what_if(
+            database,
+            month=body.month,
+            currency=body.currency,
+            category_cuts=[item.model_dump() for item in body.category_cuts],
+            date_changes=[item.model_dump() for item in body.date_changes],
+            hypothetical_income=[item.model_dump() for item in body.hypothetical_income],
+        )
 
     @app.get('/api/v1/position')
     def position_read() -> Any:

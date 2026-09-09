@@ -246,6 +246,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/forecast/validation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Forecast Validation Read
+         * @description Read the Stage 3C temporal-holdout validation result.
+         */
+        get: operations["forecast_validation_read_api_v1_forecast_validation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spending-controls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Spending Controls Read */
+        get: operations["spending_controls_read_api_v1_spending_controls_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spending-controls/what-if": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Spending Controls Scenario */
+        post: operations["spending_controls_scenario_api_v1_spending_controls_what_if_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/position": {
         parameters: {
             query?: never;
@@ -1227,6 +1281,13 @@ export interface components {
             refunds_received: components["schemas"]["MoneyDTO"];
             net_cost: components["schemas"]["MoneyDTO"];
         };
+        /** CategoryCutDraft */
+        CategoryCutDraft: {
+            /** Category Id */
+            category_id: string;
+            /** Monthly Reduction */
+            monthly_reduction: string;
+        };
         /** Command */
         Command: {
             /**
@@ -1419,10 +1480,31 @@ export interface components {
             /** Lifecycle State */
             lifecycle_state: string;
         };
+        /** EventDateChangeDraft */
+        EventDateChangeDraft: {
+            /** Event Id */
+            event_id: string;
+            /** New Date */
+            new_date: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HypotheticalIncomeDraft */
+        HypotheticalIncomeDraft: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** On */
+            on: string;
+            /**
+             * Label
+             * @default Hypothetical income
+             */
+            label: string;
         };
         /** MerchantRank */
         MerchantRank: {
@@ -1567,6 +1649,19 @@ export interface components {
             category: string;
             /** Reason */
             reason: string;
+        };
+        /** SpendingWhatIfDraft */
+        SpendingWhatIfDraft: {
+            /** Month */
+            month: string;
+            /** Currency */
+            currency: string;
+            /** Category Cuts */
+            category_cuts?: components["schemas"]["CategoryCutDraft"][];
+            /** Date Changes */
+            date_changes?: components["schemas"]["EventDateChangeDraft"][];
+            /** Hypothetical Income */
+            hypothetical_income?: components["schemas"]["HypotheticalIncomeDraft"][];
         };
         /** SummaryCell */
         SummaryCell: {
@@ -2009,6 +2104,91 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    forecast_validation_read_api_v1_forecast_validation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    spending_controls_read_api_v1_spending_controls_get: {
+        parameters: {
+            query?: {
+                month?: string | null;
+                currency?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    spending_controls_scenario_api_v1_spending_controls_what_if_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpendingWhatIfDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
