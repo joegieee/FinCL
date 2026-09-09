@@ -262,7 +262,7 @@ class ObligationsLedgerTests(unittest.TestCase):
             anchors={"commitment": cls.commitment},
             payload={
                 "name": "Rent", "currency": "SGD", "merchant_key": "Landlord",
-                "account_ids": [], "seed_entry_anchors": [],
+                "account_ids": [], "seed_entry_anchors": cls.rent_anchors[:3],
                 "schedule": {"kind": "monthly", "day": 5, "anchor_on": "2026-01-05"},
                 "expected_amount": "1200.00", "amount_tolerance": "0.00",
                 "status": "active", "ended_on": None, "reason": "signed lease",
