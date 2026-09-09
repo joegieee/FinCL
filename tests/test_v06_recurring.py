@@ -12,8 +12,9 @@ from pathlib import Path
 
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.decision_journal import append_decision, default_journal_path
-from fincl.decisions import replay_journal
+from fincl.decisions import entry_anchor, replay_journal
 from fincl.errors import FinCLError
+from fincl.refresh import refresh_ledger
 from fincl.revolut import EXPECTED_HEADER
 from fincl.service import FinCLService
 
@@ -125,3 +126,32 @@ class RecurringProjectionTests(unittest.TestCase):
         )
         with self.assertRaises(FinCLError):
             replay_journal(self.connection)
+
+    def test_real_entry_anchor_survives_as_a_commitment_seed(self) -> None:
+        # A real CSV-sourced natural anchor is ~202 characters (evidence sha +
+        # ":csv:" + two more sha256 hex values + row/line indices); the seed
+        # anchor field must carry it verbatim into the projection.
+        refresh_ledger(self.database)
+        entry_id = self.connection.execute(
+            "SELECT id FROM ledger_entries ORDER BY id LIMIT 1"
+        ).fetchone()["id"]
+        anchor = entry_anchor(self.connection, entry_id)
+        self.assertGreater(len(anchor), 200)
+
+        self._append(
+            "RECURRING_COMMITMENT_SET", {"commitment": self.commitment},
+            {
+                "name": "Streaming", "currency": "SGD", "merchant_key": "streamco",
+                "account_ids": ["acct-1"], "seed_entry_anchors": [anchor],
+                "schedule": {"kind": "monthly", "day": 15, "anchor_on": "2026-01-15"},
+                "expected_amount": "14.99", "amount_tolerance": "1.00",
+                "status": "active", "ended_on": None, "reason": "confirmed",
+            },
+        )
+        replay_journal(self.connection)
+
+        row = self.connection.execute(
+            "SELECT seed_anchors_json FROM recurring_commitments WHERE commitment = ?",
+            (self.commitment,),
+        ).fetchone()
+        self.assertEqual(json.loads(row["seed_anchors_json"]), [anchor])

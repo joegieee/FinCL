@@ -33,6 +33,12 @@ RECURRING_DECISION_KINDS = frozenset(
 _ID = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _SAFE_NAME = re.compile(r"^[^\x00-\x1f]{1,80}$")
+# A FinCL natural entry anchor is the same character class as ``_ID`` (evidence
+# sha + ":csv:" + two more sha256 hex values + row/line indices), but a real
+# CSV-sourced anchor from ``fincl.decisions.entry_anchor`` is ~202 characters —
+# well past ``_ID``'s 200-char bound. Seed anchors must be admitted at full
+# length, so they get their own generous bound rather than a bare 200-char cap.
+_ANCHOR = re.compile(r"^[A-Za-z0-9._:-]{1,512}$")
 _MAX_LIST = 50
 
 
@@ -71,10 +77,16 @@ def _money(value: Any, *, allow_zero: bool) -> ExactMoney:
     return money
 
 
-def _string_list(value: Any, field: str) -> list[str]:
+def _string_list(value: Any, field: str, *, pattern: re.Pattern[str] | None = None) -> list[str]:
     if not isinstance(value, list) or len(value) > _MAX_LIST:
         raise FinCLError(f"{field} must be a list of at most {_MAX_LIST} strings")
-    if not all(isinstance(item, str) and item.strip() and len(item) <= 200 for item in value):
+
+    def _ok(item: Any) -> bool:
+        if not isinstance(item, str) or not item.strip():
+            return False
+        return bool(pattern.fullmatch(item)) if pattern is not None else len(item) <= 200
+
+    if not all(_ok(item) for item in value):
         raise FinCLError(f"{field} entries must be non-empty strings")
     return list(value)
 
@@ -94,7 +106,7 @@ def validate_recurring(kind: str, anchors: dict[str, str], payload: dict[str, An
         if not isinstance(payload["merchant_key"], str) or not payload["merchant_key"].strip() or len(payload["merchant_key"]) > 200:
             raise FinCLError("merchant_key must be a non-empty string")
         _string_list(payload["account_ids"], "account_ids")
-        _string_list(payload["seed_entry_anchors"], "seed_entry_anchors")
+        _string_list(payload["seed_entry_anchors"], "seed_entry_anchors", pattern=_ANCHOR)
         parse_schedule(payload["schedule"])
         _money(payload["expected_amount"], allow_zero=False)
         _money(payload["amount_tolerance"], allow_zero=True)
@@ -150,7 +162,7 @@ def apply_recurring(connection: sqlite3.Connection, record: JournalRecord) -> No
                 commitment, str(payload["name"]).strip(), str(payload["currency"]),
                 str(payload["merchant_key"]),
                 json.dumps(_string_list(payload["account_ids"], "account_ids"), sort_keys=True),
-                json.dumps(_string_list(payload["seed_entry_anchors"], "seed_entry_anchors"), sort_keys=True),
+                json.dumps(_string_list(payload["seed_entry_anchors"], "seed_entry_anchors", pattern=_ANCHOR), sort_keys=True),
                 json.dumps(parse_schedule(payload["schedule"]), sort_keys=True),
                 expected.coefficient, expected.scale,
                 tolerance.coefficient, tolerance.scale,
