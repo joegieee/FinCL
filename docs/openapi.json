@@ -347,6 +347,24 @@
         }
       }
     },
+    "/api/v1/position": {
+      "get": {
+        "summary": "Position Read",
+        "operationId": "position_read_api_v1_position_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Position Read Api V1 Position Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categories": {
       "get": {
         "summary": "Categories Read",

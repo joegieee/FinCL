@@ -21,10 +21,11 @@ import { CustomCategoryManager } from '@/features/categories/CustomCategoryManag
 import { BulkAssign } from '@/features/transactions/BulkAssign'
 import { PlanningView } from '@/features/planning'
 import { BaselineView } from '@/features/baseline'
+import { CashView } from '@/features/cash'
 import { CategorizationView } from '@/features/categorization/CategorizationView'
 
 const colors=['#247b69','#64a994','#accbb3','#c8aa70','#809ba6','#aba7bf','#d7b7a6','#b5b8b0']
-const tabs=['Overview','Baseline','Analysis','Transactions','Categorization','Debts','Cards','Installments','Obligations','Review','Recurring','Plans','Planning','Categories','Rules','Accounts','Setup'] as const
+const tabs=['Overview','Baseline','Cash','Analysis','Transactions','Categorization','Debts','Cards','Installments','Obligations','Review','Recurring','Plans','Planning','Categories','Rules','Accounts','Setup'] as const
 type Tab=typeof tabs[number]
 function initialTab():Tab { const v=new URLSearchParams(location.search).get('view');return tabs.find(t=>t===v)||'Overview' }
 function dateLabel(value:string) { return new Date(value+'T12:00:00').toLocaleDateString('en-SG',{month:'short',day:'numeric',year:'numeric'}) }
@@ -97,6 +98,7 @@ export default function App(){
    {tab==='Rules'&&<RulesView generation={data.generation} freshness={data.freshness} categories={data.categories} onSaved={saved}/>}
    {tab==='Planning'&&<PlanningView generation={data.generation} freshness={data.freshness} categories={data.categories} onSaved={saved}/>}
    {tab==='Baseline'&&<BaselineView/>}
+   {tab==='Cash'&&<CashView/>}
    {tab==='Accounts'&&<AccountsView freshness={data.freshness} onSaved={saved}/>}
    {tab==='Setup'&&<SetupView onImported={()=>{void load()}}/>}
    </div>

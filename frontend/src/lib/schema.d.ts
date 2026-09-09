@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/baseline/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Baseline Roles Read */
+        get: operations["baseline_roles_read_api_v1_baseline_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/baseline/estimate": {
         parameters: {
             query?: never;
@@ -167,6 +184,40 @@ export interface paths {
         };
         /** Baseline Estimate Read */
         get: operations["baseline_estimate_read_api_v1_baseline_estimate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/obligations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Obligations Read */
+        get: operations["obligations_read_api_v1_obligations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Position Read */
+        get: operations["position_read_api_v1_position_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1152,7 +1203,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT" | "CATEGORY_DETAILS_SET" | "CATEGORY_ARCHIVE_SET" | "ACCOUNT_SCOPE_SET" | "ACCOUNT_DETAILS_SET" | "ACCOUNT_ALIAS_SET" | "ACCOUNT_ALIAS_RETIRE" | "REVIEW_DEFER_SET" | "REVIEW_DEFER_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_DETAILS_SET" | "PERSONAL_DEBT_EVENT_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_SET" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "CARD_FACILITY_SET" | "CARD_FACILITY_RETIRE" | "CARD_LIMIT_OBSERVATION_SET" | "CARD_LIMIT_OBSERVATION_RETIRE" | "CARD_PAYMENT_ALLOCATION_SET" | "CARD_PAYMENT_ALLOCATION_RETIRE" | "INSTALLMENT_PLAN_SET" | "INSTALLMENT_PLAN_RETIRE" | "INSTALLMENT_ALLOCATION_SET" | "INSTALLMENT_ALLOCATION_RETIRE" | "INSTALLMENT_SETTLEMENT_SET" | "INSTALLMENT_SETTLEMENT_RETIRE" | "BUDGET_REVISION_SET" | "BUDGET_ARCHIVE_SET" | "GOAL_DETAILS_SET" | "GOAL_OBSERVATION_SET" | "GOAL_OBSERVATION_RETIRE" | "GOAL_ARCHIVE_SET" | "RECURRING_COMMITMENT_SET" | "RECURRING_CANDIDATE_DISMISS" | "RECURRING_OCCURRENCE_SET" | "RECURRING_OCCURRENCE_RETIRE";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT" | "CATEGORY_DETAILS_SET" | "CATEGORY_ARCHIVE_SET" | "ACCOUNT_SCOPE_SET" | "ACCOUNT_DETAILS_SET" | "ACCOUNT_ALIAS_SET" | "ACCOUNT_ALIAS_RETIRE" | "REVIEW_DEFER_SET" | "REVIEW_DEFER_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_DETAILS_SET" | "PERSONAL_DEBT_EVENT_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_SET" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "CARD_FACILITY_SET" | "CARD_FACILITY_RETIRE" | "CARD_LIMIT_OBSERVATION_SET" | "CARD_LIMIT_OBSERVATION_RETIRE" | "CARD_PAYMENT_ALLOCATION_SET" | "CARD_PAYMENT_ALLOCATION_RETIRE" | "INSTALLMENT_PLAN_SET" | "INSTALLMENT_PLAN_RETIRE" | "INSTALLMENT_ALLOCATION_SET" | "INSTALLMENT_ALLOCATION_RETIRE" | "INSTALLMENT_SETTLEMENT_SET" | "INSTALLMENT_SETTLEMENT_RETIRE" | "BUDGET_REVISION_SET" | "BUDGET_ARCHIVE_SET" | "GOAL_DETAILS_SET" | "GOAL_OBSERVATION_SET" | "GOAL_OBSERVATION_RETIRE" | "GOAL_ARCHIVE_SET" | "RECURRING_COMMITMENT_SET" | "RECURRING_CANDIDATE_DISMISS" | "RECURRING_OCCURRENCE_SET" | "RECURRING_OCCURRENCE_RETIRE" | "BALANCE_OBSERVATION_SET" | "BALANCE_OBSERVATION_RETIRE";
             /** Anchors */
             anchors: {
                 [key: string]: string;
@@ -1803,7 +1854,78 @@ export interface operations {
             };
         };
     };
+    baseline_roles_read_api_v1_baseline_roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     baseline_estimate_read_api_v1_baseline_estimate_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    obligations_read_api_v1_obligations_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    position_read_api_v1_position_get: {
         parameters: {
             query?: never;
             header?: never;
