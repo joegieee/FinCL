@@ -1894,6 +1894,25 @@
         }
       }
     },
+    "/api/v1/financial-roles/rules": {
+      "get": {
+        "summary": "Financial Role Rules",
+        "description": "Active reusable role rules, kept separate from category rules.",
+        "operationId": "financial_role_rules_api_v1_financial_roles_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Financial Role Rules Api V1 Financial Roles Rules Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/analysis": {
       "get": {
         "summary": "Analysis",

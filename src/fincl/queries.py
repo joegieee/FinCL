@@ -37,7 +37,12 @@ WITH base AS (
     coalesce('Page ' || d.page_number, 'Lines ' || r.physical_line_start || '–' || r.physical_line_end, 'Source record') AS source_location,
     coalesce(c.ambiguous, 0) AS ambiguous, coalesce(c.direction_conflict, 0) AS direction_conflict,
     i.classification,
+    e.account_id AS role_account_id, m.description_text AS role_description_text,
+    m.paynow_to AS role_paynow_to,
+    CASE WHEN m.alias_applied THEN m.merchant_canonical ELSE m.merchant_normalized END AS role_merchant_match,
     fr.cost_behavior, fr.cost_behavior_basis, fr.need, fr.need_basis, fr.review_state AS role_review_state,
+    EXISTS(SELECT 1 FROM recurring_occurrences o JOIN recurring_commitments rc ON rc.commitment=o.commitment
+      WHERE o.entry_anchor=e.natural_anchor AND o.bound=1 AND rc.status='active') AS recurring_confirmed,
     EXISTS(SELECT 1 FROM transfer_links t WHERE t.status='CONFIRMED' AND (t.left_entry_id=e.id OR t.right_entry_id=e.id)) AS linked,
     (e.analytics_eligible=1 AND e.lifecycle_state='COMPLETED' AND x.selection_state='SELECTED'
       AND (e.source_family='CSV' OR s.selection_state='SELECTED')) AS eligible
@@ -108,7 +113,7 @@ def money(value: Decimal) -> str:
     return format(value, 'f')
 
 
-def _shape(row: Any) -> dict[str, Any]:
+def _shape(row: Any, role_rules: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Turn one `_ENTRY_VIEW` row into the screen dict; amounts stay exact strings."""
     item = dict(row)
     magnitude = abs(Decimal(item['amount_text']))
@@ -120,12 +125,13 @@ def _shape(row: Any) -> dict[str, Any]:
         precision=item['effective_precision'],
         anchor=item['natural_anchor'],
         review=bool(item['review']),
-        cost_behavior=item['cost_behavior'] or ('N/A' if item['bucket'] != 'spending' else 'unresolved'),
-        cost_behavior_basis=item['cost_behavior_basis'] or 'unresolved',
-        need=item['need'] or ('N/A' if item['bucket'] != 'spending' else 'unresolved'),
-        need_basis=item['need_basis'] or 'unresolved',
-        role_review_state=item['role_review_state'] or ('N/A' if item['bucket'] != 'spending' else 'unresolved'),
     )
+    from .financial_roles import effective_financial_role
+    item.update(effective_financial_role({
+        **item,
+        'account_id': item['role_account_id'], 'description_text': item['role_description_text'],
+        'paynow_to': item['role_paynow_to'], 'merchant_match': item['role_merchant_match'],
+    }, role_rules or []))
     return {key: item[key] for key in _ROW_KEYS}
 
 
@@ -133,7 +139,8 @@ def all_entries(connection: Any) -> list[dict[str, Any]]:
     rows = connection.execute(
         f"{_ENTRY_VIEW} ORDER BY effective_at DESC, natural_anchor, id"
     ).fetchall()
-    return [_shape(row) for row in rows]
+    rules = [dict(row) for row in connection.execute("SELECT * FROM role_rules")]
+    return [_shape(row, rules) for row in rows]
 
 
 def _decode_cursor(cursor: str | None) -> dict[str, str] | None:
@@ -284,9 +291,10 @@ def transactions_page(
         has_more = len(rows) > limit
         window = [dict(row) for row in rows[:limit]]
         next_cursor = _encode_cursor(window[-1], sort) if has_more and window else None
+        role_rules = [dict(row) for row in connection.execute("SELECT * FROM role_rules")]
         return {
             'generation': generation,
-            'entries': [_shape(row) for row in window],
+            'entries': [_shape(row, role_rules) for row in window],
             'next_cursor': next_cursor,
             'total': int(total),
         }

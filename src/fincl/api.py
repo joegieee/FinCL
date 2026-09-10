@@ -1131,6 +1131,22 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             finally:
                 connection.close()
 
+    @app.get('/api/v1/financial-roles/rules')
+    def financial_role_rules() -> Any:
+        """Active reusable role rules, kept separate from category rules."""
+        connection = connect_readonly(database)
+        try:
+            generation = current_generation(connection)
+            rows = connection.execute(
+                "SELECT rule_id, match_json, cost_behavior, need, reason, journal_seq FROM role_rules ORDER BY journal_seq DESC, rule_id"
+            ).fetchall()
+            return {
+                'generation': generation['generation_token'] if generation else None,
+                'rules': [{**dict(row), 'match': json.loads(row['match_json'])} for row in rows],
+            }
+        finally:
+            connection.close()
+
     @app.get('/api/v1/analysis',response_model=Analysis)
     def analysis(
         start: str, end: str, currency: str = 'SGD',
