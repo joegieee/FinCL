@@ -1163,16 +1163,16 @@ def _scenario(
 def _manifest_categories(
     manifest: dict[str, Any], estimate: dict[str, Any] | None
 ) -> list[ResidualCategory]:
-    """Make the aggregate fallback the manifest can support without inventing detail."""
+    """Make the aggregate fallback the manifest can support without inventing detail.
+
+    Spending evidence is enough to project spending.  An incomplete essential
+    role scope only withholds the *protective* reserve and allowance claims; it
+    must not make recorded residual spending disappear from cash arithmetic.
+    """
     categories: list[ResidualCategory] = []
     if not estimate or not estimate.get("available"):
         return categories
     for currency, cell in estimate.get("by_currency", {}).items():
-        allowance_cell = manifest.get("reserve_and_allowance", {}).get(
-            "by_currency", {}
-        ).get(currency, {}).get("allowance", {})
-        if not allowance_cell.get("available"):
-            continue
         categories.extend(
             [
                 ResidualCategory(
@@ -1202,6 +1202,71 @@ def _manifest_categories(
             ]
         )
     return categories
+
+
+def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> list[dict[str, Any]]:
+    """Turn unresolved forecast inputs into output-owned, actionable gaps.
+
+    These are deliberately not a generic health score: one missing card
+    settlement must not masquerade as an income or cash-boundary problem.
+    The rank is a stable, coarse ordering for the UI; it is not a probability
+    or a claim about the user's financial priority.
+    """
+    items: list[dict[str, Any]] = []
+
+    for currency, cash in manifest.get("cash", {}).get("by_currency", {}).items():
+        for interval in cash.get("missing_intervals", []):
+            start, end = interval.get("start"), interval.get("end")
+            if not start or not end:
+                continue
+            items.append({
+                "kind": "missing_evidence", "output": "cash", "currency": currency,
+                "rank": 100, "action": "Import the missing cash-movement interval",
+                "detail": f"{start} to {end}: {interval.get('reason', 'movement coverage is missing')}",
+            })
+
+    income_gap = manifest.get("income", {}).get("gap")
+    if income_gap:
+        items.append({
+            "kind": "needs_review", "output": "income", "currency": None, "rank": 80,
+            "action": "Classify the pending inbound groups",
+            "detail": str(income_gap.get("reason", "Income evidence needs review")),
+        })
+
+    for obligation in manifest.get("unresolved_items", {}).get("ambiguous_obligations", []):
+        items.append({
+            "kind": "needs_review", "output": "obligation_timing",
+            "currency": obligation.get("currency"), "rank": 70,
+            "action": "Resolve the obligation amount or settlement date",
+            "detail": f"{obligation.get('label', obligation.get('obligation_id'))}: "
+                      + "; ".join(obligation.get("reasons", [])),
+        })
+
+    for task in manifest.get("unresolved_items", {}).get("evidence_gaps", []):
+        # Readiness already scopes these to the affected account/month. Keep
+        # that exact scope instead of turning a whole account into a gap.
+        items.append({
+            "kind": "missing_evidence", "output": "baseline",
+            "currency": task.get("currency_pocket"), "rank": 60,
+            "action": "Import or confirm the named evidence interval",
+            "detail": str(task.get("note") or task.get("detail") or task),
+        })
+
+    for limit in card_limits:
+        items.append({
+            "kind": "needs_review", "output": "card_settlement", "currency": None,
+            "rank": 90, "action": "Resolve the card settlement plan", "detail": limit,
+        })
+
+    for currency, cell in manifest.get("reserve_and_allowance", {}).get("by_currency", {}).items():
+        reserve = cell.get("reserve", {})
+        if not reserve.get("available"):
+            items.append({
+                "kind": "needs_review", "output": "reserve", "currency": currency,
+                "rank": 40, "action": "Assign essential-status roles",
+                "detail": str(reserve.get("reason", "Reserve eligibility is incomplete")),
+            })
+    return sorted(items, key=lambda item: (-item["rank"], item["output"], item["detail"]))
 
 
 def _gap_attribution(base: dict[str, Any], conservative: dict[str, Any]) -> dict[str, Any]:
@@ -1289,6 +1354,7 @@ def build_cash_timeline(
     categories = list(residual_categories) or _manifest_categories(manifest, estimate)
     result_by_currency: dict[str, Any] = {}
     global_limits: list[str] = []
+    spending_only = manifest.get("income", {}).get("classified_income_evidenced") is False
     possible_income = [
         event
         for event in sourced_events
@@ -1298,6 +1364,7 @@ def build_cash_timeline(
         if cash.get("readiness") == READINESS_UNAVAILABLE or cash.get("balance") is None:
             result_by_currency[currency] = {
                 "available": False,
+                "readiness": "unavailable",
                 "reason": cash.get("reason") or "no supported opening balance",
             }
             continue
@@ -1357,10 +1424,28 @@ def build_cash_timeline(
                 "the conservative-case monotonicity contract failed"
             )
         scoped_possible = [event for event in possible_income if event.currency == currency]
+        case_available = base["available"] and conservative["available"]
         result_by_currency[currency] = {
-            "available": base["available"] and conservative["available"],
+            "available": case_available,
+            # A partial cash boundary or unavailable reserve still supports
+            # cash arithmetic.  Keep that distinction explicit rather than
+            # turning a useful currency into a page-wide gap.
+            "readiness": (
+                "unavailable"
+                if not case_available
+                else "partial"
+                if cash.get("readiness") != "established-input estimate" or reserve_minor is None
+                else "available"
+            ),
             "starting_balance": format_decimal(opening, scale),
             "starting_balance_as_of": cutoff,
+            "forecast_kind": "spending-only stress view" if spending_only else "cash-flow forecast",
+            "cash_cutoff": {
+                "observation_as_of": cash.get("observation_as_of", cutoff),
+                "stale_days": cash.get("stale_days"),
+                "missing_intervals": cash.get("missing_intervals", []),
+                "bridge_status": "supported" if cash.get("readiness") == "established-input estimate" else "partial",
+            },
             "scale": scale,
             "base": base,
             "conservative": conservative,
@@ -1409,9 +1494,18 @@ def build_cash_timeline(
             conservative["available"] = False
             base["limitations"].append(message)
             conservative["limitations"].append(message)
+            result_by_currency[currency]["readiness"] = "unavailable"
     return {
-        "available": bool(result_by_currency) and all(
+        # Currencies are independent.  A missing foreign-pocket boundary must not hide a
+        # usable SGD or USD forecast.
+        "available": any(
             cell.get("available", False) for cell in result_by_currency.values()
+        ),
+        "readiness": (
+            "available"
+            if result_by_currency and all(cell.get("available", False) for cell in result_by_currency.values())
+            else "partial" if any(cell.get("available", False) for cell in result_by_currency.values())
+            else "unavailable"
         ),
         "generation": manifest.get("generation"),
         "manifest_as_of": manifest.get("as_of"),
@@ -1814,6 +1908,7 @@ def cash_timeline(
     )
     adapter_limits = [*obligation_limits, *income_limits, *card_limits]
     result["limitations"].extend(adapter_limits)
+    result["action_items"] = _action_items(manifest, card_limits)
     result["source_contracts"] = {
         "obligations": obligations.get("rules", []),
         "card_cash_conversion": {
@@ -1826,8 +1921,10 @@ def cash_timeline(
             ),
         },
     }
-    if adapter_limits:
-        result["available"] = False
+    # Adapter gaps are output-owned action items.  They make the page partial,
+    # but must not hide a usable per-currency cash timeline.
+    if adapter_limits and result["available"]:
+        result["readiness"] = "partial"
     return result
 
 

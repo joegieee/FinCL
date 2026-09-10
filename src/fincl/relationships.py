@@ -23,6 +23,7 @@ from typing import Any
 from .common import canonical_json
 from .debts.models import DEBT_DECISION_KINDS
 from .errors import FinCLError
+from .financial_roles import FINANCIAL_ROLE_DECISION_KINDS
 from .money import ExactMoney, format_decimal
 
 DECISION_BATCH = "DECISION_BATCH"
@@ -58,6 +59,7 @@ BATCH_CHILD_KINDS = frozenset(
         # shared residual atomically, and may retire a conflicting inbound
         # classification in the same record.
         *DEBT_DECISION_KINDS,
+        *FINANCIAL_ROLE_DECISION_KINDS,
     }
 )
 
@@ -330,6 +332,7 @@ def preview_batch(
     from .common import resolve_category
     from .debts.validation import validate_debt_payload
     from .decisions import resolve_anchor
+    from .financial_roles import validate_financial_role
 
     def _entry(anchor: str) -> str:
         entry_id = resolve_anchor(connection, anchor)
@@ -348,6 +351,11 @@ def preview_batch(
             if kind in DEBT_DECISION_KINDS:
                 validate_debt_payload(kind, anchors, payload)
                 debt_items.append((index, kind, anchors, payload))
+                continue
+            if kind in FINANCIAL_ROLE_DECISION_KINDS:
+                validate_financial_role(kind, anchors, payload)
+                if "entry" in anchors:
+                    _entry(anchors["entry"])
                 continue
             if kind in DUPLICATE_KINDS:
                 validate_duplicate(kind, anchors, payload)

@@ -25,6 +25,7 @@ from .decisions import resolve_anchor
 from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
 from .locking import LedgerBusyError, ledger_writer
+from .money import ExactMoney, exact_sum, format_decimal
 from .planning import PLANNING_DECISION_KINDS
 from .plans import validate_plan
 from .position import POSITION_DECISION_KINDS
@@ -65,6 +66,7 @@ _SINGLE_KINDS = Literal[
     'RECURRING_OCCURRENCE_SET','RECURRING_OCCURRENCE_RETIRE',
     # Stage 2A liquid-position observations
     'BALANCE_OBSERVATION_SET','BALANCE_OBSERVATION_RETIRE',
+    'ENTRY_ROLE_SET','ENTRY_ROLE_RETIRE','ROLE_RULE_SET','ROLE_RULE_RETIRE',
 ]
 
 _DEBT_KINDS = frozenset({
@@ -115,7 +117,8 @@ class BatchItem(StrictModel):
     kind: Literal[
         'CATEGORY_OVERRIDE','CATEGORY_OVERRIDE_RETIRE','INBOUND_CLASSIFICATION',
         'DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE',
-        'MERCHANT_ALIAS_SET','MERCHANT_ALIAS_RETIRE','CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE',
+    'MERCHANT_ALIAS_SET','MERCHANT_ALIAS_RETIRE','CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE',
+        'ENTRY_ROLE_SET','ENTRY_ROLE_RETIRE','ROLE_RULE_SET','ROLE_RULE_RETIRE',
     ]
     anchors: dict[str,str]
     payload: dict[str,Any]
@@ -174,6 +177,13 @@ class BackupActionDraft(StrictModel):
     backup_id: str | None = Field(default=None, pattern=r'^[A-Za-z0-9-]{1,100}$')
 
 
+class FinancialRoleImpactDraft(StrictModel):
+    generation: str = Field(min_length=1, max_length=100)
+    anchors: list[str] = Field(min_length=1, max_length=200)
+    cost_behavior: str | None = None
+    need: str | None = None
+
+
 class Entry(StrictModel):
     id: str
     anchor: str
@@ -193,6 +203,11 @@ class Entry(StrictModel):
     review: bool
     source_family: str
     lifecycle_state: str
+    cost_behavior: str
+    cost_behavior_basis: str
+    need: str
+    need_basis: str
+    role_review_state: str
 
 
 class Total(StrictModel):
@@ -562,6 +577,11 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                 (command.anchors['observation'],),
             ).fetchone():
                 raise FinCLError('The balance observation is not active')
+        elif command.kind in {'ENTRY_ROLE_SET','ENTRY_ROLE_RETIRE','ROLE_RULE_SET','ROLE_RULE_RETIRE'}:
+            from .financial_roles import validate_financial_role
+            validate_financial_role(command.kind, dict(command.anchors), dict(command.payload))
+            if 'entry' in command.anchors and not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?', (command.anchors['entry'],)).fetchone():
+                raise FinCLError('The transaction no longer resolves')
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -1057,6 +1077,59 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc
                 raise
+
+    @app.get('/api/v1/inflows/candidates')
+    def inflow_candidates() -> Any:
+        """Grouped, review-only inbound candidates; no receipt is auto-confirmed."""
+        from .planning.queries import recurring_page
+        with ledger_writer(database):
+            page = recurring_page(database)
+            return {
+                'generation': page['generation'],
+                'candidates': page['income_candidates'],
+                'exclusions': page['income_exclusions'],
+                'policy': 'Candidates are Likely only. Confirming a classification remains an explicit journal decision.',
+            }
+
+    @app.post('/api/v1/financial-roles/impact')
+    def financial_role_impact(body: FinancialRoleImpactDraft) -> Any:
+        """Exact, non-mutating bulk-role preview for a frozen anchor selection."""
+        from .financial_roles import validate_financial_role
+        with ledger_writer(database):
+            connection = connect_readonly(database)
+            try:
+                generation = current_generation(connection)
+                if generation is None or generation['generation_token'] != body.generation:
+                    raise HTTPException(409, 'STALE_GENERATION: reload and preview again.')
+                validate_financial_role('ENTRY_ROLE_SET', {'entry': body.anchors[0]}, {'cost_behavior': body.cost_behavior, 'need': body.need, 'reason': 'preview'})
+                marks = ','.join('?' for _ in body.anchors)
+                rows = connection.execute(
+                    f"""SELECT e.currency_pocket, e.amount_coefficient, e.amount_scale,
+                               fr.cost_behavior AS old_behavior, fr.need AS old_need
+                        FROM ledger_entries e LEFT JOIN entry_financial_roles fr ON fr.entry_id=e.id
+                        WHERE e.natural_anchor IN ({marks}) AND e.analytics_eligible=1
+                          AND e.lifecycle_state='COMPLETED'""", tuple(body.anchors)
+                ).fetchall()
+                if len(rows) != len(body.anchors):
+                    raise FinCLError('One or more selected transactions are no longer active')
+                by_currency: dict[str, list[dict[str, Any]]] = {}
+                for row in rows:
+                    by_currency.setdefault(row['currency_pocket'], []).append(dict(row))
+                return {
+                    'will_change': len(rows), 'by_currency': [
+                        {'currency': currency, 'count': len(values),
+                         'absolute_amount': format_decimal(*exact_sum(*[
+                             ExactMoney(abs(r['amount_coefficient']), r['amount_scale'], '') for r in values
+                         ])),
+                         'behavior_changed': sum(body.cost_behavior is not None and r['old_behavior'] != body.cost_behavior for r in values),
+                         'need_changed': sum(body.need is not None and r['old_need'] != body.need for r in values)}
+                        for currency, values in sorted(by_currency.items())
+                    ],
+                    'protected_overrides': 0,
+                    'cash_flow_effect': 'spending total unchanged; reserve eligibility may improve',
+                }
+            finally:
+                connection.close()
 
     @app.get('/api/v1/analysis',response_model=Analysis)
     def analysis(

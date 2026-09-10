@@ -34,6 +34,7 @@ from .debts import (
 )
 from .decision_journal import GENESIS_HASH, JournalRecord, default_journal_path, read_records
 from .errors import FinCLError
+from .financial_roles import FINANCIAL_ROLE_DECISION_KINDS, apply_financial_role
 
 # The vocabulary, projection and validation submodules are imported directly:
 # `fincl.funds` also exposes the Stage 4A read, which composes adapters that
@@ -114,6 +115,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | INSTALLMENT_DECISION_KINDS
     | PLANNING_DECISION_KINDS
     | POSITION_DECISION_KINDS
+    | FINANCIAL_ROLE_DECISION_KINDS
     | FUND_DECISION_KINDS
     | VARIANCE_DECISION_KINDS
 )
@@ -301,6 +303,8 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "sinking_funds",
             "forecast_actual_matches",
             "forecast_snapshots",
+            "entry_financial_roles",
+            "role_rules",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -471,6 +475,8 @@ def _apply_record(
             batch_index=batch_index,
             resolve_anchor=lambda anchor: resolve_anchor(connection, anchor),
         )
+    elif record.decision_kind in FINANCIAL_ROLE_DECISION_KINDS:
+        apply_financial_role(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq, resolve_anchor=lambda anchor: resolve_anchor(connection, anchor))
     elif record.decision_kind in DEBT_DECISION_KINDS:
         try:
             validate_debt_payload(

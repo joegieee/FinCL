@@ -22,7 +22,9 @@ from fincl.forecast.engine import (
     ForecastEvent,
     ResidualCategory,
     TimelineEvent,
+    _action_items,
     _card_events,
+    _manifest_categories,
     build_cash_timeline,
     run_timeline,
 )
@@ -57,6 +59,117 @@ def _manifest(*, balance: str = "1000.00") -> dict:
 
 
 class CashTimelineTrapTests(unittest.TestCase):
+    def test_action_items_keep_gap_ownership_and_exact_interval(self) -> None:
+        manifest = _manifest()
+        manifest["cash"]["by_currency"]["SGD"].update({
+            "missing_intervals": [{
+                "start": "2026-02-01", "end": "2026-02-14",
+                "reason": "statement coverage is missing",
+            }],
+        })
+        manifest["income"] = {"gap": {"reason": "pending receipts are unclassified"}}
+        manifest["unresolved_items"] = {"ambiguous_obligations": [{
+            "obligation_id": "rent", "label": "Rent", "currency": "SGD",
+            "reasons": ["date basis is 'no_stated_date'"],
+        }]}
+
+        items = _action_items(manifest, ["card card-1 SGD has no reconciled exactly-once settlement plan"])
+
+        self.assertEqual(items[0]["output"], "cash")
+        self.assertIn("2026-02-01 to 2026-02-14", items[0]["detail"])
+        self.assertEqual({item["output"] for item in items}, {
+            "cash", "income", "obligation_timing", "card_settlement",
+        })
+
+    def test_residual_spending_is_not_gated_by_allowance_readiness(self) -> None:
+        manifest = _manifest()
+        manifest["reserve_and_allowance"]["by_currency"]["SGD"]["allowance"] = {
+            "available": False,
+            "reason": "essential-role scope is incomplete",
+        }
+        estimate = {
+            "available": True,
+            "by_currency": {
+                "SGD": {
+                    "variable_residual_monthly": "300.00",
+                    "variable_residual_max": "450.00",
+                    "irregular_allowance_monthly": "50.00",
+                }
+            },
+        }
+
+        categories = _manifest_categories(manifest, estimate)
+        result = build_cash_timeline(manifest, estimate=estimate)
+
+        self.assertEqual(len(categories), 2)
+        self.assertTrue(result["by_currency"]["SGD"]["available"])
+        self.assertEqual(result["by_currency"]["SGD"]["readiness"], "available")
+
+    def test_unsupported_currency_does_not_block_supported_currency(self) -> None:
+        manifest = _manifest()
+        manifest["cash"]["by_currency"]["THB"] = {
+            "readiness": "unavailable",
+            "balance": None,
+            "reason": "no supported opening balance",
+        }
+        result = build_cash_timeline(
+            manifest,
+            residual_categories=[
+                ResidualCategory(
+                    category_id="routine-sgd", currency="SGD", mean_monthly="100.00",
+                    highest_observed_monthly="100.00", label="Routine",
+                )
+            ],
+        )
+
+        self.assertTrue(result["available"])
+        self.assertEqual(result["readiness"], "partial")
+        self.assertTrue(result["by_currency"]["SGD"]["available"])
+        self.assertFalse(result["by_currency"]["THB"]["available"])
+
+    def test_missing_income_labels_the_cash_path_as_a_spending_only_stress_view(self) -> None:
+        manifest = _manifest()
+        manifest["income"] = {"classified_income_evidenced": False}
+        result = build_cash_timeline(
+            manifest,
+            residual_categories=[
+                ResidualCategory(
+                    category_id="routine-sgd", currency="SGD", mean_monthly="100.00",
+                    highest_observed_monthly="100.00", label="Routine",
+                )
+            ],
+        )
+
+        self.assertTrue(result["by_currency"]["SGD"]["available"])
+        self.assertEqual(
+            result["by_currency"]["SGD"]["forecast_kind"],
+            "spending-only stress view",
+        )
+
+    def test_partial_cash_boundary_keeps_its_actual_date_and_gap(self) -> None:
+        manifest = _manifest()
+        manifest["cash"]["by_currency"]["SGD"].update({
+            "readiness": "limited-history estimate",
+            "observation_as_of": "2026-01-20",
+            "stale_days": 11,
+            "missing_intervals": [{"start": "2026-01-21", "end": "2026-01-31", "reason": "coverage missing"}],
+        })
+        result = build_cash_timeline(
+            manifest,
+            residual_categories=[
+                ResidualCategory(
+                    category_id="routine-sgd", currency="SGD", mean_monthly="100.00",
+                    highest_observed_monthly="100.00", label="Routine",
+                )
+            ],
+        )
+
+        currency = result["by_currency"]["SGD"]
+        self.assertEqual(currency["readiness"], "partial")
+        self.assertEqual(currency["cash_cutoff"]["observation_as_of"], "2026-01-20")
+        self.assertEqual(currency["cash_cutoff"]["stale_days"], 11)
+        self.assertEqual(currency["cash_cutoff"]["missing_intervals"][0]["start"], "2026-01-21")
+
     def test_positive_month_end_does_not_hide_earlier_intra_month_breach(self) -> None:
         result = run_timeline(
             currency="SGD",

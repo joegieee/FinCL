@@ -31,6 +31,9 @@ DBS_PAYLAH_LINK_VERSION = "dbs-paylah-exact-date-amount-description-v1"
 DBS_REVOLUT_LEGACY_LINK_VERSION = "dbs-revolut-exact-amount-currency-window-description-v1"
 DBS_REVOLUT_CARD_TOPUP_LINK_VERSION = "dbs-revolut-card-topup-exact-amount-window-v1"
 DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION = "dbs-revolut-paynow-topup-exact-amount-window-v1"
+DBS_REVOLUT_OUTBOUND_TRANSFER_LINK_VERSION = (
+    "revolut-dbs-outbound-transfer-counterpart-amount-v1"
+)
 DBS_MARIBANK_PAYNOW_TOPUP_LINK_VERSION = "dbs-maribank-paynow-topup-reference-token-amount-v1"
 MARI_SAVINGS_CARD_REPAYMENT_LINK_VERSION = "mari-savings-card-repayment-exact-amount-day-v1"
 REVOLUT_EXCHANGE_LINK_VERSION = "revolut-exchange-started-at-pockets-v1"
@@ -128,6 +131,7 @@ AUTOMATIC_SAME_CURRENCY_LINK_METHODS = (
     DBS_REVOLUT_PAYNOW_TOPUP_LINKER.method_version,
     DBS_MARIBANK_PAYNOW_TOPUP_LINKER.method_version,
     MARI_SAVINGS_CARD_REPAYMENT_LINKER.method_version,
+    DBS_REVOLUT_OUTBOUND_TRANSFER_LINK_VERSION,
 )
 
 
@@ -161,6 +165,7 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
         AUTOMATIC_SAME_CURRENCY_LINK_METHODS,
     )
     created = link_revolut_exchanges(connection)
+    link_revolut_dbs_outbound_transfers(connection)
     dbs_rows = connection.execute(
         """
         SELECT e.id, e.effective_at AS posted_date, e.currency_pocket,
@@ -438,6 +443,116 @@ def _dbs_card_transaction_date(description: str | None, posted_date: str) -> str
 def _is_revolut_paynow_topup(description: str | None) -> bool:
     text = (description or "").upper()
     return "PAYNOW TRANSFER" in text and "TO: REVOLUT TECHNOLOGIES SINGAPORE" in text
+
+
+def link_revolut_dbs_outbound_transfers(connection: sqlite3.Connection) -> int:
+    """Link a Revolut transfer-out to its same-day DBS SGD settlement.
+
+    Revolut prints the DBS settlement amount as a counterpart figure below the
+    outgoing transfer (and, when applicable, prints its fee separately).  DBS
+    records the received SGD amount as a positive debit-card transaction.  The
+    printed counterpart amount is required for cross-currency matches; a
+    same-currency SGD transfer may instead match its own exact amount.
+    """
+    revolut_rows = connection.execute(
+        """
+        SELECT e.id, substr(e.effective_at, 1, 10) AS posted_date,
+               e.currency_pocket, e.amount_text, e.amount_coefficient, e.amount_scale,
+               r.raw_fields_json
+        FROM ledger_entries e
+        JOIN statements s ON s.id = e.statement_id
+        JOIN document_records r ON r.id = e.document_record_id
+        WHERE e.source_family = 'DOCUMENT' AND s.source_type = 'REVOLUT_PDF'
+          AND s.selection_state = 'SELECTED' AND e.analytics_eligible = 1
+          AND e.lifecycle_state = 'COMPLETED' AND e.economic_direction = 'OUT'
+          AND e.event_kind = 'TRANSFER'
+        """
+    ).fetchall()
+    dbs_rows = connection.execute(
+        """
+        SELECT e.id, substr(e.effective_at, 1, 10) AS posted_date,
+               e.currency_pocket, e.amount_text, e.amount_coefficient, e.amount_scale
+        FROM ledger_entries e
+        JOIN statements s ON s.id = e.statement_id
+        WHERE e.source_family = 'DOCUMENT' AND s.source_type = 'DBS_CONSOLIDATED'
+          AND s.selection_state = 'SELECTED' AND e.analytics_eligible = 1
+          AND e.lifecycle_state = 'COMPLETED' AND e.economic_direction = 'IN'
+          AND e.event_kind = 'CARD_PAYMENT' AND e.currency_pocket = 'SGD'
+        """
+    ).fetchall()
+    candidates: list[tuple[sqlite3.Row, sqlite3.Row, str]] = []
+    for left in revolut_rows:
+        counterpart = _revolut_counterpart_amount(left["raw_fields_json"])
+        for right in dbs_rows:
+            if left["posted_date"] != right["posted_date"]:
+                continue
+            expected = counterpart if counterpart is not None else left["amount_text"].lstrip("-")
+            if right["amount_text"].lstrip("-") != expected:
+                continue
+            # A USD (or other foreign-currency) transfer must carry the
+            # statement's explicit SGD counterpart; matching numeric amounts
+            # across currencies would be accidental.
+            if left["currency_pocket"] != "SGD" and counterpart is None:
+                continue
+            candidates.append((left, right, DBS_REVOLUT_OUTBOUND_TRANSFER_LINK_VERSION))
+
+    left_counts: dict[str, int] = {}
+    right_counts: dict[str, int] = {}
+    for left, right, _ in candidates:
+        left_counts[left["id"]] = left_counts.get(left["id"], 0) + 1
+        right_counts[right["id"]] = right_counts.get(right["id"], 0) + 1
+    created = 0
+    for left, right, method_version in candidates:
+        if left_counts[left["id"]] != 1 or right_counts[right["id"]] != 1:
+            continue
+        created += _insert_cross_currency_transfer_link(connection, left, right, method_version)
+    return created
+
+
+def _insert_cross_currency_transfer_link(
+    connection: sqlite3.Connection,
+    left: sqlite3.Row,
+    right: sqlite3.Row,
+    method_version: str,
+) -> int:
+    same_currency = left["currency_pocket"] == right["currency_pocket"]
+    numerator = denominator = None
+    if not same_currency:
+        numerator = abs(right["amount_coefficient"]) * 10**left["amount_scale"]
+        denominator = abs(left["amount_coefficient"]) * 10**right["amount_scale"]
+        divisor = gcd(numerator, denominator)
+        numerator //= divisor
+        denominator //= divisor
+    link_id = _stable_id("link", left["id"], right["id"], method_version)
+    cursor = connection.execute(
+        """
+        INSERT OR IGNORE INTO transfer_links(
+            id, left_entry_id, right_entry_id, link_kind,
+            left_currency, left_amount_text, left_amount_coefficient, left_amount_scale,
+            right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
+            implied_rate_numerator, implied_rate_denominator,
+            method_version, status, evidence_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?)
+        """,
+        (
+            link_id,
+            left["id"], right["id"],
+            "SAME_CURRENCY_TRANSFER" if same_currency else "CURRENCY_EXCHANGE",
+            left["currency_pocket"], left["amount_text"].lstrip("-"),
+            abs(left["amount_coefficient"]), left["amount_scale"],
+            right["currency_pocket"], right["amount_text"].lstrip("-"),
+            abs(right["amount_coefficient"]), right["amount_scale"],
+            numerator, denominator, method_version,
+            _json({
+                "date_left": left["posted_date"],
+                "date_right": right["posted_date"],
+                "revolut_counterpart_amount": _revolut_counterpart_amount(left["raw_fields_json"]),
+                "unique_pair": True,
+            }),
+            _now(),
+        ),
+    )
+    return cursor.rowcount
 
 
 def link_revolut_exchanges(connection: sqlite3.Connection) -> int:

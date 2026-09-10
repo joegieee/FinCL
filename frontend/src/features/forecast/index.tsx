@@ -53,22 +53,32 @@ export function ForecastView() {
   if (error && !page) return <div className="alert error" role="alert"><div><strong>We couldn’t load the forecast.</strong><p>{error}</p></div><Button variant="outline" onClick={load}>Try again</Button></div>
   if (!page) return null
   const currencies = Object.entries(page.by_currency)
+  const usableCurrencies = currencies.filter((entry): entry is [string, ForecastCurrency] => entry[1].available)
 
   return <div className="forecast-view">
     <div className="scope-caption"><span>{page.horizon ? `Forecast from the supported cutoff ${page.horizon.supported_cash_cutoff} through ${page.horizon.end}` : 'No supported forecast horizon'} · estimates never enter recorded totals</span><Button variant="ghost" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</Button></div>
-    {!page.available && page.reason && gap(page.reason)}
+    {!usableCurrencies.length && !page.available && page.reason && gap(page.reason)}
     {currencies.map(([currency, cell]) => cell.available ? <CurrencyForecast key={currency} currency={currency} forecast={cell} /> : <div key={currency}>{gap(`${currency}: ${cell.reason}`)}</div>)}
     {currencies.length === 0 && gap(page.reason ?? 'No currency has a supported forecast input.')}
+    <ForecastActions items={page.action_items ?? []} />
     {page.limitations.length > 0 && <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">LIMITATIONS</p><h2>Named forecast gaps</h2></div></div><ul className="issue-list">{page.limitations.map((item, i) => <li key={i}><p>{item}</p></li>)}</ul></Card>}
     <AssumptionsAndSources page={page} />
   </div>
 }
 
+function ForecastActions({ items }: { items: NonNullable<ForecastPage['action_items']> }) {
+  if (!items.length) return null
+  return <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">FIX NEXT</p><h2>Actions for this forecast</h2></div></div><ul className="issue-list">{items.map(item => <li key={`${item.output}:${item.currency ?? ''}:${item.detail}`}><strong>{item.action}</strong>{item.currency ? ` · ${item.currency}` : ''}<p><Badge variant="outline">{item.kind === 'needs_review' ? 'Needs review' : item.kind === 'missing_evidence' ? 'Missing evidence' : 'Software limitation'}</Badge> {item.detail}</p></li>)}</ul></Card>
+}
+
 function CurrencyForecast({ currency, forecast }: { currency: string; forecast: ForecastCurrency }) {
+  const cutoff = forecast.cash_cutoff
   return <>
     <Card className="forecast-card">
-      <div className="panel-title"><div><p className="eyebrow">SIX-MONTH CASH TIMELINE · {currency}</p><h2>Opening {money(forecast.starting_balance, currency)} as of {forecast.starting_balance_as_of}</h2></div><Badge variant="outline">Projected</Badge></div>
+      <div className="panel-title"><div><p className="eyebrow">SIX-MONTH CASH TIMELINE · {currency}</p><h2>Opening {money(forecast.starting_balance, currency)} as of {forecast.starting_balance_as_of}</h2></div><Badge variant="outline">{forecast.forecast_kind === 'spending-only stress view' ? 'Spending-only stress view' : 'Projected'}</Badge></div>
       <p className="muted-note">Both cases use the same opening cash. A partial month shows only modelled days within the horizon; each next row opens at the prior row’s closing balance.</p>
+      {cutoff?.bridge_status === 'partial' && <p className="muted-note">Opening cash is supported through {cutoff.observation_as_of ?? forecast.starting_balance_as_of}{cutoff.stale_days !== null && cutoff.stale_days !== undefined ? ` (${cutoff.stale_days} stale days)` : ''}; movement after that date is incomplete.</p>}
+      {cutoff?.missing_intervals.length ? <p className="muted-note">Missing movement interval: {cutoff.missing_intervals.map(interval => `${interval.start} → ${interval.end}`).join(', ')}.</p> : null}
     </Card>
     <BreachBanner base={forecast.base} conservative={forecast.conservative} />
     <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">MONTHLY CONTINUITY</p><h2>Both cases, side by side</h2></div></div><MonthTable currency={currency} base={forecast.base} conservative={forecast.conservative} /></Card>

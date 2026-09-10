@@ -975,6 +975,17 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             categorized_at TEXT NOT NULL
         ) STRICT;
 
+        CREATE TABLE IF NOT EXISTS entry_financial_roles (
+            entry_id TEXT PRIMARY KEY REFERENCES ledger_entries(id),
+            cost_behavior TEXT, cost_behavior_basis TEXT,
+            need TEXT, need_basis TEXT,
+            review_state TEXT NOT NULL, journal_seq INTEGER NOT NULL
+        ) STRICT;
+        CREATE TABLE IF NOT EXISTS role_rules (
+            rule_id TEXT PRIMARY KEY, match_json TEXT NOT NULL,
+            cost_behavior TEXT, need TEXT, reason TEXT NOT NULL, journal_seq INTEGER NOT NULL
+        ) STRICT;
+
         -- The raw -> canonical merchant trail, one row per eligible ledger
         -- entry. Derived, recomputed on categorize / rebuild, never migrated
         -- (§4.4). NULLs propagate: a description-less row has NULL

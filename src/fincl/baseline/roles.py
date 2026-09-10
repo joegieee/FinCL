@@ -131,6 +131,14 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
         refund_links = defaultdict(list)
         for row in connection.execute("SELECT refund_anchor, purchase_anchor FROM refund_allocations"):
             refund_links[row["refund_anchor"]].append(row["purchase_anchor"])
+        entry_roles = {
+            row["natural_anchor"]: dict(row)
+            for row in connection.execute(
+                """SELECT e.natural_anchor, fr.cost_behavior, fr.cost_behavior_basis,
+                          fr.need, fr.need_basis, fr.review_state
+                   FROM entry_financial_roles fr JOIN ledger_entries e ON e.id=fr.entry_id"""
+            )
+        }
     finally:
         connection.close()
 
@@ -186,6 +194,15 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
             amount = ExactMoney(-amount.coefficient, amount.scale, "")
             recurring_source = False
         role = _role(category, recurring=recurring_source)
+        manual = entry_roles.get(row["origin_anchor"])
+        if manual:
+            role = {
+                **role,
+                "cost_pattern": manual["cost_behavior"] or role["cost_pattern"],
+                "essential_status": manual["need"] or role["essential_status"],
+                "basis": manual["cost_behavior_basis"] or manual["need_basis"] or role["basis"],
+                "review_status": manual["review_state"],
+            }
         if row["component_id"] in irregular_components and not recurring_source:
             role = {
                 **role,

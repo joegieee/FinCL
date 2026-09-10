@@ -204,6 +204,12 @@ def _classify_amount(
     """
     if is_linked:
         return "internal", False
+    # A self-transfer can be observed only on its outgoing leg (for example,
+    # a transfer from Revolut to an owned account that is not imported).  The
+    # durable operator classification is therefore meaningful for either
+    # economic direction; separately evidenced fees still flow below.
+    if classification == "self_transfer":
+        return "internal", False
     if direction == "OUT":
         return "spending", True
     if direction == "IN":
@@ -215,8 +221,6 @@ def _classify_amount(
             return "reimbursements", True
         if classification in ("gift", "family_transfer"):
             return "non_income_inflow", True
-        if classification == "self_transfer":
-            return "internal", False
         if classification == "other":
             return "other", False
         return "pending_review", False

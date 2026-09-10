@@ -70,6 +70,15 @@ class ReportParityTests(unittest.TestCase):
         )
         self.assertEqual((bucket, nets), ("internal", False))
 
+    def test_explicit_outbound_self_transfer_is_internal(self) -> None:
+        bucket, nets = _classify_amount(
+            is_linked=False,
+            direction="OUT",
+            event_kind="TRANSFER",
+            classification="self_transfer",
+        )
+        self.assertEqual((bucket, nets), ("internal", False))
+
     def test_classifier_matches_the_transaction_view_bucket(self) -> None:
         database = _ledger()
         connection = connect_readonly(database)

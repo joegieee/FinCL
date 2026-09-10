@@ -37,6 +37,7 @@ WITH base AS (
     coalesce('Page ' || d.page_number, 'Lines ' || r.physical_line_start || '–' || r.physical_line_end, 'Source record') AS source_location,
     coalesce(c.ambiguous, 0) AS ambiguous, coalesce(c.direction_conflict, 0) AS direction_conflict,
     i.classification,
+    fr.cost_behavior, fr.cost_behavior_basis, fr.need, fr.need_basis, fr.review_state AS role_review_state,
     EXISTS(SELECT 1 FROM transfer_links t WHERE t.status='CONFIRMED' AND (t.left_entry_id=e.id OR t.right_entry_id=e.id)) AS linked,
     (e.analytics_eligible=1 AND e.lifecycle_state='COMPLETED' AND x.selection_state='SELECTED'
       AND (e.source_family='CSV' OR s.selection_state='SELECTED')) AS eligible
@@ -49,6 +50,7 @@ WITH base AS (
   LEFT JOIN merchant_aliases ma ON ma.canonical=m.merchant_canonical
   LEFT JOIN entry_categories c ON c.entry_id=e.id
   LEFT JOIN inbound_classifications i ON i.anchor=e.natural_anchor AND i.bound=1
+  LEFT JOIN entry_financial_roles fr ON fr.entry_id=e.id
 ),
 shaped AS (
   SELECT base.*,
@@ -99,7 +101,7 @@ _SORTS: dict[str, dict[str, str]] = {
 
 _ROW_KEYS = ('id','anchor','date','precision','amount','fee','currency','account','merchant',
              'description','category','basis','source_location','bucket','eligible','review',
-             'source_family','lifecycle_state')
+             'source_family','lifecycle_state','cost_behavior','cost_behavior_basis','need','need_basis','role_review_state')
 
 
 def money(value: Decimal) -> str:
@@ -118,6 +120,11 @@ def _shape(row: Any) -> dict[str, Any]:
         precision=item['effective_precision'],
         anchor=item['natural_anchor'],
         review=bool(item['review']),
+        cost_behavior=item['cost_behavior'] or ('N/A' if item['bucket'] != 'spending' else 'unresolved'),
+        cost_behavior_basis=item['cost_behavior_basis'] or 'unresolved',
+        need=item['need'] or ('N/A' if item['bucket'] != 'spending' else 'unresolved'),
+        need_basis=item['need_basis'] or 'unresolved',
+        role_review_state=item['role_review_state'] or ('N/A' if item['bucket'] != 'spending' else 'unresolved'),
     )
     return {key: item[key] for key in _ROW_KEYS}
 

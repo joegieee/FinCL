@@ -1836,6 +1836,64 @@
         }
       }
     },
+    "/api/v1/inflows/candidates": {
+      "get": {
+        "summary": "Inflow Candidates",
+        "description": "Grouped, review-only inbound candidates; no receipt is auto-confirmed.",
+        "operationId": "inflow_candidates_api_v1_inflows_candidates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Inflow Candidates Api V1 Inflows Candidates Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/financial-roles/impact": {
+      "post": {
+        "summary": "Financial Role Impact",
+        "description": "Exact, non-mutating bulk-role preview for a frozen anchor selection.",
+        "operationId": "financial_role_impact_api_v1_financial_roles_impact_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FinancialRoleImpactDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Financial Role Impact Api V1 Financial Roles Impact Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/analysis": {
       "get": {
         "summary": "Analysis",
@@ -3982,7 +4040,11 @@
               "MERCHANT_ALIAS_SET",
               "MERCHANT_ALIAS_RETIRE",
               "CATEGORY_RULE_SET",
-              "CATEGORY_RULE_RETIRE"
+              "CATEGORY_RULE_RETIRE",
+              "ENTRY_ROLE_SET",
+              "ENTRY_ROLE_RETIRE",
+              "ROLE_RULE_SET",
+              "ROLE_RULE_RETIRE"
             ],
             "title": "Kind"
           },
@@ -4317,7 +4379,11 @@
               "RECURRING_OCCURRENCE_SET",
               "RECURRING_OCCURRENCE_RETIRE",
               "BALANCE_OBSERVATION_SET",
-              "BALANCE_OBSERVATION_RETIRE"
+              "BALANCE_OBSERVATION_RETIRE",
+              "ENTRY_ROLE_SET",
+              "ENTRY_ROLE_RETIRE",
+              "ROLE_RULE_SET",
+              "ROLE_RULE_RETIRE"
             ],
             "title": "Kind"
           },
@@ -4849,6 +4915,26 @@
           "lifecycle_state": {
             "type": "string",
             "title": "Lifecycle State"
+          },
+          "cost_behavior": {
+            "type": "string",
+            "title": "Cost Behavior"
+          },
+          "cost_behavior_basis": {
+            "type": "string",
+            "title": "Cost Behavior Basis"
+          },
+          "need": {
+            "type": "string",
+            "title": "Need"
+          },
+          "need_basis": {
+            "type": "string",
+            "title": "Need Basis"
+          },
+          "role_review_state": {
+            "type": "string",
+            "title": "Role Review State"
           }
         },
         "additionalProperties": false,
@@ -4871,7 +4957,12 @@
           "eligible",
           "review",
           "source_family",
-          "lifecycle_state"
+          "lifecycle_state",
+          "cost_behavior",
+          "cost_behavior_basis",
+          "need",
+          "need_basis",
+          "role_review_state"
         ],
         "title": "Entry"
       },
@@ -4896,6 +4987,54 @@
           "new_date"
         ],
         "title": "EventDateChangeDraft"
+      },
+      "FinancialRoleImpactDraft": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Generation"
+          },
+          "anchors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Anchors"
+          },
+          "cost_behavior": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Behavior"
+          },
+          "need": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "anchors"
+        ],
+        "title": "FinancialRoleImpactDraft"
       },
       "FundConfirmationDraft": {
         "properties": {

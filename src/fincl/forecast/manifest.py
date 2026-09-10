@@ -697,6 +697,7 @@ def _cash_by_currency(
     supported = bool(position["current_position_supported"])
     bridges = position["cash_bridge"]["combined"]["by_currency"]
     reasons = position["current_position_reasons"]
+    generated_for = date.fromisoformat(str(position["generated_for"]))
     included_currencies = {
         pocket["currency_pocket"]
         for pocket in position["included_pockets"]
@@ -710,6 +711,12 @@ def _cash_by_currency(
             result[currency] = {
                 "readiness": READINESS_UNAVAILABLE,
                 "balance": None,
+                "observation_as_of": None,
+                "stale_days": None,
+                "missing_intervals": [
+                    gap for gap in position["missing_intervals"]
+                    if gap["currency_pocket"] == currency
+                ],
                 "reason": (
                     withheld.get(currency)
                     or (reasons[0] if reasons else None)
@@ -732,6 +739,17 @@ def _cash_by_currency(
         result[currency] = {
             "readiness": level,
             "balance": combined.get(currency),
+            # The forecast opens at this supported historical boundary.  It is
+            # deliberately not relabelled as a balance observed today.
+            "observation_as_of": position["supported_cutoff"],
+            "stale_days": (
+                (generated_for - date.fromisoformat(position["supported_cutoff"])).days
+                if position["supported_cutoff"] else None
+            ),
+            "missing_intervals": [
+                gap for gap in position["missing_intervals"]
+                if gap["currency_pocket"] == currency
+            ],
             "reason": reason,
         }
     return result
