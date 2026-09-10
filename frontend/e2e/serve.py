@@ -17,13 +17,14 @@ import uvicorn
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "src"))
 
+from fincl.service import FinCLService  # noqa: E402
+
 from fincl.api import create_app  # noqa: E402
 from fincl.association import create_new_ledger_identity  # noqa: E402
 from fincl.db import connect_sqlite, initialize_schema  # noqa: E402
 from fincl.decision_journal import append_decision, default_journal_path  # noqa: E402
 from fincl.decisions import entry_anchor  # noqa: E402
 from fincl.refresh import refresh_ledger  # noqa: E402
-from fincl.service import FinCLService  # noqa: E402
 
 workdir = Path(tempfile.mkdtemp(prefix="fincl-e2e-"))
 database = workdir / "demo.sqlite3"
