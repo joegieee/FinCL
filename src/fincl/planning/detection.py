@@ -143,10 +143,13 @@ def candidates(
     Both lists are ordered by merchant then currency so a page renders
     deterministically.
     """
+    # Income grouping reads pending inflows too, not only receipts already
+    # classified as income: the workflow is to discover a recurring payer while
+    # it is still unreviewed and confirm its history in one step (§3.3).
     rows = connection.execute(
         f"SELECT natural_anchor, merchant, currency_pocket, account_id, bucket, "
         f"substr(effective_at,1,10) day, amount_coefficient, amount_scale "
-        f"FROM ({_ENTRY_VIEW}) WHERE eligible AND bucket IN ('spending', 'income') "
+        f"FROM ({_ENTRY_VIEW}) WHERE eligible AND bucket IN ('spending', 'income', 'pending_review') "
         f"AND effective_precision != 'MONTH' "
         f"ORDER BY merchant, currency_pocket, account_id, effective_at"
     ).fetchall()
@@ -217,6 +220,16 @@ def candidates(
                     f"Is {merchant} a recurring {'income stream' if kind == 'income' else 'bill'}?"
                 ),
                 "seed_entry_anchors": [item["natural_anchor"] for item in items[-4:]],
+                # Every dated source, so a grouped confirmation can select the
+                # exact history it is classifying (§3.3).
+                "occurrences": [
+                    {
+                        "anchor": item["natural_anchor"],
+                        "date": day.isoformat(),
+                        "amount": _money(amount),
+                    }
+                    for item, day, amount in zip(items, days, amounts, strict=False)
+                ],
             }
         )
     result: dict[str, Any] = dict(found)

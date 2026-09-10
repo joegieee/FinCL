@@ -33,6 +33,12 @@ from .queries import analysis_page, contributors_page, dashboard, transactions_p
 from .refresh import refresh_ledger
 
 
+def _absolute_money(value: str) -> ExactMoney:
+    """Parse a displayed exact decimal without routing it through float."""
+    whole, _, fraction = value.lstrip('+-').partition('.')
+    return ExactMoney(abs(int((whole or '0') + fraction)), len(fraction), '')
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -67,6 +73,8 @@ _SINGLE_KINDS = Literal[
     # Stage 2A liquid-position observations
     'BALANCE_OBSERVATION_SET','BALANCE_OBSERVATION_RETIRE',
     'ENTRY_ROLE_SET','ENTRY_ROLE_RETIRE','ROLE_RULE_SET','ROLE_RULE_RETIRE',
+    # M5 reusable inbound-classification rules
+    'INBOUND_RULE_SET','INBOUND_RULE_RETIRE',
 ]
 
 _DEBT_KINDS = frozenset({
@@ -119,6 +127,7 @@ class BatchItem(StrictModel):
         'DUPLICATE_CONFIRM','DUPLICATE_REJECT','DUPLICATE_RETIRE',
     'MERCHANT_ALIAS_SET','MERCHANT_ALIAS_RETIRE','CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE',
         'ENTRY_ROLE_SET','ENTRY_ROLE_RETIRE','ROLE_RULE_SET','ROLE_RULE_RETIRE',
+        'INBOUND_RULE_SET','INBOUND_RULE_RETIRE',
     ]
     anchors: dict[str,str]
     payload: dict[str,Any]
@@ -127,7 +136,10 @@ class BatchItem(StrictModel):
 class Batch(StrictModel):
     request_id: UUID
     expected_generation: str = Field(min_length=1,max_length=100)
-    items: list[BatchItem] = Field(min_length=1,max_length=200)
+    # A transaction may receive both a category and a role decision.  The
+    # frozen selection is capped at 200, so its one atomic batch needs room
+    # for both child records.
+    items: list[BatchItem] = Field(min_length=1,max_length=400)
     reason: str = Field(max_length=2000)
 
 
@@ -180,8 +192,26 @@ class BackupActionDraft(StrictModel):
 class FinancialRoleImpactDraft(StrictModel):
     generation: str = Field(min_length=1, max_length=100)
     anchors: list[str] = Field(min_length=1, max_length=200)
+    category: str | None = None
+    clear_category: bool = False
     cost_behavior: str | None = None
     need: str | None = None
+    clear_roles: bool = False
+
+
+class RoleRuleDraft(StrictModel):
+    generation: str = Field(min_length=1, max_length=100)
+    match: dict[str, Any]
+    cost_behavior: str | None = None
+    need: str | None = None
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class InboundRuleDraft(StrictModel):
+    generation: str = Field(min_length=1, max_length=100)
+    match: dict[str, Any]
+    classification: str = Field(min_length=1, max_length=40)
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class Entry(StrictModel):
@@ -208,6 +238,7 @@ class Entry(StrictModel):
     need: str
     need_basis: str
     role_review_state: str
+    suggested_classification: str
 
 
 class Total(StrictModel):
@@ -582,6 +613,9 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
             validate_financial_role(command.kind, dict(command.anchors), dict(command.payload))
             if 'entry' in command.anchors and not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?', (command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
+        elif command.kind in {'INBOUND_RULE_SET','INBOUND_RULE_RETIRE'}:
+            from .inbound_rules import validate_inbound_rule
+            validate_inbound_rule(command.kind, dict(command.anchors), dict(command.payload))
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -1091,6 +1125,57 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 'policy': 'Candidates are Likely only. Confirming a classification remains an explicit journal decision.',
             }
 
+    @app.get('/api/v1/inflows/rules')
+    def inbound_rules_list() -> Any:
+        """Active reusable inbound-classification rules, newest first."""
+        connection = connect_readonly(database)
+        try:
+            generation = current_generation(connection)
+            rows = connection.execute(
+                "SELECT rule_id, match_json, classification, reason, journal_seq FROM inbound_rules ORDER BY journal_seq DESC, rule_id"
+            ).fetchall()
+            return {
+                'generation': generation['generation_token'] if generation else None,
+                'rules': [{**dict(row), 'match': json.loads(row['match_json'])} for row in rows],
+            }
+        finally:
+            connection.close()
+
+    @app.post('/api/v1/inflows/rules/compile')
+    def inbound_rule_compile(body: InboundRuleDraft) -> Any:
+        """Resolve a predicate to its rule id and count the inflows it would match."""
+        from .categorization import canonical_match, rule_id_for
+        from .financial_roles import _matches
+        from .inbound_rules import validate_inbound_rule
+        with ledger_writer(database):
+            connection = connect_readonly(database)
+            try:
+                generation = current_generation(connection)
+                if generation is None or generation['generation_token'] != body.generation:
+                    raise HTTPException(409, 'STALE_GENERATION: reload and preview again.')
+                match = canonical_match(body.match)
+                rule_id = rule_id_for(match)
+                payload = {'match': match, 'classification': body.classification, 'reason': body.reason}
+                validate_inbound_rule('INBOUND_RULE_SET', {'rule_id': rule_id}, payload)
+                from .queries import _ENTRY_VIEW
+                matched = pending = 0
+                for row in connection.execute(f'SELECT * FROM ({_ENTRY_VIEW})').fetchall():
+                    raw = dict(row)
+                    if raw['economic_direction'] != 'IN':
+                        continue
+                    entry = {**raw, 'account_id': raw['role_account_id'], 'description_text': raw['role_description_text'],
+                             'paynow_to': raw['role_paynow_to'], 'merchant_match': raw['role_merchant_match']}
+                    if _matches(entry, match):
+                        matched += 1
+                        if raw['bucket'] == 'pending_review':
+                            pending += 1
+                return {
+                    'command': {'kind': 'INBOUND_RULE_SET', 'anchors': {'rule_id': rule_id}, 'payload': payload},
+                    'impact': {'inbound_matches': matched, 'still_unresolved': pending},
+                }
+            finally:
+                connection.close()
+
     @app.post('/api/v1/financial-roles/impact')
     def financial_role_impact(body: FinancialRoleImpactDraft) -> Any:
         """Exact, non-mutating bulk-role preview for a frozen anchor selection."""
@@ -1101,33 +1186,79 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 generation = current_generation(connection)
                 if generation is None or generation['generation_token'] != body.generation:
                     raise HTTPException(409, 'STALE_GENERATION: reload and preview again.')
-                validate_financial_role('ENTRY_ROLE_SET', {'entry': body.anchors[0]}, {'cost_behavior': body.cost_behavior, 'need': body.need, 'reason': 'preview'})
+                if body.category is None and body.cost_behavior is None and body.need is None and not body.clear_category and not body.clear_roles:
+                    raise FinCLError('Choose at least one field to change')
+                if body.category is not None:
+                    resolve_category(body.category, custom_categories(database))
+                if body.cost_behavior is not None or body.need is not None:
+                    validate_financial_role('ENTRY_ROLE_SET', {'entry': body.anchors[0]}, {'cost_behavior': body.cost_behavior, 'need': body.need, 'reason': 'preview'})
                 marks = ','.join('?' for _ in body.anchors)
+                from .queries import _ENTRY_VIEW, _shape
                 rows = connection.execute(
-                    f"""SELECT e.currency_pocket, e.amount_coefficient, e.amount_scale,
-                               fr.cost_behavior AS old_behavior, fr.need AS old_need
-                        FROM ledger_entries e LEFT JOIN entry_financial_roles fr ON fr.entry_id=e.id
-                        WHERE e.natural_anchor IN ({marks}) AND e.analytics_eligible=1
-                          AND e.lifecycle_state='COMPLETED'""", tuple(body.anchors)
+                    f"SELECT * FROM ({_ENTRY_VIEW}) WHERE natural_anchor IN ({marks})",
+                    tuple(body.anchors),
                 ).fetchall()
                 if len(rows) != len(body.anchors):
                     raise FinCLError('One or more selected transactions are no longer active')
+                rules = [dict(rule) for rule in connection.execute('SELECT * FROM role_rules')]
                 by_currency: dict[str, list[dict[str, Any]]] = {}
                 for row in rows:
-                    by_currency.setdefault(row['currency_pocket'], []).append(dict(row))
+                    item = _shape(row, rules)
+                    if item['lifecycle_state'] != 'COMPLETED' or not item['eligible']:
+                        raise FinCLError('One or more selected transactions are inactive')
+                    if (body.cost_behavior is not None or body.need is not None or body.clear_roles) and item['bucket'] != 'spending':
+                        raise FinCLError('Behavior and need apply only to external outflows; remove incompatible transactions')
+                    by_currency.setdefault(item['currency'], []).append(item)
                 return {
-                    'will_change': len(rows), 'by_currency': [
+                    'will_change': sum(
+                        body.category is not None and r['category'] != body.category
+                        or body.clear_category and r['basis'] == 'manual'
+                        or body.cost_behavior is not None and r['cost_behavior'] != body.cost_behavior
+                        or body.need is not None and r['need'] != body.need
+                        or body.clear_roles and (r['cost_behavior_basis'] == 'manual' or r['need_basis'] == 'manual')
+                        for values in by_currency.values() for r in values
+                    ), 'by_currency': [
                         {'currency': currency, 'count': len(values),
                          'absolute_amount': format_decimal(*exact_sum(*[
-                             ExactMoney(abs(r['amount_coefficient']), r['amount_scale'], '') for r in values
+                             _absolute_money(r['amount']) for r in values
                          ])),
-                         'behavior_changed': sum(body.cost_behavior is not None and r['old_behavior'] != body.cost_behavior for r in values),
-                         'need_changed': sum(body.need is not None and r['old_need'] != body.need for r in values)}
+                         'category_changed': sum((body.category is not None and r['category'] != body.category) or (body.clear_category and r['basis'] == 'manual') for r in values),
+                         'behavior_changed': sum((body.cost_behavior is not None and r['cost_behavior'] != body.cost_behavior) or (body.clear_roles and r['cost_behavior_basis'] == 'manual') for r in values),
+                         'need_changed': sum((body.need is not None and r['need'] != body.need) or (body.clear_roles and r['need_basis'] == 'manual') for r in values)}
                         for currency, values in sorted(by_currency.items())
                     ],
                     'protected_overrides': 0,
                     'cash_flow_effect': 'spending total unchanged; reserve eligibility may improve',
                 }
+            finally:
+                connection.close()
+
+    @app.post('/api/v1/financial-roles/rules/compile')
+    def financial_role_rule_compile(body: RoleRuleDraft) -> Any:
+        """Preview a reusable role rule using the same precedence evaluator."""
+        from .categorization import canonical_match, rule_id_for
+        from .financial_roles import _matches, validate_financial_role
+        with ledger_writer(database):
+            connection = connect_readonly(database)
+            try:
+                generation = current_generation(connection)
+                if generation is None or generation['generation_token'] != body.generation:
+                    raise HTTPException(409, 'STALE_GENERATION: reload and preview again.')
+                match = canonical_match(body.match)
+                rule_id = rule_id_for(match)
+                payload = {'match': match, 'cost_behavior': body.cost_behavior, 'need': body.need, 'reason': body.reason}
+                validate_financial_role('ROLE_RULE_SET', {'rule_id': rule_id}, payload)
+                from .queries import _ENTRY_VIEW, _shape
+                rules = [dict(rule) for rule in connection.execute('SELECT * FROM role_rules')]
+                entries = []
+                for row in connection.execute(f'SELECT * FROM ({_ENTRY_VIEW})').fetchall():
+                    raw = dict(row)
+                    entry = _shape(row, rules)
+                    entries.append((entry, {**raw, 'account_id': raw['role_account_id'], 'description_text': raw['role_description_text'], 'paynow_to': raw['role_paynow_to'], 'merchant_match': raw['role_merchant_match']}))
+                matched = [entry for entry, raw in entries if entry['bucket'] == 'spending' and _matches(raw, match)]
+                protected = sum(1 for entry in matched if entry['cost_behavior_basis'] == 'manual' or entry['need_basis'] == 'manual')
+                changed = sum(1 for entry in matched if not ((body.cost_behavior is None or entry['cost_behavior'] == body.cost_behavior) and (body.need is None or entry['need'] == body.need)))
+                return {'command': {'kind': 'ROLE_RULE_SET', 'anchors': {'rule_id': rule_id}, 'payload': payload}, 'impact': {'matches': len(matched), 'will_change': changed - protected, 'protected_overrides': protected}}
             finally:
                 connection.close()
 

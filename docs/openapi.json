@@ -1855,6 +1855,64 @@
         }
       }
     },
+    "/api/v1/inflows/rules": {
+      "get": {
+        "summary": "Inbound Rules List",
+        "description": "Active reusable inbound-classification rules, newest first.",
+        "operationId": "inbound_rules_list_api_v1_inflows_rules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Inbound Rules List Api V1 Inflows Rules Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/inflows/rules/compile": {
+      "post": {
+        "summary": "Inbound Rule Compile",
+        "description": "Resolve a predicate to its rule id and count the inflows it would match.",
+        "operationId": "inbound_rule_compile_api_v1_inflows_rules_compile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InboundRuleDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Inbound Rule Compile Api V1 Inflows Rules Compile Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/financial-roles/impact": {
       "post": {
         "summary": "Financial Role Impact",
@@ -1877,6 +1935,45 @@
               "application/json": {
                 "schema": {
                   "title": "Response Financial Role Impact Api V1 Financial Roles Impact Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/financial-roles/rules/compile": {
+      "post": {
+        "summary": "Financial Role Rule Compile",
+        "description": "Preview a reusable role rule using the same precedence evaluator.",
+        "operationId": "financial_role_rule_compile_api_v1_financial_roles_rules_compile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleRuleDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Financial Role Rule Compile Api V1 Financial Roles Rules Compile Post"
                 }
               }
             }
@@ -4025,7 +4122,7 @@
               "$ref": "#/components/schemas/BatchItem"
             },
             "type": "array",
-            "maxItems": 200,
+            "maxItems": 400,
             "minItems": 1,
             "title": "Items"
           },
@@ -4063,7 +4160,9 @@
               "ENTRY_ROLE_SET",
               "ENTRY_ROLE_RETIRE",
               "ROLE_RULE_SET",
-              "ROLE_RULE_RETIRE"
+              "ROLE_RULE_RETIRE",
+              "INBOUND_RULE_SET",
+              "INBOUND_RULE_RETIRE"
             ],
             "title": "Kind"
           },
@@ -4402,7 +4501,9 @@
               "ENTRY_ROLE_SET",
               "ENTRY_ROLE_RETIRE",
               "ROLE_RULE_SET",
-              "ROLE_RULE_RETIRE"
+              "ROLE_RULE_RETIRE",
+              "INBOUND_RULE_SET",
+              "INBOUND_RULE_RETIRE"
             ],
             "title": "Kind"
           },
@@ -4954,6 +5055,10 @@
           "role_review_state": {
             "type": "string",
             "title": "Role Review State"
+          },
+          "suggested_classification": {
+            "type": "string",
+            "title": "Suggested Classification"
           }
         },
         "additionalProperties": false,
@@ -4981,7 +5086,8 @@
           "cost_behavior_basis",
           "need",
           "need_basis",
-          "role_review_state"
+          "role_review_state",
+          "suggested_classification"
         ],
         "title": "Entry"
       },
@@ -5024,6 +5130,22 @@
             "minItems": 1,
             "title": "Anchors"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "clear_category": {
+            "type": "boolean",
+            "title": "Clear Category",
+            "default": false
+          },
           "cost_behavior": {
             "anyOf": [
               {
@@ -5045,6 +5167,11 @@
               }
             ],
             "title": "Need"
+          },
+          "clear_roles": {
+            "type": "boolean",
+            "title": "Clear Roles",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -5132,6 +5259,42 @@
           "on"
         ],
         "title": "HypotheticalIncomeDraft"
+      },
+      "InboundRuleDraft": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Generation"
+          },
+          "match": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Match"
+          },
+          "classification": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Classification"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "match",
+          "classification",
+          "reason"
+        ],
+        "title": "InboundRuleDraft"
       },
       "MerchantRank": {
         "properties": {
@@ -5490,6 +5653,57 @@
           "basis"
         ],
         "title": "ReviewProposal"
+      },
+      "RoleRuleDraft": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Generation"
+          },
+          "match": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Match"
+          },
+          "cost_behavior": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Behavior"
+          },
+          "need": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Need"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "match",
+          "reason"
+        ],
+        "title": "RoleRuleDraft"
       },
       "RuleDerivationDraft": {
         "properties": {

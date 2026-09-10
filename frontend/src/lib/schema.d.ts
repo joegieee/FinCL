@@ -718,6 +718,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inflows/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inbound Rules List
+         * @description Active reusable inbound-classification rules, newest first.
+         */
+        get: operations["inbound_rules_list_api_v1_inflows_rules_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inflows/rules/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inbound Rule Compile
+         * @description Resolve a predicate to its rule id and count the inflows it would match.
+         */
+        post: operations["inbound_rule_compile_api_v1_inflows_rules_compile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/financial-roles/impact": {
         parameters: {
             query?: never;
@@ -732,6 +772,26 @@ export interface paths {
          * @description Exact, non-mutating bulk-role preview for a frozen anchor selection.
          */
         post: operations["financial_role_impact_api_v1_financial_roles_impact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/financial-roles/rules/compile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Financial Role Rule Compile
+         * @description Preview a reusable role rule using the same precedence evaluator.
+         */
+        post: operations["financial_role_rule_compile_api_v1_financial_roles_rules_compile_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1414,7 +1474,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE";
             /** Anchors */
             anchors: {
                 [key: string]: string;
@@ -1506,7 +1566,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT" | "CATEGORY_DETAILS_SET" | "CATEGORY_ARCHIVE_SET" | "ACCOUNT_SCOPE_SET" | "ACCOUNT_DETAILS_SET" | "ACCOUNT_ALIAS_SET" | "ACCOUNT_ALIAS_RETIRE" | "REVIEW_DEFER_SET" | "REVIEW_DEFER_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_DETAILS_SET" | "PERSONAL_DEBT_EVENT_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_SET" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "CARD_FACILITY_SET" | "CARD_FACILITY_RETIRE" | "CARD_LIMIT_OBSERVATION_SET" | "CARD_LIMIT_OBSERVATION_RETIRE" | "CARD_PAYMENT_ALLOCATION_SET" | "CARD_PAYMENT_ALLOCATION_RETIRE" | "INSTALLMENT_PLAN_SET" | "INSTALLMENT_PLAN_RETIRE" | "INSTALLMENT_ALLOCATION_SET" | "INSTALLMENT_ALLOCATION_RETIRE" | "INSTALLMENT_SETTLEMENT_SET" | "INSTALLMENT_SETTLEMENT_RETIRE" | "BUDGET_REVISION_SET" | "BUDGET_ARCHIVE_SET" | "GOAL_DETAILS_SET" | "GOAL_OBSERVATION_SET" | "GOAL_OBSERVATION_RETIRE" | "GOAL_ARCHIVE_SET" | "RECURRING_COMMITMENT_SET" | "RECURRING_CANDIDATE_DISMISS" | "RECURRING_OCCURRENCE_SET" | "RECURRING_OCCURRENCE_RETIRE" | "BALANCE_OBSERVATION_SET" | "BALANCE_OBSERVATION_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT" | "CATEGORY_DETAILS_SET" | "CATEGORY_ARCHIVE_SET" | "ACCOUNT_SCOPE_SET" | "ACCOUNT_DETAILS_SET" | "ACCOUNT_ALIAS_SET" | "ACCOUNT_ALIAS_RETIRE" | "REVIEW_DEFER_SET" | "REVIEW_DEFER_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_DETAILS_SET" | "PERSONAL_DEBT_EVENT_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_SET" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "CARD_FACILITY_SET" | "CARD_FACILITY_RETIRE" | "CARD_LIMIT_OBSERVATION_SET" | "CARD_LIMIT_OBSERVATION_RETIRE" | "CARD_PAYMENT_ALLOCATION_SET" | "CARD_PAYMENT_ALLOCATION_RETIRE" | "INSTALLMENT_PLAN_SET" | "INSTALLMENT_PLAN_RETIRE" | "INSTALLMENT_ALLOCATION_SET" | "INSTALLMENT_ALLOCATION_RETIRE" | "INSTALLMENT_SETTLEMENT_SET" | "INSTALLMENT_SETTLEMENT_RETIRE" | "BUDGET_REVISION_SET" | "BUDGET_ARCHIVE_SET" | "GOAL_DETAILS_SET" | "GOAL_OBSERVATION_SET" | "GOAL_OBSERVATION_RETIRE" | "GOAL_ARCHIVE_SET" | "RECURRING_COMMITMENT_SET" | "RECURRING_CANDIDATE_DISMISS" | "RECURRING_OCCURRENCE_SET" | "RECURRING_OCCURRENCE_RETIRE" | "BALANCE_OBSERVATION_SET" | "BALANCE_OBSERVATION_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE";
             /** Anchors */
             anchors: {
                 [key: string]: string;
@@ -1694,6 +1754,8 @@ export interface components {
             need_basis: string;
             /** Role Review State */
             role_review_state: string;
+            /** Suggested Classification */
+            suggested_classification: string;
         };
         /** EventDateChangeDraft */
         EventDateChangeDraft: {
@@ -1708,10 +1770,22 @@ export interface components {
             generation: string;
             /** Anchors */
             anchors: string[];
+            /** Category */
+            category?: string | null;
+            /**
+             * Clear Category
+             * @default false
+             */
+            clear_category: boolean;
             /** Cost Behavior */
             cost_behavior?: string | null;
             /** Need */
             need?: string | null;
+            /**
+             * Clear Roles
+             * @default false
+             */
+            clear_roles: boolean;
         };
         /** FundConfirmationDraft */
         FundConfirmationDraft: {
@@ -1740,6 +1814,19 @@ export interface components {
              * @default Hypothetical income
              */
             label: string;
+        };
+        /** InboundRuleDraft */
+        InboundRuleDraft: {
+            /** Generation */
+            generation: string;
+            /** Match */
+            match: {
+                [key: string]: unknown;
+            };
+            /** Classification */
+            classification: string;
+            /** Reason */
+            reason: string;
         };
         /** MerchantRank */
         MerchantRank: {
@@ -1866,6 +1953,21 @@ export interface components {
             event_kind: string;
             /** Basis */
             basis: string;
+        };
+        /** RoleRuleDraft */
+        RoleRuleDraft: {
+            /** Generation */
+            generation: string;
+            /** Match */
+            match: {
+                [key: string]: unknown;
+            };
+            /** Cost Behavior */
+            cost_behavior?: string | null;
+            /** Need */
+            need?: string | null;
+            /** Reason */
+            reason: string;
         };
         /** RuleDerivationDraft */
         RuleDerivationDraft: {
@@ -3210,6 +3312,59 @@ export interface operations {
             };
         };
     };
+    inbound_rules_list_api_v1_inflows_rules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    inbound_rule_compile_api_v1_inflows_rules_compile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InboundRuleDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     financial_role_impact_api_v1_financial_roles_impact_post: {
         parameters: {
             query?: never;
@@ -3220,6 +3375,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FinancialRoleImpactDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    financial_role_rule_compile_api_v1_financial_roles_rules_compile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleRuleDraft"];
             };
         };
         responses: {

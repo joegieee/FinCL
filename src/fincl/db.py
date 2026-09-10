@@ -985,6 +985,10 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
             rule_id TEXT PRIMARY KEY, match_json TEXT NOT NULL,
             cost_behavior TEXT, need TEXT, reason TEXT NOT NULL, journal_seq INTEGER NOT NULL
         ) STRICT;
+        CREATE TABLE IF NOT EXISTS inbound_rules (
+            rule_id TEXT PRIMARY KEY, match_json TEXT NOT NULL,
+            classification TEXT NOT NULL, reason TEXT NOT NULL, journal_seq INTEGER NOT NULL
+        ) STRICT;
 
         -- The raw -> canonical merchant trail, one row per eligible ledger
         -- entry. Derived, recomputed on categorize / rebuild, never migrated

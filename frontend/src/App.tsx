@@ -25,6 +25,7 @@ import { AccountsView } from '@/features/accounts'
 import { RulesView } from '@/features/rules'
 import { CustomCategoryManager } from '@/features/categories/CustomCategoryManager'
 import { BulkAssign } from '@/features/transactions/BulkAssign'
+import { InflowsView } from '@/features/inflows'
 import { PlanningView } from '@/features/planning'
 import { BaselineView } from '@/features/baseline'
 import { CashView } from '@/features/cash'
@@ -38,7 +39,7 @@ import { FundsView } from '@/features/funds'
 import { VarianceView } from '@/features/variance'
 import { MaintenanceView } from '@/features/maintenance'
 
-const tabs=['Overview','Baseline','Cash','Forecast','Annual funds','Variance','Controls','Cash Flow','Analysis','Transactions','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
+const tabs=['Overview','Baseline','Cash','Forecast','Annual funds','Variance','Controls','Cash Flow','Analysis','Transactions','Income','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
 type Tab=typeof tabs[number]
 function initialTab():Tab { const v=new URLSearchParams(location.search).get('view');return tabs.find(t=>t===v)||'Overview' }
 function pct(actual:string|null,target:string) { return actual===null?0:Math.max(0,Math.min(100,Number(actual)/Number(target)*100)) }
@@ -50,7 +51,8 @@ export default function App(){
  const [search,setSearch]=useState(''),[category,setCategory]=useState(''),[account,setAccount]=useState(''),[kind,setKind]=useState(''),[excluded,setExcluded]=useState(false),[sort,setSort]=useState('date')
  const [tx,setTx]=useState<TransactionsPage|null>(null),[txCursors,setTxCursors]=useState<Array<string|null>>([null]),[txIndex,setTxIndex]=useState(0),[txLoading,setTxLoading]=useState(false),[txError,setTxError]=useState('')
  const [picked,setPicked]=useState<Set<string>>(()=>new Set()),[matchAll,setMatchAll]=useState<{anchors:string[];truncated:boolean}|null>(null)
- function togglePick(anchor:string){setMatchAll(null);setPicked(s=>{const n=new Set(s);n.has(anchor)?n.delete(anchor):n.add(anchor);return n})}
+ const lastPicked=useRef<number|null>(null)
+ function togglePick(anchor:string,index?:number,range=false){setMatchAll(null);setPicked(s=>{const n=new Set(s);if(range&&index!==undefined&&lastPicked.current!==null){const from=Math.min(index,lastPicked.current),to=Math.max(index,lastPicked.current);txRows.slice(from,to+1).forEach(row=>n.add(row.anchor))}else if(n.has(anchor))n.delete(anchor);else n.add(anchor);return n});if(index!==undefined)lastPicked.current=index}
  function clearPicks(){setPicked(new Set());setMatchAll(null)}
  const [entry,setEntry]=useState<Entry|null>(null),[dialog,setDialog]=useState<'category'|'budget'|'goal'|null>(null),[editingPlan,setEditingPlan]=useState<Plan|null>(null)
  const [historyRows,setHistoryRows]=useState<Array<{sequence:number;date:string;kind:string;reason:string;category:string}>|null>(null)
@@ -94,6 +96,7 @@ export default function App(){
  async function saved(status:string){setNotice(status==='recorded_refresh_pending'?'Saved; totals awaiting refresh. Use Refresh to retry.':'Saved to your ledger.');setEntry(null);setDialog(null);setEditingPlan(null);await load()}
  async function refresh(){setLoading(true);try{await api('refresh',{});await load();setNotice('Ledger refreshed.')}catch(e){setError((e as Error).message);setLoading(false)}}
  const txRows=(tx?.entries||[]).map(e=>({...e,cost_behavior:e.cost_behavior??(e.bucket==='spending'?'unresolved':'N/A'),cost_behavior_basis:e.cost_behavior_basis??'unresolved',need:e.need??(e.bucket==='spending'?'unresolved':'N/A'),need_basis:e.need_basis??'unresolved'}))
+ useEffect(()=>{function onTransactionKey(event:KeyboardEvent){if(tab!=='Transactions'||event.metaKey||event.ctrlKey||event.altKey)return;const target=event.target as HTMLElement;if(['INPUT','TEXTAREA','SELECT'].includes(target.tagName))return;if(event.key==='b'&&picked.size){event.preventDefault();document.querySelector<HTMLElement>('.bulk-assign')?.focus()}if(event.key==='e'&&picked.size===1){const row=txRows.find(item=>picked.has(item.anchor));if(row){event.preventDefault();setEntry(row)}}if(event.key==='Escape')clearPicks()}document.addEventListener('keydown',onTransactionKey);return()=>document.removeEventListener('keydown',onTransactionKey)},[tab,picked,txRows])
  const s=data?.summary||{}
  const reviewCount=data?.review_count||0
  const proposalCount=data?.transfer_proposals.length||0
@@ -129,6 +132,7 @@ export default function App(){
    </>}
    {(tab==='Analysis'||tab==='Cash Flow')&&<AnalysisView generation={data.generation} start={data.start} end={data.end} currency={currency} accounts={data.accounts} categories={data.categories} onOpenTransactions={(cat,merchant)=>drill(cat,merchant,(cat||merchant)?'spending':'')}/>}
    {tab==='Categorization'&&<CategorizationView generation={data.generation} freshness={data.freshness} categories={data.categories} accounts={data.accounts} currencies={data.currencies} start={data.start} end={data.end} onSaved={saved}/>}
+   {tab==='Income'&&<InflowsView generation={data.generation} freshness={data.freshness} onSaved={saved}/>}
    {tab==='Debts'&&<><div className="explanation"><Wallet size={18}/><p>Informal money you owe or are owed. Payables and receivables are shown separately and never netted. Record borrowing, lending, repayments and shared-expense splits against the bank transactions that funded them; principal never counts as spending or income.</p></div><DebtsView generation={data.generation} onSaved={saved}/></>}
    {tab==='Cards'&&<><div className="explanation"><CreditCard size={18}/><p>Credit cards and their observed statements. Each figure is a fact at a statement period end using that issuer's verified source equation — never a timeless “current balance”. Missing statement periods and reconciliation status are shown before the picture is called complete.</p></div><CardsView generation={data.generation}/></>}
    {tab==='Installments'&&<><div className="explanation"><Layers3 size={18}/><p>Confirmed source-proven installment chains on your cards. Known and unknown principal are both shown; an unknown principal infers no remaining liability. The projected schedule stays distinct from the actual observed occurrences.</p></div><InstallmentsView generation={data.generation}/></>}

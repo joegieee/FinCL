@@ -106,14 +106,16 @@ _SORTS: dict[str, dict[str, str]] = {
 
 _ROW_KEYS = ('id','anchor','date','precision','amount','fee','currency','account','merchant',
              'description','category','basis','source_location','bucket','eligible','review',
-             'source_family','lifecycle_state','cost_behavior','cost_behavior_basis','need','need_basis','role_review_state')
+             'source_family','lifecycle_state','cost_behavior','cost_behavior_basis','need','need_basis','role_review_state',
+             'suggested_classification')
 
 
 def money(value: Decimal) -> str:
     return format(value, 'f')
 
 
-def _shape(row: Any, role_rules: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def _shape(row: Any, role_rules: list[dict[str, Any]] | None = None,
+           inbound_rules: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Turn one `_ENTRY_VIEW` row into the screen dict; amounts stay exact strings."""
     item = dict(row)
     magnitude = abs(Decimal(item['amount_text']))
@@ -127,20 +129,30 @@ def _shape(row: Any, role_rules: list[dict[str, Any]] | None = None) -> dict[str
         review=bool(item['review']),
     )
     from .financial_roles import effective_financial_role
-    item.update(effective_financial_role({
+    role_source = {
         **item,
         'account_id': item['role_account_id'], 'description_text': item['role_description_text'],
         'paynow_to': item['role_paynow_to'], 'merchant_match': item['role_merchant_match'],
-    }, role_rules or []))
+    }
+    item.update(effective_financial_role(role_source, role_rules or []))
+    from .inbound_rules import effective_inbound_classification
+    item['suggested_classification'] = effective_inbound_classification(role_source, inbound_rules or [])
     return {key: item[key] for key in _ROW_KEYS}
+
+
+def _rule_tables(connection: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    return (
+        [dict(row) for row in connection.execute("SELECT * FROM role_rules")],
+        [dict(row) for row in connection.execute("SELECT * FROM inbound_rules")],
+    )
 
 
 def all_entries(connection: Any) -> list[dict[str, Any]]:
     rows = connection.execute(
         f"{_ENTRY_VIEW} ORDER BY effective_at DESC, natural_anchor, id"
     ).fetchall()
-    rules = [dict(row) for row in connection.execute("SELECT * FROM role_rules")]
-    return [_shape(row, rules) for row in rows]
+    role_rules, inbound_rules = _rule_tables(connection)
+    return [_shape(row, role_rules, inbound_rules) for row in rows]
 
 
 def _decode_cursor(cursor: str | None) -> dict[str, str] | None:
@@ -199,9 +211,10 @@ def _tx_filter(
     return ' AND '.join(where), params
 
 
-# Bounded materialization for "select all matching": a bulk correction beyond
-# this needs a narrower filter. Chunked into <=200-item atomic batches by the UI.
-BULK_SELECT_CAP = 1000
+# A bulk correction is one durable DECISION_BATCH.  Keep the frozen selection
+# within the batch validator's limit; splitting a visible action into several
+# commits would make the operation only partially atomic.
+BULK_SELECT_CAP = 200
 
 
 def transaction_anchors(
@@ -291,10 +304,10 @@ def transactions_page(
         has_more = len(rows) > limit
         window = [dict(row) for row in rows[:limit]]
         next_cursor = _encode_cursor(window[-1], sort) if has_more and window else None
-        role_rules = [dict(row) for row in connection.execute("SELECT * FROM role_rules")]
+        role_rules, inbound_rules = _rule_tables(connection)
         return {
             'generation': generation,
-            'entries': [_shape(row, role_rules) for row in window],
+            'entries': [_shape(row, role_rules, inbound_rules) for row in window],
             'next_cursor': next_cursor,
             'total': int(total),
         }

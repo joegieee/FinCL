@@ -24,6 +24,7 @@ from .common import canonical_json
 from .debts.models import DEBT_DECISION_KINDS
 from .errors import FinCLError
 from .financial_roles import FINANCIAL_ROLE_DECISION_KINDS
+from .inbound_rules import INBOUND_RULE_DECISION_KINDS
 from .money import ExactMoney, format_decimal
 
 DECISION_BATCH = "DECISION_BATCH"
@@ -60,10 +61,12 @@ BATCH_CHILD_KINDS = frozenset(
         # classification in the same record.
         *DEBT_DECISION_KINDS,
         *FINANCIAL_ROLE_DECISION_KINDS,
+        *INBOUND_RULE_DECISION_KINDS,
     }
 )
 
-_MAX_BATCH_ITEMS = 200
+# M4 permits one category and one role child per each of its 200 frozen rows.
+_MAX_BATCH_ITEMS = 400
 _MAX_BATCH_BYTES = 1 << 20
 _REASON_MAX = 2000
 
@@ -333,6 +336,7 @@ def preview_batch(
     from .debts.validation import validate_debt_payload
     from .decisions import resolve_anchor
     from .financial_roles import validate_financial_role
+    from .inbound_rules import validate_inbound_rule
 
     def _entry(anchor: str) -> str:
         entry_id = resolve_anchor(connection, anchor)
@@ -356,6 +360,9 @@ def preview_batch(
                 validate_financial_role(kind, anchors, payload)
                 if "entry" in anchors:
                     _entry(anchors["entry"])
+                continue
+            if kind in INBOUND_RULE_DECISION_KINDS:
+                validate_inbound_rule(kind, anchors, payload)
                 continue
             if kind in DUPLICATE_KINDS:
                 validate_duplicate(kind, anchors, payload)
