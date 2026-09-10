@@ -189,10 +189,17 @@ def _window_sql(param_start: str, param_end: str) -> str:
 
 def _tx_filter(
     *, currency: str, start: str, end: str, include_excluded: bool,
-    account: str, category: str, search: str, kind: str,
+    account: str, category: str, search: str, kind: str, direction: str = '',
+    role_anchors: list[str] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """The shared WHERE clause + bound params for the transaction list and its
-    bulk-selection anchor materialization, so both select exactly the same rows."""
+    bulk-selection anchor materialization, so both select exactly the same rows.
+
+    ``direction`` is a plain SQL column filter. The effective-role filters
+    (behavior / need / basis / unresolved-only) cannot be pure SQL because a
+    role rule matches dynamically, so the caller resolves them in Python and
+    passes the surviving anchors as ``role_anchors``; ``[]`` means the filter
+    matched nothing and the clause selects no rows."""
     where = ['currency_pocket = :currency', _window_sql(':start', ':end')]
     params: dict[str, Any] = {'currency': currency, 'start': start, 'end': end}
     if not include_excluded:
@@ -206,6 +213,9 @@ def _tx_filter(
     if search.strip():
         where.append("instr(lower(merchant || ' ' || description), lower(:search)) > 0")
         params['search'] = search.strip()
+    if direction in ('in', 'out'):
+        where.append('economic_direction = :direction')
+        params['direction'] = direction.upper()
     if kind == 'fees':
         where.append('fee_nonzero')
     elif kind == 'review':
@@ -213,7 +223,43 @@ def _tx_filter(
     elif kind:
         where.append('bucket = :kind')
         params['kind'] = kind
+    if role_anchors is not None:
+        if role_anchors:
+            names = ','.join(f':rf{i}' for i in range(len(role_anchors)))
+            where.append(f'natural_anchor IN ({names})')
+            params.update({f'rf{i}': anchor for i, anchor in enumerate(role_anchors)})
+        else:
+            where.append('0')
     return ' AND '.join(where), params
+
+
+def _role_filtered_anchors(
+    connection: Any, base_clause: str, base_params: dict[str, Any], *,
+    behavior: str, need: str, basis: str, unresolved_only: bool,
+) -> list[str]:
+    """Anchors from the base-filtered set whose *effective* financial role
+    matches the role filter. Role rules and outlier suggestions are resolved
+    here with the precedence evaluator, then folded back into the SQL WHERE so
+    keyset pagination and the exact count keep working."""
+    rows = connection.execute(
+        f"SELECT * FROM ({_ENTRY_VIEW}) WHERE {base_clause}", base_params
+    ).fetchall()
+    role_rules, inbound_rules = _rule_tables(connection)
+    current = current_generation(connection)
+    outliers = outlier_anchor_set(connection, current['generation_token']) if current else set()
+    keep: list[str] = []
+    for row in rows:
+        item = _shape(row, role_rules, inbound_rules, outliers)
+        if behavior and item['cost_behavior'] != behavior:
+            continue
+        if need and item['need'] != need:
+            continue
+        if basis and basis not in (item['cost_behavior_basis'], item['need_basis']):
+            continue
+        if unresolved_only and 'unresolved' not in (item['cost_behavior'], item['need']):
+            continue
+        keep.append(item['anchor'])
+    return keep
 
 
 # A bulk correction is one durable DECISION_BATCH.  Keep the frozen selection
@@ -225,7 +271,8 @@ BULK_SELECT_CAP = 200
 def transaction_anchors(
     database: Path, *, generation: str, start: str, end: str, currency: str = 'SGD',
     search: str = '', category: str = '', account: str = '', kind: str = '',
-    include_excluded: bool = False,
+    direction: str = '', behavior: str = '', need: str = '', basis: str = '',
+    unresolved_only: bool = False, include_excluded: bool = False,
 ) -> dict[str, Any]:
     """Every natural anchor matching the current transaction filter, pinned to
     ``generation`` and capped at ``BULK_SELECT_CAP``. The caller freezes this
@@ -243,10 +290,18 @@ def transaction_anchors(
                 date.fromisoformat(value)
             except ValueError as exc:
                 raise FinCLError('Dates must use YYYY-MM-DD') from exc
-        clause, params = _tx_filter(
-            currency=currency, start=start, end=end, include_excluded=include_excluded,
-            account=account, category=category, search=search, kind=kind,
-        )
+        base: dict[str, Any] = {
+            'currency': currency, 'start': start, 'end': end, 'include_excluded': include_excluded,
+            'account': account, 'category': category, 'search': search, 'kind': kind, 'direction': direction,
+        }
+        role_anchors = None
+        if behavior or need or basis or unresolved_only:
+            base_clause, base_params = _tx_filter(**base)
+            role_anchors = _role_filtered_anchors(
+                connection, base_clause, base_params,
+                behavior=behavior, need=need, basis=basis, unresolved_only=unresolved_only,
+            )
+        clause, params = _tx_filter(**base, role_anchors=role_anchors)
         rows = connection.execute(
             f"SELECT natural_anchor FROM ({_ENTRY_VIEW}) WHERE {clause} "
             f"ORDER BY effective_at DESC, natural_anchor, id LIMIT :cap",
@@ -266,8 +321,9 @@ def transaction_anchors(
 def transactions_page(
     database: Path, *, generation: str, start: str, end: str, currency: str = 'SGD',
     search: str = '', category: str = '', account: str = '', kind: str = '',
-    include_excluded: bool = False, sort: str = 'date', cursor: str | None = None,
-    limit: int = 50,
+    direction: str = '', behavior: str = '', need: str = '', basis: str = '',
+    unresolved_only: bool = False, include_excluded: bool = False, sort: str = 'date',
+    cursor: str | None = None, limit: int = 50,
 ) -> dict[str, Any]:
     """One keyset-paged slice of the transaction list, pinned to `generation`."""
     if sort not in _SORTS:
@@ -288,10 +344,18 @@ def transactions_page(
             except ValueError as exc:
                 raise FinCLError('Dates must use YYYY-MM-DD') from exc
 
-        clause, params = _tx_filter(
-            currency=currency, start=start, end=end, include_excluded=include_excluded,
-            account=account, category=category, search=search, kind=kind,
-        )
+        base: dict[str, Any] = {
+            'currency': currency, 'start': start, 'end': end, 'include_excluded': include_excluded,
+            'account': account, 'category': category, 'search': search, 'kind': kind, 'direction': direction,
+        }
+        role_anchors = None
+        if behavior or need or basis or unresolved_only:
+            base_clause, base_params = _tx_filter(**base)
+            role_anchors = _role_filtered_anchors(
+                connection, base_clause, base_params,
+                behavior=behavior, need=need, basis=basis, unresolved_only=unresolved_only,
+            )
+        clause, params = _tx_filter(**base, role_anchors=role_anchors)
 
         total = connection.execute(
             f"SELECT count(*) FROM ({_ENTRY_VIEW}) WHERE {clause}", params

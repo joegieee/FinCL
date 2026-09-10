@@ -82,10 +82,14 @@ def effective_financial_role(entry: dict[str, Any], rules: list[dict[str, Any]])
     }
     # The latest matching rule wins within a dimension. This is stable because
     # journal sequence is monotonic and rules are projected from that journal.
+    # A rule is a user-authored heuristic (rank 3); it never displaces a bound
+    # recurring occurrence (rank 2, cost behavior only) — §3.2. Rule-over-rule
+    # is still allowed because that basis is "role rule", not "recurring
+    # evidence".
     for rule in sorted(rules, key=lambda item: int(item["journal_seq"])):
         match = json.loads(rule["match_json"])
         if _matches(entry, match):
-            if rule["cost_behavior"] is not None:
+            if rule["cost_behavior"] is not None and result["cost_behavior_basis"] != "recurring evidence":
                 result["cost_behavior"] = rule["cost_behavior"]
                 result["cost_behavior_basis"] = "role rule"
                 result["role_review_state"] = "automatic"

@@ -1081,6 +1081,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.get('/api/v1/transactions',response_model=TransactionsPage)
     def transactions(generation: str, start: str, end: str, currency: str = 'SGD',
                      search: str = '', category: str = '', account: str = '', kind: str = '',
+                     direction: str = '', behavior: str = '', need: str = '', basis: str = '',
+                     unresolved_only: bool = False,
                      include_excluded: bool = False, sort: str = 'date',
                      cursor: str | None = None, limit: int = 50) -> Any:
         with ledger_writer(database):
@@ -1088,6 +1090,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 return transactions_page(
                     database, generation=generation, start=start, end=end, currency=currency,
                     search=search, category=category, account=account, kind=kind,
+                    direction=direction, behavior=behavior, need=need, basis=basis,
+                    unresolved_only=unresolved_only,
                     include_excluded=include_excluded, sort=sort, cursor=cursor, limit=limit,
                 )
             except FinCLError as exc:
@@ -1098,6 +1102,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.get('/api/v1/transactions/anchors')
     def transaction_anchors_route(generation: str, start: str, end: str, currency: str = 'SGD',
                                   search: str = '', category: str = '', account: str = '', kind: str = '',
+                                  direction: str = '', behavior: str = '', need: str = '', basis: str = '',
+                                  unresolved_only: bool = False,
                                   include_excluded: bool = False) -> Any:
         from .queries import transaction_anchors
         with ledger_writer(database):
@@ -1105,6 +1111,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 return transaction_anchors(
                     database, generation=generation, start=start, end=end, currency=currency,
                     search=search, category=category, account=account, kind=kind,
+                    direction=direction, behavior=behavior, need=need, basis=basis,
+                    unresolved_only=unresolved_only,
                     include_excluded=include_excluded,
                 )
             except FinCLError as exc:

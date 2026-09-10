@@ -48,6 +48,17 @@ export const PREDICATES = [
   { key: 'paynow_to', label: 'PayNow recipient' },
 ] as const
 
+export type RoleRuleRow = {
+  rule_id: string
+  match: Record<string, unknown>
+  cost_behavior: string | null
+  need: string | null
+  reason: string
+  journal_seq: number
+}
+export type RoleRulesPage = { generation: string | null; rules: RoleRuleRow[] }
+export const loadRoleRules = () => api<RoleRulesPage>('financial-roles/rules')
+
 export const loadRules = () => api<RulesPage>('rules')
 export const compileRule = (match: Record<string, unknown>, category: string, reason: string) =>
   api<CompiledRule>('rules/compile', { match, category, reason })

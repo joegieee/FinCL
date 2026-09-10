@@ -3222,6 +3222,11 @@ export interface operations {
                 category?: string;
                 account?: string;
                 kind?: string;
+                direction?: string;
+                behavior?: string;
+                need?: string;
+                basis?: string;
+                unresolved_only?: boolean;
                 include_excluded?: boolean;
                 sort?: string;
                 cursor?: string | null;
@@ -3264,6 +3269,11 @@ export interface operations {
                 category?: string;
                 account?: string;
                 kind?: string;
+                direction?: string;
+                behavior?: string;
+                need?: string;
+                basis?: string;
+                unresolved_only?: boolean;
                 include_excluded?: boolean;
             };
             header?: never;

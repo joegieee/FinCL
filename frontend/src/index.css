@@ -274,6 +274,19 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .bulk-form label{margin-bottom:0;font-size:11px}
 .bulk-form label:nth-child(2){flex:1;min-width:200px}
 @media(max-width:700px){.bulk-form{flex-direction:column;align-items:stretch}}
+.transactions-table tr[tabindex]:focus-visible{outline:var(--focus-ring,2px solid var(--primary));outline-offset:-2px}
+/* M4 — narrow screens: stack each transaction row as a labelled card */
+@media(max-width:600px){
+ .table-scroll{overflow:visible}
+ .transactions-table{min-width:0;display:block}
+ .transactions-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+ .transactions-table tbody{display:block}
+ .transactions-table tr{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px}
+ .transactions-table td{display:grid;grid-template-columns:subgrid;grid-column:1/-1;border:0;padding:2px 0;align-items:baseline}
+ .transactions-table td::before{content:attr(data-label);font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+ .transactions-table td[data-label=""]::before,.transactions-table td.pick-cell::before{content:none}
+ .transactions-table td.amount{text-align:left}
+}
 
 /* v0.6 planning — dated budgets, goals, recurring */
 .planning-view{display:flex;flex-direction:column;gap:18px}

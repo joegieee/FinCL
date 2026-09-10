@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { AsyncView } from '@/components/AsyncView'
 import { useLedgerCommand } from '@/lib/command'
 import { api } from '@/lib/api'
-import { compileRule, loadRules, PREDICATES, type CompiledRule, type RulesPage } from './api'
+import { compileRule, loadRoleRules, loadRules, PREDICATES, type CompiledRule, type RoleRuleRow, type RulesPage } from './api'
 
 /**
  * v0.5 slice 3 — merchant aliases and category rules. Predicates are the
@@ -74,7 +74,56 @@ function RulesContent({ page, generation, categories, disabled, loading, load, a
         </Card>
       )}
 
+      <RoleRulesPanel generation={generation} disabled={disabled} onSaved={afterSave} />
+
       <AliasBuilder page={page} disabled={disabled} onSaved={afterSave} />
+    </div>
+  )
+}
+
+function RoleRulesPanel({ generation, disabled, onSaved }: {
+  generation: string; disabled: boolean; onSaved: (status: string) => Promise<void>
+}) {
+  const [rules, setRules] = useState<RoleRuleRow[] | null>(null)
+  const [error, setError] = useState('')
+  const seq = useRef(0)
+  const load = useCallback(() => {
+    const id = ++seq.current
+    setError('')
+    loadRoleRules()
+      .then(p => { if (id === seq.current) setRules(p.rules) })
+      .catch(e => { if (id === seq.current) setError((e as Error).message) })
+  }, [])
+  useEffect(() => { load() }, [load])
+  const afterSave = async (status: string) => { await onSaved(status); load() }
+
+  return (
+    <Card className="rules-list">
+      <div className="panel-title"><div><p className="eyebrow">COST-BEHAVIOR & NEED RULES</p><h2>Reusable role rules; a manual entry override still wins</h2></div></div>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {rules?.length === 0 && <div className="empty"><SlidersHorizontal size={22} /><h3>No role rules yet</h3><p>Create one from Transactions: select rows, set a behavior or need, then “Suggest reusable role rule”. Reactivating a retired rule is the same flow.</p></div>}
+      {(rules ?? []).map(rule => <RoleRuleRow key={rule.rule_id} rule={rule} generation={generation} disabled={disabled} onSaved={afterSave} />)}
+    </Card>
+  )
+}
+
+function RoleRuleRow({ rule, generation, disabled, onSaved }: {
+  rule: RoleRuleRow; generation: string; disabled: boolean; onSaved: (status: string) => void | Promise<void>
+}) {
+  const retire = useLedgerCommand(generation, onSaved)
+  const dimensions = [rule.cost_behavior && `behavior → ${rule.cost_behavior.replaceAll('_', ' ')}`, rule.need && `need → ${rule.need}`].filter(Boolean).join(' · ')
+  return (
+    <div className="rule-row">
+      <div>
+        <strong>{ruleSentence(rule.match)}</strong>
+        <p>{dimensions || 'no dimension set'}</p>
+        {rule.reason && <small>{rule.reason}</small>}
+        {retire.error && <p className="form-error" role="alert">{retire.error}</p>}
+      </div>
+      <Button variant="ghost" size="sm" disabled={disabled || retire.busy}
+        onClick={() => void retire.act({ kind: 'ROLE_RULE_RETIRE', anchors: { rule_id: rule.rule_id }, payload: { reason: `Retire role rule ${rule.rule_id}` } })}>
+        {retire.busy ? 'Working…' : retire.previewed ? 'Confirm retire' : 'Retire'}
+      </Button>
     </div>
   )
 }

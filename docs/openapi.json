@@ -1649,6 +1649,56 @@
             }
           },
           {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Direction"
+            }
+          },
+          {
+            "name": "behavior",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Behavior"
+            }
+          },
+          {
+            "name": "need",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Need"
+            }
+          },
+          {
+            "name": "basis",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Basis"
+            }
+          },
+          {
+            "name": "unresolved_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Unresolved Only"
+            }
+          },
+          {
             "name": "include_excluded",
             "in": "query",
             "required": false,
@@ -1799,6 +1849,56 @@
               "type": "string",
               "default": "",
               "title": "Kind"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Direction"
+            }
+          },
+          {
+            "name": "behavior",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Behavior"
+            }
+          },
+          {
+            "name": "need",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Need"
+            }
+          },
+          {
+            "name": "basis",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Basis"
+            }
+          },
+          {
+            "name": "unresolved_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Unresolved Only"
             }
           },
           {
