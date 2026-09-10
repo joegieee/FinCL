@@ -93,6 +93,14 @@ def effective_financial_role(entry: dict[str, Any], rules: list[dict[str, Any]])
                 result["need"] = rule["need"]
                 result["need_basis"] = "role rule"
                 result["role_review_state"] = "automatic"
+    # Outlier detection may only suggest `irregular`, and only where nothing
+    # stronger than the category default has spoken (§3.1, §3.2). It never
+    # overrides a confirmed recurring occurrence, an active rule, or a manual
+    # entry override.
+    if entry.get("outlier_irregular") and result["cost_behavior_basis"] == "category default":
+        result["cost_behavior"] = "irregular"
+        result["cost_behavior_basis"] = "outlier review"
+        result["role_review_state"] = "suggested"
     if entry.get("cost_behavior") is not None:
         result["cost_behavior"] = entry["cost_behavior"]
         result["cost_behavior_basis"] = "manual"

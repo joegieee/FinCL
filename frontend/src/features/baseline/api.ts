@@ -99,7 +99,25 @@ export type CurrencyEstimate = {
   reserve:
     | { available: false; reason: string }
     | { available: true; months: string; essential_monthly: string; amount: string; basis: string }
-  irregular_risk_entries: { month: string; currency: string; category_key: string; amount: string; threshold: string }[]
+  irregular_risk_entries: { month: string; currency: string; category_key: string; amount: string; threshold: string; review_state: string }[]
+  regime: {
+    warning: boolean
+    reasons: string[]
+    leading_empty_months: number
+    earlier_mean_owner_cost: string
+    recent_mean_owner_cost: string
+  }
+  sensitivity:
+    | { available: false; reason: string }
+    | {
+        available: true
+        basis: string
+        not_a_probability: boolean
+        excluded_month: string
+        excluded_routine_residual: string
+        variable_residual_monthly: string
+        routine_lifestyle_baseline: string
+      }
 }
 
 export type IncomeStream = {

@@ -87,7 +87,7 @@ def _entry_spending(
     try:
         rows = connection.execute(
             """
-            SELECT period, currency, category_key,
+            SELECT period, currency, category_key, origin_anchor,
                    signed_coefficient, scale
             FROM analysis_components
             WHERE generation_token = ? AND lens = 'recorded_flow'
@@ -103,16 +103,62 @@ def _entry_spending(
             "month": row["period"],
             "currency": row["currency"],
             "category_key": row["category_key"],
+            "origin_anchor": row["origin_anchor"],
             "amount": abs(Decimal(row["signed_coefficient"]).scaleb(-int(row["scale"]))),
         }
         for row in rows
     ]
 
 
+def _recurring_matched(
+    database: Path, token: str, span_start: str, span_end: str
+) -> tuple[dict[tuple[str, str], Decimal], set[str]]:
+    """Confirmed recurring spend matched to the month it was recorded in.
+
+    A bound occurrence of an active commitment is deterministic evidence, so
+    its owner cost is lifted out of the routine residual for that month rather
+    than being left to inflate it (§5.5).  The matched anchors are also held
+    back from the outlier scan: a scheduled annual premium is a known cost, not
+    irregular risk.
+    """
+    connection = connect_readonly(database)
+    try:
+        rows = connection.execute(
+            """
+            SELECT ac.period, ac.currency, ac.origin_anchor,
+                   ac.signed_coefficient, ac.scale
+            FROM analysis_components ac
+            JOIN recurring_occurrences o ON o.entry_anchor = ac.origin_anchor AND o.bound = 1
+            JOIN recurring_commitments c ON c.commitment = o.commitment AND c.status = 'active'
+            WHERE ac.generation_token = ? AND ac.lens = 'recorded_flow'
+              AND ac.bucket IN ('spending', 'fees')
+              AND ac.represented_start >= ? AND ac.represented_end <= ?
+            """,
+            (token, span_start, span_end),
+        ).fetchall()
+    finally:
+        connection.close()
+    matched: dict[tuple[str, str], Decimal] = {}
+    anchors: set[str] = set()
+    for row in rows:
+        key = (row["currency"], row["period"])
+        matched[key] = matched.get(key, Decimal(0)) + abs(
+            Decimal(row["signed_coefficient"]).scaleb(-int(row["scale"]))
+        )
+        anchors.add(row["origin_anchor"])
+    return matched, anchors
+
+
 def _irregular_by_month(
-    entries: list[dict[str, Any]], months: list[str], currency: str
+    entries: list[dict[str, Any]], months: list[str], currency: str,
+    exclude: frozenset[str] | set[str] = frozenset(),
 ) -> tuple[dict[str, Decimal], list[dict[str, Any]]]:
-    """Held-out irregular-risk amount per month for one currency."""
+    """Held-out irregular-risk amount per month for one currency.
+
+    ``exclude`` carries the anchors already matched to a confirmed recurring
+    occurrence; they still inform the category median but are never themselves
+    flagged as irregular risk.
+    """
     scoped = [e for e in entries if e["currency"] == currency]
     category_month: dict[tuple[str, str], Decimal] = {}
     for entry in scoped:
@@ -127,6 +173,8 @@ def _irregular_by_month(
     irregular: dict[str, Decimal] = {month: Decimal(0) for month in months}
     flagged: list[dict[str, Any]] = []
     for entry in scoped:
+        if entry["origin_anchor"] in exclude:
+            continue
         threshold = max(_OUTLIER_FLOOR, medians[entry["category_key"]] * _OUTLIER_MULTIPLE)
         if entry["amount"] >= threshold and entry["amount"] > 0:
             irregular[entry["month"]] += entry["amount"]
@@ -137,6 +185,7 @@ def _irregular_by_month(
                     "category_key": entry["category_key"],
                     "amount": str(entry["amount"]),
                     "threshold": str(threshold),
+                    "review_state": "suggested",
                 }
             )
     return irregular, flagged
@@ -156,6 +205,82 @@ def _confirmed_recurring_flat(database: Path) -> dict[str, Decimal]:
         amount = Decimal(row["expected_coefficient"]).scaleb(-int(row["expected_scale"]))
         flat[row["currency"]] = flat.get(row["currency"], Decimal(0)) + amount
     return flat
+
+
+_REGIME_SHIFT_RATIO = Decimal("0.5")
+
+
+def _regime(months: list[str], owner_costs: list[Decimal]) -> dict[str, Any]:
+    """Flag a window whose activity is not one steady regime (§5.5).
+
+    Two shapes are called out, in plain non-probabilistic language: activity
+    that only starts partway through the window, and a recent half that differs
+    materially from the earlier half.  It never suppresses a figure — it marks
+    the mean as resting on a moving base.
+    """
+    reasons: list[str] = []
+    leading_empty = 0
+    for cost in owner_costs:
+        if cost == 0:
+            leading_empty += 1
+        else:
+            break
+    if leading_empty and leading_empty < len(owner_costs):
+        reasons.append(
+            f"activity begins in {months[leading_empty]}, after {leading_empty} "
+            f"empty month{'s' if leading_empty != 1 else ''} in the window; the mean "
+            "spreads a shorter history over the whole window"
+        )
+
+    mid = len(months) // 2
+    earlier = owner_costs[:mid]
+    recent = owner_costs[mid:]
+    earlier_mean = sum(earlier, Decimal(0)) / Decimal(len(earlier)) if earlier else Decimal(0)
+    recent_mean = sum(recent, Decimal(0)) / Decimal(len(recent)) if recent else Decimal(0)
+    if len(months) >= 4 and earlier_mean > 0:
+        change = abs(recent_mean - earlier_mean) / earlier_mean
+        if change >= _REGIME_SHIFT_RATIO:
+            direction = "higher" if recent_mean > earlier_mean else "lower"
+            reasons.append(
+                f"the recent {len(recent)} months average "
+                f"{recent_mean.quantize(Decimal('0.01'))} owner cost versus "
+                f"{earlier_mean.quantize(Decimal('0.01'))} earlier — materially {direction}; "
+                "treat the mean as provisional"
+            )
+    return {
+        "warning": bool(reasons),
+        "reasons": reasons,
+        "leading_empty_months": leading_empty,
+        "earlier_mean_owner_cost": str(earlier_mean.quantize(Decimal("0.01"))),
+        "recent_mean_owner_cost": str(recent_mean.quantize(Decimal("0.01"))),
+    }
+
+
+def _sensitivity(
+    months: list[str], residuals: list[Decimal], fixed_flat: Decimal, scale: int
+) -> dict[str, Any]:
+    """The routine estimate recomputed with the single highest month removed.
+
+    A spread check, never a probability (§5.5): if one unusual month is doing
+    most of the lifting, this shows how much lighter the routine baseline looks
+    without it.
+    """
+    if len(residuals) <= 1:
+        return {"available": False, "reason": "a single-month window has nothing to exclude"}
+    hi_index = max(range(len(residuals)), key=lambda i: residuals[i])
+    kept = [value for i, value in enumerate(residuals) if i != hi_index]
+    variable_residual = _mean(kept, scale)
+    return {
+        "available": True,
+        "basis": "routine estimate with the single highest routine-residual month removed",
+        "not_a_probability": True,
+        "excluded_month": months[hi_index],
+        "excluded_routine_residual": str(residuals[hi_index].quantize(Decimal("0.01"))),
+        "variable_residual_monthly": variable_residual,
+        "routine_lifestyle_baseline": str(
+            (_dec(variable_residual) + fixed_flat).quantize(Decimal("0.01"))
+        ),
+    }
 
 
 def baseline_estimate(database: Path, *, today: date | None = None) -> dict[str, Any]:
@@ -181,29 +306,32 @@ def baseline_estimate(database: Path, *, today: date | None = None) -> dict[str,
         connection.close()
     entries = _entry_spending(database, token, span_start, span_end)
     recurring_flat = _confirmed_recurring_flat(database)
+    recurring_matched, recurring_anchors = _recurring_matched(database, token, span_start, span_end)
     roles = baseline_roles(database, today=today)
 
     by_currency: dict[str, Any] = {}
     for currency in table["currencies"]:
         cells = {row["month"]: row["by_currency"][currency] for row in table["months"]}
         scale = 2
-        irregular, flagged = _irregular_by_month(entries, months, currency)
+        irregular, flagged = _irregular_by_month(entries, months, currency, recurring_anchors)
         fixed_flat = recurring_flat.get(currency, Decimal(0))
 
         month_decomp: list[dict[str, Any]] = []
         residuals: list[Decimal] = []
         irregulars: list[Decimal] = []
         incomes: list[Decimal] = []
+        owner_costs: list[Decimal] = []
         for month in months:
             cell = cells[month]
             owner = _dec(cell["owner_cost_recorded"])
             adjustments = -(_dec(cell["refunds_received"]) + _dec(cell["reimbursements_received"]))
             irregular_m = irregular[month]
-            identified_recurring_m = Decimal(0)  # per-month matching deferred
+            identified_recurring_m = recurring_matched.get((currency, month), Decimal(0))
             residual = owner - irregular_m - identified_recurring_m - adjustments
             residuals.append(residual)
             irregulars.append(irregular_m)
             incomes.append(_dec(cell["income"]))
+            owner_costs.append(owner)
             month_decomp.append(
                 {
                     "month": month,
@@ -283,14 +411,17 @@ def baseline_estimate(database: Path, *, today: date | None = None) -> dict[str,
             "role_groups": [group for group in roles.get("groups", []) if group["currency"] == currency],
             "reserve": reserve,
             "irregular_risk_entries": flagged,
+            "regime": _regime(months, owner_costs),
+            "sensitivity": _sensitivity(months, residuals, fixed_flat, scale),
         }
 
     limitations = [
-        "confirmed recurring schedules are not matched per month; fixed_recurring_monthly "
-        "is the flat sum of active commitments only",
+        "confirmed recurring schedules are matched to the month a bound occurrence "
+        "was recorded in; unbound scheduled dates are not modelled here",
         "automatic category defaults carry their source and review status; unmapped categories "
         "and unlinked receipt adjustments remain unresolved",
         "the upper-spend comparison statistics are observed dispersion, not a calibrated interval",
+        "the sensitivity figure is a spread check with one month removed, not a probability",
     ]
     if window["basis"] == "some-provisional":
         limitations.append(

@@ -30,7 +30,9 @@ function estimate(over: Record<string, unknown> = {}) {
         roles: { months: [{ month: '2026-03', essential: '0.00', discretionary: '60.00', unresolved: '900.00', total: '960.00', reconciles: true }], totals: { essential: '0.00', discretionary: '60.00', unresolved: '900.00', total: '960.00', reconciles: true } },
         role_groups: [{ category_key: 'Unclassified / Unclassified', cost_pattern: 'unresolved', essential_status: 'unresolved', tier: null, basis: 'unmapped or unclassified category', review_status: 'unresolved', amount: '900.00', source_count: 1 }],
         reserve: { available: false, reason: 'essential role coverage is incomplete' },
-        irregular_risk_entries: [{ month: '2026-03', currency: 'SGD', category_key: 'Unclassified / Unclassified', amount: '900.00', threshold: '180.00' }],
+        irregular_risk_entries: [{ month: '2026-03', currency: 'SGD', category_key: 'Unclassified / Unclassified', amount: '900.00', threshold: '180.00', review_state: 'suggested' }],
+        regime: { warning: false, reasons: [], leading_empty_months: 0, earlier_mean_owner_cost: '0.00', recent_mean_owner_cost: '960.00' },
+        sensitivity: { available: false, reason: 'a single-month window has nothing to exclude' },
       },
     },
     income_streams: [],
@@ -91,6 +93,23 @@ describe('BaselineView', () => {
     expect(screen.getByText('Discretionary (sample total)')).toBeInTheDocument()
     expect(screen.getByText(/Unavailable — no classified income/)).toBeInTheDocument()
     expect(screen.getByText(/1 entry held out as irregular risk/)).toBeInTheDocument()
+    expect(screen.getByText(/Sensitivity \(highest month removed\)/)).toBeInTheDocument()
+    expect(screen.getByText(/a single-month window has nothing to exclude/)).toBeInTheDocument()
+  })
+
+  it('shows a regime warning when the window is not one steady regime', async () => {
+    loadBaselineReadiness.mockResolvedValue(readiness())
+    loadBaselineEstimate.mockResolvedValue(estimate({
+      by_currency: {
+        SGD: {
+          ...estimate().by_currency.SGD,
+          regime: { warning: true, reasons: ['activity begins in 2026-03, after 2 empty months in the window'], leading_empty_months: 2, earlier_mean_owner_cost: '0.00', recent_mean_owner_cost: '960.00' },
+        },
+      },
+    }))
+    render(<BaselineView />)
+
+    expect(await screen.findByText(/Regime: activity begins in 2026-03/)).toBeInTheDocument()
   })
 
   it('reports a clean bill when there are no evidence tasks', async () => {

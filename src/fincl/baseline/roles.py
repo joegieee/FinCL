@@ -203,12 +203,12 @@ def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, An
                 "basis": manual["cost_behavior_basis"] or manual["need_basis"] or role["basis"],
                 "review_status": manual["review_state"],
             }
-        if row["component_id"] in irregular_components and not recurring_source:
+        if row["component_id"] in irregular_components and not recurring_source and not manual:
             role = {
                 **role,
                 "cost_pattern": "irregular",
                 "basis": "outlier-v1 source-backed review",
-                "review_status": "review_required",
+                "review_status": "suggested",
             }
         status = role["essential_status"]
         totals[(month, currency, status)].append(amount)

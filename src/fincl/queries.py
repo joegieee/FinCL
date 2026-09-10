@@ -13,6 +13,7 @@ from typing import Any
 
 from .analysis import handles
 from .analysis.queries import analysis_page as analysis_page
+from .baseline.outliers import outlier_anchor_set
 from .common import category_strings
 from .custom_categories import custom_categories
 from .db import connect_readonly
@@ -115,7 +116,8 @@ def money(value: Decimal) -> str:
 
 
 def _shape(row: Any, role_rules: list[dict[str, Any]] | None = None,
-           inbound_rules: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+           inbound_rules: list[dict[str, Any]] | None = None,
+           outlier_anchors: set[str] | None = None) -> dict[str, Any]:
     """Turn one `_ENTRY_VIEW` row into the screen dict; amounts stay exact strings."""
     item = dict(row)
     magnitude = abs(Decimal(item['amount_text']))
@@ -133,6 +135,7 @@ def _shape(row: Any, role_rules: list[dict[str, Any]] | None = None,
         **item,
         'account_id': item['role_account_id'], 'description_text': item['role_description_text'],
         'paynow_to': item['role_paynow_to'], 'merchant_match': item['role_merchant_match'],
+        'outlier_irregular': bool(outlier_anchors and item['anchor'] in outlier_anchors),
     }
     item.update(effective_financial_role(role_source, role_rules or []))
     from .inbound_rules import effective_inbound_classification
@@ -152,7 +155,9 @@ def all_entries(connection: Any) -> list[dict[str, Any]]:
         f"{_ENTRY_VIEW} ORDER BY effective_at DESC, natural_anchor, id"
     ).fetchall()
     role_rules, inbound_rules = _rule_tables(connection)
-    return [_shape(row, role_rules, inbound_rules) for row in rows]
+    current = current_generation(connection)
+    outliers = outlier_anchor_set(connection, current['generation_token']) if current else set()
+    return [_shape(row, role_rules, inbound_rules, outliers) for row in rows]
 
 
 def _decode_cursor(cursor: str | None) -> dict[str, str] | None:
@@ -305,9 +310,10 @@ def transactions_page(
         window = [dict(row) for row in rows[:limit]]
         next_cursor = _encode_cursor(window[-1], sort) if has_more and window else None
         role_rules, inbound_rules = _rule_tables(connection)
+        outliers = outlier_anchor_set(connection, current['generation_token'])
         return {
             'generation': generation,
-            'entries': [_shape(row, role_rules, inbound_rules) for row in window],
+            'entries': [_shape(row, role_rules, inbound_rules, outliers) for row in window],
             'next_cursor': next_cursor,
             'total': int(total),
         }

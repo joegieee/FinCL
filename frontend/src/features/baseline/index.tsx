@@ -199,6 +199,9 @@ function EstimateCard({ currency, est, quality }: { currency: string; est: Curre
         <div><p className="eyebrow">WHAT YOUR NORMAL LIFE COSTS · {currency}</p><h2>{money(est.routine_lifestyle_baseline, currency)} / month</h2></div>
         <Badge variant="outline" className={quality === 'normal' ? '' : 'review-badge'}>{QUALITY_LABEL[quality] ?? quality}</Badge>
       </div>
+      {est.regime.warning && (
+        <p className="muted-note"><AlertTriangle size={13} /> Regime: {est.regime.reasons.join('; ')}.</p>
+      )}
       <dl className="baseline-metrics">
         <div><dt>Fixed recurring</dt><dd>{money(est.fixed_recurring_monthly, currency)}</dd></div>
         <div><dt>Variable residual (mean)</dt><dd>{money(est.variable_residual_monthly, currency)}</dd></div>
@@ -209,6 +212,9 @@ function EstimateCard({ currency, est, quality }: { currency: string; est: Curre
         <div><dt>Historical surplus</dt><dd>{money(est.historical_surplus_monthly, currency)}</dd></div>
         <div><dt>Savings rate</dt><dd>{ratioText(est.savings_rate)}</dd></div>
         <div><dt>Fixed-cost ratio</dt><dd>{ratioText(est.fixed_cost_ratio)}</dd></div>
+        <div><dt>Sensitivity (highest month removed)</dt><dd>{est.sensitivity.available
+          ? `${money(est.sensitivity.routine_lifestyle_baseline, currency)} / month without ${est.sensitivity.excluded_month} — a spread check, not a probability`
+          : est.sensitivity.reason}</dd></div>
         {est.roles && <>
           <div><dt>Essential (sample total)</dt><dd>{money(est.roles.totals.essential, currency)}</dd></div>
           <div><dt>Discretionary (sample total)</dt><dd>{money(est.roles.totals.discretionary, currency)}</dd></div>
