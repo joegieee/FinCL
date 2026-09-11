@@ -1,10 +1,11 @@
 import { useId } from 'react'
 
 // Wire shape of `valuation.ValuedMoneyDTO` (PLAN-reporting-currency-and-money-flow.md
-// §3.3, §7.2). Hand-typed here rather than imported from the generated
-// `lib/schema.d.ts`: this M2 milestone does not wire a route to emit it yet
-// (no regenerated OpenAPI/TS DTOs in this change), and the shape
-// is what the backend's pydantic model actually defines.
+// §3.3, §4.1, §7.2). Hand-typed here rather than imported from the generated
+// `lib/schema.d.ts`: no route emits this DTO yet (M3b.1 step 03 is
+// reusable-pieces-only; step 04 wires the first real route). Kept aligned
+// with `valuation.RateInputDTO`/`ConsolidatedValuationDTO` by hand until
+// step 05 replaces every type here with the generated ones.
 export type RateInputDTO = {
   base_currency: string
   quote_currency: string
@@ -14,6 +15,29 @@ export type RateInputDTO = {
   source: string
   source_version: string
   inverted: boolean
+  // Exact applied ratio as decimal-string integers — never a JS `number`,
+  // which silently loses precision above 2**53 (§4.1).
+  applied_numerator: string
+  applied_denominator: string
+  direction: 'direct' | 'inverse'
+  // The genuinely imported printed decimal, when one is on file; `null` only
+  // when no printed text exists for either direction. For an inverse leg
+  // this is the *other* direction's own printed text, never the applied
+  // ratio re-rendered as a rounded finite decimal (§4.1).
+  imported_rate_text: string | null
+}
+
+// Wire shape of `valuation.ExcludedScopeDetailDTO` (§4.1, §4.3): why exactly
+// one currency/period scope was excluded, distinct from a flat global reason
+// list. Every reason here is a *rate*-availability gap — a caller combining
+// this with an evidence-coverage result (missing balance/movement evidence)
+// must keep the two lists visibly separate, never merge them into one.
+export type ExcludedScopeDetailDTO = {
+  currency: string
+  period: string | null
+  entry_count: number
+  reasons: string[]
+  remedies: string[]
 }
 
 export type UnavailabilityDTO = {
@@ -62,8 +86,19 @@ const BASIS_LABEL: Record<NonNullable<ValuedMoneyDTO['basis']>, string> = {
   prior_observation: 'Prior dated rate',
   monthly_average: 'Monthly average rate',
   monthly_proxy: 'Monthly proxy rate',
-  current_mark: 'Current rate',
+  // Not "Current rate": a closed-month POSITION mark is a monthly reference
+  // mark, not a live/current-day quote (§4.1) — the label must not imply
+  // otherwise.
+  current_mark: 'Monthly reference mark',
   held_latest: 'Forward-held rate',
+}
+
+// §4.1: a monthly position mark is a reference value for one closed month,
+// never a live market quote — shown only for the one basis that could
+// otherwise read as "live" ("Monthly reference mark" already says "monthly",
+// but the note spells out *why* that matters for a reader skimming the tag).
+const BASIS_NOTE: Partial<Record<NonNullable<ValuedMoneyDTO['basis']>, string>> = {
+  current_mark: 'A monthly reference value, not a live market quote.',
 }
 
 /** §7.2: one accessible `<Money value={valued}>` component. */
@@ -88,6 +123,7 @@ export function Money({ value }: { value: ValuedMoneyDTO }) {
   const isNative = value.basis === 'identity' || reported == null
   const displayed = isNative ? value.native : reported
   const basisLabel = value.basis ? BASIS_LABEL[value.basis] : null
+  const basisNote = value.basis ? BASIS_NOTE[value.basis] : null
   const isForward = value.basis === 'held_latest'
 
   return <span className={`money${isForward ? ' money-forward' : ''}`}>
@@ -104,10 +140,18 @@ export function Money({ value }: { value: ValuedMoneyDTO }) {
           <div><dt>Native amount</dt><dd>{groupDigits(value.native.value)} {value.native.currency}</dd></div>
           {value.rate_as_of && <div><dt>Rate date</dt><dd>{value.rate_as_of}</dd></div>}
           {value.rate_period && <div><dt>Rate period</dt><dd>{value.rate_period}</dd></div>}
+          {basisNote && <div><dt>About this rate</dt><dd>{basisNote}</dd></div>}
           {value.rate_path.map((rate, index) => (
             <div key={index}>
               <dt>Source</dt>
-              <dd>{rate.source} ({rate.source_version}){rate.inverted ? ' · inverted' : ''}</dd>
+              <dd>
+                {rate.source} ({rate.source_version}){rate.direction === 'inverse' ? ' · inverse' : ''}
+                {' — applied '}
+                {/* An exact ratio, not a rounded finite decimal (§4.1): a
+                    reciprocal like 1/0.75 is 4/3 exactly, never "1.33". */}
+                {rate.applied_numerator}/{rate.applied_denominator} (exact)
+                {rate.imported_rate_text != null && ` · imported as ${rate.imported_rate_text}`}
+              </dd>
             </div>
           ))}
         </dl>
@@ -118,22 +162,49 @@ export function Money({ value }: { value: ValuedMoneyDTO }) {
 
 /** A consolidated valuation's total/partial_total (§3.6, §7.2 "Known subtotal"). */
 export function ConsolidatedMoney({
-  total, partialTotal, currency, unavailableReasons = [],
+  total, partialTotal, currency, unavailableReasons = [], excludedDetail = [],
 }: {
   total: MoneyAmountDTO | null
   partialTotal: MoneyAmountDTO | null
   currency: string
   unavailableReasons?: string[]
+  // §4.1/§4.3: per-scope reason(s)/remedy(ies), alongside the flat
+  // `unavailableReasons` fallback above. Every entry here is a *rate* gap
+  // (see `ExcludedScopeDetailDTO`); a caller must render a separate,
+  // visibly distinct list for any evidence-coverage gap rather than mixing
+  // the two into this prop.
+  excludedDetail?: ExcludedScopeDetailDTO[]
 }) {
   if (total) {
     return <span className="money">
       <span className="money-amount">{groupDigits(total.value)} {currency}</span>
     </span>
   }
+  const excludedDisclosure = excludedDetail.length > 0 && (
+    <details className="money-disclosure money-excluded-disclosure">
+      <summary><span className="sr-only">Excluded currency/period scopes</span></summary>
+      <div className="money-disclosure-panel">
+        <dl>
+          {excludedDetail.map((detail, index) => (
+            <div key={index}>
+              <dt>{detail.currency}{detail.period ? ` · ${detail.period}` : ''}</dt>
+              <dd>
+                {detail.reasons.join(', ')}
+                {detail.remedies.length > 0 && (
+                  <span className="money-remedy"> {detail.remedies.join(' ')}</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    </details>
+  )
   if (partialTotal) {
     return <span className="money">
       <span className="money-amount">{groupDigits(partialTotal.value)} {currency}</span>
       <span className="money-basis-tag money-partial-tag">Known subtotal</span>
+      {excludedDisclosure}
     </span>
   }
   // An aria-hidden dash on its own would leave a screen reader with no
@@ -144,6 +215,7 @@ export function ConsolidatedMoney({
       <strong>Not available</strong>
       {unavailableReasons.length > 0 && <span>{unavailableReasons.join(', ')}</span>}
     </span>
+    {excludedDisclosure}
   </span>
 }
 

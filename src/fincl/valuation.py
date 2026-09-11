@@ -45,6 +45,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from enum import StrEnum
 from fractions import Fraction
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -66,6 +67,8 @@ __all__ = [
     "ConsolidationStatus",
     "EntryPrecision",
     "ExactValuation",
+    "ExcludedScopeDetail",
+    "ExcludedScopeDetailDTO",
     "MoneyDTO",
     "RateBasis",
     "RateInput",
@@ -293,6 +296,15 @@ class RateInput:
     rate_denominator: int
     rate_text: str
     imported_at: str | None = None
+    # The genuinely *imported* printed decimal, when one exists (§4.1: "preserve
+    # imported text separately when available"). For a direct row this equals
+    # ``rate_text``. For an inverted row, ``rate_text`` is a synthesized
+    # ``"numerator/denominator"`` display fallback — never something anyone
+    # actually typed — so this field instead carries the *other* direction's
+    # own printed text (e.g. the imported "0.7500" for a reporting -> native
+    # row that this leg reciprocates), or ``None`` when no printed text is on
+    # file at all.
+    imported_rate_text: str | None = None
 
     def legacy_provenance_dict(self) -> dict[str, str]:
         """The exact shape ``fx.selected_rate`` returns.
@@ -490,6 +502,28 @@ class ConsolidationStatus(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class ExcludedScopeDetail:
+    """Why exactly *this* scope was excluded (§4.1, §6.2).
+
+    Distinct from ``ConsolidatedValuation.unavailable_reasons``, which is a
+    flat, deduplicated set answering "was reason X present anywhere in this
+    result". A caller rendering one row per excluded currency/period needs its
+    own reason(s) and remedy(ies) beside it, not a global list it must guess
+    the mapping for. Every reason here is a *rate*-availability gap by
+    construction — this module never knows about missing balance/movement
+    evidence, which is a distinct kind of gap surfaced elsewhere (e.g.
+    ``fincl.position.queries``) and must not be merged into this list by a
+    caller that combines both (§4.3: "keep evidence gaps distinct from rate
+    gaps").
+    """
+
+    scope: ValuationScope
+    entry_count: int
+    reasons: tuple[str, ...]
+    remedies: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ConsolidatedValuation:
     """Result of grouping and valuing many items under one context (§3.6)."""
 
@@ -500,6 +534,7 @@ class ConsolidatedValuation:
     excluded: tuple[ValuationScope, ...]
     excluded_entry_count: int
     unavailable_reasons: tuple[str, ...]
+    excluded_detail: tuple[ExcludedScopeDetail, ...]
     rate_inputs: tuple[RateInput, ...]
     context: ValuationContext
     # Per-item results in the caller's input order. Not part of the wire DTO:
@@ -547,6 +582,7 @@ def consolidate(
 
     included: list[ValuationScope] = []
     excluded: list[ValuationScope] = []
+    excluded_detail: list[ExcludedScopeDetail] = []
     reasons: set[str] = set()
     excluded_entry_count = 0
     available_total = Fraction(0)
@@ -559,7 +595,15 @@ def consolidate(
             any_unavailable = True
             excluded.append(scope)
             excluded_entry_count += len(unavailable_values)
-            reasons.update(v.unavailable.reason for v in unavailable_values if v.unavailable is not None)
+            scope_reasons = {v.unavailable.reason for v in unavailable_values if v.unavailable is not None}
+            scope_remedies = {v.unavailable.remedy for v in unavailable_values if v.unavailable is not None}
+            reasons.update(scope_reasons)
+            excluded_detail.append(
+                ExcludedScopeDetail(
+                    scope=scope, entry_count=len(unavailable_values),
+                    reasons=tuple(sorted(scope_reasons)), remedies=tuple(sorted(scope_remedies)),
+                )
+            )
         if available_values:
             included.append(scope)
             for v in available_values:
@@ -584,6 +628,7 @@ def consolidate(
         excluded=tuple(sorted(excluded, key=_scope_key)),
         excluded_entry_count=excluded_entry_count,
         unavailable_reasons=tuple(sorted(reasons)),
+        excluded_detail=tuple(sorted(excluded_detail, key=lambda d: _scope_key(d.scope))),
         rate_inputs=inventory.rate_inputs,
         context=context,
         values=tuple(values),
@@ -624,6 +669,20 @@ class RateInputDTO(_StrictModel):
     source: str
     source_version: str
     inverted: bool
+    # §4.1: the exact ratio actually applied, as decimal-string integers —
+    # never a JS ``number``, which silently loses precision above 2**53.
+    # ``direction`` restates ``inverted`` as a display-ready label rather than
+    # asking every consumer to re-derive one from a bare bool.
+    applied_numerator: str
+    applied_denominator: str
+    direction: Literal["direct", "inverse"]
+    # The genuinely imported printed decimal, when one is on file (see
+    # ``RateInput.imported_rate_text``); ``None`` only when no printed text
+    # exists for either direction. A UI must never present a reciprocal like
+    # 1/0.75 by rounding it to a false-precision finite decimal (§4.1) — the
+    # exact ``applied_numerator/applied_denominator`` pair is what to render,
+    # with this field shown alongside as "as originally imported".
+    imported_rate_text: str | None
 
 
 class UnavailabilityDTO(_StrictModel):
@@ -650,6 +709,14 @@ class ScopeDTO(_StrictModel):
     period: str | None
 
 
+class ExcludedScopeDetailDTO(_StrictModel):
+    currency: str
+    period: str | None
+    entry_count: int
+    reasons: list[str]
+    remedies: list[str]
+
+
 class ConsolidatedValuationDTO(_StrictModel):
     total: MoneyDTO | None
     status: ConsolidationStatus
@@ -658,6 +725,9 @@ class ConsolidatedValuationDTO(_StrictModel):
     excluded: list[ScopeDTO]
     excluded_entry_count: int
     unavailable_reasons: list[str]
+    # §4.1/§4.3: per-scope reason(s)/remedy(ies) alongside the flat, backward
+    # -compatible ``excluded``/``unavailable_reasons`` pair above.
+    excluded_detail: list[ExcludedScopeDetailDTO]
     rate_path: list[RateInputDTO]
 
 
@@ -686,6 +756,10 @@ def _rate_input_dto(rate_input: RateInput) -> RateInputDTO:
         source=rate_input.source,
         source_version=rate_input.source_version,
         inverted=rate_input.inverted,
+        applied_numerator=str(rate_input.rate_numerator),
+        applied_denominator=str(rate_input.rate_denominator),
+        direction="inverse" if rate_input.inverted else "direct",
+        imported_rate_text=rate_input.imported_rate_text,
     )
 
 
@@ -774,6 +848,13 @@ def to_consolidated_dto(
         excluded=[ScopeDTO(currency=s.currency, period=s.period) for s in consolidated.excluded],
         excluded_entry_count=consolidated.excluded_entry_count,
         unavailable_reasons=list(consolidated.unavailable_reasons),
+        excluded_detail=[
+            ExcludedScopeDetailDTO(
+                currency=d.scope.currency, period=d.scope.period, entry_count=d.entry_count,
+                reasons=list(d.reasons), remedies=list(d.remedies),
+            )
+            for d in consolidated.excluded_detail
+        ],
         rate_path=[_rate_input_dto(r) for r in consolidated.rate_inputs],
     )
 
@@ -816,6 +897,7 @@ def select_monthly_rate(
             rate_denominator=int(row["rate_denominator"]),
             rate_text=row["rate_text"],
             imported_at=row["imported_at"],
+            imported_rate_text=row["rate_text"],
         )
     if not allow_inverse:
         return None
@@ -836,6 +918,7 @@ def select_monthly_rate(
             rate_denominator=denominator,
             rate_text=f"{numerator}/{denominator}",
             imported_at=inverse_row["imported_at"],
+            imported_rate_text=inverse_row["rate_text"],
         )
     return None
 
@@ -875,6 +958,7 @@ def select_latest_rate_on_or_before(
             rate_denominator=int(row["rate_denominator"]),
             rate_text=row["rate_text"],
             imported_at=row["imported_at"],
+            imported_rate_text=row["rate_text"],
         )
     if not allow_inverse:
         return None
@@ -895,6 +979,7 @@ def select_latest_rate_on_or_before(
             rate_denominator=denominator,
             rate_text=f"{numerator}/{denominator}",
             imported_at=inverse_row["imported_at"],
+            imported_rate_text=inverse_row["rate_text"],
         )
     return None
 

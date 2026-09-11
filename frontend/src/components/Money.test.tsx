@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { ConsolidatedMoney, Money, RoundingReconciliationNote, type ValuedMoneyDTO } from './Money'
+import {
+  ConsolidatedMoney, Money, RoundingReconciliationNote,
+  type ExcludedScopeDetailDTO, type RateInputDTO, type ValuedMoneyDTO,
+} from './Money'
+
+function rateInput(overrides: Partial<RateInputDTO> = {}): RateInputDTO {
+  return {
+    base_currency: 'USD', quote_currency: 'SGD', period_month: '2026-01',
+    effective_on: null, observation_kind: 'MONTHLY_PROXY', source: 'test',
+    source_version: 'v1', inverted: false,
+    applied_numerator: '134', applied_denominator: '100', direction: 'direct',
+    imported_rate_text: '1.34',
+    ...overrides,
+  }
+}
 
 function valued(overrides: Partial<ValuedMoneyDTO> = {}): ValuedMoneyDTO {
   return {
@@ -11,11 +25,7 @@ function valued(overrides: Partial<ValuedMoneyDTO> = {}): ValuedMoneyDTO {
     valuation_as_of: '2026-01-31',
     rate_as_of: null,
     rate_period: '2026-01',
-    rate_path: [{
-      base_currency: 'USD', quote_currency: 'SGD', period_month: '2026-01',
-      effective_on: null, observation_kind: 'MONTHLY_PROXY', source: 'test',
-      source_version: 'v1', inverted: false,
-    }],
+    rate_path: [rateInput()],
     forward_policy: null,
     unavailable: null,
     ...overrides,
@@ -78,7 +88,7 @@ describe('Money', () => {
     ['prior_observation', 'Prior dated rate'],
     ['monthly_average', 'Monthly average rate'],
     ['monthly_proxy', 'Monthly proxy rate'],
-    ['current_mark', 'Current rate'],
+    ['current_mark', 'Monthly reference mark'],
     ['held_latest', 'Forward-held rate'],
   ] as const)('labels the %s basis distinguishably', (basis, label) => {
     // §2 invariant 4 / §9.3: every RateBasis variant must be reachable and
@@ -107,6 +117,52 @@ describe('Money', () => {
     expect(summary?.tagName).toBe('SUMMARY')
     expect(screen.getByText('2026-01')).toBeInTheDocument()
     expect(screen.getByText(/test \(v1\)/)).toBeInTheDocument()
+  })
+
+  it('shows a direct rate as its own exact applied ratio and imported text', () => {
+    render(<Money value={valued()} />)
+    const detail = document.querySelector('.money-disclosure-panel')
+    expect(detail?.textContent).toContain('134/100 (exact)')
+    expect(detail?.textContent).toContain('imported as 1.34')
+    expect(detail?.textContent).not.toContain('inverse')
+  })
+
+  it('shows an inverse rate as the exact reciprocal, never a rounded finite decimal', () => {
+    // The exact reciprocal of 3/4 is 4/3 -- a false-precision "1.33" would
+    // misstate this ratio (§4.1).
+    render(<Money value={valued({
+      rate_path: [rateInput({
+        inverted: true, direction: 'inverse',
+        applied_numerator: '4', applied_denominator: '3',
+        imported_rate_text: '0.7500',
+      })],
+    })} />)
+    const detail = document.querySelector('.money-disclosure-panel')
+    expect(detail?.textContent).toContain('inverse')
+    expect(detail?.textContent).toContain('4/3 (exact)')
+    expect(detail?.textContent).toContain('imported as 0.7500')
+    expect(detail?.textContent).not.toContain('1.33')
+  })
+
+  it('preserves a large exact ratio\'s digits verbatim rather than a shortened float', () => {
+    const huge = '123456789012345678'
+    render(<Money value={valued({
+      rate_path: [rateInput({ applied_numerator: huge, applied_denominator: String(10 ** 17) })],
+    })} />)
+    expect(screen.getByText(new RegExp(huge))).toBeInTheDocument()
+  })
+
+  it('labels a monthly position mark as a reference value, not a live quote', () => {
+    render(<Money value={valued({ basis: 'current_mark' })} />)
+    expect(screen.getByText('Monthly reference mark')).toBeInTheDocument()
+    const detail = document.querySelector('.money-disclosure-panel')
+    expect(detail?.textContent).toContain('not a live market quote')
+  })
+
+  it('shows no live-quote note for a basis the note does not apply to', () => {
+    render(<Money value={valued({ basis: 'monthly_proxy' })} />)
+    const detail = document.querySelector('.money-disclosure-panel')
+    expect(detail?.textContent).not.toContain('live market quote')
   })
 })
 
@@ -137,6 +193,38 @@ describe('ConsolidatedMoney', () => {
       unavailableReasons={['RATE_NOT_IMPORTED', 'PERIOD_UNKNOWN']}
     />)
     expect(screen.getByText('RATE_NOT_IMPORTED, PERIOD_UNKNOWN')).toBeInTheDocument()
+  })
+
+  const excludedDetail: ExcludedScopeDetailDTO[] = [
+    { currency: 'USD', period: '2026-02', entry_count: 1, reasons: ['RATE_NOT_IMPORTED'],
+      remedies: ['Import an fx rate for USD -> SGD covering 2026-02.'] },
+    { currency: 'EUR', period: '2026-01', entry_count: 1, reasons: ['RATE_NOT_IMPORTED'],
+      remedies: ['Import an fx rate for EUR -> SGD covering 2026-01.'] },
+  ]
+
+  it('shows each excluded scope with its own reason and remedy on a partial total', () => {
+    render(<ConsolidatedMoney
+      total={null} partialTotal={{ value: '120.00', currency: 'SGD' }} currency="SGD"
+      excludedDetail={excludedDetail}
+    />)
+    const disclosure = document.querySelector('.money-excluded-disclosure')
+    expect(disclosure?.textContent).toContain('USD · 2026-02')
+    expect(disclosure?.textContent).toContain('Import an fx rate for USD -> SGD covering 2026-02.')
+    expect(disclosure?.textContent).toContain('EUR · 2026-01')
+    expect(disclosure?.textContent).toContain('Import an fx rate for EUR -> SGD covering 2026-01.')
+  })
+
+  it('shows no excluded-scope disclosure for a complete total', () => {
+    render(<ConsolidatedMoney
+      total={{ value: '500.00', currency: 'SGD' }} partialTotal={null} currency="SGD"
+      excludedDetail={excludedDetail}
+    />)
+    expect(document.querySelector('.money-excluded-disclosure')).toBeNull()
+  })
+
+  it('omits the excluded-scope disclosure entirely when there is nothing excluded', () => {
+    render(<ConsolidatedMoney total={null} partialTotal={{ value: '120.00', currency: 'SGD' }} currency="SGD" />)
+    expect(document.querySelector('.money-excluded-disclosure')).toBeNull()
   })
 })
 

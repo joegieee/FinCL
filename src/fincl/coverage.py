@@ -54,6 +54,7 @@ from .valuation import (
 )
 
 __all__ = [
+    "GROSS_BURN_DEFINITION_VERSION",
     "BurnMonthSelection",
     "CoverageContract",
     "DatedCoverage",
@@ -209,6 +210,15 @@ def latest_covered_complete_months(
             month, year = 12, year - 1
         scanned += 1
     return list(reversed(included_latest_first))
+
+
+# §3.2/§4.1: the shared spending+fees-per-included-month definition step 04
+# implements against this module's burn-month selector. Pinned here, ahead of
+# that implementation, so the generation manifest already carries it and a
+# later change to the definition is a new version string rather than a silent
+# reinterpretation under the same reported handles (§4.1: "a changed
+# definition must not silently reuse old reporting handles").
+GROSS_BURN_DEFINITION_VERSION = "gross-burn-v2"
 
 
 # --- dated, requirement-based coverage (§4.3) -------------------------------

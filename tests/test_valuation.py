@@ -727,6 +727,150 @@ class DtoRenderingTests(ValuationTestCase):
         self.assertEqual([(s.currency, s.period) for s in dto.included], [("SGD", "2026-01")])
 
 
+class RateInputDtoExactRatioTests(ValuationTestCase):
+    """§4.1 M3b.1 step 03: exact applied numerator/denominator, direction, and
+    imported text separated from a synthesized reciprocal display string."""
+
+    def test_direct_rate_exposes_the_exact_ratio_and_its_own_imported_text(self) -> None:
+        self._load("USD", "2026-01", "1.3456")
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+        )
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                              precision=EntryPrecision.MONTH, period_month="2026-01")
+        result = value_one(self.connection, item, context=context)
+        dto = to_dto(result, currency_registry=CURRENCY_REGISTRY)
+        rate = dto.rate_path[0]
+        self.assertEqual(rate.direction, "direct")
+        self.assertEqual(rate.applied_numerator, "13456")
+        self.assertEqual(rate.applied_denominator, "10000")
+        self.assertEqual(int(rate.applied_numerator) / int(rate.applied_denominator), 1.3456)
+        self.assertEqual(rate.imported_rate_text, "1.3456")
+
+    def test_inverse_rate_exposes_the_exact_reciprocal_and_the_pre_inversion_text(self) -> None:
+        # Imported as SGD -> USD "0.7500"; valuing USD -> SGD must take the
+        # exact reciprocal 4/3, never a rounded finite decimal like "1.33".
+        self._load("SGD", "2026-01", "0.7500", quote="USD")
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+        )
+        item = ValuationItem(native=_money("75.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                              precision=EntryPrecision.MONTH, period_month="2026-01")
+        result = value_one(self.connection, item, context=context)
+        dto = to_dto(result, currency_registry=CURRENCY_REGISTRY)
+        rate = dto.rate_path[0]
+        self.assertEqual(rate.direction, "inverse")
+        self.assertTrue(rate.inverted)
+        # The exact reciprocal of 3/4 is 4/3: a finite decimal ("1.33...")
+        # would silently misstate this ratio; the DTO must carry it exact.
+        self.assertEqual(Fraction(int(rate.applied_numerator), int(rate.applied_denominator)), Fraction(4, 3))
+        # The genuinely imported text is the *other* direction's own printed
+        # decimal, never the synthesized "4/3" fallback that used to be
+        # ``rate_text`` for an inverted leg.
+        self.assertEqual(rate.imported_rate_text, "0.7500")
+
+    def test_large_exact_ratio_survives_as_a_plain_digit_string_not_a_float(self) -> None:
+        """A rate precise enough that its numerator/denominator individually
+        exceed JavaScript's safe integer range (2**53) must still round-trip
+        exactly through the ``str``-typed wire field (§4.1)."""
+        self._load("USD", "2026-01", "1.23456789012345678")
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+        )
+        item = ValuationItem(native=_money("1.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                              precision=EntryPrecision.MONTH, period_month="2026-01")
+        result = value_one(self.connection, item, context=context)
+        dto = to_dto(result, currency_registry=CURRENCY_REGISTRY)
+        rate = dto.rate_path[0]
+        self.assertIsInstance(rate.applied_numerator, str)
+        self.assertIsInstance(rate.applied_denominator, str)
+        expected_numerator = 123456789012345678
+        expected_denominator = 10**17
+        self.assertGreater(expected_numerator, 2**53)
+        self.assertEqual(rate.applied_numerator, str(expected_numerator))
+        self.assertEqual(rate.applied_denominator, str(expected_denominator))
+        # A JS ``Number`` parse of this string would silently round; asserting
+        # it against the same string (never through ``float``/``int`` JS-side
+        # arithmetic) is exactly what the wire contract requires here.
+        self.assertNotEqual(str(float(expected_numerator)), rate.applied_numerator)
+
+    def test_identity_valuation_has_no_rate_path_entries_to_render_a_ratio_for(self) -> None:
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+        )
+        item = ValuationItem(native=_money("10.00"), native_currency="SGD", purpose=ValuationPurpose.FLOW,
+                              precision=EntryPrecision.MONTH, period_month="2026-01")
+        result = value_one(self.connection, item, context=context)
+        dto = to_dto(result, currency_registry=CURRENCY_REGISTRY)
+        self.assertEqual(dto.rate_path, [])
+
+
+class ExcludedScopeDetailTests(ValuationTestCase):
+    """§4.1/§4.3: per-scope reasons/remedies alongside the flat legacy fields."""
+
+    def _flow_context(self, as_of: date = date(2026, 3, 31)) -> ValuationContext:
+        return ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=as_of, rate_selection_policy=FLOW_RATE_V1,
+        )
+
+    def test_each_excluded_scope_carries_its_own_reason_and_remedy(self) -> None:
+        self._load("USD", "2026-01", "1.3000")
+        context = self._flow_context()
+        items = [
+            ValuationItem(native=_money("100.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                          precision=EntryPrecision.MONTH, period_month="2026-01"),
+            ValuationItem(native=_money("50.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                          precision=EntryPrecision.MONTH, period_month="2026-02"),
+            ValuationItem(native=_money("20.00"), native_currency="EUR", purpose=ValuationPurpose.FLOW,
+                          precision=EntryPrecision.MONTH, period_month="2026-01"),
+        ]
+        result = consolidate(self.connection, items, context=context)
+        dto = to_consolidated_dto(result, currency_registry=CURRENCY_REGISTRY)
+        self.assertEqual(len(dto.excluded_detail), 2)
+        by_currency = {(d.currency, d.period): d for d in dto.excluded_detail}
+        usd_feb = by_currency[("USD", "2026-02")]
+        self.assertEqual(usd_feb.entry_count, 1)
+        self.assertEqual(usd_feb.reasons, ["RATE_NOT_IMPORTED"])
+        self.assertIn("2026-02", usd_feb.remedies[0])
+        eur_jan = by_currency[("EUR", "2026-01")]
+        self.assertEqual(eur_jan.entry_count, 1)
+        self.assertEqual(eur_jan.reasons, ["RATE_NOT_IMPORTED"])
+        self.assertIn("EUR", eur_jan.remedies[0])
+        # The flat legacy fields still discharge their own contract unchanged.
+        self.assertEqual(sorted(dto.unavailable_reasons), ["RATE_NOT_IMPORTED"])
+        self.assertEqual(dto.excluded_entry_count, 2)
+
+    def test_a_scope_with_multiple_excluded_entries_counts_and_dedupes_reasons(self) -> None:
+        context = self._flow_context()
+        items = [
+            ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                          precision=EntryPrecision.MONTH, period_month="2026-01"),
+            ValuationItem(native=_money("20.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                          precision=EntryPrecision.MONTH, period_month="2026-01"),
+        ]
+        result = consolidate(self.connection, items, context=context)
+        dto = to_consolidated_dto(result, currency_registry=CURRENCY_REGISTRY)
+        self.assertEqual(len(dto.excluded_detail), 1)
+        detail = dto.excluded_detail[0]
+        self.assertEqual(detail.entry_count, 2)
+        self.assertEqual(detail.reasons, ["RATE_NOT_IMPORTED"])
+
+    def test_no_excluded_detail_when_the_batch_is_fully_available(self) -> None:
+        context = self._flow_context()
+        items = [
+            ValuationItem(native=_money("10.00"), native_currency="SGD", purpose=ValuationPurpose.FLOW,
+                          precision=EntryPrecision.MONTH, period_month="2026-01"),
+        ]
+        result = consolidate(self.connection, items, context=context)
+        dto = to_consolidated_dto(result, currency_registry=CURRENCY_REGISTRY)
+        self.assertEqual(dto.excluded_detail, [])
+
+
 class ValueManyRateInventoryTests(ValuationTestCase):
     def test_distinct_rates_are_deduplicated(self) -> None:
         self._load("USD", "2026-01", "1.3000")

@@ -20,6 +20,7 @@ from pathlib import Path
 
 from . import __version__
 from .common import TAXONOMY_VERSION, canonical_json, utc_now
+from .coverage import GROSS_BURN_DEFINITION_VERSION
 from .db import SCHEMA_VERSION
 from .decision_journal import GENESIS_HASH
 from .decisions import NATURAL_ANCHOR_VERSION
@@ -74,6 +75,7 @@ def _policy_versions() -> dict[str, str]:
         "rate_path": RATE_PATH_POLICY_VERSION,
         "position_monthly_closed": POSITION_MONTHLY_CLOSED_V1,
         "forward_monthly_closed": FORWARD_MONTHLY_CLOSED_V1,
+        "gross_burn": GROSS_BURN_DEFINITION_VERSION,
     }
 
 
