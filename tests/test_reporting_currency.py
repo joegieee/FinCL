@@ -322,12 +322,45 @@ class ApiTests(ApiTestBase):
         self.assertIn("SGD", data["by_currency"])
         self.assertEqual(data["by_currency"]["SGD"]["basis"], "identity")
 
+    def test_fx_coverage_route_adds_dated_requirements_without_removing_structural_preview(
+        self,
+    ) -> None:
+        self.bootstrap()
+        response = self.client.get(
+            "/api/v1/fx/coverage",
+            params={"history_start": "2026-01-01", "history_end": "2026-01-31", "as_of": "2026-01-31"},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        # The pre-existing structural preview is untouched.
+        self.assertIn("SGD", data["by_currency"])
+        dated = data["dated"]
+        self.assertEqual(dated["history_start"], "2026-01-01")
+        self.assertEqual(dated["history_end"], "2026-01-31")
+        self.assertEqual(dated["as_of"], "2026-01-31")
+        self.assertEqual(dated["reporting_currency"], "SGD")
+        self.assertTrue(dated["requirements"])
+        for requirement in dated["requirements"]:
+            self.assertEqual(requirement["native_currency"], "SGD")
+            self.assertEqual(requirement["status"], "AVAILABLE")
+            self.assertEqual(requirement["basis"], "identity")
+
+    def test_fx_coverage_route_resolves_defaults_when_dates_are_omitted(self) -> None:
+        self.bootstrap()
+        response = self.client.get("/api/v1/fx/coverage")
+        self.assertEqual(response.status_code, 200, response.text)
+        dated = response.json()["dated"]
+        self.assertTrue(dated["history_start"])
+        self.assertTrue(dated["history_end"])
+        self.assertTrue(dated["as_of"])
+
 
 class NoWallClockInMoneyFlowGraphTests(unittest.TestCase):
     """§5.3 / invariant 6: no reader in the money-flow call graph consults the
     wall clock; ``today``/``as_of`` are threaded in from the caller instead."""
 
     _FILES = (
+        "src/fincl/coverage.py",
         "src/fincl/position/queries.py",
         "src/fincl/obligations/queries.py",
         "src/fincl/baseline/readiness.py",

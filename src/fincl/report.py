@@ -5,12 +5,12 @@ import sqlite3
 from collections import Counter
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 from .analysis.components import build_components
+from .coverage import coverage_contract as _coverage_contract
 from .db import connect_readonly
 from .engine import summarize_run
 from .errors import FinCLError
@@ -19,8 +19,6 @@ from .intervals import (
     DateInterval,
     bounding,
     contains_range,
-    intersect_all,
-    normalize,
     uncovered_dates,
 )
 from .money import ExactMoney, exact_sum, format_decimal
@@ -467,114 +465,6 @@ def _consolidate_sgd(
     assert result.total is not None
     quantized = quantize(result.total, scale=2)
     return format_decimal(quantized.coefficient, quantized.scale), "AVAILABLE"
-
-
-@dataclass(frozen=True, slots=True)
-class _CoverageContract:
-    """The F23 interval-set coverage contract for one database."""
-
-    required_sources: list[str]
-    source_intervals: dict[str, dict[str, Any]]
-    covered_intervals: list[DateInterval]
-    status: str
-    reasons: list[str]
-
-
-def _required_source_families(connection: sqlite3.Connection) -> list[str]:
-    """Every inventoried supported source family, before eligibility filtering.
-
-    Quarantined and stale-only sources still appear here: a family that has been
-    imported at all is required, and a required family with no eligible interval
-    contributes an empty set that collapses the intersection rather than
-    silently dropping out (§2).
-    """
-    families = {
-        str(row[0])
-        for row in connection.execute("SELECT DISTINCT source_type FROM statements")
-    }
-    return sorted(families)
-
-
-def _family_eligible_intervals(
-    connection: sqlite3.Connection, family: str
-) -> tuple[list[DateInterval], str, bool]:
-    """Accepted, analytically selected intervals for one source family.
-
-    Returns ``(intervals, basis, completeness_established)``. Every current
-    source is a statement document with a printed period, so coverage is the
-    union of ``statement_period`` intervals (§2).
-    """
-    rows = connection.execute(
-        """
-        SELECT s.period_start AS lo, s.period_end AS hi
-        FROM statements s JOIN extraction_runs x ON x.id = s.extraction_run_id
-        WHERE s.source_type = ? AND x.status = 'ACCEPTED'
-          AND s.selection_state = 'SELECTED'
-          AND s.period_start IS NOT NULL AND s.period_end IS NOT NULL
-        """,
-        (family,),
-    ).fetchall()
-    return [DateInterval(row["lo"], row["hi"]) for row in rows], "statement_period", True
-
-
-def _family_evidence_refs(connection: sqlite3.Connection, family: str) -> list[str]:
-    rows = connection.execute(
-        "SELECT DISTINCT s.evidence_sha256 FROM statements s "
-        "JOIN extraction_runs x ON x.id = s.extraction_run_id "
-        "WHERE s.source_type = ? AND x.status = 'ACCEPTED' "
-        "AND s.selection_state = 'SELECTED'",
-        (family,),
-    )
-    return sorted(str(row[0]) for row in rows if row[0])
-
-
-def _coverage_contract(connection: sqlite3.Connection) -> _CoverageContract:
-    """Normalize each required family's intervals and intersect them (§2)."""
-    required = _required_source_families(connection)
-    source_intervals: dict[str, dict[str, Any]] = {}
-    family_sets: list[list[DateInterval]] = []
-    empty_families: list[str] = []
-    for family in required:
-        raw, basis, established = _family_eligible_intervals(connection, family)
-        merged = normalize(raw)
-        source_intervals[family] = {
-            "basis": basis,
-            "completeness_established": established,
-            "intervals": [interval.as_dict() for interval in merged],
-            "evidence_refs": _family_evidence_refs(connection, family),
-            "warnings": (
-                []
-                if established
-                else ["export completeness was not independently established"]
-            ),
-        }
-        family_sets.append(merged)
-        if not merged:
-            empty_families.append(family)
-
-    covered = intersect_all(family_sets) if required else []
-    reasons: list[str] = []
-    if not required:
-        status = "UNAVAILABLE"
-        reasons.append("no inventoried source families")
-    elif not covered:
-        status = "UNAVAILABLE"
-        if empty_families:
-            reasons.append(
-                "required source families with no eligible interval: "
-                + ", ".join(empty_families)
-            )
-        else:
-            reasons.append("required source families do not overlap")
-    elif len(covered) == 1:
-        status = "COVERED"
-    else:
-        status = "GAPPED"
-        reasons.append(
-            "coverage is split across "
-            + ", ".join(f"{interval.start}..{interval.end}" for interval in covered)
-        )
-    return _CoverageContract(required, source_intervals, covered, status, reasons)
 
 
 def _analysis_intervals(

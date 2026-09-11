@@ -4001,6 +4001,119 @@
         }
       }
     },
+    "/api/v1/reporting-currency": {
+      "get": {
+        "summary": "Reporting Currency Read",
+        "operationId": "reporting_currency_read_api_v1_reporting_currency_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Reporting Currency Read Api V1 Reporting Currency Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fx/coverage": {
+      "get": {
+        "summary": "Fx Coverage Read",
+        "description": "Structural pair preview (unchanged) plus \u00a74.3 dated requirements.\n\n``dated`` is additive: it never replaces ``by_currency``'s pair-only\nstructural check, and reuses M0 step 01's real valuation selector, so\nthis endpoint cannot predict a rate its own valuation would not select.",
+        "operationId": "fx_coverage_read_api_v1_fx_coverage_get",
+        "parameters": [
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "name": "history_start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "History Start"
+            }
+          },
+          {
+            "name": "history_end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "History End"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Fx Coverage Read Api V1 Fx Coverage Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Index",
@@ -4603,7 +4716,8 @@
               "ROLE_RULE_SET",
               "ROLE_RULE_RETIRE",
               "INBOUND_RULE_SET",
-              "INBOUND_RULE_RETIRE"
+              "INBOUND_RULE_RETIRE",
+              "REPORTING_CURRENCY_SET"
             ],
             "title": "Kind"
           },
