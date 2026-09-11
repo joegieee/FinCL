@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -412,6 +412,22 @@ CREATE TABLE IF NOT EXISTS forecast_actual_matches (
 
 CREATE INDEX IF NOT EXISTS forecast_actual_matches_event
     ON forecast_actual_matches(snapshot, event_id, retired);
+"""
+
+# Schema 23 (reporting-currency plan M1, §4). ``reporting_policy`` is a
+# singleton projection of the latest ``REPORTING_CURRENCY_SET`` decision: an
+# absent row resolves to SGD at the read side (`reporting_currency.queries`),
+# so a migrated ledger that has never recorded a decision needs no seeded row
+# to keep producing today's SGD-only output.
+SCHEMA_23_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS reporting_policy (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    currency TEXT NOT NULL CHECK (length(currency) = 3),
+    minor_unit_scale INTEGER NOT NULL CHECK (minor_unit_scale BETWEEN 0 AND 9),
+    journal_seq INTEGER NOT NULL,
+    decided_at TEXT NOT NULL,
+    policy_version TEXT NOT NULL
+) STRICT;
 """
 
 
@@ -1020,6 +1036,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_20_TABLES_SQL
         + SCHEMA_21_TABLES_SQL
         + SCHEMA_22_TABLES_SQL
+        + SCHEMA_23_TABLES_SQL
     )
 
 

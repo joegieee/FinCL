@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -173,7 +174,7 @@ class RecurringMatchingIntegrationTests(unittest.TestCase):
             )
 
     def test_confirmed_recurring_cost_leaves_the_routine_residual_once(self) -> None:
-        estimate = baseline_estimate(self.database, today=None)
+        estimate = baseline_estimate(self.database, today=date.today())
         sgd = estimate["by_currency"]["SGD"]
         for row in sgd["months"]:
             self.assertEqual(row["identified_recurring"], "500.00", row["month"])
@@ -186,7 +187,7 @@ class RecurringMatchingIntegrationTests(unittest.TestCase):
         self.assertEqual(sgd["routine_lifestyle_baseline"], "520.00")
 
     def test_the_estimate_carries_regime_and_sensitivity_blocks(self) -> None:
-        sgd = baseline_estimate(self.database, today=None)["by_currency"]["SGD"]
+        sgd = baseline_estimate(self.database, today=date.today())["by_currency"]["SGD"]
         self.assertIn("regime", sgd)
         self.assertIn("sensitivity", sgd)
         self.assertFalse(sgd["regime"]["warning"])
@@ -217,7 +218,7 @@ class SuggestedSurfacingTests(unittest.TestCase):
 
     def test_roles_mark_the_outlier_group_suggested(self) -> None:
         database = _revolut_ledger(self._rows())
-        roles = baseline_roles(database, today=None)
+        roles = baseline_roles(database, today=date.today())
         irregular = [g for g in roles["groups"] if g["cost_pattern"] == "irregular"]
         self.assertTrue(irregular)
         self.assertTrue(all(g["review_status"] == "suggested" for g in irregular))

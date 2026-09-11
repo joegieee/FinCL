@@ -162,11 +162,13 @@ def _role_scope(roles: dict[str, Any], currency: str) -> tuple[bool, str | None]
 
 
 def forecast_input_manifest(
-    database: Path, *, today: date | None = None, as_of: str | None = None
+    database: Path, *, today: date, as_of: str | None = None
 ) -> dict[str, Any]:
-    """Gather every forecast input behind one shape and classify its readiness."""
-    today = today or date.today()
+    """Gather every forecast input behind one shape and classify its readiness.
 
+    ``today`` is required (§5.3): resolved once by the caller, never by this
+    reader.
+    """
     connection = connect_readonly(database)
     try:
         generation = current_generation(connection)

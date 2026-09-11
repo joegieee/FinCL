@@ -283,7 +283,7 @@ def _sensitivity(
     }
 
 
-def baseline_estimate(database: Path, *, today: date | None = None) -> dict[str, Any]:
+def baseline_estimate(database: Path, *, today: date) -> dict[str, Any]:
     table = cost_income_table(database, today=today)
     if not table["available"]:
         return {

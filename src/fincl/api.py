@@ -75,6 +75,8 @@ _SINGLE_KINDS = Literal[
     'ENTRY_ROLE_SET','ENTRY_ROLE_RETIRE','ROLE_RULE_SET','ROLE_RULE_RETIRE',
     # M5 reusable inbound-classification rules
     'INBOUND_RULE_SET','INBOUND_RULE_RETIRE',
+    # Reporting-currency plan M1
+    'REPORTING_CURRENCY_SET',
 ]
 
 _DEBT_KINDS = frozenset({
@@ -616,6 +618,19 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         elif command.kind in {'INBOUND_RULE_SET','INBOUND_RULE_RETIRE'}:
             from .inbound_rules import validate_inbound_rule
             validate_inbound_rule(command.kind, dict(command.anchors), dict(command.payload))
+        elif command.kind == 'REPORTING_CURRENCY_SET':
+            from .reporting_currency import (
+                currency_coverage_preview,
+                validate_reporting_currency_payload,
+            )
+            validate_reporting_currency_payload(command.kind, dict(command.anchors), dict(command.payload))
+            preview = currency_coverage_preview(connection, str(command.payload['currency']))
+            if preview['structurally_unconfigured']:
+                raise FinCLError(
+                    'No direct or inverse rate path is configured for: '
+                    + ', '.join(preview['structurally_unconfigured'])  # type: ignore[arg-type]
+                )
+            extra = {'coverage_preview': json.dumps(preview)}
         else:
             if set(command.anchors) != {'entry'} or not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?',(command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
@@ -753,38 +768,38 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.get('/api/v1/baseline/readiness')
     def baseline_readiness_read() -> Any:
         from .baseline import baseline_readiness
-        return baseline_readiness(database)
+        return baseline_readiness(database, today=date.today())
 
     @app.get('/api/v1/baseline/cost-income')
     def baseline_cost_income_read() -> Any:
         from .baseline import cost_income_table
-        return cost_income_table(database)
+        return cost_income_table(database, today=date.today())
 
     @app.get('/api/v1/baseline/roles')
     def baseline_roles_read() -> Any:
         from .baseline import baseline_roles
-        return baseline_roles(database)
+        return baseline_roles(database, today=date.today())
 
     @app.get('/api/v1/baseline/estimate')
     def baseline_estimate_read() -> Any:
         from .baseline import baseline_estimate
-        return baseline_estimate(database)
+        return baseline_estimate(database, today=date.today())
 
     @app.get('/api/v1/obligations')
     def obligations_read(as_of: str | None = None) -> Any:
         from .obligations import obligations_page
-        return obligations_page(database, as_of=as_of)
+        return obligations_page(database, as_of=as_of, today=date.today())
 
     @app.get('/api/v1/forecast/manifest')
     def forecast_manifest_read(as_of: str | None = None) -> Any:
         from .forecast import forecast_input_manifest
-        return forecast_input_manifest(database, as_of=as_of)
+        return forecast_input_manifest(database, today=date.today(), as_of=as_of)
 
     @app.get('/api/v1/forecast')
     def forecast_read() -> Any:
         """Read the Stage 3B timeline without changing its construction or arithmetic."""
         from .forecast import cash_timeline
-        return cash_timeline(database)
+        return cash_timeline(database, today=date.today())
 
     @app.get('/api/v1/funds')
     def funds_read(as_of: str | None = None) -> Any:
@@ -888,7 +903,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         month: str | None = None, currency: str = Query('SGD', pattern=r'^[A-Z]{3}$')
     ) -> Any:
         from .controls import spending_controls_page
-        return spending_controls_page(database, month=month, currency=currency)
+        return spending_controls_page(database, month=month, currency=currency, today=date.today())
 
     @app.post('/api/v1/spending-controls/what-if')
     def spending_controls_scenario(body: SpendingWhatIfDraft) -> Any:
@@ -900,17 +915,18 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             category_cuts=[item.model_dump() for item in body.category_cuts],
             date_changes=[item.model_dump() for item in body.date_changes],
             hypothetical_income=[item.model_dump() for item in body.hypothetical_income],
+            today=date.today(),
         )
 
     @app.get('/api/v1/position')
     def position_read() -> Any:
         from .position import position_page
-        return position_page(database)
+        return position_page(database, today=date.today())
 
     @app.get('/api/v1/net-worth')
     def net_worth_read(as_of: str | None = None, prior_as_of: str | None = None) -> Any:
         from .networth import net_worth_page
-        return net_worth_page(database, as_of=as_of, prior_as_of=prior_as_of)
+        return net_worth_page(database, as_of=as_of, prior_as_of=prior_as_of, today=date.today())
 
     @app.get('/api/v1/categories')
     def categories_read() -> Any:
@@ -1412,6 +1428,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     policy = 'card-facility-v1'
                 elif command.kind in _INSTALLMENT_KINDS:
                     policy = 'installment-v1'
+                elif command.kind == 'REPORTING_CURRENCY_SET':
+                    policy = 'reporting-currency-v1'
             receipt = record_decision(database,request_id=str(command.request_id),intent_hash=intent,decision_kind=kind,anchors=anchors,payload=payload,policy_version=policy,snapshot=f'{kind}: {payload}',writer=writer)
             return JSONResponse({**asdict(receipt),'status':'recorded_refresh_pending' if receipt.refresh_pending else 'applied'},status_code=202 if receipt.refresh_pending else 200)
 
@@ -1524,6 +1542,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     register_card_reads(app, database)
     from .api_budgets import register_planning_routes
     register_planning_routes(app, database)
+    from .api_reporting import register_reporting_routes
+    register_reporting_routes(app, database)
 
     if assets.exists():
         if (assets / 'assets').exists():

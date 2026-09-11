@@ -13,6 +13,7 @@ import sqlite3
 import tempfile
 import unittest
 import uuid
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -276,7 +277,7 @@ def _account_id(database: Path) -> str:
 
 class NetWorthLedgerTests(unittest.TestCase):
     def test_the_tracked_subtotal_is_never_labelled_total_wealth(self) -> None:
-        page = net_worth_page(_ledger(), as_of="2026-03-06")
+        page = net_worth_page(_ledger(), as_of="2026-03-06", today=date(2026, 3, 6))
         self.assertEqual(page["label"], "tracked net worth")
         self.assertFalse(page["is_total_personal_wealth"])
         self.assertIn("not proof of total personal wealth", page["disclaimer"])
@@ -307,7 +308,7 @@ class NetWorthLedgerTests(unittest.TestCase):
         )
         refresh_ledger(database)
 
-        page = net_worth_page(database, as_of="2026-03-06")
+        page = net_worth_page(database, as_of="2026-03-06", today=date(2026, 3, 6))
         sgd = page["per_currency"]["SGD"]
         # Evidence-only tracked figures are untouched by the manual debt.
         self.assertEqual(sgd["tracked_liabilities"], "0.00")
@@ -322,7 +323,7 @@ class NetWorthLedgerTests(unittest.TestCase):
     def test_two_dated_observations_produce_a_trend_that_labels_scope(self) -> None:
         database = _ledger()
 
-        page = net_worth_page(database, as_of="2026-03-06", prior_as_of="2026-02-06")
+        page = net_worth_page(database, as_of="2026-03-06", prior_as_of="2026-02-06", today=date(2026, 3, 6))
         trend = page["trend"]
         self.assertEqual(trend["prior_as_of"], "2026-02-06")
         self.assertEqual(trend["current_as_of"], "2026-03-06")
@@ -339,7 +340,7 @@ class NetWorthLedgerTests(unittest.TestCase):
         database = _ledger()
         _project_observation(database, _account_id(database), "2026-04-02", "500.00")
 
-        sgd = net_worth_page(database, as_of="2026-04-05")["per_currency"]["SGD"]
+        sgd = net_worth_page(database, as_of="2026-04-05", today=date(2026, 4, 5))["per_currency"]["SGD"]
         # A person-asserted balance is kept out of the evidence-only subtotal...
         self.assertEqual(sgd["tracked_assets"], "0.00")
         # ...but is shown, with its basis, and offered as a combined figure.

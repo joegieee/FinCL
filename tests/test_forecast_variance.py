@@ -1069,8 +1069,8 @@ class Schema22MigrationTests(unittest.TestCase):
         )
         result = apply_pending_migrations(upgraded, backup_dir=bundle)
 
-        self.assertEqual((result.from_version, result.to_version), (21, 22))
-        self.assertEqual(result.steps, [22])
+        self.assertEqual((result.from_version, result.to_version), (21, SCHEMA_VERSION))
+        self.assertEqual(result.steps, list(range(22, SCHEMA_VERSION + 1)))
         self.assertEqual(self._schema(upgraded), self._schema(fresh))
 
     def test_replay_projects_the_same_rows_on_a_fresh_and_an_upgraded_ledger(self) -> None:

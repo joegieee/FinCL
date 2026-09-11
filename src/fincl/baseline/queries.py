@@ -90,7 +90,7 @@ def _refund_allocations(
     ]
 
 
-def cost_income_table(database: Path, *, today: date | None = None) -> dict[str, Any]:
+def cost_income_table(database: Path, *, today: date) -> dict[str, Any]:
     readiness = baseline_readiness(database, today=today)
     window = readiness["baseline_window"]
     if window["quality"] == "none" or not window["start_month"]:

@@ -284,9 +284,9 @@ def spending_controls_page(
     *,
     month: str | None = None,
     currency: str = "SGD",
-    today: date | None = None,
+    today: date,
 ) -> dict[str, Any]:
-    today = today or date.today()
+    """§5.3: ``today`` is required — resolved once by the caller, never here."""
     selected_month = _month(month, today)
     roles = baseline_roles(database, today=today)
     estimate = baseline_estimate(database, today=today)
@@ -460,7 +460,7 @@ def spending_controls_what_if(
     category_cuts: list[dict[str, str]],
     date_changes: list[dict[str, str]],
     hypothetical_income: list[dict[str, str]],
-    today: date | None = None,
+    today: date,
 ) -> dict[str, Any]:
     page = spending_controls_page(database, month=month, currency=currency, today=today)
     if not page.get("available"):

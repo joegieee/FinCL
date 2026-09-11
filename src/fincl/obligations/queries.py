@@ -45,9 +45,9 @@ from .rules import (
 )
 
 
-def _as_of(value: str | None) -> str:
+def _as_of(value: str | None, today: date) -> str:
     if value is None:
-        return date.today().isoformat()
+        return today.isoformat()
     try:
         return date.fromisoformat(value).isoformat()
     except ValueError as exc:
@@ -66,7 +66,7 @@ def _amount(coefficient: Any, scale: Any) -> Decimal:
 
 
 def _baseline_portions(
-    database: Path, token: str, today: date | None
+    database: Path, token: str, today: date
 ) -> dict[str, Any]:
     """Monthly historical cost per (currency, category) over the baseline window.
 
@@ -562,10 +562,15 @@ def _component_effects(
 
 
 def obligations_page(
-    database: Path, *, as_of: str | None = None, today: date | None = None
+    database: Path, *, as_of: str | None = None, today: date
 ) -> dict[str, Any]:
-    """Every obligation from every source, behind one shape."""
-    as_of = _as_of(as_of)
+    """Every obligation from every source, behind one shape.
+
+    ``today`` is required (§5.3): resolved once by the caller, never by this
+    reader. ``as_of`` remains an optional historical override that defaults to
+    ``today`` rather than to the wall clock.
+    """
+    as_of = _as_of(as_of, today)
     connection = connect_readonly(database)
     try:
         connection.execute("BEGIN")

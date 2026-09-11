@@ -91,7 +91,7 @@ def _role(category: str, *, recurring: bool) -> dict[str, Any]:
     }
 
 
-def baseline_roles(database: Path, *, today: date | None = None) -> dict[str, Any]:
+def baseline_roles(database: Path, *, today: date) -> dict[str, Any]:
     """Return role totals and source-backed groups for the selected baseline window."""
     table = cost_income_table(database, today=today)
     if not table["available"]:

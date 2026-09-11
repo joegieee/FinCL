@@ -1828,15 +1828,19 @@ def _card_events(
 def cash_timeline(
     database: Path,
     *,
-    today: date | None = None,
+    today: date,
     likely_income_policy: str = LIKELY_EXCLUDE,
     strong_income_interruption: bool = False,
     prospective_card_purchases: Sequence[dict[str, Any]] = (),
     sourced_events: Sequence[ForecastEvent] = (),
     residual_categories: Sequence[ResidualCategory] = (),
 ) -> dict[str, Any]:
-    """Read the Stage 3A/adapters and produce the backend Stage 3B result."""
-    today = today or date.today()
+    """Read the Stage 3A/adapters and produce the backend Stage 3B result.
+
+    ``today`` is required (§5.3): resolved once by the caller, never by this
+    reader — no function inside the money-flow call graph consults the wall
+    clock.
+    """
     manifest = forecast_input_manifest(database, today=today)
     cutoff_cell = manifest.get("cutoff") or {}
     cutoff = cutoff_cell.get("supported_cutoff")

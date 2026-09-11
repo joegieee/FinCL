@@ -359,8 +359,7 @@ def _bridge(
     }
 
 
-def position_page(database: Path, *, today: date | None = None) -> dict[str, Any]:
-    today = today or date.today()
+def position_page(database: Path, *, today: date) -> dict[str, Any]:
     connection = sqlite3.connect(database)
     connection.row_factory = sqlite3.Row
     try:

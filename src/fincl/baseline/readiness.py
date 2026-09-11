@@ -243,8 +243,13 @@ def _classify_month(
     return "missing", "no-evidence"
 
 
-def baseline_readiness(database: Path, *, today: date | None = None) -> dict[str, Any]:
-    today = today or date.today()
+def baseline_readiness(database: Path, *, today: date) -> dict[str, Any]:
+    """The evidence-coverage-backed baseline window.
+
+    ``today`` is required (§5.3): this reader sits on the money-flow call
+    graph and must never consult the wall clock itself — the caller resolves
+    one request date and threads it down.
+    """
     scopes = _account_scopes(database)
     connection = connect_readonly(database)
     try:

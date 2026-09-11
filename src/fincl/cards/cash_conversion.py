@@ -1059,7 +1059,7 @@ def baseline_channel_split(
 def card_cash_conversion(
     database: Path,
     *,
-    as_of: str | None = None,
+    as_of: str,
     horizon_months: int = HORIZON_MONTHS,
     prospective_purchases: list[dict[str, Any]] | None = None,
     cash_available: str | None = None,
@@ -1069,9 +1069,11 @@ def card_cash_conversion(
     ``prospective_purchases`` is the forecast's side of the contract: modelled
     future purchases, each ``{"id", "account_id", "currency", "on", "amount"}``.
     They are converted here rather than in the forecast so a modelled card
-    purchase can never be booked as same-day bank cash.
+    purchase can never be booked as same-day bank cash. ``as_of`` is required
+    (§5.3): this reader sits on the money-flow call graph and must never
+    consult the wall clock itself.
     """
-    day = as_of or date.today().isoformat()
+    day = as_of
     try:
         date.fromisoformat(day)
     except ValueError as exc:

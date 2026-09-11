@@ -42,9 +42,9 @@ def _money(value: Decimal) -> str:
     return str(value.quantize(_CENT, rounding=ROUND_HALF_UP))
 
 
-def _as_of(value: str | None) -> str:
+def _as_of(value: str | None, today: date) -> str:
     if value is None:
-        return date.today().isoformat()
+        return today.isoformat()
     try:
         return date.fromisoformat(value).isoformat()
     except ValueError as exc:
@@ -406,17 +406,18 @@ def net_worth_page(
     *,
     as_of: str | None = None,
     prior_as_of: str | None = None,
-    today: date | None = None,
+    today: date,
 ) -> dict[str, Any]:
     """The tracked net-worth read.
 
     ``prior_as_of`` adds a second dated observation and a basic trend between the
     two, labelling any change of tracked scope.  The figure is always a
     subtotal: it is never presented as a complete personal-wealth total.
+    ``today`` is required (§5.3): resolved once by the caller, never here.
     """
-    resolved = _as_of(as_of) if as_of is not None else (today or date.today()).isoformat()
+    resolved = _as_of(as_of, today)
     position = position_page(database, today=date.fromisoformat(resolved))
-    obligations = obligations_page(database, as_of=resolved)
+    obligations = obligations_page(database, as_of=resolved, today=today)
     cards = card_cash_conversion(database, as_of=resolved)
     debt_ids = [
         str(obligation["source"]["id"])
@@ -445,7 +446,7 @@ def net_worth_page(
         "per_currency": summarise(built["components"], as_of=resolved),
     }
     if prior_as_of is not None:
-        prior_page = net_worth_page(database, as_of=prior_as_of)
+        prior_page = net_worth_page(database, as_of=prior_as_of, today=today)
         page["trend"] = _trend(prior_page, page)
     return page
 

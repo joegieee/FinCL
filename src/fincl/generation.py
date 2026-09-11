@@ -31,6 +31,7 @@ from .engine import (
 )
 from .intervals import COVERAGE_POLICY_VERSION
 from .merchant import MERCHANT_NORM_VERSION, PROJECTION_VERSION
+from .reporting_currency import RATE_PATH_POLICY_VERSION, reporting_policy
 
 FX_SELECTION_POLICY = "fx-selection-latest-first-import-v1"
 
@@ -69,6 +70,7 @@ def _policy_versions() -> dict[str, str]:
         "merchant_norm": MERCHANT_NORM_VERSION,
         "entry_projection": PROJECTION_VERSION,
         "fx_selection": FX_SELECTION_POLICY,
+        "rate_path": RATE_PATH_POLICY_VERSION,
     }
 
 
@@ -143,6 +145,23 @@ def build_manifest(connection: sqlite3.Connection) -> dict[str, object]:
         "journal_seq": seq,
         "journal_head": head,
         "categorization_run_id": categorization_run["id"] if categorization_run else None,
+        "reporting_policy": _reporting_policy_manifest_input(connection),
+    }
+
+
+def _reporting_policy_manifest_input(connection: sqlite3.Connection) -> dict[str, object]:
+    """The resolved reporting policy as a manifest input (§4).
+
+    So a default-policy change (or projection corruption) changes the
+    generation token exactly like any other input, whether or not an operator
+    has ever recorded a ``REPORTING_CURRENCY_SET`` decision.
+    """
+    policy = reporting_policy(connection)
+    return {
+        "currency": policy.currency,
+        "minor_unit_scale": policy.minor_unit_scale,
+        "journal_seq": policy.journal_seq,
+        "is_default": policy.is_default,
     }
 
 
