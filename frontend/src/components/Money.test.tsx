@@ -47,13 +47,49 @@ describe('Money', () => {
     expect(screen.getByText('12.340 KWD')).toBeInTheDocument()
   })
 
-  it('renders unavailable as an em dash plus a visible typed reason and remedy message', () => {
+  it('renders unavailable as an em dash plus a visible typed reason and a remedy', () => {
     render(<Money value={valued({
       reported: null, basis: null, rate_period: null,
-      unavailable: { reason: 'RATE_NOT_IMPORTED', message: 'no fx rate configured for USD -> SGD' },
+      unavailable: {
+        reason: 'RATE_NOT_IMPORTED',
+        message: 'no fx rate configured for USD -> SGD',
+        remedy: 'Import an fx rate for USD -> SGD covering 2026-01.',
+      },
     })} />)
     expect(screen.getByText('RATE_NOT_IMPORTED')).toBeInTheDocument()
     expect(screen.getByText('no fx rate configured for USD -> SGD')).toBeInTheDocument()
+    // §2 invariant 8 is discharged by a reason *and a remedy*: a typed code
+    // alone does not tell the reader what to do about the gap.
+    expect(screen.getByText('Import an fx rate for USD -> SGD covering 2026-01.')).toBeInTheDocument()
+  })
+
+  it('never renders an unavailable valuation as a zero amount', () => {
+    render(<Money value={valued({
+      reported: null, basis: null, rate_period: null,
+      unavailable: { reason: 'PERIOD_UNKNOWN', message: 'no precision', remedy: 'Record a date.' },
+    })} />)
+    expect(screen.queryByText(/\b0(\.00)?\b/)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['identity', 'Native currency'],
+    ['realized', 'Realized rate'],
+    ['exact_observation', 'Dated rate'],
+    ['prior_observation', 'Prior dated rate'],
+    ['monthly_average', 'Monthly average rate'],
+    ['monthly_proxy', 'Monthly proxy rate'],
+    ['current_mark', 'Current rate'],
+    ['held_latest', 'Forward-held rate'],
+  ] as const)('labels the %s basis distinguishably', (basis, label) => {
+    // §2 invariant 4 / §9.3: every RateBasis variant must be reachable and
+    // correctly labelled, not just the two M2 happens to resolve.
+    render(<Money value={valued({ basis })} />)
+    if (basis === 'identity') {
+      // Identity applied no rate, so it carries no basis tag by design.
+      expect(screen.queryByText(label)).not.toBeInTheDocument()
+    } else {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
   })
 
   it('marks a forward-held valuation distinguishably from a reference-valued one', () => {
@@ -87,9 +123,20 @@ describe('ConsolidatedMoney', () => {
     expect(screen.getByText('Known subtotal')).toBeInTheDocument()
   })
 
-  it('renders unavailable as an em dash when neither total nor partial total exists', () => {
-    render(<ConsolidatedMoney total={null} partialTotal={null} currency="SGD" />)
-    expect(screen.getByText('—')).toBeInTheDocument()
+  it('renders unavailable with accessible text, not an aria-hidden dash alone', () => {
+    // The dash is decorative; without the adjacent text a screen reader would
+    // reach this total with no accessible name at all.
+    const { container } = render(<ConsolidatedMoney total={null} partialTotal={null} currency="SGD" />)
+    expect(screen.getByText('Not available')).toBeInTheDocument()
+    expect(container.textContent).not.toBe('—')
+  })
+
+  it('names the reasons a total is unavailable when they are known', () => {
+    render(<ConsolidatedMoney
+      total={null} partialTotal={null} currency="SGD"
+      unavailableReasons={['RATE_NOT_IMPORTED', 'PERIOD_UNKNOWN']}
+    />)
+    expect(screen.getByText('RATE_NOT_IMPORTED, PERIOD_UNKNOWN')).toBeInTheDocument()
   })
 })
 

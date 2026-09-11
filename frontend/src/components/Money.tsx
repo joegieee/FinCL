@@ -19,6 +19,7 @@ export type RateInputDTO = {
 export type UnavailabilityDTO = {
   reason: string
   message: string
+  remedy: string
 }
 
 export type MoneyAmountDTO = {
@@ -69,12 +70,16 @@ const BASIS_LABEL: Record<NonNullable<ValuedMoneyDTO['basis']>, string> = {
 export function Money({ value }: { value: ValuedMoneyDTO }) {
   const disclosureId = useId()
 
+  // §7.2: unavailable is "—" plus a *visible* reason and remedy — never a
+  // bare dash, and never 0 (§2 invariant 8). The dash is decorative, so the
+  // accessible name comes from the reason/message/remedy text beside it.
   if (value.unavailable) {
     return <span className="money money-unavailable">
       <span aria-hidden="true">—</span>
       <span className="money-unavailable-detail">
         <strong>{value.unavailable.reason}</strong>
         <span>{value.unavailable.message}</span>
+        <span className="money-remedy">{value.unavailable.remedy}</span>
       </span>
     </span>
   }
@@ -113,11 +118,12 @@ export function Money({ value }: { value: ValuedMoneyDTO }) {
 
 /** A consolidated valuation's total/partial_total (§3.6, §7.2 "Known subtotal"). */
 export function ConsolidatedMoney({
-  total, partialTotal, currency,
+  total, partialTotal, currency, unavailableReasons = [],
 }: {
   total: MoneyAmountDTO | null
   partialTotal: MoneyAmountDTO | null
   currency: string
+  unavailableReasons?: string[]
 }) {
   if (total) {
     return <span className="money">
@@ -130,7 +136,15 @@ export function ConsolidatedMoney({
       <span className="money-basis-tag money-partial-tag">Known subtotal</span>
     </span>
   }
-  return <span className="money money-unavailable"><span aria-hidden="true">—</span></span>
+  // An aria-hidden dash on its own would leave a screen reader with no
+  // accessible name at all, so the "Not available" text is always rendered.
+  return <span className="money money-unavailable">
+    <span aria-hidden="true">—</span>
+    <span className="money-unavailable-detail">
+      <strong>Not available</strong>
+      {unavailableReasons.length > 0 && <span>{unavailableReasons.join(', ')}</span>}
+    </span>
+  </span>
 }
 
 /** A reconciliation note for a non-zero `rounding_delta` between children and a once-rounded parent (§3.6, §7.2). */

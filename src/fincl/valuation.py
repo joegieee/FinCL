@@ -27,6 +27,12 @@ steps that current data can support: an exact-period lookup for ``FLOW`` and a
 latest-on-or-before lookup for ``POSITION``/``FORECAST``. Both already satisfy
 the no-look-ahead invariant (§2 invariant 7) because neither ever selects a
 period later than the one requested.
+
+Which ladder runs is named by ``context.rate_selection_policy`` and resolved
+through ``_RATE_SELECTION_POLICIES`` — never inferred from the purpose alone.
+That is what lets the pre-reporting-currency economic-flow report keep its
+exact historical selection (``LATEST_FIRST_IMPORT_V1``, direct rows only)
+while new surfaces opt into §3.2's reciprocal leg.
 """
 
 from __future__ import annotations
@@ -45,8 +51,13 @@ from . import fx
 from .errors import FinCLError
 from .money import ExactMoney, format_decimal
 from .reporting_currency.models import CurrencyDefinition
+from .reporting_currency.queries import reporting_policy
 
 __all__ = [
+    "FORWARD_HOLD_LATEST_V1",
+    "FLOW_RATE_V1",
+    "LATEST_FIRST_IMPORT_V1",
+    "POSITION_RATE_V1",
     "ConsolidatedValuation",
     "ConsolidatedValuationDTO",
     "ConsolidationStatus",
@@ -57,6 +68,7 @@ __all__ = [
     "RateInput",
     "RateInputDTO",
     "RateInventory",
+    "RateSelectionPolicy",
     "ScopeDTO",
     "Unavailability",
     "UnavailabilityDTO",
@@ -67,6 +79,7 @@ __all__ = [
     "ValuedMoneyDTO",
     "consolidate",
     "quantize",
+    "reporting_policy",
     "to_consolidated_dto",
     "to_dto",
     "value_many",
@@ -107,6 +120,11 @@ _DATED_BASES = frozenset({RateBasis.EXACT_OBSERVATION, RateBasis.PRIOR_OBSERVATI
 _PERIOD_BASES = frozenset(
     {RateBasis.MONTHLY_AVERAGE, RateBasis.MONTHLY_PROXY, RateBasis.CURRENT_MARK, RateBasis.HELD_LATEST}
 )
+# The third arm, so the classification is total: neither field applies.
+# ``IDENTITY`` applied no rate at all, and a ``REALIZED`` rate prices only its
+# own conversion — its date belongs to that ``RealizedConversion`` detail
+# (§3.5, M7), never to the shared reference-rate fields.
+_RATELESS_BASES = frozenset({RateBasis.IDENTITY, RateBasis.REALIZED})
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +136,62 @@ class ValuationContext:
     valuation_as_of: date
     rate_selection_policy: str
     forward_policy: str | None = None
+
+
+FLOW_RATE_V1 = "flow-rate-v1"
+POSITION_RATE_V1 = "position-rate-v1"
+FORWARD_HOLD_LATEST_V1 = "forward-hold-latest-v1"
+LATEST_FIRST_IMPORT_V1 = "latest-first-import-v1"
+
+
+@dataclass(frozen=True, slots=True)
+class RateSelectionPolicy:
+    """A named, versioned rate-selection ladder (§3.2, §3.4).
+
+    The ladder is named on the context rather than inferred from the purpose so
+    that a caller which must keep its historical selection semantics can say so
+    explicitly, and so that changing a ladder is a new version string rather
+    than a silent change of meaning under an existing one.
+    """
+
+    name: str
+    purpose: ValuationPurpose
+    allow_inverse: bool
+
+
+_RATE_SELECTION_POLICIES: dict[str, RateSelectionPolicy] = {
+    policy.name: policy
+    for policy in (
+        RateSelectionPolicy(FLOW_RATE_V1, ValuationPurpose.FLOW, allow_inverse=True),
+        RateSelectionPolicy(POSITION_RATE_V1, ValuationPurpose.POSITION, allow_inverse=True),
+        RateSelectionPolicy(FORWARD_HOLD_LATEST_V1, ValuationPurpose.FORECAST, allow_inverse=True),
+        # The economic-flow report's pre-seam selection (``report.py``'s
+        # ``fx_selection_policy``). It predates ``direct-or-inverse-v1`` and
+        # only ever read a directly imported native -> reporting row, so it
+        # takes no reciprocal: moving that report behind this seam must not
+        # change which rows it resolves, nor light up a total it previously
+        # withheld (§8 M2, "without changing its existing SGD/monthly result").
+        RateSelectionPolicy(LATEST_FIRST_IMPORT_V1, ValuationPurpose.FLOW, allow_inverse=False),
+    )
+}
+
+
+def _resolve_policy(context: ValuationContext) -> RateSelectionPolicy:
+    """The ladder named by ``context``, rejecting an unknown or mismatched one.
+
+    Failing loudly matters more than defaulting: silently falling back to a
+    ladder the caller did not name would let a misspelled policy change which
+    rate a figure was valued at without any signal.
+    """
+    policy = _RATE_SELECTION_POLICIES.get(context.rate_selection_policy)
+    if policy is None:
+        raise FinCLError(f"unknown rate selection policy {context.rate_selection_policy!r}")
+    if policy.purpose is not context.purpose:
+        raise FinCLError(
+            f"rate selection policy {policy.name!r} answers {policy.purpose!r}, "
+            f"not context purpose {context.purpose!r}"
+        )
+    return policy
 
 
 class EntryPrecision(StrEnum):
@@ -190,10 +264,17 @@ class RateInput:
 
 @dataclass(frozen=True, slots=True)
 class Unavailability:
-    """A typed reason a valuation could not be produced (§2 invariant 8)."""
+    """A typed reason a valuation could not be produced (§2 invariant 8).
+
+    ``remedy`` is a required field, not a nicety: §9.2 discharges "unknown is
+    never zero" with "every unavailable path yields a typed reason *and a
+    remedy*", and §7.2 requires ``<Money>`` to render both. Making it part of
+    the dataclass means a new unavailable path cannot ship without one.
+    """
 
     reason: str
     message: str
+    remedy: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +305,7 @@ def value_one(
         raise FinCLError(
             f"valuation item purpose {item.purpose!r} does not match context purpose {context.purpose!r}"
         )
+    policy = _resolve_policy(context)
     native_fraction = Fraction(item.native.coefficient, 10**item.native.scale)
 
     if item.native_currency == context.reporting_currency:
@@ -243,16 +325,32 @@ def value_one(
             period = item.effective_on.strftime("%Y-%m")
         if item.precision is EntryPrecision.UNKNOWN or period is None:
             return _unavailable(
-                item, context, PERIOD_UNKNOWN, "entry has no dated or monthly precision to value"
+                item,
+                context,
+                PERIOD_UNKNOWN,
+                "entry has no dated or monthly precision to value",
+                "Record a transaction date or statement period for this entry, then refresh.",
             )
-        rate_input = _select_monthly_rate(connection, item.native_currency, context.reporting_currency, period)
+        rate_input = _select_monthly_rate(
+            connection,
+            item.native_currency,
+            context.reporting_currency,
+            period,
+            allow_inverse=policy.allow_inverse,
+        )
         basis = RateBasis.MONTHLY_PROXY
+        missing_scope = f"covering {period}"
     else:
-        target_period = context.valuation_as_of.strftime("%Y-%m")
+        period = context.valuation_as_of.strftime("%Y-%m")
         rate_input = _select_latest_rate_on_or_before(
-            connection, item.native_currency, context.reporting_currency, target_period
+            connection,
+            item.native_currency,
+            context.reporting_currency,
+            period,
+            allow_inverse=policy.allow_inverse,
         )
         basis = RateBasis.CURRENT_MARK if context.purpose is ValuationPurpose.POSITION else RateBasis.HELD_LATEST
+        missing_scope = f"effective on or before {context.valuation_as_of.isoformat()}"
 
     if rate_input is None:
         return _unavailable(
@@ -260,6 +358,7 @@ def value_one(
             context,
             RATE_NOT_IMPORTED,
             f"no fx rate path configured for {item.native_currency} -> {context.reporting_currency}",
+            f"Import an fx rate for {item.native_currency} -> {context.reporting_currency} {missing_scope}.",
         )
     rate = Fraction(rate_input.rate_numerator, rate_input.rate_denominator)
     return ExactValuation(
@@ -274,7 +373,7 @@ def value_one(
 
 
 def _unavailable(
-    item: ValuationItem, context: ValuationContext, reason: str, message: str
+    item: ValuationItem, context: ValuationContext, reason: str, message: str, remedy: str
 ) -> ExactValuation:
     return ExactValuation(
         native=item.native,
@@ -283,7 +382,7 @@ def _unavailable(
         context=context,
         basis=None,
         rate_path=(),
-        unavailable=Unavailability(reason, message),
+        unavailable=Unavailability(reason, message, remedy),
     )
 
 
@@ -292,19 +391,36 @@ def value_many(
 ) -> tuple[list[ExactValuation], RateInventory]:
     """Value every item under one shared context; also return the distinct rates used."""
     values = [value_one(connection, item, context=context) for item in items]
-    seen: dict[tuple[str, str, str | None, bool, str], RateInput] = {}
+    return values, _rate_inventory(values)
+
+
+def _rate_inventory(values: Sequence[ExactValuation]) -> RateInventory:
+    """The distinct rate inputs consumed by ``values``, in a stable order.
+
+    Split out from :func:`value_many` so the key's ordering and dedup
+    behaviour can be exercised directly against rate metadata shapes that no
+    M2 selector produces yet.
+    """
+    # Every component is a string or bool so the key is totally ordered:
+    # ``period_month`` and ``effective_on`` are both nullable, and sorting a
+    # mix of ``None`` and ``str`` raises. ``observation_kind`` and
+    # ``effective_on`` are part of the key because M7 admits a daily
+    # observation and a monthly proxy for the same month (§3.4); keying only
+    # by month would silently collapse them into one inventory row.
+    seen: dict[tuple[str, str, str, str, str, bool, str], RateInput] = {}
     for value in values:
         for rate_input in value.rate_path:
             key = (
                 rate_input.base_currency,
                 rate_input.quote_currency,
-                rate_input.period_month,
+                rate_input.observation_kind,
+                rate_input.effective_on.isoformat() if rate_input.effective_on is not None else "",
+                rate_input.period_month or "",
                 rate_input.inverted,
                 rate_input.source_version,
             )
             seen[key] = rate_input
-    ordered = tuple(seen[key] for key in sorted(seen))
-    return values, RateInventory(rate_inputs=ordered)
+    return RateInventory(rate_inputs=tuple(seen[key] for key in sorted(seen)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,6 +450,12 @@ class ConsolidatedValuation:
     unavailable_reasons: tuple[str, ...]
     rate_inputs: tuple[RateInput, ...]
     context: ValuationContext
+    # Per-item results in the caller's input order. Not part of the wire DTO:
+    # a consolidated total is quantized once from ``total``/``partial_total``
+    # and never from these rows (§3.6). They exist so a caller that must show
+    # rows beside the parent, or reproduce a pre-seam per-row provenance
+    # payload, can do so without valuing anything a second time.
+    values: tuple[ExactValuation, ...]
 
 
 def _scope_for(item: ValuationItem, context: ValuationContext) -> ValuationScope:
@@ -412,6 +534,7 @@ def consolidate(
         unavailable_reasons=tuple(sorted(reasons)),
         rate_inputs=inventory.rate_inputs,
         context=context,
+        values=tuple(values),
     )
 
 
@@ -454,6 +577,7 @@ class RateInputDTO(_StrictModel):
 class UnavailabilityDTO(_StrictModel):
     reason: str
     message: str
+    remedy: str
 
 
 class ValuedMoneyDTO(_StrictModel):
@@ -483,6 +607,21 @@ class ConsolidatedValuationDTO(_StrictModel):
     excluded_entry_count: int
     unavailable_reasons: list[str]
     rate_path: list[RateInputDTO]
+
+
+def _definition(
+    currency_registry: dict[str, CurrencyDefinition], code: str
+) -> CurrencyDefinition:
+    """The registry entry for ``code``, as a typed error rather than a ``KeyError``.
+
+    Quantization needs a checked ``minor_unit_scale`` (§3.2); there is no
+    defensible fallback scale to invent when the reporting currency is not in
+    the registry at all.
+    """
+    definition = currency_registry.get(code)
+    if definition is None:
+        raise FinCLError(f"reporting currency {code!r} is not in the checked currency registry")
+    return definition
 
 
 def _rate_input_dto(rate_input: RateInput) -> RateInputDTO:
@@ -524,11 +663,13 @@ def to_dto(
             rate_path=[],
             forward_policy=value.context.forward_policy,
             unavailable=UnavailabilityDTO(
-                reason=value.unavailable.reason, message=value.unavailable.message
+                reason=value.unavailable.reason,
+                message=value.unavailable.message,
+                remedy=value.unavailable.remedy,
             ),
         )
     assert value.reported_exact is not None and value.basis is not None
-    definition = currency_registry[value.context.reporting_currency]
+    definition = _definition(currency_registry, value.context.reporting_currency)
     reported_money = quantize(value.reported_exact, scale=definition.minor_unit_scale)
     reported_dto = MoneyDTO(
         value=format_decimal(reported_money.coefficient, reported_money.scale),
@@ -563,7 +704,7 @@ def to_consolidated_dto(
     (:func:`consolidate` never sets both), and each is quantized exactly once
     from the exact rational fold — never from a sum of already-rounded rows.
     """
-    definition = currency_registry[consolidated.context.reporting_currency]
+    definition = _definition(currency_registry, consolidated.context.reporting_currency)
     scale = definition.minor_unit_scale
     total_dto = None
     if consolidated.total is not None:
@@ -589,9 +730,18 @@ def to_consolidated_dto(
 
 
 def _select_monthly_rate(
-    connection: sqlite3.Connection, native_currency: str, reporting_currency: str, period: str
+    connection: sqlite3.Connection,
+    native_currency: str,
+    reporting_currency: str,
+    period: str,
+    *,
+    allow_inverse: bool,
 ) -> RateInput | None:
-    """Exact-period lookup, direct then reciprocal (§3.2 ``direct-or-inverse-v1``).
+    """Exact-period lookup: direct, then reciprocal when the policy allows one.
+
+    ``allow_inverse`` is §3.2's ``direct-or-inverse-v1`` reciprocal leg, made
+    conditional so a named older ladder can keep resolving exactly the rows it
+    always did (see ``LATEST_FIRST_IMPORT_V1``). No triangulation either way.
 
     This is the whole of M2's ``flow-rate-v1``: with only ``MONTHLY_PROXY``
     data in ``fx_rates``, steps 1-2 (exact/prior dated observation) and step 3
@@ -614,6 +764,8 @@ def _select_monthly_rate(
             rate_text=row["rate_text"],
             imported_at=row["imported_at"],
         )
+    if not allow_inverse:
+        return None
     inverse_row = fx.selected_rate(connection, reporting_currency, native_currency, period)
     if inverse_row is not None:
         numerator = int(inverse_row["rate_denominator"])
@@ -636,13 +788,19 @@ def _select_monthly_rate(
 
 
 def _select_latest_rate_on_or_before(
-    connection: sqlite3.Connection, native_currency: str, reporting_currency: str, period_ceiling: str
+    connection: sqlite3.Connection,
+    native_currency: str,
+    reporting_currency: str,
+    period_ceiling: str,
+    *,
+    allow_inverse: bool,
 ) -> RateInput | None:
     """``position-rate-v1``/``forward-hold-latest-v1``: latest period <= ceiling, never later (§3.4).
 
     ``period`` is stored ``YYYY-MM`` text, so lexicographic ordering is
     chronological ordering; the ``<=`` bound is what makes no-look-ahead hold
-    for a historical ``valuation_as_of``.
+    for a historical ``valuation_as_of``. The reciprocal leg is gated on the
+    named policy exactly as in :func:`_select_monthly_rate`.
     """
     row = _latest_row_on_or_before(connection, native_currency, reporting_currency, period_ceiling)
     if row is not None:
@@ -660,6 +818,8 @@ def _select_latest_rate_on_or_before(
             rate_text=row["rate_text"],
             imported_at=row["imported_at"],
         )
+    if not allow_inverse:
+        return None
     inverse_row = _latest_row_on_or_before(connection, reporting_currency, native_currency, period_ceiling)
     if inverse_row is not None:
         numerator = int(inverse_row["rate_denominator"])

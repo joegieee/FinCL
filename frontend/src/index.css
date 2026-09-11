@@ -323,6 +323,7 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .money-unavailable{color:var(--muted);gap:8px}
 .money-unavailable-detail{display:flex;flex-direction:column;font-size:10px;line-height:1.3}
 .money-unavailable-detail strong{font-size:10px;letter-spacing:.03em}
+.money-remedy{color:var(--primary)}
 .money-disclosure{display:inline-block;position:relative}
 .money-disclosure>summary{list-style:none;display:inline-flex;align-items:center;padding:2px}
 .money-disclosure>summary::-webkit-details-marker{display:none}

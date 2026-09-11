@@ -26,6 +26,7 @@ from .intervals import (
 from .money import ExactMoney, exact_sum, format_decimal
 from .selection import needs_reextraction
 from .valuation import (
+    LATEST_FIRST_IMPORT_V1,
     ConsolidationStatus,
     EntryPrecision,
     ValuationContext,
@@ -372,7 +373,7 @@ def _economic_flow(
 
     return {
         "kind": "ECONOMIC_FLOW",
-        "fx_selection_policy": "latest-first-import-v1",
+        "fx_selection_policy": LATEST_FIRST_IMPORT_V1,
         "fx_inputs": [fx_inputs[key] for key in sorted(fx_inputs)],
         "reporting_currency": _REPORTING_CURRENCY,
         "consolidated_sgd_total": consolidated_total,
@@ -420,6 +421,14 @@ def _consolidate_sgd(
     below is an exact-period lookup keyed by each row's own month, matching
     the pre-seam behaviour exactly. ``date.min`` is a deterministic fallback
     for the (netting-empty) case where no analysis window exists at all.
+
+    The policy name is this report's own ``fx_selection_policy``, and the seam
+    honours it as a direct-only ladder (no reciprocal leg). That is deliberate:
+    §3.2's ``direct-or-inverse-v1`` would price a currency from a reporting ->
+    native row this report has always ignored, turning an
+    ``UNAVAILABLE_FX_RATES_NOT_IMPORTED`` status into a total. Moving this
+    behind the seam must not change the figure it publishes (§8 M2); reporting
+    surfaces built on the new ladder ask for ``flow-rate-v1`` instead.
     """
     valuation_as_of = (
         date.fromisoformat(analysis_window["end"]) if analysis_window else date.min
@@ -428,7 +437,7 @@ def _consolidate_sgd(
         reporting_currency=_REPORTING_CURRENCY,
         purpose=ValuationPurpose.FLOW,
         valuation_as_of=valuation_as_of,
-        rate_selection_policy="latest-first-import-v1",
+        rate_selection_policy=LATEST_FIRST_IMPORT_V1,
     )
     items = [
         ValuationItem(
@@ -441,10 +450,18 @@ def _consolidate_sgd(
         for currency, coefficient, scale, period in netting
     ]
     result = consolidate(connection, items, context=context)
-    for rate_input in result.rate_inputs:
-        fx_inputs[(rate_input.base_currency, rate_input.period_month or "")] = (
-            rate_input.legacy_provenance_dict()
-        )
+    # Reproduce the pre-seam ``fx_inputs`` payload exactly: this report walked
+    # `netting` in order and returned on the *first* row whose rate was
+    # missing, so it published provenance only for the rows it had already
+    # priced. `consolidate` prices every row (partial totals need that), so
+    # stop the walk where the old loop would have returned.
+    for (currency, _coefficient, _scale, period), value in zip(
+        netting, result.values, strict=True
+    ):
+        if value.unavailable is not None:
+            break
+        for rate_input in value.rate_path:
+            fx_inputs[(currency, period)] = rate_input.legacy_provenance_dict()
     if result.status != ConsolidationStatus.AVAILABLE:
         return None, "UNAVAILABLE_FX_RATES_NOT_IMPORTED"
     assert result.total is not None

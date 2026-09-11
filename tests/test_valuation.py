@@ -2,23 +2,31 @@
 
 from __future__ import annotations
 
+import ast
 import random
-import re
+import sqlite3
 import tempfile
 import unittest
 from datetime import date
 from fractions import Fraction
 from pathlib import Path
 
+from fincl import fx, valuation
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.errors import FinCLError
 from fincl.fx import load_fx_rates
-from fincl.money import ExactMoney
+from fincl.money import ExactMoney, format_decimal
+from fincl.report import _consolidate_sgd
 from fincl.reporting_currency.models import CURRENCY_REGISTRY
 from fincl.valuation import (
+    FLOW_RATE_V1,
+    LATEST_FIRST_IMPORT_V1,
+    POSITION_RATE_V1,
     ConsolidationStatus,
     EntryPrecision,
+    ExactValuation,
     RateBasis,
+    RateInput,
     ValuationContext,
     ValuationItem,
     ValuationPurpose,
@@ -107,6 +115,132 @@ class IdentityAndUnavailableTests(ValuationTestCase):
         )
         with self.assertRaises(FinCLError):
             value_one(self.connection, item, context=context)
+
+
+class RateSelectionPolicyTests(ValuationTestCase):
+    """§3.2/§3.4: the ladder is named and versioned, never inferred."""
+
+    def _item(self, purpose: ValuationPurpose = ValuationPurpose.FLOW) -> ValuationItem:
+        return ValuationItem(
+            native=_money("10.00"), native_currency="USD", purpose=purpose,
+            precision=EntryPrecision.MONTH, period_month="2026-01",
+        )
+
+    def test_unknown_policy_is_rejected_rather_than_defaulted(self) -> None:
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy="flow-rate-v9",
+        )
+        with self.assertRaises(FinCLError):
+            value_one(self.connection, self._item(), context=context)
+
+    def test_policy_answering_another_purpose_is_rejected(self) -> None:
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=POSITION_RATE_V1,
+        )
+        with self.assertRaises(FinCLError):
+            value_one(self.connection, self._item(), context=context)
+
+    def test_direct_or_inverse_policy_prices_a_reciprocal_only_pair(self) -> None:
+        self._load("SGD", "2026-01", "25.0", quote="THB")
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+        )
+        item = ValuationItem(
+            native=_money("100.00"), native_currency="THB", purpose=ValuationPurpose.FLOW,
+            precision=EntryPrecision.MONTH, period_month="2026-01",
+        )
+        result = value_one(self.connection, item, context=context)
+        self.assertEqual(result.reported_exact, Fraction(4))
+        self.assertTrue(result.rate_path[0].inverted)
+
+    def test_legacy_report_policy_takes_no_reciprocal_leg(self) -> None:
+        """``latest-first-import-v1`` must resolve exactly the rows the
+        pre-seam economic-flow report resolved: a reporting -> native row it
+        always ignored may not now light up a total it used to withhold."""
+        self._load("SGD", "2026-01", "25.0", quote="THB")
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=LATEST_FIRST_IMPORT_V1,
+        )
+        item = ValuationItem(
+            native=_money("100.00"), native_currency="THB", purpose=ValuationPurpose.FLOW,
+            precision=EntryPrecision.MONTH, period_month="2026-01",
+        )
+        result = value_one(self.connection, item, context=context)
+        assert result.unavailable is not None
+        self.assertEqual(result.unavailable.reason, "RATE_NOT_IMPORTED")
+
+
+class UnavailabilityRemedyTests(ValuationTestCase):
+    """§2 invariant 8 / §9.2: a typed reason *and a remedy*, never a bare gap."""
+
+    def test_missing_rate_names_the_pair_and_the_period_to_import(self) -> None:
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+        )
+        item = ValuationItem(
+            native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+            precision=EntryPrecision.MONTH, period_month="2026-03",
+        )
+        result = value_one(self.connection, item, context=context)
+        assert result.unavailable is not None
+        self.assertIn("USD -> SGD", result.unavailable.remedy)
+        self.assertIn("2026-03", result.unavailable.remedy)
+
+    def test_position_remedy_names_the_as_of_bound_not_a_month(self) -> None:
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.POSITION,
+            valuation_as_of=date(2026, 2, 15), rate_selection_policy=POSITION_RATE_V1,
+        )
+        item = ValuationItem(
+            native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION
+        )
+        result = value_one(self.connection, item, context=context)
+        assert result.unavailable is not None
+        self.assertIn("on or before 2026-02-15", result.unavailable.remedy)
+
+    def test_period_unknown_remedy_asks_for_a_date_not_a_rate(self) -> None:
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+        )
+        item = ValuationItem(
+            native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+            precision=EntryPrecision.UNKNOWN,
+        )
+        result = value_one(self.connection, item, context=context)
+        assert result.unavailable is not None
+        self.assertEqual(result.unavailable.reason, "PERIOD_UNKNOWN")
+        self.assertIn("date", result.unavailable.remedy)
+
+    def test_every_unavailable_dto_carries_reason_message_and_remedy(self) -> None:
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+            valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+        )
+        items = [
+            ValuationItem(
+                native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                precision=EntryPrecision.UNKNOWN,
+            ),
+            ValuationItem(
+                native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.FLOW,
+                precision=EntryPrecision.MONTH, period_month="2026-01",
+            ),
+        ]
+        for item in items:
+            dto = to_dto(
+                value_one(self.connection, item, context=context),
+                currency_registry=CURRENCY_REGISTRY,
+            )
+            assert dto.unavailable is not None
+            self.assertIsNone(dto.reported)
+            for field in (dto.unavailable.reason, dto.unavailable.message, dto.unavailable.remedy):
+                self.assertTrue(field.strip())
 
 
 class FlowRateTests(ValuationTestCase):
@@ -423,13 +557,158 @@ class ValueManyRateInventoryTests(ValuationTestCase):
         self.assertEqual(len(inventory.rate_inputs), 1)
 
 
+class BasisClassificationTests(unittest.TestCase):
+    """§3.3: which of ``rate_as_of`` / ``rate_period`` applies is implied by basis.
+
+    The classification must stay total over ``RateBasis``. A basis in none of
+    the three arms would render with neither rate field populated and no error,
+    which is precisely the silent branch §3.3 chose two fields to avoid.
+    """
+
+    def test_every_rate_basis_is_classified_exactly_once(self) -> None:
+        arms = (valuation._DATED_BASES, valuation._PERIOD_BASES, valuation._RATELESS_BASES)
+        for basis in RateBasis:
+            containing = [arm for arm in arms if basis in arm]
+            self.assertEqual(len(containing), 1, f"{basis} is classified {len(containing)} times")
+
+
+class RateInventoryKeyTests(unittest.TestCase):
+    """The inventory key must be totally ordered over nullable rate metadata."""
+
+    def _rate(self, *, period_month: str | None, effective_on: date | None, kind: str) -> RateInput:
+        return RateInput(
+            base_currency="USD", quote_currency="SGD", period_month=period_month,
+            effective_on=effective_on, observation_kind=kind, source="t",
+            source_version="v1", inverted=False, rate_numerator=13,
+            rate_denominator=10, rate_text="1.3",
+        )
+
+    def test_a_dated_row_and_a_monthly_row_sort_and_survive_together(self) -> None:
+        """§3.4 admits a daily observation and a monthly proxy for the same
+        month. Sorting a mix of ``None`` and ``str`` raises, and keying only by
+        month would collapse the two into one inventory row."""
+        dated = self._rate(period_month=None, effective_on=date(2026, 1, 14), kind="DAILY_CLOSE")
+        monthly = self._rate(period_month="2026-01", effective_on=None, kind="MONTHLY_PROXY")
+        values = [
+            ExactValuation(
+                native=_money("1.00"), native_currency="USD", reported_exact=Fraction(13, 10),
+                context=ValuationContext(
+                    reporting_currency="SGD", purpose=ValuationPurpose.FLOW,
+                    valuation_as_of=date(2026, 1, 31), rate_selection_policy=FLOW_RATE_V1,
+                ),
+                basis=RateBasis.MONTHLY_PROXY, rate_path=(rate,), unavailable=None,
+            )
+            for rate in (dated, monthly, dated)
+        ]
+        inventory = valuation._rate_inventory(values)
+        self.assertEqual(len(inventory.rate_inputs), 2)
+
+
+def _pre_seam_consolidate_sgd(
+    connection: sqlite3.Connection,
+    netting: list[tuple[str, int, int, str]],
+    fx_inputs: dict[tuple[str, str], dict[str, str]],
+) -> tuple[str | None, str]:
+    """``report.py::_consolidate_sgd`` exactly as it stood before the M2 seam.
+
+    Kept verbatim as the oracle for the differential test below: §8 M2 requires
+    the move behind the seam to leave this report's SGD result and its retained
+    ``fx_inputs`` field byte-equivalent, and only the old code can prove that.
+    """
+    total = Fraction(0)
+    for currency, coefficient, scale, period in netting:
+        amount = Fraction(coefficient, 10**scale)
+        if currency == "SGD":
+            total += amount
+            continue
+        key = (currency, period)
+        selected = fx_inputs.get(key) or fx.selected_rate(connection, currency, "SGD", period)
+        if selected is None:
+            return None, "UNAVAILABLE_FX_RATES_NOT_IMPORTED"
+        fx_inputs[key] = selected
+        total += amount * Fraction(
+            int(selected["rate_numerator"]), int(selected["rate_denominator"])
+        )
+    cents = total * 100
+    rounded = int(cents + Fraction(1, 2)) if cents >= 0 else -int(-cents + Fraction(1, 2))
+    return format_decimal(rounded, 2), "AVAILABLE"
+
+
+class ConsolidateSgdEquivalenceTests(ValuationTestCase):
+    """§8 M2: the seam move changes neither the SGD total nor ``fx_inputs``."""
+
+    WINDOW = {"start": "2026-01-01", "end": "2026-03-31"}
+
+    def _assert_equivalent(self, netting: list[tuple[str, int, int, str]]) -> None:
+        old_inputs: dict[tuple[str, str], dict[str, str]] = {}
+        new_inputs: dict[tuple[str, str], dict[str, str]] = {}
+        old_result = _pre_seam_consolidate_sgd(self.connection, netting, old_inputs)
+        new_result = _consolidate_sgd(
+            self.connection, netting, new_inputs, analysis_window=self.WINDOW
+        )
+        self.assertEqual(new_result, old_result)
+        # The payload renders `[fx_inputs[key] for key in sorted(fx_inputs)]`,
+        # so both the key set and each provenance dict must match.
+        self.assertEqual(sorted(new_inputs), sorted(old_inputs))
+        for key in sorted(old_inputs):
+            self.assertEqual(new_inputs[key], old_inputs[key])
+
+    def test_identity_and_converted_rows(self) -> None:
+        self._load("USD", "2026-01", "1.3500")
+        self._assert_equivalent([("SGD", 10000, 2, "2026-01"), ("USD", 5000, 2, "2026-01")])
+
+    def test_repeated_currency_month_is_recorded_once(self) -> None:
+        self._load("USD", "2026-01", "1.3500")
+        self._assert_equivalent([("USD", 5000, 2, "2026-01"), ("USD", 2500, 2, "2026-01")])
+
+    def test_a_reciprocal_only_pair_stays_unavailable(self) -> None:
+        """The pre-seam report never read a reporting -> native row. The seam
+        must not turn that withheld status into a priced total."""
+        self._load("SGD", "2026-01", "25.0", quote="THB")
+        self._assert_equivalent([("THB", 100000, 2, "2026-01")])
+
+    def test_missing_month_after_a_priced_row_publishes_only_the_priced_one(self) -> None:
+        self._load("USD", "2026-01", "1.3500")
+        self._assert_equivalent([("USD", 5000, 2, "2026-01"), ("USD", 5000, 2, "2026-03")])
+
+    def test_missing_month_before_a_priced_row_publishes_nothing(self) -> None:
+        """The old loop returned at the first missing rate, so a later row's
+        rate never reached the payload. Order is observable here."""
+        self._load("USD", "2026-01", "1.3500")
+        self._assert_equivalent([("USD", 5000, 2, "2026-03"), ("USD", 5000, 2, "2026-01")])
+
+    def test_negative_rows_round_half_away_from_zero_identically(self) -> None:
+        self._load("USD", "2026-02", "1.3333")
+        self._assert_equivalent([("USD", -1250, 2, "2026-02"), ("SGD", -375, 2, "2026-02")])
+
+    def test_empty_netting_is_an_available_zero_with_no_inputs(self) -> None:
+        self._assert_equivalent([])
+
+
 class NoFloatInValuationTests(unittest.TestCase):
     """§2 invariant 10: exact arithmetic is retained; no ``float`` anywhere in valuation."""
 
-    def test_no_float_literal_or_constructor_in_the_module(self) -> None:
+    def test_no_float_constructor_or_literal_in_the_module(self) -> None:
+        """A regex for ``float(`` misses the likelier mistake — a bare decimal
+        literal such as ``1.37``, which is a float the moment it is parsed. The
+        AST catches both."""
         path = Path(__file__).resolve().parent.parent / "src" / "fincl" / "valuation.py"
-        text = path.read_text()
-        self.assertNotRegex(text, re.compile(r"\bfloat\("))
+        tree = ast.parse(path.read_text())
+        offenders: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, float):
+                offenders.append(f"float literal {node.value!r} at line {node.lineno}")
+            if isinstance(node, ast.Name) and node.id == "float":
+                offenders.append(f"reference to float at line {node.lineno}")
+        self.assertEqual(offenders, [])
+
+    def test_true_division_is_never_applied_to_module_values(self) -> None:
+        """``Fraction / Fraction`` is exact, but ``int / int`` is a float. The
+        only division in the module is the quantization step's, and it must
+        stay rational."""
+        result = quantize(Fraction(1, 3), scale=2)
+        self.assertIsInstance(result.coefficient, int)
+        self.assertNotIsInstance(result.coefficient, float)
 
 
 if __name__ == "__main__":
