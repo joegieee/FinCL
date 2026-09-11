@@ -32,6 +32,7 @@ from .engine import (
 from .intervals import COVERAGE_POLICY_VERSION
 from .merchant import MERCHANT_NORM_VERSION, PROJECTION_VERSION
 from .reporting_currency import RATE_PATH_POLICY_VERSION, reporting_policy
+from .valuation import FORWARD_MONTHLY_CLOSED_V1, POSITION_MONTHLY_CLOSED_V1
 
 FX_SELECTION_POLICY = "fx-selection-latest-first-import-v1"
 
@@ -71,6 +72,8 @@ def _policy_versions() -> dict[str, str]:
         "entry_projection": PROJECTION_VERSION,
         "fx_selection": FX_SELECTION_POLICY,
         "rate_path": RATE_PATH_POLICY_VERSION,
+        "position_monthly_closed": POSITION_MONTHLY_CLOSED_V1,
+        "forward_monthly_closed": FORWARD_MONTHLY_CLOSED_V1,
     }
 
 

@@ -37,11 +37,12 @@ while new surfaces opt into §3.2's reciprocal leg.
 
 from __future__ import annotations
 
+import calendar
 import sqlite3
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from enum import StrEnum
 from fractions import Fraction
 
@@ -55,8 +56,10 @@ from .reporting_currency.queries import reporting_policy
 
 __all__ = [
     "FORWARD_HOLD_LATEST_V1",
+    "FORWARD_MONTHLY_CLOSED_V1",
     "FLOW_RATE_V1",
     "LATEST_FIRST_IMPORT_V1",
+    "POSITION_MONTHLY_CLOSED_V1",
     "POSITION_RATE_V1",
     "ConsolidatedValuation",
     "ConsolidatedValuationDTO",
@@ -78,8 +81,12 @@ __all__ = [
     "ValuationScope",
     "ValuedMoneyDTO",
     "consolidate",
+    "eligible_month_ceiling",
     "quantize",
     "reporting_policy",
+    "resolve_rate_selection_policy",
+    "select_latest_rate_on_or_before",
+    "select_monthly_rate",
     "to_consolidated_dto",
     "to_dto",
     "value_many",
@@ -143,6 +150,17 @@ POSITION_RATE_V1 = "position-rate-v1"
 FORWARD_HOLD_LATEST_V1 = "forward-hold-latest-v1"
 LATEST_FIRST_IMPORT_V1 = "latest-first-import-v1"
 
+# §4.2 M0: the closed-month policies. Registering them alone would not be
+# enough to change behavior, because ``value_one`` used to compute its
+# on-or-before ceiling purely from ``purpose`` — every POSITION/FORECAST
+# context, named or not, got the same permissive "any row with period <=
+# as_of's own month" ceiling. ``RateSelectionPolicy.closed_month_only`` below
+# is what the named policy actually dispatches on, so these two names differ
+# in more than label from ``POSITION_RATE_V1``/``FORWARD_HOLD_LATEST_V1``
+# while those legacy names keep resolving exactly what they always did.
+POSITION_MONTHLY_CLOSED_V1 = "position-monthly-closed-v1"
+FORWARD_MONTHLY_CLOSED_V1 = "forward-monthly-closed-v1"
+
 
 @dataclass(frozen=True, slots=True)
 class RateSelectionPolicy:
@@ -157,6 +175,10 @@ class RateSelectionPolicy:
     name: str
     purpose: ValuationPurpose
     allow_inverse: bool
+    # §4.2: a POSITION/FORECAST proxy for month M is eligible only when M's
+    # last calendar day is on or before ``valuation_as_of``. False preserves
+    # every existing named policy's permissive current-month ceiling.
+    closed_month_only: bool = False
 
 
 _RATE_SELECTION_POLICIES: dict[str, RateSelectionPolicy] = {
@@ -165,6 +187,12 @@ _RATE_SELECTION_POLICIES: dict[str, RateSelectionPolicy] = {
         RateSelectionPolicy(FLOW_RATE_V1, ValuationPurpose.FLOW, allow_inverse=True),
         RateSelectionPolicy(POSITION_RATE_V1, ValuationPurpose.POSITION, allow_inverse=True),
         RateSelectionPolicy(FORWARD_HOLD_LATEST_V1, ValuationPurpose.FORECAST, allow_inverse=True),
+        RateSelectionPolicy(
+            POSITION_MONTHLY_CLOSED_V1, ValuationPurpose.POSITION, allow_inverse=True, closed_month_only=True
+        ),
+        RateSelectionPolicy(
+            FORWARD_MONTHLY_CLOSED_V1, ValuationPurpose.FORECAST, allow_inverse=True, closed_month_only=True
+        ),
         # The economic-flow report's pre-seam selection (``report.py``'s
         # ``fx_selection_policy``). It predates ``direct-or-inverse-v1`` and
         # only ever read a directly imported native -> reporting row, so it
@@ -176,12 +204,14 @@ _RATE_SELECTION_POLICIES: dict[str, RateSelectionPolicy] = {
 }
 
 
-def _resolve_policy(context: ValuationContext) -> RateSelectionPolicy:
+def resolve_rate_selection_policy(context: ValuationContext) -> RateSelectionPolicy:
     """The ladder named by ``context``, rejecting an unknown or mismatched one.
 
     Failing loudly matters more than defaulting: silently falling back to a
     ladder the caller did not name would let a misspelled policy change which
-    rate a figure was valued at without any signal.
+    rate a figure was valued at without any signal. Exposed (not just used
+    internally) so the step 02 coverage reader resolves the identical policy
+    object actual valuation does, rather than re-deriving its own copy.
     """
     policy = _RATE_SELECTION_POLICIES.get(context.rate_selection_policy)
     if policy is None:
@@ -192,6 +222,28 @@ def _resolve_policy(context: ValuationContext) -> RateSelectionPolicy:
             f"not context purpose {context.purpose!r}"
         )
     return policy
+
+
+def eligible_month_ceiling(valuation_as_of: date, *, closed_month_only: bool) -> str:
+    """The latest ``YYYY-MM`` period a POSITION/FORECAST proxy may use (§4.2).
+
+    A permissive ceiling (``closed_month_only=False``, every pre-M0 named
+    policy) is simply ``valuation_as_of``'s own month: any row with
+    ``period <= that month`` may be selected, including one dated inside the
+    still-open current month.
+
+    A closed-month ceiling admits month M only when M's last calendar day is
+    on or before ``valuation_as_of`` — August 15 may use July or earlier;
+    August 31 may use August. Exposed for the step 02 coverage reader so it
+    predicts eligibility through this exact function, not a second copy of it.
+    """
+    if not closed_month_only:
+        return valuation_as_of.strftime("%Y-%m")
+    _, last_day_of_month = calendar.monthrange(valuation_as_of.year, valuation_as_of.month)
+    if valuation_as_of.day == last_day_of_month:
+        return valuation_as_of.strftime("%Y-%m")
+    last_day_of_prior_month = valuation_as_of.replace(day=1) - timedelta(days=1)
+    return last_day_of_prior_month.strftime("%Y-%m")
 
 
 class EntryPrecision(StrEnum):
@@ -305,7 +357,7 @@ def value_one(
         raise FinCLError(
             f"valuation item purpose {item.purpose!r} does not match context purpose {context.purpose!r}"
         )
-    policy = _resolve_policy(context)
+    policy = resolve_rate_selection_policy(context)
     native_fraction = Fraction(item.native.coefficient, 10**item.native.scale)
 
     if item.native_currency == context.reporting_currency:
@@ -331,7 +383,7 @@ def value_one(
                 "entry has no dated or monthly precision to value",
                 "Record a transaction date or statement period for this entry, then refresh.",
             )
-        rate_input = _select_monthly_rate(
+        rate_input = select_monthly_rate(
             connection,
             item.native_currency,
             context.reporting_currency,
@@ -341,8 +393,8 @@ def value_one(
         basis = RateBasis.MONTHLY_PROXY
         missing_scope = f"covering {period}"
     else:
-        period = context.valuation_as_of.strftime("%Y-%m")
-        rate_input = _select_latest_rate_on_or_before(
+        period = eligible_month_ceiling(context.valuation_as_of, closed_month_only=policy.closed_month_only)
+        rate_input = select_latest_rate_on_or_before(
             connection,
             item.native_currency,
             context.reporting_currency,
@@ -729,7 +781,7 @@ def to_consolidated_dto(
 # --- Rate selection (fx.py-backed; M2 has month-precision data only) -------
 
 
-def _select_monthly_rate(
+def select_monthly_rate(
     connection: sqlite3.Connection,
     native_currency: str,
     reporting_currency: str,
@@ -746,7 +798,8 @@ def _select_monthly_rate(
     This is the whole of M2's ``flow-rate-v1``: with only ``MONTHLY_PROXY``
     data in ``fx_rates``, steps 1-2 (exact/prior dated observation) and step 3
     (explicit monthly average) of §3.4 have nothing to select from yet. Never
-    consults a different period, so it cannot look ahead.
+    consults a different period, so it cannot look ahead. Public so the step
+    02 coverage reader predicts FLOW rates through this exact ladder.
     """
     row = fx.selected_rate(connection, native_currency, reporting_currency, period)
     if row is not None:
@@ -787,7 +840,7 @@ def _select_monthly_rate(
     return None
 
 
-def _select_latest_rate_on_or_before(
+def select_latest_rate_on_or_before(
     connection: sqlite3.Connection,
     native_currency: str,
     reporting_currency: str,
@@ -795,12 +848,17 @@ def _select_latest_rate_on_or_before(
     *,
     allow_inverse: bool,
 ) -> RateInput | None:
-    """``position-rate-v1``/``forward-hold-latest-v1``: latest period <= ceiling, never later (§3.4).
+    """Latest period <= ``period_ceiling``, never later (§3.4, §4.2).
 
     ``period`` is stored ``YYYY-MM`` text, so lexicographic ordering is
     chronological ordering; the ``<=`` bound is what makes no-look-ahead hold
     for a historical ``valuation_as_of``. The reciprocal leg is gated on the
-    named policy exactly as in :func:`_select_monthly_rate`.
+    named policy exactly as in :func:`select_monthly_rate`. ``period_ceiling``
+    is the caller's already-resolved eligible-month bound — permissive
+    (``valuation_as_of``'s own month) for a legacy policy, or
+    :func:`eligible_month_ceiling`'s closed-month bound for
+    ``position-monthly-closed-v1``/``forward-monthly-closed-v1``. Public so the
+    step 02 coverage reader predicts through this exact ladder.
     """
     row = _latest_row_on_or_before(connection, native_currency, reporting_currency, period_ceiling)
     if row is not None:

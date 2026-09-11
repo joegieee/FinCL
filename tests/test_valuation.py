@@ -20,7 +20,10 @@ from fincl.report import _consolidate_sgd
 from fincl.reporting_currency.models import CURRENCY_REGISTRY
 from fincl.valuation import (
     FLOW_RATE_V1,
+    FORWARD_HOLD_LATEST_V1,
+    FORWARD_MONTHLY_CLOSED_V1,
     LATEST_FIRST_IMPORT_V1,
+    POSITION_MONTHLY_CLOSED_V1,
     POSITION_RATE_V1,
     ConsolidationStatus,
     EntryPrecision,
@@ -31,6 +34,7 @@ from fincl.valuation import (
     ValuationItem,
     ValuationPurpose,
     consolidate,
+    eligible_month_ceiling,
     quantize,
     to_consolidated_dto,
     to_dto,
@@ -327,6 +331,189 @@ class PositionAndForecastNoLookAheadTests(ValuationTestCase):
         result = value_one(self.connection, item, context=context)
         assert result.unavailable is not None
         self.assertEqual(result.unavailable.reason, "RATE_NOT_IMPORTED")
+
+
+class EligibleMonthCeilingTests(unittest.TestCase):
+    """§4.2: pure date-math for the closed-month eligible ceiling."""
+
+    def test_permissive_ceiling_is_always_the_requested_month(self) -> None:
+        self.assertEqual(
+            eligible_month_ceiling(date(2026, 8, 15), closed_month_only=False), "2026-08"
+        )
+        self.assertEqual(
+            eligible_month_ceiling(date(2026, 8, 31), closed_month_only=False), "2026-08"
+        )
+
+    def test_closed_month_ceiling_excludes_a_mid_month_date(self) -> None:
+        self.assertEqual(
+            eligible_month_ceiling(date(2026, 8, 15), closed_month_only=True), "2026-07"
+        )
+
+    def test_closed_month_ceiling_includes_the_last_day_of_month(self) -> None:
+        self.assertEqual(
+            eligible_month_ceiling(date(2026, 8, 31), closed_month_only=True), "2026-08"
+        )
+
+    def test_closed_month_ceiling_crosses_a_year_boundary(self) -> None:
+        self.assertEqual(
+            eligible_month_ceiling(date(2026, 1, 15), closed_month_only=True), "2025-12"
+        )
+
+    def test_closed_month_ceiling_handles_leap_february(self) -> None:
+        self.assertEqual(
+            eligible_month_ceiling(date(2028, 2, 29), closed_month_only=True), "2028-02"
+        )
+        self.assertEqual(
+            eligible_month_ceiling(date(2028, 2, 28), closed_month_only=True), "2028-01"
+        )
+        self.assertEqual(
+            eligible_month_ceiling(date(2028, 3, 1), closed_month_only=True), "2028-02"
+        )
+
+    def test_non_leap_february_last_day_is_the_28th(self) -> None:
+        self.assertEqual(
+            eligible_month_ceiling(date(2026, 2, 28), closed_month_only=True), "2026-02"
+        )
+
+
+class ClosedMonthPolicyTests(ValuationTestCase):
+    """§4.2: ``position-monthly-closed-v1``/``forward-monthly-closed-v1``
+    actually differ in behavior from the legacy named policies, not merely by
+    name (the registration-alone failure mode the prompt calls out)."""
+
+    def _position_context(self, as_of: date, *, policy: str = POSITION_MONTHLY_CLOSED_V1) -> ValuationContext:
+        return ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.POSITION,
+            valuation_as_of=as_of, rate_selection_policy=policy,
+        )
+
+    def test_mid_month_rejects_the_same_month_rate_and_uses_the_prior_month(self) -> None:
+        self._load("USD", "2026-07", "1.3000")
+        self._load("USD", "2026-08", "9.9999", source_version="v2")
+        context = self._position_context(date(2026, 8, 15))
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.reported_exact, Fraction(13))
+        self.assertEqual(result.rate_path[0].period_month, "2026-07")
+
+    def test_month_end_accepts_that_months_own_rate(self) -> None:
+        self._load("USD", "2026-08", "1.4000")
+        context = self._position_context(date(2026, 8, 31))
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.reported_exact, Fraction(14))
+        self.assertEqual(result.rate_path[0].period_month, "2026-08")
+
+    def test_mid_month_with_no_prior_month_rate_is_unavailable_not_the_same_month(self) -> None:
+        self._load("USD", "2026-08", "9.9999")
+        context = self._position_context(date(2026, 8, 15))
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        assert result.unavailable is not None
+        self.assertEqual(result.unavailable.reason, "RATE_NOT_IMPORTED")
+
+    def test_january_boundary_reaches_back_into_prior_december(self) -> None:
+        self._load("USD", "2025-12", "1.2000")
+        context = self._position_context(date(2026, 1, 10))
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.reported_exact, Fraction(12))
+        self.assertEqual(result.rate_path[0].period_month, "2025-12")
+
+    def test_leap_february_29th_may_use_february_itself(self) -> None:
+        self._load("USD", "2028-02", "1.1000")
+        context = self._position_context(date(2028, 2, 29))
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.reported_exact, Fraction(11))
+        self.assertEqual(result.rate_path[0].period_month, "2028-02")
+
+    def test_leap_february_28th_is_mid_month_and_falls_back_to_january(self) -> None:
+        self._load("USD", "2028-01", "1.0500")
+        self._load("USD", "2028-02", "9.9999", source_version="v2")
+        context = self._position_context(date(2028, 2, 28))
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.reported_exact, Fraction(21, 2))
+        self.assertEqual(result.rate_path[0].period_month, "2028-01")
+
+    def test_importing_a_future_month_does_not_affect_a_historical_mark(self) -> None:
+        self._load("USD", "2026-07", "1.3000")
+        context = self._position_context(date(2026, 8, 10))
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        before = value_one(self.connection, item, context=context)
+        # Importing August (and even a later September) after the fact must
+        # not move a mark already valued against the closed July ceiling.
+        self._load("USD", "2026-08", "50.0000", source_version="v2")
+        self._load("USD", "2026-09", "99.0000", source_version="v3")
+        after = value_one(self.connection, item, context=context)
+        self.assertEqual(before.reported_exact, after.reported_exact)
+        self.assertEqual(after.rate_path[0].period_month, "2026-07")
+
+    def test_inverse_rate_resolves_under_the_closed_month_ceiling(self) -> None:
+        self._load("SGD", "2026-07", "0.7500", quote="USD")
+        context = self._position_context(date(2026, 8, 15))
+        item = ValuationItem(native=_money("75.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.reported_exact, Fraction(75) / Fraction(3, 4))
+        self.assertTrue(result.rate_path[0].inverted)
+        self.assertEqual(result.rate_path[0].period_month, "2026-07")
+
+    def test_identity_needs_no_rate_under_the_closed_month_policy(self) -> None:
+        context = self._position_context(date(2026, 8, 15))
+        item = ValuationItem(native=_money("10.00"), native_currency="SGD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        self.assertEqual(result.basis, RateBasis.IDENTITY)
+        self.assertEqual(result.reported_exact, Fraction(10))
+        self.assertEqual(result.rate_path, ())
+
+    def test_forward_monthly_closed_matches_the_position_variant(self) -> None:
+        self._load("USD", "2026-07", "1.3000")
+        self._load("USD", "2026-08", "9.9999", source_version="v2")
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FORECAST,
+            valuation_as_of=date(2026, 8, 15), rate_selection_policy=FORWARD_MONTHLY_CLOSED_V1,
+            forward_policy=FORWARD_MONTHLY_CLOSED_V1,
+        )
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.FORECAST)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.basis, RateBasis.HELD_LATEST)
+        self.assertEqual(result.reported_exact, Fraction(13))
+        self.assertEqual(result.rate_path[0].period_month, "2026-07")
+
+    def test_legacy_position_policy_regression_is_unchanged_mid_month(self) -> None:
+        """§4.2 acceptance: a named legacy policy keeps its permissive
+        same-month ceiling; only the new closed-month names differ."""
+        self._load("USD", "2026-08", "1.4000")
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.POSITION,
+            valuation_as_of=date(2026, 8, 15), rate_selection_policy=POSITION_RATE_V1,
+        )
+        item = ValuationItem(native=_money("10.00"), native_currency="USD", purpose=ValuationPurpose.POSITION)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.reported_exact, Fraction(14))
+        self.assertEqual(result.rate_path[0].period_month, "2026-08")
+
+    def test_legacy_forward_policy_regression_is_unchanged_mid_month(self) -> None:
+        self._load("USD", "2026-08", "1.5000")
+        context = ValuationContext(
+            reporting_currency="SGD", purpose=ValuationPurpose.FORECAST,
+            valuation_as_of=date(2026, 8, 15), rate_selection_policy=FORWARD_HOLD_LATEST_V1,
+            forward_policy=FORWARD_HOLD_LATEST_V1,
+        )
+        item = ValuationItem(native=_money("2.00"), native_currency="USD", purpose=ValuationPurpose.FORECAST)
+        result = value_one(self.connection, item, context=context)
+        assert result.reported_exact is not None
+        self.assertEqual(result.reported_exact, Fraction(3))
+        self.assertEqual(result.rate_path[0].period_month, "2026-08")
 
 
 class ConsolidateTests(ValuationTestCase):
