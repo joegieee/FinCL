@@ -7,11 +7,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
-from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
-from . import fx
 from .analysis.components import build_components
 from .db import connect_readonly
 from .engine import summarize_run
@@ -27,6 +25,15 @@ from .intervals import (
 )
 from .money import ExactMoney, exact_sum, format_decimal
 from .selection import needs_reextraction
+from .valuation import (
+    ConsolidationStatus,
+    EntryPrecision,
+    ValuationContext,
+    ValuationItem,
+    ValuationPurpose,
+    consolidate,
+    quantize,
+)
 
 _REPORTING_CURRENCY = "SGD"
 
@@ -359,7 +366,9 @@ def _economic_flow(
     if any_incomplete or coverage_withheld:
         consolidated_total, consolidated_status = None, "UNAVAILABLE_COVERAGE_INCOMPLETE"
     else:
-        consolidated_total, consolidated_status = _consolidate_sgd(connection, netting, fx_inputs)
+        consolidated_total, consolidated_status = _consolidate_sgd(
+            connection, netting, fx_inputs, analysis_window=analysis_window
+        )
 
     return {
         "kind": "ECONOMIC_FLOW",
@@ -392,6 +401,7 @@ def _economic_flow(
 def _consolidate_sgd(
     connection: sqlite3.Connection, netting: list[tuple[str, int, int, str]],
     fx_inputs: dict[tuple[str, str], dict[str, str]],
+    *, analysis_window: dict[str, str] | None,
 ) -> tuple[str | None, str]:
     """Value every netting entry into SGD at its month's loaded rate.
 
@@ -399,26 +409,47 @@ def _consolidate_sgd(
     (foreign currency, month) that appears; otherwise the total is ``None`` and
     the status names why. The sum is exact until a single final rounding to the
     cent, half away from zero.
+
+    This is a thin adapter over the M2 valuation seam (``valuation.py``,
+    §3.3/§3.6): it builds one ``FLOW``-purpose ``ValuationItem`` per netting
+    row and delegates arithmetic, rate selection, and quantization to
+    ``consolidate``. This report predates the money-flow call graph (§5.1) and
+    is not in scope for the M1 wall-clock threading, so ``valuation_as_of`` is
+    resolved from the already-computed analysis window rather than a request
+    parameter; it is never used to select a rate here because every FX lookup
+    below is an exact-period lookup keyed by each row's own month, matching
+    the pre-seam behaviour exactly. ``date.min`` is a deterministic fallback
+    for the (netting-empty) case where no analysis window exists at all.
     """
-    total = Fraction(0)
-    for currency, coefficient, scale, period in netting:
-        amount = Fraction(coefficient, 10**scale)
-        if currency == _REPORTING_CURRENCY:
-            total += amount
-            continue
-        key = (currency, period)
-        selected = fx_inputs.get(key) or fx.selected_rate(
-            connection, currency, _REPORTING_CURRENCY, period
+    valuation_as_of = (
+        date.fromisoformat(analysis_window["end"]) if analysis_window else date.min
+    )
+    context = ValuationContext(
+        reporting_currency=_REPORTING_CURRENCY,
+        purpose=ValuationPurpose.FLOW,
+        valuation_as_of=valuation_as_of,
+        rate_selection_policy="latest-first-import-v1",
+    )
+    items = [
+        ValuationItem(
+            native=ExactMoney(coefficient, scale, format_decimal(coefficient, scale)),
+            native_currency=currency,
+            purpose=ValuationPurpose.FLOW,
+            precision=EntryPrecision.MONTH,
+            period_month=period,
         )
-        if selected is None:
-            return None, "UNAVAILABLE_FX_RATES_NOT_IMPORTED"
-        fx_inputs[key] = selected
-        total += amount * Fraction(
-            int(selected["rate_numerator"]), int(selected["rate_denominator"])
+        for currency, coefficient, scale, period in netting
+    ]
+    result = consolidate(connection, items, context=context)
+    for rate_input in result.rate_inputs:
+        fx_inputs[(rate_input.base_currency, rate_input.period_month or "")] = (
+            rate_input.legacy_provenance_dict()
         )
-    cents = total * 100
-    rounded = int(cents + Fraction(1, 2)) if cents >= 0 else -int(-cents + Fraction(1, 2))
-    return format_decimal(rounded, 2), "AVAILABLE"
+    if result.status != ConsolidationStatus.AVAILABLE:
+        return None, "UNAVAILABLE_FX_RATES_NOT_IMPORTED"
+    assert result.total is not None
+    quantized = quantize(result.total, scale=2)
+    return format_decimal(quantized.coefficient, quantized.scale), "AVAILABLE"
 
 
 @dataclass(frozen=True, slots=True)
