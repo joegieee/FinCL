@@ -24,6 +24,7 @@ from unittest.mock import patch
 
 import fincl.forecast.manifest as manifest_module
 from fincl.api import create_app
+from fincl.db import connect_readonly
 from fincl.document_service import DocumentImportService
 from fincl.forecast import (
     FORECAST_READINESS_LEVELS,
@@ -162,10 +163,14 @@ class UnclassifiedOutflowTests(unittest.TestCase):
 class MixedGenerationTests(unittest.TestCase):
     def test_a_mixed_generation_input_is_reported_stale_not_combined(self) -> None:
         database = _ledger(_rows())
-        real = manifest_module.obligations_page(database, as_of=None, today=_TODAY)
+        connection = connect_readonly(database)
+        try:
+            real = manifest_module.obligations_page_from(connection, as_of=None, today=_TODAY)
+        finally:
+            connection.close()
         forged = {**real, "generation": "sha256:" + "0" * 64}
 
-        with patch.object(manifest_module, "obligations_page", return_value=forged):
+        with patch.object(manifest_module, "obligations_page_from", return_value=forged):
             manifest = forecast_input_manifest(database, today=_TODAY)
 
         self.assertTrue(manifest["stale"])

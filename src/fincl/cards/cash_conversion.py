@@ -1064,6 +1064,27 @@ def card_cash_conversion(
     prospective_purchases: list[dict[str, Any]] | None = None,
     cash_available: str | None = None,
 ) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return card_cash_conversion_from(
+            connection,
+            as_of=as_of,
+            horizon_months=horizon_months,
+            prospective_purchases=prospective_purchases,
+            cash_available=cash_available,
+        )
+    finally:
+        connection.close()
+
+
+def card_cash_conversion_from(
+    connection: sqlite3.Connection,
+    *,
+    as_of: str,
+    horizon_months: int = HORIZON_MONTHS,
+    prospective_purchases: list[dict[str, Any]] | None = None,
+    cash_available: str | None = None,
+) -> dict[str, Any]:
     """The cash-conversion contract for every card in one ledger.
 
     ``prospective_purchases`` is the forecast's side of the contract: modelled
@@ -1080,33 +1101,29 @@ def card_cash_conversion(
         raise FinCLError("as_of must be an ISO calendar date (YYYY-MM-DD)") from exc
     modelled = list(prospective_purchases or [])
 
-    connection = connect_readonly(database)
-    try:
-        token = _generation(connection)
-        cards: list[dict[str, Any]] = []
-        for account in card_projection.selected_card_accounts(connection):
-            account_id = str(account["id"])
-            for pocket in _pockets(connection, account_id):
-                cards.append(
-                    _one_card(
-                        connection,
-                        token,
-                        account=account,
-                        pocket=pocket,
-                        as_of=day,
-                        horizon_months=horizon_months,
-                        covered=account_evidence_intervals(connection, account_id),
-                        modelled=[
-                            item
-                            for item in modelled
-                            if str(item.get("account_id")) == account_id
-                            and str(item.get("currency")) == pocket
-                        ],
-                        cash_available=cash_available,
-                    )
+    token = _generation(connection)
+    cards: list[dict[str, Any]] = []
+    for account in card_projection.selected_card_accounts(connection):
+        account_id = str(account["id"])
+        for pocket in _pockets(connection, account_id):
+            cards.append(
+                _one_card(
+                    connection,
+                    token,
+                    account=account,
+                    pocket=pocket,
+                    as_of=day,
+                    horizon_months=horizon_months,
+                    covered=account_evidence_intervals(connection, account_id),
+                    modelled=[
+                        item
+                        for item in modelled
+                        if str(item.get("account_id")) == account_id
+                        and str(item.get("currency")) == pocket
+                    ],
+                    cash_available=cash_available,
                 )
-    finally:
-        connection.close()
+            )
 
     return {
         "generation": token,

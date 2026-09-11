@@ -9,6 +9,7 @@ link remain unresolved rather than being silently treated as discretionary.
 
 from __future__ import annotations
 
+import sqlite3
 from collections import defaultdict
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -19,7 +20,7 @@ from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
 from ..money import ExactMoney, exact_sum, format_decimal
-from .queries import _month_list, cost_income_table
+from .queries import _month_list, cost_income_table_from
 
 ROLE_RULE_VERSION = "baseline-roles-2026-v1"
 RESERVE_MONTHS = Decimal("3")
@@ -92,55 +93,59 @@ def _role(category: str, *, recurring: bool) -> dict[str, Any]:
 
 
 def baseline_roles(database: Path, *, today: date) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return baseline_roles_from(connection, today=today)
+    finally:
+        connection.close()
+
+
+def baseline_roles_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
     """Return role totals and source-backed groups for the selected baseline window."""
-    table = cost_income_table(database, today=today)
+    table = cost_income_table_from(connection, today=today)
     if not table["available"]:
         return {"available": False, "reason": table["reason"], "baseline_window": table["baseline_window"], "tasks": table["tasks"]}
 
     months = _month_list(table["baseline_window"]["start_month"], table["baseline_window"]["end_month"])
-    connection = connect_readonly(database)
-    try:
-        generation = current_generation(connection)
-        token = generation["generation_token"] if generation else ""
-        rows = connection.execute(
-            """SELECT component_id, period, currency, origin_anchor, category_key, bucket,
-                      signed_coefficient, scale
-                 FROM analysis_components
-                 WHERE generation_token=? AND lens='recorded_flow'
-                   AND represented_start>=? AND represented_end<=?
-                   AND bucket IN ('spending', 'fees', 'refunds', 'reimbursements')""",
-            (token, month_span(months[0]).start, month_span(months[-1]).end),
-        ).fetchall()
-        recurring = {
-            row["entry_anchor"] for row in connection.execute(
-                """SELECT o.entry_anchor FROM recurring_occurrences o
-                   JOIN recurring_commitments c ON c.commitment=o.commitment
-                   WHERE o.bound=1 AND o.entry_anchor IS NOT NULL AND c.status='active'"""
-            )
-        }
-        purchase_categories = {
-            row["purchase_anchor"]: row["category_key"]
-            for row in connection.execute(
-                """SELECT DISTINCT ra.purchase_anchor, ac.category_key
-                   FROM refund_allocations ra JOIN analysis_components ac
-                     ON ac.generation_token=? AND ac.origin_anchor=ra.purchase_anchor
-                    AND ac.lens='recorded_flow' AND ac.bucket IN ('spending', 'fees')""",
-                (token,),
-            )
-        }
-        refund_links = defaultdict(list)
-        for row in connection.execute("SELECT refund_anchor, purchase_anchor FROM refund_allocations"):
-            refund_links[row["refund_anchor"]].append(row["purchase_anchor"])
-        entry_roles = {
-            row["natural_anchor"]: dict(row)
-            for row in connection.execute(
-                """SELECT e.natural_anchor, fr.cost_behavior, fr.cost_behavior_basis,
-                          fr.need, fr.need_basis, fr.review_state
-                   FROM entry_financial_roles fr JOIN ledger_entries e ON e.id=fr.entry_id"""
-            )
-        }
-    finally:
-        connection.close()
+    generation = current_generation(connection)
+    token = generation["generation_token"] if generation else ""
+    rows = connection.execute(
+        """SELECT component_id, period, currency, origin_anchor, category_key, bucket,
+                  signed_coefficient, scale
+             FROM analysis_components
+             WHERE generation_token=? AND lens='recorded_flow'
+               AND represented_start>=? AND represented_end<=?
+               AND bucket IN ('spending', 'fees', 'refunds', 'reimbursements')""",
+        (token, month_span(months[0]).start, month_span(months[-1]).end),
+    ).fetchall()
+    recurring = {
+        row["entry_anchor"] for row in connection.execute(
+            """SELECT o.entry_anchor FROM recurring_occurrences o
+               JOIN recurring_commitments c ON c.commitment=o.commitment
+               WHERE o.bound=1 AND o.entry_anchor IS NOT NULL AND c.status='active'"""
+        )
+    }
+    purchase_categories = {
+        row["purchase_anchor"]: row["category_key"]
+        for row in connection.execute(
+            """SELECT DISTINCT ra.purchase_anchor, ac.category_key
+               FROM refund_allocations ra JOIN analysis_components ac
+                 ON ac.generation_token=? AND ac.origin_anchor=ra.purchase_anchor
+                AND ac.lens='recorded_flow' AND ac.bucket IN ('spending', 'fees')""",
+            (token,),
+        )
+    }
+    refund_links = defaultdict(list)
+    for row in connection.execute("SELECT refund_anchor, purchase_anchor FROM refund_allocations"):
+        refund_links[row["refund_anchor"]].append(row["purchase_anchor"])
+    entry_roles = {
+        row["natural_anchor"]: dict(row)
+        for row in connection.execute(
+            """SELECT e.natural_anchor, fr.cost_behavior, fr.cost_behavior_basis,
+                      fr.need, fr.need_basis, fr.review_state
+               FROM entry_financial_roles fr JOIN ledger_entries e ON e.id=fr.entry_id"""
+        )
+    }
 
     # The estimator's existing outlier rule is also a source-backed role
     # suggestion.  It is deliberately review-required, not a confirmed one-off.

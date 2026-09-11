@@ -28,6 +28,7 @@ purchase or an unlinked receipt adjustment block a protective claim.
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -36,8 +37,8 @@ from typing import Any
 from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
-from .queries import cost_income_table
-from .roles import RESERVE_MONTHS, baseline_roles
+from .queries import cost_income_table_from
+from .roles import RESERVE_MONTHS, baseline_roles_from
 
 _METHOD_VERSION = "baseline-estimator-v1"
 _OUTLIER_METHOD = "outlier-v1: entry ≥ 3× category median-month and ≥ 150"
@@ -85,19 +86,25 @@ def _entry_spending(
 ) -> list[dict[str, Any]]:
     connection = connect_readonly(database)
     try:
-        rows = connection.execute(
-            """
-            SELECT period, currency, category_key, origin_anchor,
-                   signed_coefficient, scale
-            FROM analysis_components
-            WHERE generation_token = ? AND lens = 'recorded_flow'
-              AND bucket IN ('spending', 'fees')
-              AND represented_start >= ? AND represented_end <= ?
-            """,
-            (token, span_start, span_end),
-        ).fetchall()
+        return _entry_spending_from(connection, token, span_start, span_end)
     finally:
         connection.close()
+
+
+def _entry_spending_from(
+    connection: sqlite3.Connection, token: str, span_start: str, span_end: str
+) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT period, currency, category_key, origin_anchor,
+               signed_coefficient, scale
+        FROM analysis_components
+        WHERE generation_token = ? AND lens = 'recorded_flow'
+          AND bucket IN ('spending', 'fees')
+          AND represented_start >= ? AND represented_end <= ?
+        """,
+        (token, span_start, span_end),
+    ).fetchall()
     return [
         {
             "month": row["period"],
@@ -113,6 +120,16 @@ def _entry_spending(
 def _recurring_matched(
     database: Path, token: str, span_start: str, span_end: str
 ) -> tuple[dict[tuple[str, str], Decimal], set[str]]:
+    connection = connect_readonly(database)
+    try:
+        return _recurring_matched_from(connection, token, span_start, span_end)
+    finally:
+        connection.close()
+
+
+def _recurring_matched_from(
+    connection: sqlite3.Connection, token: str, span_start: str, span_end: str
+) -> tuple[dict[tuple[str, str], Decimal], set[str]]:
     """Confirmed recurring spend matched to the month it was recorded in.
 
     A bound occurrence of an active commitment is deterministic evidence, so
@@ -121,23 +138,19 @@ def _recurring_matched(
     back from the outlier scan: a scheduled annual premium is a known cost, not
     irregular risk.
     """
-    connection = connect_readonly(database)
-    try:
-        rows = connection.execute(
-            """
-            SELECT ac.period, ac.currency, ac.origin_anchor,
-                   ac.signed_coefficient, ac.scale
-            FROM analysis_components ac
-            JOIN recurring_occurrences o ON o.entry_anchor = ac.origin_anchor AND o.bound = 1
-            JOIN recurring_commitments c ON c.commitment = o.commitment AND c.status = 'active'
-            WHERE ac.generation_token = ? AND ac.lens = 'recorded_flow'
-              AND ac.bucket IN ('spending', 'fees')
-              AND ac.represented_start >= ? AND ac.represented_end <= ?
-            """,
-            (token, span_start, span_end),
-        ).fetchall()
-    finally:
-        connection.close()
+    rows = connection.execute(
+        """
+        SELECT ac.period, ac.currency, ac.origin_anchor,
+               ac.signed_coefficient, ac.scale
+        FROM analysis_components ac
+        JOIN recurring_occurrences o ON o.entry_anchor = ac.origin_anchor AND o.bound = 1
+        JOIN recurring_commitments c ON c.commitment = o.commitment AND c.status = 'active'
+        WHERE ac.generation_token = ? AND ac.lens = 'recorded_flow'
+          AND ac.bucket IN ('spending', 'fees')
+          AND ac.represented_start >= ? AND ac.represented_end <= ?
+        """,
+        (token, span_start, span_end),
+    ).fetchall()
     matched: dict[tuple[str, str], Decimal] = {}
     anchors: set[str] = set()
     for row in rows:
@@ -194,12 +207,16 @@ def _irregular_by_month(
 def _confirmed_recurring_flat(database: Path) -> dict[str, Decimal]:
     connection = connect_readonly(database)
     try:
-        rows = connection.execute(
-            "SELECT currency, expected_coefficient, expected_scale "
-            "FROM recurring_commitments WHERE status = 'active'"
-        ).fetchall()
+        return _confirmed_recurring_flat_from(connection)
     finally:
         connection.close()
+
+
+def _confirmed_recurring_flat_from(connection: sqlite3.Connection) -> dict[str, Decimal]:
+    rows = connection.execute(
+        "SELECT currency, expected_coefficient, expected_scale "
+        "FROM recurring_commitments WHERE status = 'active'"
+    ).fetchall()
     flat: dict[str, Decimal] = {}
     for row in rows:
         amount = Decimal(row["expected_coefficient"]).scaleb(-int(row["expected_scale"]))
@@ -284,7 +301,15 @@ def _sensitivity(
 
 
 def baseline_estimate(database: Path, *, today: date) -> dict[str, Any]:
-    table = cost_income_table(database, today=today)
+    connection = connect_readonly(database)
+    try:
+        return baseline_estimate_from(connection, today=today)
+    finally:
+        connection.close()
+
+
+def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
+    table = cost_income_table_from(connection, today=today)
     if not table["available"]:
         return {
             "available": False,
@@ -298,16 +323,12 @@ def baseline_estimate(database: Path, *, today: date) -> dict[str, Any]:
     span_start = month_span(months[0]).start
     span_end = month_span(months[-1]).end
 
-    connection = connect_readonly(database)
-    try:
-        generation = current_generation(connection)
-        token = generation["generation_token"] if generation else ""
-    finally:
-        connection.close()
-    entries = _entry_spending(database, token, span_start, span_end)
-    recurring_flat = _confirmed_recurring_flat(database)
-    recurring_matched, recurring_anchors = _recurring_matched(database, token, span_start, span_end)
-    roles = baseline_roles(database, today=today)
+    generation = current_generation(connection)
+    token = generation["generation_token"] if generation else ""
+    entries = _entry_spending_from(connection, token, span_start, span_end)
+    recurring_flat = _confirmed_recurring_flat_from(connection)
+    recurring_matched, recurring_anchors = _recurring_matched_from(connection, token, span_start, span_end)
+    roles = baseline_roles_from(connection, today=today)
 
     by_currency: dict[str, Any] = {}
     for currency in table["currencies"]:

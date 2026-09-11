@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from ..db import connect_readonly
 from ..money import ExactMoney, exact_sum, format_decimal
 from .models import STALE_AFTER_DAYS
 
@@ -360,165 +361,168 @@ def _bridge(
 
 
 def position_page(database: Path, *, today: date) -> dict[str, Any]:
-    connection = sqlite3.connect(database)
-    connection.row_factory = sqlite3.Row
+    connection = connect_readonly(database)
     try:
-        accounts = {row["id"]: row for row in connection.execute(
-            "SELECT id,institution,source_type,display_name,masked_identifier FROM accounts"
-        )}
-        card_ids = {row[0] for row in connection.execute(
-            "SELECT DISTINCT account_id FROM card_facility_accounts WHERE bound=1"
-        )}
-        entries = _selected_entries(connection)
-        boundary_map = _boundaries(connection, entries)
-        scopes = set(boundary_map) | {
-            (row["account_id"], row["currency_pocket"]) for row in entries
-        }
-        liquid_scopes: set[tuple[str, str]] = set()
-        exclusions: dict[tuple[str, str], str] = {}
-        for key in scopes:
-            account = accounts.get(key[0])
-            source_type = str(account["source_type"]).upper() if account else ""
-            if key[0] in card_ids or source_type.endswith("_CARD"):
-                exclusions[key] = "credit-card facility balance is an obligation, not cash"
-            elif source_type not in _LIQUID_SOURCE_TYPES:
-                exclusions[key] = "account product is not supported as liquid cash"
-            else:
-                liquid_scopes.add(key)
-        paired, transfer_links = _paired_liquid_entries(connection, liquid_scopes)
-        pockets: list[dict[str, Any]] = []
-        bridges: list[dict[str, Any]] = []
-        missing: list[dict[str, str]] = []
-        for key in sorted(scopes):
-            account = accounts.get(key[0])
-            boundaries = [
-                boundary for boundary in boundary_map.get(key, [])
-                if boundary["as_of"] <= today.isoformat()
-            ]
-            chosen = boundaries[-1] if boundaries else None
-            liquid = key in liquid_scopes
-            unavailable = None if chosen else "no supported balance boundary for this pocket"
-            age = (today - date.fromisoformat(chosen["as_of"])).days if chosen else None
-            bridge = _bridge(key, boundaries, entries, paired, connection) if liquid else None
-            if bridge:
-                bridges.append(bridge)
-                if not bridge["reconciled"]:
-                    missing.append({"account_id": key[0], "currency_pocket": key[1],
-                                    "start": bridge["opening_as_of"], "end": bridge["closing_as_of"],
-                                    "reason": bridge["unsupported_reason"]})
-            pockets.append({
-                "account_id": key[0], "institution": account["institution"] if account else None,
-                "display_name": account["display_name"] if account else None,
-                "source_type": account["source_type"] if account else None,
-                "currency_pocket": key[1], "liquid": liquid,
-                "excluded_reason": exclusions.get(key),
-                "basis": chosen["basis"] if chosen else "unavailable",
-                "balance": chosen["balance"] if chosen else None,
-                "as_of": chosen["as_of"] if chosen else None,
-                "date_precision": chosen.get("date_precision") if chosen else None,
-                "stale": bool(age is not None and age > STALE_AFTER_DAYS),
-                "staleness_days": age, "unavailable_reason": unavailable,
-                "statement_running_balance": next((b for b in reversed(boundaries)
-                    if b["basis"] == "statement-running-balance"), None),
-                "manual_observation": next((b for b in reversed(boundaries)
-                    if b["basis"] == "manual-observation"), None),
-            })
-        included = [p for p in pockets if p["liquid"]]
-        periods_by_key = {
-            (pocket["account_id"], pocket["currency_pocket"]): _certified_periods(
-                connection, (pocket["account_id"], pocket["currency_pocket"]), through=today.isoformat(),
-            )
-            for pocket in included
-        }
-        candidate_dates = {today.isoformat()}
-        for pocket in included:
-            key = (pocket["account_id"], pocket["currency_pocket"])
-            candidate_dates.update(boundary["as_of"] for boundary in boundary_map.get(key, []) if boundary["as_of"] <= today.isoformat())
-            candidate_dates.update(end for _start, end in periods_by_key[key] if end <= today.isoformat())
-        cutoff: str | None = None
-        derived: dict[tuple[str, str], dict[str, Any]] = {}
-        for candidate in sorted(candidate_dates, reverse=True):
-            attempt = {
-                (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
-                    (pocket["account_id"], pocket["currency_pocket"]), candidate,
-                    boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
-                    entries, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
-                )
-                for pocket in included
-            }
-            if included and all(result["supported"] for result in attempt.values()):
-                cutoff, derived = candidate, attempt
-                break
-        today_attempt = {
+        return position_page_from(connection, today=today)
+    finally:
+        connection.close()
+
+
+def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
+    accounts = {row["id"]: row for row in connection.execute(
+        "SELECT id,institution,source_type,display_name,masked_identifier FROM accounts"
+    )}
+    card_ids = {row[0] for row in connection.execute(
+        "SELECT DISTINCT account_id FROM card_facility_accounts WHERE bound=1"
+    )}
+    entries = _selected_entries(connection)
+    boundary_map = _boundaries(connection, entries)
+    scopes = set(boundary_map) | {
+        (row["account_id"], row["currency_pocket"]) for row in entries
+    }
+    liquid_scopes: set[tuple[str, str]] = set()
+    exclusions: dict[tuple[str, str], str] = {}
+    for key in scopes:
+        account = accounts.get(key[0])
+        source_type = str(account["source_type"]).upper() if account else ""
+        if key[0] in card_ids or source_type.endswith("_CARD"):
+            exclusions[key] = "credit-card facility balance is an obligation, not cash"
+        elif source_type not in _LIQUID_SOURCE_TYPES:
+            exclusions[key] = "account product is not supported as liquid cash"
+        else:
+            liquid_scopes.add(key)
+    paired, transfer_links = _paired_liquid_entries(connection, liquid_scopes)
+    pockets: list[dict[str, Any]] = []
+    bridges: list[dict[str, Any]] = []
+    missing: list[dict[str, str]] = []
+    for key in sorted(scopes):
+        account = accounts.get(key[0])
+        boundaries = [
+            boundary for boundary in boundary_map.get(key, [])
+            if boundary["as_of"] <= today.isoformat()
+        ]
+        chosen = boundaries[-1] if boundaries else None
+        liquid = key in liquid_scopes
+        unavailable = None if chosen else "no supported balance boundary for this pocket"
+        age = (today - date.fromisoformat(chosen["as_of"])).days if chosen else None
+        bridge = _bridge(key, boundaries, entries, paired, connection) if liquid else None
+        if bridge:
+            bridges.append(bridge)
+            if not bridge["reconciled"]:
+                missing.append({"account_id": key[0], "currency_pocket": key[1],
+                                "start": bridge["opening_as_of"], "end": bridge["closing_as_of"],
+                                "reason": bridge["unsupported_reason"]})
+        pockets.append({
+            "account_id": key[0], "institution": account["institution"] if account else None,
+            "display_name": account["display_name"] if account else None,
+            "source_type": account["source_type"] if account else None,
+            "currency_pocket": key[1], "liquid": liquid,
+            "excluded_reason": exclusions.get(key),
+            "basis": chosen["basis"] if chosen else "unavailable",
+            "balance": chosen["balance"] if chosen else None,
+            "as_of": chosen["as_of"] if chosen else None,
+            "date_precision": chosen.get("date_precision") if chosen else None,
+            "stale": bool(age is not None and age > STALE_AFTER_DAYS),
+            "staleness_days": age, "unavailable_reason": unavailable,
+            "statement_running_balance": next((b for b in reversed(boundaries)
+                if b["basis"] == "statement-running-balance"), None),
+            "manual_observation": next((b for b in reversed(boundaries)
+                if b["basis"] == "manual-observation"), None),
+        })
+    included = [p for p in pockets if p["liquid"]]
+    periods_by_key = {
+        (pocket["account_id"], pocket["currency_pocket"]): _certified_periods(
+            connection, (pocket["account_id"], pocket["currency_pocket"]), through=today.isoformat(),
+        )
+        for pocket in included
+    }
+    candidate_dates = {today.isoformat()}
+    for pocket in included:
+        key = (pocket["account_id"], pocket["currency_pocket"])
+        candidate_dates.update(boundary["as_of"] for boundary in boundary_map.get(key, []) if boundary["as_of"] <= today.isoformat())
+        candidate_dates.update(end for _start, end in periods_by_key[key] if end <= today.isoformat())
+    cutoff: str | None = None
+    derived: dict[tuple[str, str], dict[str, Any]] = {}
+    for candidate in sorted(candidate_dates, reverse=True):
+        attempt = {
             (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
-                (pocket["account_id"], pocket["currency_pocket"]), today.isoformat(),
+                (pocket["account_id"], pocket["currency_pocket"]), candidate,
                 boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
                 entries, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
             )
             for pocket in included
         }
+        if included and all(result["supported"] for result in attempt.values()):
+            cutoff, derived = candidate, attempt
+            break
+    today_attempt = {
+        (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
+            (pocket["account_id"], pocket["currency_pocket"]), today.isoformat(),
+            boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
+            entries, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+        )
+        for pocket in included
+    }
+    for pocket in included:
+        key = (pocket["account_id"], pocket["currency_pocket"])
+        result = today_attempt[key]
+        if not result["supported"]:
+            missing.append({
+                "account_id": key[0], "currency_pocket": key[1],
+                "start": str(result.get("gap_start") or "unknown"), "end": today.isoformat(),
+                "reason": str(result["reason"]),
+            })
+        if cutoff and key in derived:
+            pocket["derived_balance"] = derived[key]["balance"]
+            pocket["derived_as_of"] = cutoff
+            pocket["derived_basis"] = derived[key]["basis"]
+            pocket["coverage_status"] = "supported"
+        else:
+            pocket["derived_balance"] = None
+            pocket["derived_as_of"] = None
+            pocket["derived_basis"] = None
+            pocket["coverage_status"] = "unsupported"
+    totals: dict[str, list[ExactMoney]] = defaultdict(list)
+    if cutoff:
         for pocket in included:
-            key = (pocket["account_id"], pocket["currency_pocket"])
-            result = today_attempt[key]
-            if not result["supported"]:
-                missing.append({
-                    "account_id": key[0], "currency_pocket": key[1],
-                    "start": str(result.get("gap_start") or "unknown"), "end": today.isoformat(),
-                    "reason": str(result["reason"]),
-                })
-            if cutoff and key in derived:
-                pocket["derived_balance"] = derived[key]["balance"]
-                pocket["derived_as_of"] = cutoff
-                pocket["derived_basis"] = derived[key]["basis"]
-                pocket["coverage_status"] = "supported"
-            else:
-                pocket["derived_balance"] = None
-                pocket["derived_as_of"] = None
-                pocket["derived_basis"] = None
-                pocket["coverage_status"] = "unsupported"
-        totals: dict[str, list[ExactMoney]] = defaultdict(list)
-        if cutoff:
-            for pocket in included:
-                result = derived[(pocket["account_id"], pocket["currency_pocket"])]
-                totals[pocket["currency_pocket"]].append(_money(result["coefficient"], result["scale"]))
-        combined = {currency: format_decimal(*_sum(values))
-                    for currency, values in sorted(totals.items())}
-        reasons: list[str] = []
-        if not included:
-            reasons.append("no supported liquid account pockets were found")
-        elif not cutoff:
-            reasons.append("included liquid pockets do not share a coverage-backed balance cutoff")
-        if cutoff != today.isoformat():
-            reasons.append("complete actual movements from the supported cutoff through today are unavailable")
-        combined_bridge: dict[str, dict[str, Any]] = {}
-        for currency in sorted({bridge["currency_pocket"] for bridge in bridges}):
-            members = [bridge for bridge in bridges if bridge["currency_pocket"] == currency]
-            def bridge_total(field: str, selected: list[dict[str, Any]] = members) -> str:
-                return format_decimal(*_sum([
-                    ExactMoney.parse(member[field]) for member in selected
-                ]))
-            combined_bridge[currency] = {
-                "opening": bridge_total("opening"),
-                "external_inflows": bridge_total("external_inflows"),
-                "external_outflows": bridge_total("external_outflows"),
-                "closing": bridge_total("closing"),
-                "reconciled": all(member["reconciled"] for member in members),
-                "owned_transfer_pairs_cancelled": len(transfer_links),
-            }
-        return {
-            "generated_for": today.isoformat(), "stale_after_days": STALE_AFTER_DAYS,
-            "supported_cutoff": cutoff,
-            "current_position_supported": cutoff == today.isoformat() and not missing,
-            "current_position_reasons": list(dict.fromkeys(reasons)),
-            "included_pockets": included, "pockets": pockets,
-            "combined_liquid_position": combined, "liquid_total": combined,
-            "liquid_total_withheld": {} if cutoff else dict.fromkeys(sorted({p["currency_pocket"] for p in included}), "withheld: no common supported cutoff"),
-            "stale": any(p["stale"] for p in included), "missing_intervals": missing,
-            "cash_bridge": {"pockets": bridges, "combined": {
-                "by_currency": combined_bridge,
-                "owned_transfer_pairs_cancelled": len(transfer_links),
-                "policy": "each confirmed pair is removed once only when both legs are included liquid pockets",
-            }},
+            result = derived[(pocket["account_id"], pocket["currency_pocket"])]
+            totals[pocket["currency_pocket"]].append(_money(result["coefficient"], result["scale"]))
+    combined = {currency: format_decimal(*_sum(values))
+                for currency, values in sorted(totals.items())}
+    reasons: list[str] = []
+    if not included:
+        reasons.append("no supported liquid account pockets were found")
+    elif not cutoff:
+        reasons.append("included liquid pockets do not share a coverage-backed balance cutoff")
+    if cutoff != today.isoformat():
+        reasons.append("complete actual movements from the supported cutoff through today are unavailable")
+    combined_bridge: dict[str, dict[str, Any]] = {}
+    for currency in sorted({bridge["currency_pocket"] for bridge in bridges}):
+        members = [bridge for bridge in bridges if bridge["currency_pocket"] == currency]
+        def bridge_total(field: str, selected: list[dict[str, Any]] = members) -> str:
+            return format_decimal(*_sum([
+                ExactMoney.parse(member[field]) for member in selected
+            ]))
+        combined_bridge[currency] = {
+            "opening": bridge_total("opening"),
+            "external_inflows": bridge_total("external_inflows"),
+            "external_outflows": bridge_total("external_outflows"),
+            "closing": bridge_total("closing"),
+            "reconciled": all(member["reconciled"] for member in members),
+            "owned_transfer_pairs_cancelled": len(transfer_links),
         }
-    finally:
-        connection.close()
+    return {
+        "generated_for": today.isoformat(), "stale_after_days": STALE_AFTER_DAYS,
+        "supported_cutoff": cutoff,
+        "current_position_supported": cutoff == today.isoformat() and not missing,
+        "current_position_reasons": list(dict.fromkeys(reasons)),
+        "included_pockets": included, "pockets": pockets,
+        "combined_liquid_position": combined, "liquid_total": combined,
+        "liquid_total_withheld": {} if cutoff else dict.fromkeys(sorted({p["currency_pocket"] for p in included}), "withheld: no common supported cutoff"),
+        "stale": any(p["stale"] for p in included), "missing_intervals": missing,
+        "cash_bridge": {"pockets": bridges, "combined": {
+            "by_currency": combined_bridge,
+            "owned_transfer_pairs_cancelled": len(transfer_links),
+            "policy": "each confirmed pair is removed once only when both legs are included liquid pockets",
+        }},
+    }

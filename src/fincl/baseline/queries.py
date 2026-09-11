@@ -30,7 +30,7 @@ from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
 from ..money import ExactMoney, compare, exact_sum, format_decimal
-from .readiness import baseline_readiness
+from .readiness import baseline_readiness_from
 
 _COST_BUCKETS = {"spending", "fees"}
 _OTHER_INFLOW_BUCKETS = {"non_income_inflow", "exceptional_inflow"}
@@ -91,7 +91,15 @@ def _refund_allocations(
 
 
 def cost_income_table(database: Path, *, today: date) -> dict[str, Any]:
-    readiness = baseline_readiness(database, today=today)
+    connection = connect_readonly(database)
+    try:
+        return cost_income_table_from(connection, today=today)
+    finally:
+        connection.close()
+
+
+def cost_income_table_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
+    readiness = baseline_readiness_from(connection, today=today)
     window = readiness["baseline_window"]
     if window["quality"] == "none" or not window["start_month"]:
         return {
@@ -108,27 +116,24 @@ def cost_income_table(database: Path, *, today: date) -> dict[str, Any]:
     span_end = month_span(months[-1]).end
     month_set = set(months)
 
-    connection = connect_readonly(database)
-    try:
+    if not connection.in_transaction:
         connection.execute("BEGIN")
-        generation = current_generation(connection)
-        if generation is None:
-            raise RuntimeError("ledger is not refreshed")
-        token = generation["generation_token"]
+    generation = current_generation(connection)
+    if generation is None:
+        raise RuntimeError("ledger is not refreshed")
+    token = generation["generation_token"]
 
-        rows = connection.execute(
-            """
-            SELECT period, currency, bucket, signed_coefficient, scale,
-                   category_key, merchant_display, date_precision
-            FROM analysis_components
-            WHERE generation_token = ? AND lens = 'recorded_flow'
-              AND represented_start >= ? AND represented_end <= ?
-            """,
-            (token, span_start, span_end),
-        ).fetchall()
-        allocations = _refund_allocations(connection, token)
-    finally:
-        connection.close()
+    rows = connection.execute(
+        """
+        SELECT period, currency, bucket, signed_coefficient, scale,
+               category_key, merchant_display, date_precision
+        FROM analysis_components
+        WHERE generation_token = ? AND lens = 'recorded_flow'
+          AND represented_start >= ? AND represented_end <= ?
+        """,
+        (token, span_start, span_end),
+    ).fetchall()
+    allocations = _refund_allocations(connection, token)
 
     # (month, currency) -> bucketed magnitudes
     gross: dict[tuple[str, str], list[ExactMoney]] = {}

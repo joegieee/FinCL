@@ -20,11 +20,11 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
-from ..cards.cash_conversion import card_cash_conversion
+from ..cards.cash_conversion import card_cash_conversion_from
 from ..db import connect_readonly
 from ..errors import FinCLError
-from ..obligations.queries import obligations_page
-from ..position.queries import position_page
+from ..obligations.queries import obligations_page_from
+from ..position.queries import position_page_from
 
 _CENT = Decimal("0.01")
 
@@ -316,6 +316,16 @@ def summarise(components: list[dict[str, Any]], *, as_of: str) -> dict[str, dict
 def _debt_flags(
     database: Path, debt_ids: list[str]
 ) -> dict[str, dict[str, bool]]:
+    connection = connect_readonly(database)
+    try:
+        return _debt_flags_from(connection, debt_ids)
+    finally:
+        connection.close()
+
+
+def _debt_flags_from(
+    connection: sqlite3.Connection, debt_ids: list[str]
+) -> dict[str, dict[str, bool]]:
     """Per debt: is it a manual (opening-balance / unbound) record, and is it
 
     linked through a bound source allocation to a tracked card account?
@@ -323,40 +333,36 @@ def _debt_flags(
     flags: dict[str, dict[str, bool]] = {}
     if not debt_ids:
         return flags
-    connection = connect_readonly(database)
-    try:
-        for debt_id in debt_ids:
-            rows = connection.execute(
-                "SELECT opening_balance, bound FROM personal_debt_events WHERE debt_id = ?",
+    for debt_id in debt_ids:
+        rows = connection.execute(
+            "SELECT opening_balance, bound FROM personal_debt_events WHERE debt_id = ?",
+            (debt_id,),
+        ).fetchall()
+        has_opening = any(int(row["opening_balance"]) for row in rows)
+        any_unbound = any(not int(row["bound"]) for row in rows)
+        try:
+            linked = connection.execute(
+                """
+                SELECT 1
+                FROM personal_debt_allocations a
+                JOIN ledger_entries e ON e.natural_anchor = a.entry_anchor
+                JOIN accounts acc ON acc.id = e.account_id
+                LEFT JOIN card_facility_accounts c
+                    ON c.account_id = e.account_id AND c.bound = 1
+                WHERE a.debt_id = ? AND a.bound = 1
+                  AND (c.account_id IS NOT NULL
+                       OR upper(acc.source_type) LIKE '%\\_CARD' ESCAPE '\\')
+                LIMIT 1
+                """,
                 (debt_id,),
-            ).fetchall()
-            has_opening = any(int(row["opening_balance"]) for row in rows)
-            any_unbound = any(not int(row["bound"]) for row in rows)
-            try:
-                linked = connection.execute(
-                    """
-                    SELECT 1
-                    FROM personal_debt_allocations a
-                    JOIN ledger_entries e ON e.natural_anchor = a.entry_anchor
-                    JOIN accounts acc ON acc.id = e.account_id
-                    LEFT JOIN card_facility_accounts c
-                        ON c.account_id = e.account_id AND c.bound = 1
-                    WHERE a.debt_id = ? AND a.bound = 1
-                      AND (c.account_id IS NOT NULL
-                           OR upper(acc.source_type) LIKE '%\\_CARD' ESCAPE '\\')
-                    LIMIT 1
-                    """,
-                    (debt_id,),
-                ).fetchone() is not None
-            except sqlite3.OperationalError:
-                linked = False
-            flags[debt_id] = {
-                "manual": has_opening or any_unbound,
-                "card_linked": linked,
-            }
-        return flags
-    finally:
-        connection.close()
+            ).fetchone() is not None
+        except sqlite3.OperationalError:
+            linked = False
+        flags[debt_id] = {
+            "manual": has_opening or any_unbound,
+            "card_linked": linked,
+        }
+    return flags
 
 
 def _trend(prior: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
@@ -408,6 +414,22 @@ def net_worth_page(
     prior_as_of: str | None = None,
     today: date,
 ) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return net_worth_page_from(
+            connection, as_of=as_of, prior_as_of=prior_as_of, today=today
+        )
+    finally:
+        connection.close()
+
+
+def net_worth_page_from(
+    connection: sqlite3.Connection,
+    *,
+    as_of: str | None = None,
+    prior_as_of: str | None = None,
+    today: date,
+) -> dict[str, Any]:
     """The tracked net-worth read.
 
     ``prior_as_of`` adds a second dated observation and a basic trend between the
@@ -415,10 +437,12 @@ def net_worth_page(
     subtotal: it is never presented as a complete personal-wealth total.
     ``today`` is required (§5.3): resolved once by the caller, never here.
     """
+    if not connection.in_transaction:
+        connection.execute("BEGIN")
     resolved = _as_of(as_of, today)
-    position = position_page(database, today=date.fromisoformat(resolved))
-    obligations = obligations_page(database, as_of=resolved, today=today)
-    cards = card_cash_conversion(database, as_of=resolved)
+    position = position_page_from(connection, today=date.fromisoformat(resolved))
+    obligations = obligations_page_from(connection, as_of=resolved, today=today)
+    cards = card_cash_conversion_from(connection, as_of=resolved)
     debt_ids = [
         str(obligation["source"]["id"])
         for obligation in obligations["obligations"]
@@ -428,7 +452,7 @@ def net_worth_page(
         position=position,
         obligations=obligations,
         cards=cards,
-        debt_flags=_debt_flags(database, debt_ids),
+        debt_flags=_debt_flags_from(connection, debt_ids),
     )
     page: dict[str, Any] = {
         "as_of": resolved,
@@ -446,7 +470,7 @@ def net_worth_page(
         "per_currency": summarise(built["components"], as_of=resolved),
     }
     if prior_as_of is not None:
-        prior_page = net_worth_page(database, as_of=prior_as_of, today=today)
+        prior_page = net_worth_page_from(connection, as_of=prior_as_of, today=today)
         page["trend"] = _trend(prior_page, page)
     return page
 

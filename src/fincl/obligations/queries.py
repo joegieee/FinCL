@@ -26,7 +26,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from ..baseline.queries import _month_list, cost_income_table
+from ..baseline.queries import _month_list, cost_income_table_from
 from ..cards import projection as card_projection
 from ..cards.models import ROLE_PAYMENT_DUE, ROLE_PAYMENT_DUE_DATE
 from ..db import connect_readonly
@@ -68,13 +68,23 @@ def _amount(coefficient: Any, scale: Any) -> Decimal:
 def _baseline_portions(
     database: Path, token: str, today: date
 ) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return _baseline_portions_from(connection, token, today)
+    finally:
+        connection.close()
+
+
+def _baseline_portions_from(
+    connection: sqlite3.Connection, token: str, today: date
+) -> dict[str, Any]:
     """Monthly historical cost per (currency, category) over the baseline window.
 
     This is the "historical baseline remainder" a recurring event replaces its
     own share of.  When no baseline window is available the portions are empty
     and every link says so rather than inventing a denominator.
     """
-    table = cost_income_table(database, today=today)
+    table = cost_income_table_from(connection, today=today)
     if not table["available"]:
         return {
             "available": False,
@@ -86,18 +96,14 @@ def _baseline_portions(
     months = _month_list(
         table["baseline_window"]["start_month"], table["baseline_window"]["end_month"]
     )
-    connection = connect_readonly(database)
-    try:
-        rows = connection.execute(
-            """SELECT currency, category_key, signed_coefficient, scale
-                 FROM analysis_components
-                WHERE generation_token=? AND lens='recorded_flow'
-                  AND bucket IN ('spending', 'fees')
-                  AND represented_start>=? AND represented_end<=?""",
-            (token, month_span(months[0]).start, month_span(months[-1]).end),
-        ).fetchall()
-    finally:
-        connection.close()
+    rows = connection.execute(
+        """SELECT currency, category_key, signed_coefficient, scale
+             FROM analysis_components
+            WHERE generation_token=? AND lens='recorded_flow'
+              AND bucket IN ('spending', 'fees')
+              AND represented_start>=? AND represented_end<=?""",
+        (token, month_span(months[0]).start, month_span(months[-1]).end),
+    ).fetchall()
     totals: dict[tuple[str, str], Decimal] = defaultdict(Decimal)
     for row in rows:
         totals[(row["currency"], row["category_key"])] += abs(
@@ -564,6 +570,16 @@ def _component_effects(
 def obligations_page(
     database: Path, *, as_of: str | None = None, today: date
 ) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return obligations_page_from(connection, as_of=as_of, today=today)
+    finally:
+        connection.close()
+
+
+def obligations_page_from(
+    connection: sqlite3.Connection, *, as_of: str | None = None, today: date
+) -> dict[str, Any]:
     """Every obligation from every source, behind one shape.
 
     ``today`` is required (§5.3): resolved once by the caller, never by this
@@ -571,24 +587,16 @@ def obligations_page(
     ``today`` rather than to the wall clock.
     """
     as_of = _as_of(as_of, today)
-    connection = connect_readonly(database)
-    try:
+    if not connection.in_transaction:
         connection.execute("BEGIN")
-        token = _generation(connection)
-    finally:
-        connection.close()
-    baseline = _baseline_portions(database, token, today)
-    connection = connect_readonly(database)
-    try:
-        connection.execute("BEGIN")
-        obligations = [
-            *_debt_obligations(connection, as_of),
-            *_installment_obligations(connection, as_of),
-            *_card_obligations(connection, as_of),
-            *_recurring_obligations(connection, as_of, baseline["portions"]),
-        ]
-    finally:
-        connection.close()
+    token = _generation(connection)
+    baseline = _baseline_portions_from(connection, token, today)
+    obligations = [
+        *_debt_obligations(connection, as_of),
+        *_installment_obligations(connection, as_of),
+        *_card_obligations(connection, as_of),
+        *_recurring_obligations(connection, as_of, baseline["portions"]),
+    ]
     obligations.sort(key=lambda item: item["obligation_id"])
 
     totals: dict[str, dict[str, Decimal]] = defaultdict(

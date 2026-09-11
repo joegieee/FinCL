@@ -45,21 +45,22 @@ the cash outputs unavailable while the cost table stays established.
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from ..baseline.estimators import baseline_estimate
-from ..baseline.queries import cost_income_table
-from ..baseline.readiness import baseline_readiness
-from ..baseline.roles import RESERVE_MONTHS, ROLE_RULE_VERSION, baseline_roles
+from ..baseline.estimators import baseline_estimate_from
+from ..baseline.queries import cost_income_table_from
+from ..baseline.readiness import baseline_readiness_from
+from ..baseline.roles import RESERVE_MONTHS, ROLE_RULE_VERSION, baseline_roles_from
 from ..db import connect_readonly
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..money import ExactMoney, exact_sum, format_decimal
-from ..obligations.queries import obligations_page
-from ..position.queries import position_page
+from ..obligations.queries import obligations_page_from
+from ..position.queries import position_page_from
 
 # --- the per-output readiness axis (see the module docstring) ----------------
 READINESS_ESTABLISHED = "established-input estimate"
@@ -164,26 +165,34 @@ def _role_scope(roles: dict[str, Any], currency: str) -> tuple[bool, str | None]
 def forecast_input_manifest(
     database: Path, *, today: date, as_of: str | None = None
 ) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return forecast_input_manifest_from(connection, today=today, as_of=as_of)
+    finally:
+        connection.close()
+
+
+def forecast_input_manifest_from(
+    connection: sqlite3.Connection, *, today: date, as_of: str | None = None
+) -> dict[str, Any]:
     """Gather every forecast input behind one shape and classify its readiness.
 
     ``today`` is required (§5.3): resolved once by the caller, never by this
     reader.
     """
-    connection = connect_readonly(database)
-    try:
-        generation = current_generation(connection)
-        if generation is None:
-            raise FinCLError("The ledger has no completed generation; refresh it first")
-        resolved = str(generation["generation_token"])
-    finally:
-        connection.close()
+    if not connection.in_transaction:
+        connection.execute("BEGIN")
+    generation = current_generation(connection)
+    if generation is None:
+        raise FinCLError("The ledger has no completed generation; refresh it first")
+    resolved = str(generation["generation_token"])
 
-    readiness = baseline_readiness(database, today=today)
-    table = cost_income_table(database, today=today)
-    roles = baseline_roles(database, today=today)
-    estimate = baseline_estimate(database, today=today)
-    obligations = obligations_page(database, as_of=as_of, today=today)
-    position = position_page(database, today=today)
+    readiness = baseline_readiness_from(connection, today=today)
+    table = cost_income_table_from(connection, today=today)
+    roles = baseline_roles_from(connection, today=today)
+    estimate = baseline_estimate_from(connection, today=today)
+    obligations = obligations_page_from(connection, as_of=as_of, today=today)
+    position = position_page_from(connection, today=today)
     resolved_as_of = obligations["as_of"]
 
     reported_generations = {

@@ -1097,6 +1097,18 @@ def connect_readonly(path: Path) -> sqlite3.Connection:
     return connection
 
 
+def database_path(connection: sqlite3.Connection) -> Path:
+    """Recover the ledger file path backing an open connection.
+
+    A handful of readers need the database's on-disk location for a sibling
+    file (the decision journal) rather than for SQL, and the `_from` seam
+    (§5.2) gives them a connection, not a path. ``PRAGMA database_list``
+    reports the same path SQLite itself resolved the connection against, so
+    this recovers it without threading a second parameter through the seam.
+    """
+    return Path(connection.execute("PRAGMA database_list").fetchone()["file"])
+
+
 def _stored_schema_version(connection: sqlite3.Connection) -> int | None:
     """Return the schema version recorded in an existing database, or None."""
     has_metadata = connection.execute(

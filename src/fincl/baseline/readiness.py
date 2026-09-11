@@ -30,11 +30,11 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from ..db import connect_readonly
+from ..db import connect_readonly, database_path
 from ..decision_journal import default_journal_path, read_records
 from ..intervals import DateInterval, month_span, normalize
 from ..money import ExactMoney, exact_sum, format_decimal
-from ..v05 import generation_of
+from ..v05 import generation_of_from
 
 _COMPLETENESS_RANK = {"missing": 0, "provisional": 1, "established": 2}
 _PREFERRED_MONTHS = 6
@@ -83,9 +83,17 @@ def _prev_month(year_month: str) -> str:
 
 
 def _account_scopes(database: Path) -> dict[tuple[str, str], dict[str, str]]:
+    connection = connect_readonly(database)
+    try:
+        return _account_scopes_from(connection)
+    finally:
+        connection.close()
+
+
+def _account_scopes_from(connection: sqlite3.Connection) -> dict[tuple[str, str], dict[str, str]]:
     """Latest ``ACCOUNT_SCOPE_SET`` expected window per ``(account, pocket)``."""
     scopes: dict[tuple[str, str], dict[str, str]] = {}
-    for record in read_records(default_journal_path(database)):
+    for record in read_records(default_journal_path(database_path(connection))):
         if record.decision_kind != "ACCOUNT_SCOPE_SET":
             continue
         key = (record.anchors["account"], record.anchors["pocket"])
@@ -244,139 +252,143 @@ def _classify_month(
 
 
 def baseline_readiness(database: Path, *, today: date) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return baseline_readiness_from(connection, today=today)
+    finally:
+        connection.close()
+
+
+def baseline_readiness_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
     """The evidence-coverage-backed baseline window.
 
     ``today`` is required (§5.3): this reader sits on the money-flow call
     graph and must never consult the wall clock itself — the caller resolves
     one request date and threads it down.
     """
-    scopes = _account_scopes(database)
-    connection = connect_readonly(database)
-    try:
-        periods_by_account = _statement_periods(connection)
-        pocket_rows = _pocket_rows(connection)
-        pockets: list[dict[str, Any]] = []
-        span_starts: list[str] = []
-        span_ends: list[str] = []
-        currencies: set[str] = set()
+    scopes = _account_scopes_from(connection)
+    periods_by_account = _statement_periods(connection)
+    pocket_rows = _pocket_rows(connection)
+    pockets: list[dict[str, Any]] = []
+    span_starts: list[str] = []
+    span_ends: list[str] = []
+    currencies: set[str] = set()
 
-        for row in pocket_rows:
-            account_id = row["account_id"]
-            currency_pocket = row["currency_pocket"]
-            currencies.add(currency_pocket)
-            scope = scopes.get((account_id, currency_pocket))
-            observed_start = row["observed_start"]
-            observed_end = row["observed_end"]
-            periods = periods_by_account.get(account_id, [])
-            # A SELECTED statement with no transactions is still a covered month
-            # (a genuine no-spend month), so the grid spans the statement
-            # periods as well as the observed entries and the expected window.
-            span_start = min(
-                filter(
-                    None,
-                    [
-                        observed_start,
-                        scope["expected_start"] if scope else None,
-                        periods[0].start if periods else None,
-                    ],
-                )
+    for row in pocket_rows:
+        account_id = row["account_id"]
+        currency_pocket = row["currency_pocket"]
+        currencies.add(currency_pocket)
+        scope = scopes.get((account_id, currency_pocket))
+        observed_start = row["observed_start"]
+        observed_end = row["observed_end"]
+        periods = periods_by_account.get(account_id, [])
+        # A SELECTED statement with no transactions is still a covered month
+        # (a genuine no-spend month), so the grid spans the statement
+        # periods as well as the observed entries and the expected window.
+        span_start = min(
+            filter(
+                None,
+                [
+                    observed_start,
+                    scope["expected_start"] if scope else None,
+                    periods[0].start if periods else None,
+                ],
             )
-            span_end = max(
-                filter(
-                    None,
-                    [
-                        observed_end,
-                        scope["expected_end"] if scope else None,
-                        periods[-1].end if periods else None,
-                    ],
-                )
+        )
+        span_end = max(
+            filter(
+                None,
+                [
+                    observed_end,
+                    scope["expected_end"] if scope else None,
+                    periods[-1].end if periods else None,
+                ],
             )
-            span_starts.append(span_start)
-            span_ends.append(span_end)
+        )
+        span_starts.append(span_start)
+        span_ends.append(span_end)
 
-            per_month = _entries_per_month(connection, account_id, currency_pocket)
-            months: list[dict[str, Any]] = []
-            missing_months: list[str] = []
-            for month in _month_range(_month_of(span_start), _month_of(span_end)):
-                completeness, basis = _classify_month(
-                    month, periods, per_month.get(month, 0)
-                )
-                if completeness == "missing":
-                    missing_months.append(month)
-                months.append(
-                    {
-                        "month": month,
-                        "completeness": completeness,
-                        "basis": basis,
-                        "entry_count": per_month.get(month, 0),
-                    }
-                )
-
-            warnings: list[str] = []
-            if not periods:
-                warnings.append(
-                    "no independently proven statement period; every month is "
-                    "observed-only until an export period is confirmed"
-                )
-            if scope and observed_start and observed_start > scope["expected_start"]:
-                warnings.append(
-                    f"evidence starts {observed_start}, after the expected "
-                    f"{scope['expected_start']} (opened late or missing early statements)"
-                )
-            if scope and observed_end and observed_end < scope["expected_end"]:
-                warnings.append(
-                    f"evidence ends {observed_end}, before the expected "
-                    f"{scope['expected_end']} (closed early or missing recent statements)"
-                )
-
-            pockets.append(
+        per_month = _entries_per_month(connection, account_id, currency_pocket)
+        months: list[dict[str, Any]] = []
+        missing_months: list[str] = []
+        for month in _month_range(_month_of(span_start), _month_of(span_end)):
+            completeness, basis = _classify_month(
+                month, periods, per_month.get(month, 0)
+            )
+            if completeness == "missing":
+                missing_months.append(month)
+            months.append(
                 {
-                    "account_id": account_id,
-                    "institution": row["institution"],
-                    "display_name": row["display_name"],
-                    "source_type": row["source_type"],
-                    "currency_pocket": currency_pocket,
-                    "expected_span": scope,
-                    "observed_span": {"start": observed_start, "end": observed_end},
-                    "span": {"start": span_start, "end": span_end},
-                    "entry_count": row["entry_count"],
-                    "reconciliation": _reconciliation(connection, account_id),
-                    "months": months,
-                    "missing_intervals": [
-                        interval.as_dict() for interval in _merge_missing_runs(missing_months)
-                    ],
-                    "warnings": warnings,
+                    "month": month,
+                    "completeness": completeness,
+                    "basis": basis,
+                    "entry_count": per_month.get(month, 0),
                 }
             )
 
-        analysis_window = (
-            {"start": min(span_starts), "end": max(span_ends)} if span_starts else None
-        )
-        recommendation = _recommend_window(pockets, analysis_window)
-        window_interval = (
-            DateInterval(
-                month_span(recommendation["start_month"]).start,
-                month_span(recommendation["end_month"]).end,
+        warnings: list[str] = []
+        if not periods:
+            warnings.append(
+                "no independently proven statement period; every month is "
+                "observed-only until an export period is confirmed"
             )
-            if recommendation["quality"] != "none"
-            else None
-        )
-        tasks = _tasks(pockets) + _unclassified_load(connection, window_interval)
+        if scope and observed_start and observed_start > scope["expected_start"]:
+            warnings.append(
+                f"evidence starts {observed_start}, after the expected "
+                f"{scope['expected_start']} (opened late or missing early statements)"
+            )
+        if scope and observed_end and observed_end < scope["expected_end"]:
+            warnings.append(
+                f"evidence ends {observed_end}, before the expected "
+                f"{scope['expected_end']} (closed early or missing recent statements)"
+            )
 
-        return {
-            "generation": generation_of(database),
-            "generated_for": today.isoformat(),
-            "scope": {
-                "accounts": sorted({p["account_id"] for p in pockets}),
-                "currencies": sorted(currencies),
-                "analysis_window": analysis_window,
-            },
-            "pockets": pockets,
-            "baseline_window": recommendation,
-            "tasks": tasks,
-        }
-    finally:
-        connection.close()
+        pockets.append(
+            {
+                "account_id": account_id,
+                "institution": row["institution"],
+                "display_name": row["display_name"],
+                "source_type": row["source_type"],
+                "currency_pocket": currency_pocket,
+                "expected_span": scope,
+                "observed_span": {"start": observed_start, "end": observed_end},
+                "span": {"start": span_start, "end": span_end},
+                "entry_count": row["entry_count"],
+                "reconciliation": _reconciliation(connection, account_id),
+                "months": months,
+                "missing_intervals": [
+                    interval.as_dict() for interval in _merge_missing_runs(missing_months)
+                ],
+                "warnings": warnings,
+            }
+        )
+
+    analysis_window = (
+        {"start": min(span_starts), "end": max(span_ends)} if span_starts else None
+    )
+    recommendation = _recommend_window(pockets, analysis_window)
+    window_interval = (
+        DateInterval(
+            month_span(recommendation["start_month"]).start,
+            month_span(recommendation["end_month"]).end,
+        )
+        if recommendation["quality"] != "none"
+        else None
+    )
+    tasks = _tasks(pockets) + _unclassified_load(connection, window_interval)
+
+    return {
+        "generation": generation_of_from(connection),
+        "generated_for": today.isoformat(),
+        "scope": {
+            "accounts": sorted({p["account_id"] for p in pockets}),
+            "currencies": sorted(currencies),
+            "analysis_window": analysis_window,
+        },
+        "pockets": pockets,
+        "baseline_window": recommendation,
+        "tasks": tasks,
+    }
 
 
 def _month_completeness(pockets: list[dict[str, Any]], month: str) -> str | None:

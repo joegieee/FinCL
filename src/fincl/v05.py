@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -156,12 +157,16 @@ def _latest_by(records: list[JournalRecord], set_kind: str, keys: tuple[str, ...
 def generation_of(database: Path) -> str:
     connection = connect_readonly(database)
     try:
-        row = current_generation(connection)
-        if row is None:
-            raise FinCLError("The ledger has no completed generation; refresh it first")
-        return str(row["generation_token"])
+        return generation_of_from(connection)
     finally:
         connection.close()
+
+
+def generation_of_from(connection: sqlite3.Connection) -> str:
+    row = current_generation(connection)
+    if row is None:
+        raise FinCLError("The ledger has no completed generation; refresh it first")
+    return str(row["generation_token"])
 
 
 def setup_options(database: Path) -> dict[str, Any]:

@@ -31,19 +31,21 @@ the evidence does not order two events on one day), :data:`DAILY_ALLOCATION_RULE
 from __future__ import annotations
 
 import calendar
+import sqlite3
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..baseline.estimators import baseline_estimate
-from ..cards.cash_conversion import card_cash_conversion
+from ..baseline.estimators import baseline_estimate_from
+from ..cards.cash_conversion import card_cash_conversion_from
+from ..db import connect_readonly
 from ..money import ExactMoney, format_decimal
-from ..obligations.queries import obligations_page
-from ..planning.queries import recurring_page
+from ..obligations.queries import obligations_page_from
+from ..planning.queries import recurring_page_from
 from ..planning.schedules import occurrences as schedule_occurrences
-from .manifest import READINESS_UNAVAILABLE, forecast_input_manifest
+from .manifest import READINESS_UNAVAILABLE, forecast_input_manifest_from
 
 ENGINE_VERSION = "cash-timeline-engine-v1"
 HORIZON_MONTHS = 6
@@ -1835,13 +1837,38 @@ def cash_timeline(
     sourced_events: Sequence[ForecastEvent] = (),
     residual_categories: Sequence[ResidualCategory] = (),
 ) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return cash_timeline_from(
+            connection,
+            today=today,
+            likely_income_policy=likely_income_policy,
+            strong_income_interruption=strong_income_interruption,
+            prospective_card_purchases=prospective_card_purchases,
+            sourced_events=sourced_events,
+            residual_categories=residual_categories,
+        )
+    finally:
+        connection.close()
+
+
+def cash_timeline_from(
+    connection: sqlite3.Connection,
+    *,
+    today: date,
+    likely_income_policy: str = LIKELY_EXCLUDE,
+    strong_income_interruption: bool = False,
+    prospective_card_purchases: Sequence[dict[str, Any]] = (),
+    sourced_events: Sequence[ForecastEvent] = (),
+    residual_categories: Sequence[ResidualCategory] = (),
+) -> dict[str, Any]:
     """Read the Stage 3A/adapters and produce the backend Stage 3B result.
 
     ``today`` is required (§5.3): resolved once by the caller, never by this
     reader — no function inside the money-flow call graph consults the wall
     clock.
     """
-    manifest = forecast_input_manifest(database, today=today)
+    manifest = forecast_input_manifest_from(connection, today=today)
     cutoff_cell = manifest.get("cutoff") or {}
     cutoff = cutoff_cell.get("supported_cutoff")
     if manifest.get("stale") or cutoff is None:
@@ -1856,13 +1883,13 @@ def cash_timeline(
     # later wall-clock day for which the position adapter has already said the
     # actual cash bridge is incomplete.
     if manifest.get("as_of") != cutoff:
-        manifest = forecast_input_manifest(database, today=today, as_of=str(cutoff))
+        manifest = forecast_input_manifest_from(connection, today=today, as_of=str(cutoff))
     end = add_months(date.fromisoformat(str(cutoff)), HORIZON_MONTHS).isoformat()
-    estimate = baseline_estimate(database, today=today)
-    obligations = obligations_page(database, as_of=str(cutoff), today=today)
-    recurring = recurring_page(database)
-    cards = card_cash_conversion(
-        database,
+    estimate = baseline_estimate_from(connection, today=today)
+    obligations = obligations_page_from(connection, as_of=str(cutoff), today=today)
+    recurring = recurring_page_from(connection)
+    cards = card_cash_conversion_from(
+        connection,
         as_of=str(cutoff),
         horizon_months=HORIZON_MONTHS,
         prospective_purchases=list(prospective_card_purchases),

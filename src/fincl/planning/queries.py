@@ -390,39 +390,43 @@ def goal_scenario(
 def recurring_page(database: Path) -> dict[str, Any]:
     connection = connect_readonly(database)
     try:
-        generation = _generation(connection)
-        commitments = [
-            {
-                "commitment": c["commitment"], "name": c["name"], "currency": c["currency"],
-                "merchant_key": c["merchant_key"], "status": c["status"], "ended_on": c["ended_on"],
-                "schedule": json.loads(c["schedule_json"]),
-                "account_ids": json.loads(c["account_ids_json"]),
-                "expected_amount": _money(c["expected_coefficient"] * (10 ** (2 - c["expected_scale"]))),
-                "amount_tolerance": _money(c["tolerance_coefficient"] * (10 ** (2 - c["tolerance_scale"]))),
-            }
-            for c in connection.execute("SELECT * FROM recurring_commitments ORDER BY name")
-        ]
-        dismissed = [
-            d["candidate"] for d in connection.execute("SELECT candidate FROM recurring_candidate_dismissals")
-        ]
-        found = detect_candidates(connection, dismissed=frozenset(dismissed))
-        bills = found["bill"]
-        income = found["income"]
-        return {
-            "generation": generation,
-            # Bill candidates keep the historical key so an existing dismissal
-            # still matches; income streams are a separate list because they are
-            # confirmed against different evidence (Stage 2B requirement 2).
-            "candidates": bills,
-            "bill_candidates": bills,
-            "income_candidates": income,
-            "income_exclusions": found["income_exclusions"],
-            "confirmed": [c for c in commitments if c["status"] == "active"],
-            "paused_or_ended": [c for c in commitments if c["status"] != "active"],
-            "dismissed_candidate_keys": sorted(dismissed),
-        }
+        return recurring_page_from(connection)
     finally:
         connection.close()
+
+
+def recurring_page_from(connection: Any) -> dict[str, Any]:
+    generation = _generation(connection)
+    commitments = [
+        {
+            "commitment": c["commitment"], "name": c["name"], "currency": c["currency"],
+            "merchant_key": c["merchant_key"], "status": c["status"], "ended_on": c["ended_on"],
+            "schedule": json.loads(c["schedule_json"]),
+            "account_ids": json.loads(c["account_ids_json"]),
+            "expected_amount": _money(c["expected_coefficient"] * (10 ** (2 - c["expected_scale"]))),
+            "amount_tolerance": _money(c["tolerance_coefficient"] * (10 ** (2 - c["tolerance_scale"]))),
+        }
+        for c in connection.execute("SELECT * FROM recurring_commitments ORDER BY name")
+    ]
+    dismissed = [
+        d["candidate"] for d in connection.execute("SELECT candidate FROM recurring_candidate_dismissals")
+    ]
+    found = detect_candidates(connection, dismissed=frozenset(dismissed))
+    bills = found["bill"]
+    income = found["income"]
+    return {
+        "generation": generation,
+        # Bill candidates keep the historical key so an existing dismissal
+        # still matches; income streams are a separate list because they are
+        # confirmed against different evidence (Stage 2B requirement 2).
+        "candidates": bills,
+        "bill_candidates": bills,
+        "income_candidates": income,
+        "income_exclusions": found["income_exclusions"],
+        "confirmed": [c for c in commitments if c["status"] == "active"],
+        "paused_or_ended": [c for c in commitments if c["status"] != "active"],
+        "dismissed_candidate_keys": sorted(dismissed),
+    }
 
 
 def recurring_occurrences(database: Path, commitment: str, *, start: str, end: str) -> dict[str, Any]:
