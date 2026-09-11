@@ -1420,6 +1420,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reporting/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Analysis Read
+         * @description M3b.1 step 04: reported Analysis over all pockets by default.
+         *
+         *     Additive to the legacy ``/api/v1/analysis``; that route's schema,
+         *     default currency filter and outputs are unchanged.
+         */
+        get: operations["reported_analysis_read_api_v1_reporting_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reporting/contributors/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Contributors Read
+         * @description M3b.1 step 04: the exact reported components behind one bucket/rank
+         *     row. Additive to the legacy ``/api/v1/contributors/{handle}``, which
+         *     only ever accepts a legacy handle and is otherwise unchanged.
+         */
+        get: operations["reported_contributors_read_api_v1_reporting_contributors__handle__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -1630,6 +1675,29 @@ export interface components {
             /** Reasons */
             reasons: string[];
         };
+        /** ConsolidatedValuationDTO */
+        ConsolidatedValuationDTO: {
+            total: components["schemas"]["MoneyDTO"] | null;
+            status: components["schemas"]["ConsolidationStatus"];
+            partial_total: components["schemas"]["MoneyDTO"] | null;
+            /** Included */
+            included: components["schemas"]["ScopeDTO"][];
+            /** Excluded */
+            excluded: components["schemas"]["ScopeDTO"][];
+            /** Excluded Entry Count */
+            excluded_entry_count: number;
+            /** Unavailable Reasons */
+            unavailable_reasons: string[];
+            /** Excluded Detail */
+            excluded_detail: components["schemas"]["ExcludedScopeDetailDTO"][];
+            /** Rate Path */
+            rate_path: components["schemas"]["RateInputDTO"][];
+        };
+        /**
+         * ConsolidationStatus
+         * @enum {string}
+         */
+        ConsolidationStatus: "available" | "partial" | "unavailable";
         /** Contributor */
         Contributor: {
             /** Component Id */
@@ -1652,6 +1720,33 @@ export interface components {
             merchant: string;
             /** Merchant Key */
             merchant_key: string | null;
+            /** Account */
+            account: string;
+            /** Date */
+            date: string;
+            /** Precision */
+            precision: string;
+            /** Source Location */
+            source_location: string;
+            /** Nets */
+            nets: boolean;
+        };
+        /** ContributorRowOut */
+        ContributorRowOut: {
+            /** Component Id */
+            component_id: string;
+            /** Origin Kind */
+            origin_kind: string;
+            owning_source: components["schemas"]["OwningSourceOut"];
+            /** Role */
+            role: string;
+            /** Bucket */
+            bucket: string;
+            valuation: components["schemas"]["ValuedMoneyDTO"];
+            /** Category */
+            category: string;
+            /** Merchant */
+            merchant: string | null;
             /** Account */
             account: string;
             /** Date */
@@ -1693,6 +1788,34 @@ export interface components {
             next_cursor: string | null;
             /** Total */
             total: number;
+        };
+        /** ContributorsPageOut */
+        ContributorsPageOut: {
+            /** Generation */
+            generation: string;
+            /** Reporting Currency */
+            reporting_currency: string;
+            /** Scope Start */
+            scope_start: string;
+            /** Scope End */
+            scope_end: string;
+            /** Buckets */
+            buckets: string[];
+            /** Pocket Currency */
+            pocket_currency: string | null;
+            /** Category Key */
+            category_key: string | null;
+            /** Merchant Display */
+            merchant_display: string | null;
+            /** Sort */
+            sort: string;
+            /** Rows */
+            rows: components["schemas"]["ContributorRowOut"][];
+            /** Total */
+            total: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+            parent: components["schemas"]["ConsolidatedValuationDTO"];
         };
         /** Dashboard */
         Dashboard: {
@@ -1805,6 +1928,19 @@ export interface components {
             /** New Date */
             new_date: string;
         };
+        /** ExcludedScopeDetailDTO */
+        ExcludedScopeDetailDTO: {
+            /** Currency */
+            currency: string;
+            /** Period */
+            period: string | null;
+            /** Entry Count */
+            entry_count: number;
+            /** Reasons */
+            reasons: string[];
+            /** Remedies */
+            remedies: string[];
+        };
         /** FinancialRoleImpactDraft */
         FinancialRoleImpactDraft: {
             /** Generation */
@@ -1836,6 +1972,16 @@ export interface components {
             generation: string;
             /** Reason */
             reason: string;
+        };
+        /** GrossBurnOut */
+        GrossBurnOut: {
+            result: components["schemas"]["ConsolidatedValuationDTO"] | null;
+            /** Included Months */
+            included_months: string[];
+            /** Month Count */
+            month_count: number;
+            /** Reason */
+            reason: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1885,6 +2031,13 @@ export interface components {
             value: string;
             /** Currency */
             currency: string;
+        };
+        /** OwningSourceOut */
+        OwningSourceOut: {
+            /** Kind */
+            kind: string;
+            /** Id */
+            id: string;
         };
         /** Plan */
         Plan: {
@@ -1944,6 +2097,50 @@ export interface components {
             /** Basis */
             basis: string;
         };
+        /** RankedGroupOut */
+        RankedGroupOut: {
+            /** Name */
+            name: string;
+            result: components["schemas"]["ConsolidatedValuationDTO"];
+            /** Handle */
+            handle: string;
+        };
+        /**
+         * RateBasis
+         * @description Which rate source was actually used (§3.1)?
+         * @enum {string}
+         */
+        RateBasis: "identity" | "realized" | "exact_observation" | "prior_observation" | "monthly_average" | "monthly_proxy" | "current_mark" | "held_latest";
+        /** RateInputDTO */
+        RateInputDTO: {
+            /** Base Currency */
+            base_currency: string;
+            /** Quote Currency */
+            quote_currency: string;
+            /** Period Month */
+            period_month: string | null;
+            /** Effective On */
+            effective_on: string | null;
+            /** Observation Kind */
+            observation_kind: string;
+            /** Source */
+            source: string;
+            /** Source Version */
+            source_version: string;
+            /** Inverted */
+            inverted: boolean;
+            /** Applied Numerator */
+            applied_numerator: string;
+            /** Applied Denominator */
+            applied_denominator: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "direct" | "inverse";
+            /** Imported Rate Text */
+            imported_rate_text: string | null;
+        };
         /** Recurring */
         Recurring: {
             /** Merchant */
@@ -1973,6 +2170,38 @@ export interface components {
             next_cursor: string | null;
             /** Total */
             total: number;
+        };
+        /** ReportedAnalysisOut */
+        ReportedAnalysisOut: {
+            /** Generation */
+            generation: string;
+            /** Reporting Currency */
+            reporting_currency: string;
+            /** As Of */
+            as_of: string;
+            /** History Start */
+            history_start: string;
+            /** History End */
+            history_end: string;
+            /** Pocket Currency */
+            pocket_currency: string | null;
+            /** Covered */
+            covered: boolean;
+            /** Coverage Reasons */
+            coverage_reasons: string[];
+            /** Comparison Kind */
+            comparison_kind: string;
+            /** Summary */
+            summary: {
+                [key: string]: components["schemas"]["SummaryEntryOut"];
+            };
+            gross_burn: components["schemas"]["GrossBurnOut"];
+            /** Category Ranking */
+            category_ranking: components["schemas"]["RankedGroupOut"][];
+            /** Merchant Ranking */
+            merchant_ranking: components["schemas"]["RankedGroupOut"][];
+            /** Contributors Handle */
+            contributors_handle: string;
         };
         /** ReviewProposal */
         ReviewProposal: {
@@ -2028,6 +2257,13 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** ScopeDTO */
+        ScopeDTO: {
+            /** Currency */
+            currency: string;
+            /** Period */
+            period: string | null;
+        };
         /** SnapshotDraft */
         SnapshotDraft: {
             /** Generation */
@@ -2063,6 +2299,17 @@ export interface components {
             delta: components["schemas"]["MoneyDTO"] | null;
             /** Pct */
             pct: string | null;
+        };
+        /** SummaryEntryOut */
+        SummaryEntryOut: {
+            current: components["schemas"]["ConsolidatedValuationDTO"];
+            previous: components["schemas"]["ConsolidatedValuationDTO"] | null;
+            /** Comparison Available */
+            comparison_available: boolean;
+            /** Comparison Reasons */
+            comparison_reasons: string[];
+            /** Handle */
+            handle: string;
         };
         /** Total */
         Total: {
@@ -2107,6 +2354,15 @@ export interface components {
             /** Complete */
             complete: boolean;
         };
+        /** UnavailabilityDTO */
+        UnavailabilityDTO: {
+            /** Reason */
+            reason: string;
+            /** Message */
+            message: string;
+            /** Remedy */
+            remedy: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -2119,6 +2375,33 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * ValuationPurpose
+         * @description Which financial question is this (§3.1)?
+         * @enum {string}
+         */
+        ValuationPurpose: "flow" | "position" | "forecast";
+        /** ValuedMoneyDTO */
+        ValuedMoneyDTO: {
+            native: components["schemas"]["MoneyDTO"];
+            reported: components["schemas"]["MoneyDTO"] | null;
+            purpose: components["schemas"]["ValuationPurpose"];
+            basis: components["schemas"]["RateBasis"] | null;
+            /**
+             * Valuation As Of
+             * Format: date
+             */
+            valuation_as_of: string;
+            /** Rate As Of */
+            rate_as_of: string | null;
+            /** Rate Period */
+            rate_period: string | null;
+            /** Rate Path */
+            rate_path: components["schemas"]["RateInputDTO"][];
+            /** Forward Policy */
+            forward_policy: string | null;
+            unavailable: components["schemas"]["UnavailabilityDTO"] | null;
         };
     };
     responses: never;
@@ -4560,6 +4843,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_analysis_read_api_v1_reporting_analysis_get: {
+        parameters: {
+            query: {
+                history_start: string;
+                history_end: string;
+                as_of?: string | null;
+                pocket_currency?: string | null;
+                accounts?: string[] | null;
+                category_keys?: string[] | null;
+                merchant?: string | null;
+                comparison?: string | null;
+                top_n?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportedAnalysisOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_contributors_read_api_v1_reporting_contributors__handle__get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContributorsPageOut"];
                 };
             };
             /** @description Validation Error */

@@ -12,6 +12,7 @@ import re
 import tempfile
 import unittest
 import uuid
+from decimal import Decimal
 from pathlib import Path
 
 from fincl.db import SCHEMA_VERSION, connect_sqlite, initialize_schema
@@ -353,6 +354,51 @@ class ApiTests(ApiTestBase):
         self.assertTrue(dated["history_start"])
         self.assertTrue(dated["history_end"])
         self.assertTrue(dated["as_of"])
+
+    def test_reported_analysis_route_returns_a_strict_summary(self) -> None:
+        self.bootstrap()
+        response = self.client.get(
+            "/api/v1/reporting/analysis",
+            params={"history_start": "2026-01-01", "history_end": "2026-01-20", "as_of": "2026-01-20"},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        self.assertEqual(data["reporting_currency"], "SGD")
+        self.assertTrue(data["covered"])
+        spending = data["summary"]["spending"]["current"]
+        self.assertEqual(spending["status"], "available")
+        # 4.00 + 19.00 + 51.25 from tests.test_api._ROWS.
+        self.assertEqual(spending["total"]["value"], "74.25")
+        self.assertIn("handle", data["summary"]["spending"])
+        self.assertIn("net_economic_flow", data["summary"])
+        self.assertIn("inflow", data["summary"])
+        self.assertIn("outflow", data["summary"])
+        self.assertIn("exceptional_adjustments", data["summary"])
+
+    def test_reported_contributors_route_pages_and_reconciles_with_the_parent(self) -> None:
+        self.bootstrap()
+        analysis = self.client.get(
+            "/api/v1/reporting/analysis",
+            params={"history_start": "2026-01-01", "history_end": "2026-01-20", "as_of": "2026-01-20"},
+        ).json()
+        handle = analysis["summary"]["spending"]["handle"]
+        response = self.client.get(f"/api/v1/reporting/contributors/{handle}")
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        self.assertEqual(data["total"], 3)
+        self.assertEqual(len(data["rows"]), 3)
+        row_total = sum(Decimal(row["valuation"]["reported"]["value"]) for row in data["rows"])
+        self.assertEqual(str(row_total), str(Decimal(data["parent"]["total"]["value"])))
+        for row in data["rows"]:
+            self.assertEqual(row["owning_source"]["kind"], "transaction")
+
+    def test_reported_contributors_route_rejects_a_legacy_handle(self) -> None:
+        self.bootstrap()
+        legacy_handle = self.client.get(
+            "/api/v1/analysis", params={"start": "2026-01-01", "end": "2026-01-20"}
+        ).json()["contributors_handle"]
+        response = self.client.get(f"/api/v1/reporting/contributors/{legacy_handle}")
+        self.assertEqual(response.status_code, 422, response.text)
 
 
 class NoWallClockInMoneyFlowGraphTests(unittest.TestCase):

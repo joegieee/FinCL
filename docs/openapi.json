@@ -4114,6 +4114,233 @@
         }
       }
     },
+    "/api/v1/reporting/analysis": {
+      "get": {
+        "summary": "Reported Analysis Read",
+        "description": "M3b.1 step 04: reported Analysis over all pockets by default.\n\nAdditive to the legacy ``/api/v1/analysis``; that route's schema,\ndefault currency filter and outputs are unchanged.",
+        "operationId": "reported_analysis_read_api_v1_reporting_analysis_get",
+        "parameters": [
+          {
+            "name": "history_start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History Start"
+            }
+          },
+          {
+            "name": "history_end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History End"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "pocket_currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pocket Currency"
+            }
+          },
+          {
+            "name": "accounts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accounts"
+            }
+          },
+          {
+            "name": "category_keys",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category Keys"
+            }
+          },
+          {
+            "name": "merchant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Merchant"
+            }
+          },
+          {
+            "name": "comparison",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Comparison"
+            }
+          },
+          {
+            "name": "top_n",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Top N"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportedAnalysisOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reporting/contributors/{handle}": {
+      "get": {
+        "summary": "Reported Contributors Read",
+        "description": "M3b.1 step 04: the exact reported components behind one bucket/rank\nrow. Additive to the legacy ``/api/v1/contributors/{handle}``, which\nonly ever accepts a legacy handle and is otherwise unchanged.",
+        "operationId": "reported_contributors_read_api_v1_reporting_contributors__handle__get",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Handle"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContributorsPageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Index",
@@ -4796,6 +5023,95 @@
         ],
         "title": "ComparisonDTO"
       },
+      "ConsolidatedValuationDTO": {
+        "properties": {
+          "total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ConsolidationStatus"
+          },
+          "partial_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "included": {
+            "items": {
+              "$ref": "#/components/schemas/ScopeDTO"
+            },
+            "type": "array",
+            "title": "Included"
+          },
+          "excluded": {
+            "items": {
+              "$ref": "#/components/schemas/ScopeDTO"
+            },
+            "type": "array",
+            "title": "Excluded"
+          },
+          "excluded_entry_count": {
+            "type": "integer",
+            "title": "Excluded Entry Count"
+          },
+          "unavailable_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unavailable Reasons"
+          },
+          "excluded_detail": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedScopeDetailDTO"
+            },
+            "type": "array",
+            "title": "Excluded Detail"
+          },
+          "rate_path": {
+            "items": {
+              "$ref": "#/components/schemas/RateInputDTO"
+            },
+            "type": "array",
+            "title": "Rate Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "status",
+          "partial_total",
+          "included",
+          "excluded",
+          "excluded_entry_count",
+          "unavailable_reasons",
+          "excluded_detail",
+          "rate_path"
+        ],
+        "title": "ConsolidatedValuationDTO"
+      },
+      "ConsolidationStatus": {
+        "type": "string",
+        "enum": [
+          "available",
+          "partial",
+          "unavailable"
+        ],
+        "title": "ConsolidationStatus"
+      },
       "Contributor": {
         "properties": {
           "component_id": {
@@ -4886,6 +5202,85 @@
           "nets"
         ],
         "title": "Contributor"
+      },
+      "ContributorRowOut": {
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "title": "Component Id"
+          },
+          "origin_kind": {
+            "type": "string",
+            "title": "Origin Kind"
+          },
+          "owning_source": {
+            "$ref": "#/components/schemas/OwningSourceOut"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "bucket": {
+            "type": "string",
+            "title": "Bucket"
+          },
+          "valuation": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "account": {
+            "type": "string",
+            "title": "Account"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "precision": {
+            "type": "string",
+            "title": "Precision"
+          },
+          "source_location": {
+            "type": "string",
+            "title": "Source Location"
+          },
+          "nets": {
+            "type": "boolean",
+            "title": "Nets"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "component_id",
+          "origin_kind",
+          "owning_source",
+          "role",
+          "bucket",
+          "valuation",
+          "category",
+          "merchant",
+          "account",
+          "date",
+          "precision",
+          "source_location",
+          "nets"
+        ],
+        "title": "ContributorRowOut"
       },
       "ContributorScope": {
         "properties": {
@@ -4995,6 +5390,113 @@
           "total"
         ],
         "title": "ContributorsPage"
+      },
+      "ContributorsPageOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "reporting_currency": {
+            "type": "string",
+            "title": "Reporting Currency"
+          },
+          "scope_start": {
+            "type": "string",
+            "title": "Scope Start"
+          },
+          "scope_end": {
+            "type": "string",
+            "title": "Scope End"
+          },
+          "buckets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Buckets"
+          },
+          "pocket_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pocket Currency"
+          },
+          "category_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Key"
+          },
+          "merchant_display": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant Display"
+          },
+          "sort": {
+            "type": "string",
+            "title": "Sort"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ContributorRowOut"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "parent": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "reporting_currency",
+          "scope_start",
+          "scope_end",
+          "buckets",
+          "pocket_currency",
+          "category_key",
+          "merchant_display",
+          "sort",
+          "rows",
+          "total",
+          "next_cursor",
+          "parent"
+        ],
+        "title": "ContributorsPageOut"
       },
       "Dashboard": {
         "properties": {
@@ -5327,6 +5829,53 @@
         ],
         "title": "EventDateChangeDraft"
       },
+      "ExcludedScopeDetailDTO": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "remedies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Remedies"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "period",
+          "entry_count",
+          "reasons",
+          "remedies"
+        ],
+        "title": "ExcludedScopeDetailDTO"
+      },
       "FinancialRoleImpactDraft": {
         "properties": {
           "generation": {
@@ -5425,6 +5974,51 @@
           "reason"
         ],
         "title": "FundConfirmationDraft"
+      },
+      "GrossBurnOut": {
+        "properties": {
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "included_months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Included Months"
+          },
+          "month_count": {
+            "type": "integer",
+            "title": "Month Count"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "result",
+          "included_months",
+          "month_count",
+          "reason"
+        ],
+        "title": "GrossBurnOut"
       },
       "HTTPValidationError": {
         "properties": {
@@ -5563,6 +6157,25 @@
           "currency"
         ],
         "title": "MoneyDTO"
+      },
+      "OwningSourceOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "id"
+        ],
+        "title": "OwningSourceOut"
       },
       "Plan": {
         "properties": {
@@ -5726,6 +6339,139 @@
         ],
         "title": "Proposal"
       },
+      "RankedGroupOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "result": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "handle": {
+            "type": "string",
+            "title": "Handle"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "result",
+          "handle"
+        ],
+        "title": "RankedGroupOut"
+      },
+      "RateBasis": {
+        "type": "string",
+        "enum": [
+          "identity",
+          "realized",
+          "exact_observation",
+          "prior_observation",
+          "monthly_average",
+          "monthly_proxy",
+          "current_mark",
+          "held_latest"
+        ],
+        "title": "RateBasis",
+        "description": "Which rate source was actually used (\u00a73.1)?"
+      },
+      "RateInputDTO": {
+        "properties": {
+          "base_currency": {
+            "type": "string",
+            "title": "Base Currency"
+          },
+          "quote_currency": {
+            "type": "string",
+            "title": "Quote Currency"
+          },
+          "period_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Month"
+          },
+          "effective_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective On"
+          },
+          "observation_kind": {
+            "type": "string",
+            "title": "Observation Kind"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "source_version": {
+            "type": "string",
+            "title": "Source Version"
+          },
+          "inverted": {
+            "type": "boolean",
+            "title": "Inverted"
+          },
+          "applied_numerator": {
+            "type": "string",
+            "title": "Applied Numerator"
+          },
+          "applied_denominator": {
+            "type": "string",
+            "title": "Applied Denominator"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "inverse"
+            ],
+            "title": "Direction"
+          },
+          "imported_rate_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imported Rate Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "base_currency",
+          "quote_currency",
+          "period_month",
+          "effective_on",
+          "observation_kind",
+          "source",
+          "source_version",
+          "inverted",
+          "applied_numerator",
+          "applied_denominator",
+          "direction",
+          "imported_rate_text"
+        ],
+        "title": "RateInputDTO"
+      },
       "Recurring": {
         "properties": {
           "merchant": {
@@ -5813,6 +6559,103 @@
           "total"
         ],
         "title": "RelationshipsReview"
+      },
+      "ReportedAnalysisOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "reporting_currency": {
+            "type": "string",
+            "title": "Reporting Currency"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "history_start": {
+            "type": "string",
+            "title": "History Start"
+          },
+          "history_end": {
+            "type": "string",
+            "title": "History End"
+          },
+          "pocket_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pocket Currency"
+          },
+          "covered": {
+            "type": "boolean",
+            "title": "Covered"
+          },
+          "coverage_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Coverage Reasons"
+          },
+          "comparison_kind": {
+            "type": "string",
+            "title": "Comparison Kind"
+          },
+          "summary": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SummaryEntryOut"
+            },
+            "type": "object",
+            "title": "Summary"
+          },
+          "gross_burn": {
+            "$ref": "#/components/schemas/GrossBurnOut"
+          },
+          "category_ranking": {
+            "items": {
+              "$ref": "#/components/schemas/RankedGroupOut"
+            },
+            "type": "array",
+            "title": "Category Ranking"
+          },
+          "merchant_ranking": {
+            "items": {
+              "$ref": "#/components/schemas/RankedGroupOut"
+            },
+            "type": "array",
+            "title": "Merchant Ranking"
+          },
+          "contributors_handle": {
+            "type": "string",
+            "title": "Contributors Handle"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "reporting_currency",
+          "as_of",
+          "history_start",
+          "history_end",
+          "pocket_currency",
+          "covered",
+          "coverage_reasons",
+          "comparison_kind",
+          "summary",
+          "gross_burn",
+          "category_ranking",
+          "merchant_ranking",
+          "contributors_handle"
+        ],
+        "title": "ReportedAnalysisOut"
       },
       "ReviewProposal": {
         "properties": {
@@ -5974,6 +6817,32 @@
         ],
         "title": "RuleDraft"
       },
+      "ScopeDTO": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "period"
+        ],
+        "title": "ScopeDTO"
+      },
       "SnapshotDraft": {
         "properties": {
           "generation": {
@@ -6110,6 +6979,48 @@
           "pct"
         ],
         "title": "SummaryCell"
+      },
+      "SummaryEntryOut": {
+        "properties": {
+          "current": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparison_available": {
+            "type": "boolean",
+            "title": "Comparison Available"
+          },
+          "comparison_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Comparison Reasons"
+          },
+          "handle": {
+            "type": "string",
+            "title": "Handle"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "current",
+          "previous",
+          "comparison_available",
+          "comparison_reasons",
+          "handle"
+        ],
+        "title": "SummaryEntryOut"
       },
       "Total": {
         "properties": {
@@ -6280,6 +7191,30 @@
         ],
         "title": "TrendPoint"
       },
+      "UnavailabilityDTO": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "remedy": {
+            "type": "string",
+            "title": "Remedy"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason",
+          "message",
+          "remedy"
+        ],
+        "title": "UnavailabilityDTO"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -6319,6 +7254,117 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ValuationPurpose": {
+        "type": "string",
+        "enum": [
+          "flow",
+          "position",
+          "forecast"
+        ],
+        "title": "ValuationPurpose",
+        "description": "Which financial question is this (\u00a73.1)?"
+      },
+      "ValuedMoneyDTO": {
+        "properties": {
+          "native": {
+            "$ref": "#/components/schemas/MoneyDTO"
+          },
+          "reported": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/ValuationPurpose"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RateBasis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valuation_as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "Valuation As Of"
+          },
+          "rate_as_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate As Of"
+          },
+          "rate_period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Period"
+          },
+          "rate_path": {
+            "items": {
+              "$ref": "#/components/schemas/RateInputDTO"
+            },
+            "type": "array",
+            "title": "Rate Path"
+          },
+          "forward_policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forward Policy"
+          },
+          "unavailable": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnavailabilityDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "native",
+          "reported",
+          "purpose",
+          "basis",
+          "valuation_as_of",
+          "rate_as_of",
+          "rate_period",
+          "rate_path",
+          "forward_policy",
+          "unavailable"
+        ],
+        "title": "ValuedMoneyDTO"
       }
     }
   }
