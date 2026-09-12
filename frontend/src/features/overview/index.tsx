@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, ArrowRight, CheckCircle2, CircleHelp, FileUp, Landmark, ShieldCheck, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { money, type Dashboard } from '@/lib/api'
+import { ApiError, money, type Dashboard } from '@/lib/api'
 import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness } from '@/features/baseline/api'
 import { loadCashPosition, type CashPosition } from '@/features/cash/api'
 import { loadForecast, type ForecastCurrency, type ForecastPage } from '@/features/forecast/api'
@@ -10,8 +10,16 @@ import { loadNetWorth, type NetWorthPage } from '@/features/networth/api'
 import { loadObligations, type ObligationsPage } from '@/features/obligations/api'
 import { loadRecurring, type RecurringPage } from '@/features/planning/api'
 import { loadImports, type ImportsPage } from '@/features/setup/api'
+import { MoneyFlowCards } from './MoneyFlowCards'
+import { ReportingPolicySettings } from './ReportingPolicySettings'
+import {
+  type MoneyFlowOut, type OverviewFilters, type ReportingPolicySummary,
+  emptyOverviewFilters, loadMoneyFlow, loadReportingPolicy, overviewScopeKey,
+} from './reportedApi'
 
-type OverviewDestination = 'Setup' | 'Accounts' | 'Baseline' | 'Cash' | 'Forecast' | 'Controls' | 'Cash Flow' | 'Categorization' | 'Planning' | 'Money Owed' | 'Net worth'
+export type OverviewDestination =
+  | 'Setup' | 'Accounts' | 'Baseline' | 'Cash' | 'Forecast' | 'Controls' | 'Cash Flow' | 'Categorization'
+  | 'Planning' | 'Money Owed' | 'Net worth' | 'Analysis' | 'Transactions' | 'Income'
 
 type Snapshot = {
   imports?: ImportsPage
@@ -24,9 +32,146 @@ type Snapshot = {
   recurring?: RecurringPage
 }
 
+type StaleBanner = 'none' | 'same-scope' | 'refresh-required'
+type LastGood = { key: string; policyCurrency: string; response: MoneyFlowOut }
+
 const unavailable = 'Evidence not available yet'
 
-export function OverviewActionPanel({ data, onOpen, onForecast }: { data: Dashboard; onOpen: (destination: OverviewDestination) => void; onForecast?: (page: ForecastPage | undefined) => void }) {
+/**
+ * The Overview tab (M3b.3 step 10, plan §6.3, §3.3-3.4). One
+ * `GET /api/v1/money-flow` read over *all* pockets by default drives the four
+ * reported summary cards; reporting currency is shown as a setting via
+ * `ReportingPolicySettings`, never inferred from — or narrowed by — the
+ * legacy per-currency Dashboard `data` this component also still reads for
+ * its unrelated, still-native setup checklist and position glance below.
+ */
+export function OverviewView({
+  data, start, end, initialPocketCurrency, onOpen, onForecast,
+}: {
+  data: Dashboard
+  start: string
+  end: string
+  // §6.3: a legacy `?currency=USD` URL seeds this screen's own explicit,
+  // clearable Account-currency filter once, on first mount only — never a
+  // reporting-currency change.
+  initialPocketCurrency: string
+  onOpen: (destination: OverviewDestination) => void
+  onForecast?: (page: ForecastPage | undefined) => void
+}) {
+  const [filters, setFilters] = useState<OverviewFilters>(() => ({ ...emptyOverviewFilters, pocketCurrency: initialPocketCurrency }))
+  const [page, setPage] = useState<MoneyFlowOut | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [staleBanner, setStaleBanner] = useState<StaleBanner>('none')
+  const [policy, setPolicy] = useState<ReportingPolicySummary | null>(null)
+  const lastGood = useRef<LastGood | null>(null)
+  const seq = useRef(0)
+
+  const refreshPolicy = useCallback(() => { loadReportingPolicy().then(setPolicy).catch(() => {}) }, [])
+  useEffect(() => { refreshPolicy() }, [refreshPolicy])
+
+  const fetchMoneyFlow = useCallback(() => {
+    const id = ++seq.current
+    const key = overviewScopeKey({ historyStart: start, historyEnd: end, filters })
+    setLoading(true); setError('')
+    loadMoneyFlow({ historyStart: start, historyEnd: end, filters })
+      .then(response => {
+        if (id !== seq.current) return
+        lastGood.current = { key, policyCurrency: response.reporting_currency, response }
+        setPage(response); setStaleBanner('none')
+      })
+      .catch(async caught => {
+        if (id !== seq.current) return
+        if (caught instanceof ApiError && caught.status === 409) {
+          const saved = lastGood.current
+          // Same requested scope: reuse the saved response's own provenance,
+          // never a different scope's values (§6.2 item 6).
+          if (saved && saved.key === key) {
+            try {
+              const current = await loadReportingPolicy()
+              if (id !== seq.current) return
+              setPolicy(current)
+              // A reporting-policy change invalidates even a same-scope
+              // saved response (§6.3: "clear last-good values on policy change").
+              if (current.currency === saved.policyCurrency) {
+                setPage(saved.response); setStaleBanner('same-scope'); return
+              }
+            } catch { /* fall through to refresh-required below */ }
+          }
+          lastGood.current = null
+          setPage(null); setStaleBanner('refresh-required')
+          return
+        }
+        setError((caught as Error).message); setPage(null); setStaleBanner('none')
+      })
+      .finally(() => { if (id === seq.current) setLoading(false) })
+  }, [start, end, filters])
+
+  useEffect(() => { fetchMoneyFlow() }, [fetchMoneyFlow])
+
+  const reportingCurrency = page?.reporting_currency ?? policy?.currency ?? 'SGD'
+
+  return (
+    <div aria-busy={loading}>
+      <div className="scope-caption overview-reporting-caption">
+        <ReportingPolicySettings
+          generation={data.generation} policy={policy}
+          onChanged={() => { refreshPolicy(); fetchMoneyFlow() }}
+        />
+        <Button variant="ghost" size="sm" disabled={loading} onClick={fetchMoneyFlow}>Refresh</Button>
+      </div>
+
+      {filters.pocketCurrency && (
+        <p className="analysis-scope-note">
+          Showing only {filters.pocketCurrency} pockets.{' '}
+          <button className="linkish" onClick={() => setFilters(emptyOverviewFilters)}>Show all pockets</button>
+        </p>
+      )}
+
+      {error && (
+        <div className="alert error" role="alert">
+          <div><strong>Couldn’t load the money-flow summary.</strong><p>{error}</p></div>
+          <Button variant="outline" onClick={fetchMoneyFlow}>Try again</Button>
+        </div>
+      )}
+
+      {staleBanner === 'refresh-required' && (
+        <div className="alert" role="alert">
+          <div>
+            <strong>Refresh required.</strong>
+            <p>The ledger has changed since the last refresh (new evidence, a rate import, or a reporting-policy change). Refresh before reading this summary.</p>
+          </div>
+          <Button variant="outline" onClick={fetchMoneyFlow}>Refresh</Button>
+        </div>
+      )}
+      {staleBanner === 'same-scope' && page && (
+        <div className="alert" role="status">
+          <div>
+            <strong>Showing the last loaded values for this exact period.</strong>
+            <p>New ledger inputs are available. Refresh to recompute.</p>
+          </div>
+          <Button variant="outline" onClick={fetchMoneyFlow}>Refresh</Button>
+        </div>
+      )}
+
+      {page && <MoneyFlowCards page={page} onOpen={onOpen} />}
+
+      <OverviewActionPanel data={data} currency={reportingCurrency} onOpen={onOpen} onForecast={onForecast} />
+    </div>
+  )
+}
+
+export function OverviewActionPanel({
+  data, currency, onOpen, onForecast,
+}: {
+  data: Dashboard
+  // §6.3: resolved from the ledger reporting policy, never the legacy
+  // pocket-filtered Dashboard `data.currency` selector — so switching that
+  // selector on another, still-native tab cannot narrow this glance.
+  currency: string
+  onOpen: (destination: OverviewDestination) => void
+  onForecast?: (page: ForecastPage | undefined) => void
+}) {
   const [snapshot, setSnapshot] = useState<Snapshot>({})
   const [loading, setLoading] = useState(true)
   const sequence = useRef(0)
@@ -51,12 +196,12 @@ export function OverviewActionPanel({ data, onOpen, onForecast }: { data: Dashbo
   }, [onForecast])
   useEffect(() => { load() }, [load, data.generation])
 
-  const reserve = reserveText(snapshot.estimate, data.currency)
-  const surplus = surplusText(snapshot.estimate, data.currency)
+  const reserve = reserveText(snapshot.estimate, currency)
+  const surplus = surplusText(snapshot.estimate, currency)
   const cash = cashText(snapshot.cash)
-  const owed = moneyOwedText(snapshot.obligations, data.currency)
+  const owed = moneyOwedText(snapshot.obligations, currency)
   const risk = riskText(snapshot.forecast)
-  const netWorth = netWorthText(snapshot.netWorth, data.currency)
+  const netWorth = netWorthText(snapshot.netWorth, currency)
   const imports = snapshot.imports
   const readiness = snapshot.readiness
   const estimate = snapshot.estimate

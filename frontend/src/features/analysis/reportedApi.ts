@@ -70,3 +70,12 @@ export async function loadReportingPolicy(): Promise<ReportingPolicySummary> {
   const data = await api<{ reporting_policy: ReportingPolicySummary }>('reporting-currency')
   return data.reporting_policy
 }
+
+// Same untyped body (`currency_registry_dto()`); the settings control (step
+// 10, §6.3) needs the supported-currency list to populate its selector.
+export type CurrencyRegistryEntry = { code: string; display_name: string; minor_unit_scale: number }
+
+export async function loadCurrencyRegistry(): Promise<CurrencyRegistryEntry[]> {
+  const data = await api<{ currency_registry: CurrencyRegistryEntry[] }>('reporting-currency')
+  return data.currency_registry
+}

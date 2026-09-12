@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDownLeft, ArrowRight, ArrowUpRight, BarChart3, Check, ChevronRight, CircleHelp, CreditCard, Layers3, Menu, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Target, Wallet, X } from 'lucide-react'
+import { ArrowDownLeft, ArrowRight, BarChart3, Check, ChevronRight, CircleHelp, CreditCard, Layers3, Menu, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Target, Wallet, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -34,8 +34,8 @@ import { CategorizationView } from '@/features/categorization/CategorizationView
 import { ForecastEstimateSummary, ForecastView } from '@/features/forecast'
 import type { ForecastPage } from '@/features/forecast/api'
 import { ControlsView } from '@/features/controls'
-import { OverviewActionPanel } from '@/features/overview'
-import { SpendingDonut, categoryIconColor } from '@/features/overview/SpendingDonut'
+import { OverviewView } from '@/features/overview'
+import { categoryIconColor } from '@/features/overview/SpendingDonut'
 import { FundsView } from '@/features/funds'
 import { VarianceView } from '@/features/variance'
 import { MaintenanceView } from '@/features/maintenance'
@@ -89,7 +89,6 @@ export default function App(){
  function drill(cat='',merchant='',bucket=''){setCategory(cat);setSearch(merchant);setKind(bucket);setTab('Transactions')}
  async function saved(status:string){setNotice(status==='recorded_refresh_pending'?'Saved; totals awaiting refresh. Use Refresh to retry.':'Saved to your ledger.');setEntry(null);setReportedRow(null);setDialog(null);setEditingPlan(null);await load()}
  async function refresh(){setLoading(true);try{await api('refresh',{});await load();setNotice('Ledger refreshed.')}catch(e){setError((e as Error).message);setLoading(false)}}
- const s=data?.summary||{}
  const reviewCount=data?.review_count||0
  const proposalCount=data?.transfer_proposals.length||0
  const meta=tabMeta[tab]
@@ -108,19 +107,15 @@ export default function App(){
    {notice&&<div className="alert success" role="status"><span><Check size={15}/>{notice}</span><button aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={16}/></button></div>}
    {!data&&loading?<div className="skeleton-page" aria-label="Loading dashboard"><div/><div/><div/></div>:!data?<Card className="empty"><Wallet/><h1>Open your personal ledger</h1><p>Launch FinCL locally, then open its private link. Your financial data stays on this computer.</p><code>fincl serve --database var/fincl.sqlite3</code></Card>:<>
    <PageHeader meta={meta} action={tab==='Categories'?<Button onClick={()=>setDialog('category')}><Plus size={16}/> New category</Button>:tab==='Plans'?<Button onClick={()=>{setEditingPlan(null);setDialog('budget')}}><Plus size={16}/> New budget</Button>:undefined}/>
-   {meta.scope==='range'&&<><div className="scope-bar"><PeriodPicker start={data.start} end={data.end} applying={loading} onApply={(s,e)=>{setStart(s);setEnd(e);void load(s,e)}}/>{tab!=='Analysis'&&tab!=='Cash Flow'&&tab!=='Transactions'&&<label className="currency-label">Currency<select aria-label="Display currency" value={currency} onChange={e=>{void load(data.start,data.end,e.target.value)}}>{data.currencies.map(c=><option key={c}>{c}</option>)}</select></label>}</div>
-   {tab!=='Analysis'&&tab!=='Cash Flow'&&tab!=='Transactions'&&<div className="scope-caption"><span>{dateLabel(data.start)} – {dateLabel(data.end)} · {data.currency} only · transfers excluded from spending</span><span className={data.covered?'covered':'coverage-missing'}><span className="status-dot"/>{data.covered?'Covered period':'Incomplete coverage'}</span></div>}</>}
+   {meta.scope==='range'&&<><div className="scope-bar"><PeriodPicker start={data.start} end={data.end} applying={loading} onApply={(s,e)=>{setStart(s);setEnd(e);void load(s,e)}}/>{tab!=='Analysis'&&tab!=='Cash Flow'&&tab!=='Transactions'&&tab!=='Overview'&&<label className="currency-label">Currency<select aria-label="Display currency" value={currency} onChange={e=>{void load(data.start,data.end,e.target.value)}}>{data.currencies.map(c=><option key={c}>{c}</option>)}</select></label>}</div>
+   {tab!=='Analysis'&&tab!=='Cash Flow'&&tab!=='Transactions'&&tab!=='Overview'&&<div className="scope-caption"><span>{dateLabel(data.start)} – {dateLabel(data.end)} · {data.currency} only · transfers excluded from spending</span><span className={data.covered?'covered':'coverage-missing'}><span className="status-dot"/>{data.covered?'Covered period':'Incomplete coverage'}</span></div>}</>}
    {meta.scope==='currency'&&<div className="scope-bar currency-only"><label className="currency-label">Currency<select aria-label="Display currency" value={currency} onChange={e=>{void load(data.start,data.end,e.target.value)}}>{data.currencies.map(c=><option key={c}>{c}</option>)}</select></label></div>}
    {data.freshness==='stale'&&<div className="alert" role="status">New ledger inputs are available. Refresh before editing or interpreting these totals as current.</div>}
    {meta.scope==='range'&&!data.covered&&<div className="alert" role="status"><div><strong>This period has missing coverage.</strong><p>Totals and charts are unavailable. You can still inspect recorded transactions. Choose a covered period or import the missing statements.</p></div></div>}
    <div aria-busy={loading} className={loading?'content-loading':''}>
    {tab==='Overview'&&<>
-    <OverviewActionPanel data={data} onOpen={setTab} onForecast={setForecastPage}/>
-    <div className="summary-grid"><Metric title="Spending" value={s.spending} currency={currency} note={`Plus ${money(s.fees,currency)} in fees`} icon={<ArrowUpRight/>} onClick={()=>drill('','','spending')}/><Metric title="Income" value={s.income} currency={currency} note="Explicitly classified income" icon={<ArrowDownLeft/>} onClick={()=>drill('','','income')}/><Metric title="Recorded net flow" value={s.net_economic_flow} currency={currency} note="After fees and classified inflows" icon={<Wallet/>} onClick={()=>drill()} accent/></div>
-    <SpendingDonut data={data} currency={currency} spending={s.spending} onOpenAnalysis={()=>setTab('Analysis')} onDrill={drill}/>
+    <OverviewView data={data} start={data.start} end={data.end} initialPocketCurrency={initialUrlPocketCurrency} onOpen={setTab} onForecast={setForecastPage}/>
     <div className="insight-grid"><button className="insight" onClick={()=>setTab('Planning')}><span className="insight-icon"><RefreshCw size={18}/></span><div><h3>What keeps repeating?</h3><p>{data.recurring.length?`${data.recurring.length} recurring payment candidates to inspect in Planning.`:'Inspect commitments in the Planning editor.'}</p></div><ArrowRight size={17}/></button><button className="insight" onClick={()=>drill('','','review')}><span className="insight-icon sand"><CircleHelp size={18}/></span><div><h3>What needs a second look?</h3><p>{reviewCount?`${reviewCount} transactions need categorization or review.`:'Your eligible transactions are categorized.'}</p></div><ArrowRight size={17}/></button><ForecastEstimateSummary page={forecastPage??null} onOpen={()=>setTab('Forecast')}/></div>
-    <Card className="recent-card"><PanelTitle eyebrow="RECENT ACTIVITY" title="The latest outgoings" action={<Button variant="ghost" size="sm" onClick={()=>drill()}>All transactions <ArrowRight size={14}/></Button>}/>{data.recent.slice(0,3).map(e=><button className="recent-row" key={e.id} onClick={()=>{setEntry(e);setReportedRow(null)}}><span className="merchant-icon">{e.merchant.charAt(0).toUpperCase()}</span><span className="recent-name"><strong>{e.merchant}</strong><small>{shortCategory(e.category)} · {e.precision==='MONTH'?e.date.slice(0,7):dateLabel(e.date)}</small></span><strong>{money(e.amount,e.currency)}</strong><ChevronRight size={16}/></button>)}{!data.recent.length&&<Empty title="No recorded outgoings" detail="Try another period or import a statement."/>}</Card>
-    <details className="interpretation"><summary>How should I read these numbers?</summary><p>Recorded net flow is classified income, refunds, reimbursements and gifts, less spending and fees. It is not your account balance, net worth, or savings rate. Unclassified inflows remain pending.</p><div className="breakdown">{['refunds','reimbursements','non_income_inflow','pending_review'].map(k=><button key={k} onClick={()=>drill('','',k)}><span>{k.replaceAll('_',' ')}</span><b>{money(s[k],currency)}</b></button>)}</div></details>
    </>}
    {(tab==='Analysis'||tab==='Cash Flow')&&<AnalysisView start={data.start} end={data.end} accounts={data.accounts} categories={data.categories} currencies={data.currencies} initialPocketCurrency={initialUrlPocketCurrency} onOpenTransactions={(cat,merchant)=>drill(cat,merchant,(cat||merchant)?'spending':'')} onOpenTransactionAnchor={openReportedAnchor} onOpenDebts={()=>setTab('Debts')}/>}
    {tab==='Categorization'&&<CategorizationView generation={data.generation} freshness={data.freshness} categories={data.categories} accounts={data.accounts} currencies={data.currencies} start={data.start} end={data.end} onSaved={saved}/>}
@@ -159,7 +154,6 @@ export default function App(){
 }
 
 function PanelTitle({eyebrow,title,action}:{eyebrow?:string;title:string;action?:React.ReactNode}){return <div className="panel-title"><div>{eyebrow&&<p className="eyebrow">{eyebrow}</p>}<h2>{title}</h2></div>{action}</div>}
-function Metric({title,value,currency,note,icon,onClick,accent=false}:{title:string;value?:string|null;currency:string;note:string;icon:React.ReactNode;onClick:()=>void;accent?:boolean}){return <button className={`metric ${accent?'accent':''}`} onClick={onClick}><span className="metric-label">{title}{icon}</span><strong>{money(value,currency)}</strong><small>{note}</small></button>}
 function Empty({title,detail,action}:{title:string;detail:string;action?:React.ReactNode}){return <div className="empty"><BarChart3 size={25}/><h3>{title}</h3><p>{detail}</p>{action}</div>}
 function PlanCard({plan:p,edit}:{plan:Plan;edit:()=>void}){return <Card className="plan-card"><div className="plan-title"><span className="insight-icon">{p.type==='goal'?<Target size={18}/>:<Wallet size={18}/>}</span><Button variant="ghost" size="sm" onClick={edit}>Edit</Button></div><h3>{p.name}</h3><p>{p.type==='goal'?'Manually recorded savings':p.category?shortCategory(p.category):'All spending + fees'} · {p.currency}</p><div className="plan-values"><strong>{money(p.actual,p.currency)}</strong><span>of {money(p.target,p.currency)}</span></div><div className="progress-track" role="progressbar" aria-label={`${p.name} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct(p.actual,p.target))}><span style={{width:`${pct(p.actual,p.target)}%`}}/></div><small>{p.actual===null?'Choose one complete covered calendar month in this currency.':Number(p.remaining)<0?`${money(p.remaining?.replace('-',''),p.currency)} ${p.type==='budget'?'over budget':'above target'}`:`${money(p.remaining,p.currency)} ${p.type==='budget'?'left to spend':'left to save'}`}</small></Card>}
 
