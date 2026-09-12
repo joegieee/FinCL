@@ -29,9 +29,9 @@ from datetime import date
 from fractions import Fraction
 from typing import Any
 
-from ..coverage import coverage_contract, latest_covered_complete_months
+from ..coverage import CoverageContract, coverage_contract, latest_covered_complete_months
 from ..errors import FinCLError
-from ..intervals import DateInterval
+from ..intervals import DateInterval, month_span
 from ..money import ExactMoney, format_decimal
 from ..reporting_context import ReportedScope, ReportingContext, build_reporting_context
 from ..valuation import (
@@ -44,6 +44,8 @@ from ..valuation import (
     ValuationItem,
     ValuationPurpose,
     consolidate,
+    eligible_month_ceiling,
+    quantize,
 )
 from .handles import decode_reported, encode_reported
 from .scopes import AnalysisScope, resolve_comparison
@@ -91,6 +93,31 @@ def _uncovered_result(context: ValuationContext) -> ConsolidatedValuation:
         unavailable_reasons=(_NO_EVIDENCE_COVERAGE,), excluded_detail=(),
         rate_inputs=(), context=context, values=(),
     )
+
+
+def _delta_and_pct(
+    current: ConsolidatedValuation, previous: ConsolidatedValuation | None
+) -> tuple[Fraction | None, str | None]:
+    """Exact delta and percentage change (§3.1 item 4).
+
+    Both require *complete* totals on both sides — a percentage built from a
+    partial total would silently compare an incomplete scope against a
+    complete one. ``pct`` reuses ``quantize`` (half-away-from-zero, one
+    decimal place) so the rounding rule is the same one every displayed
+    money amount already uses, not a second one invented for percentages.
+    """
+    if (
+        previous is None
+        or current.status is not ConsolidationStatus.AVAILABLE
+        or previous.status is not ConsolidationStatus.AVAILABLE
+    ):
+        return None, None
+    assert current.total is not None and previous.total is not None
+    delta = current.total - previous.total
+    if previous.total == 0:
+        return delta, None
+    pct_fraction = delta / previous.total * 100
+    return delta, quantize(pct_fraction, scale=1).text
 
 
 def _item(row: sqlite3.Row, *, magnitude: bool) -> ValuationItem:
@@ -157,7 +184,16 @@ def _rows(
 
 @dataclass(frozen=True, slots=True)
 class SummaryEntry:
-    """One bucket's current/prior consolidated result plus its drill handle."""
+    """One bucket's current/prior consolidated result plus its drill handle.
+
+    ``delta``/``pct`` are computed here, once, from the two sides' exact
+    Fractions (§3.1 item 4: "value each side... then subtract exact reported
+    totals") — never left to a caller to reconstruct from two already
+    -rendered decimal strings. Both are ``None`` unless *both* sides are
+    fully ``AVAILABLE``: a percentage or delta built from a partial total
+    would silently compare incomplete scopes (§3.1: "do not silently compare
+    different partial scopes").
+    """
 
     bucket: str
     current: ConsolidatedValuation
@@ -165,6 +201,8 @@ class SummaryEntry:
     comparison_available: bool
     comparison_reasons: tuple[str, ...]
     handle: str
+    delta: Fraction | None
+    pct: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +234,27 @@ class ReportedAnalysisResult:
     category_ranking: tuple[RankedGroup, ...]
     merchant_ranking: tuple[RankedGroup, ...]
     contributors_handle: str
+    trend: tuple[TrendMonth, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TrendMonth:
+    """One calendar month's reported spending/fees/income (§6.3 "trends").
+
+    ``complete`` mirrors the native trend's own rule: a month counts only
+    when it is wholly inside the evidence-coverage contract. An incomplete
+    month's cells are the same ``_uncovered_result`` placeholder the main
+    summary uses for an uncovered window — a gap, never a manufactured zero.
+    """
+
+    month: str
+    spending: ConsolidatedValuation
+    fees: ConsolidatedValuation
+    income: ConsolidatedValuation
+    complete: bool
+
+
+_TREND_RANGES = ("6", "12", "all")
 
 
 def _bucket_items(rows: Sequence[sqlite3.Row], bucket: str) -> list[ValuationItem]:
@@ -264,9 +323,12 @@ def reported_analysis_page_from(
     comparison: str | None = None,
     top_n: int = 10,
     burn_month_limit: int = DEFAULT_BURN_MONTH_LIMIT,
+    trend_range: str = "6",
     reporting_currency: str | None = None,
 ) -> ReportedAnalysisResult:
     """The reported Analysis panel: summary buckets, gross burn, rankings (§3, §6)."""
+    if trend_range not in _TREND_RANGES:
+        raise FinCLError(f"trend_range must be one of: {', '.join(_TREND_RANGES)}")
     scope = ReportedScope(
         valuation_as_of=as_of, history_start=history_start, history_end=history_end,
         pocket_currency=pocket_currency,
@@ -307,12 +369,17 @@ def reported_analysis_page_from(
             consolidate(connection, cur_items, context=flow_context)
             if covered else _uncovered_result(flow_context)
         )
+        previous_result = (
+            consolidate(connection, prev_items, context=flow_context) if comp.available else None
+        )
+        delta, pct = _delta_and_pct(current_result, previous_result)
         summary[name] = SummaryEntry(
             bucket=name,
             current=current_result,
-            previous=(consolidate(connection, prev_items, context=flow_context) if comp.available else None),
+            previous=previous_result,
             comparison_available=comp.available, comparison_reasons=comp.reasons,
             handle=_handle_for(context, start=history_start, end=history_end, buckets=buckets),
+            delta=delta, pct=pct,
         )
 
     for bucket in SUMMARY_BUCKETS:
@@ -348,12 +415,66 @@ def reported_analysis_page_from(
         context=context, start=history_start, end=history_end, top_n=top_n,
     )
 
+    trend = _trend(
+        connection, context=context, flow_context=flow_context, contract=contract,
+        history_end=history_end, trend_range=trend_range, pocket_currency=pocket_currency,
+        accounts=accounts, category_keys=category_keys, merchant=merchant,
+    )
+
     return ReportedAnalysisResult(
         context=context, covered=covered, coverage_reasons=tuple(contract.reasons),
         comparison_kind=comp.kind, summary=summary, gross_burn=gross_burn,
         category_ranking=category_ranking, merchant_ranking=merchant_ranking,
         contributors_handle=_handle_for(context, start=history_start, end=history_end, buckets=["spending"]),
+        trend=trend,
     )
+
+
+def _trend(
+    connection: sqlite3.Connection,
+    *,
+    context: ReportingContext,
+    flow_context: ValuationContext,
+    contract: CoverageContract,
+    history_end: str,
+    trend_range: str,
+    pocket_currency: str | None,
+    accounts: Sequence[str],
+    category_keys: Sequence[str],
+    merchant: str | None,
+) -> tuple[TrendMonth, ...]:
+    """Complete calendar months ending at the closed-month anchor at or before
+    ``history_end`` (§6.3). Reuses step 01's ``eligible_month_ceiling`` for
+    that anchor instead of re-deriving the same closed-month arithmetic."""
+    anchor = eligible_month_ceiling(date.fromisoformat(history_end), closed_month_only=True)
+    anchor_index = int(anchor[:4]) * 12 + int(anchor[5:7]) - 1
+    if trend_range == "all" and contract.covered_intervals:
+        first = min(interval.start for interval in contract.covered_intervals)
+        first_date = date.fromisoformat(first)
+        first_index = first_date.year * 12 + first_date.month - 1
+        months = max(1, anchor_index - first_index + 1)
+    else:
+        months = int(trend_range)
+
+    result: list[TrendMonth] = []
+    for offset in range(months - 1, -1, -1):
+        year, month = divmod(anchor_index - offset, 12)
+        month += 1
+        ym = f"{year:04d}-{month:02d}"
+        full = any(interval.contains_interval(month_span(ym)) for interval in contract.covered_intervals)
+        if full:
+            rows = _rows(
+                connection, generation_token=context.generation_token, periods=[ym],
+                pocket_currency=pocket_currency, accounts=accounts, category_keys=category_keys,
+                merchant=merchant,
+            )
+            spending = consolidate(connection, _bucket_items(rows, "spending"), context=flow_context)
+            fees = consolidate(connection, _bucket_items(rows, "fees"), context=flow_context)
+            income = consolidate(connection, _bucket_items(rows, "income"), context=flow_context)
+        else:
+            spending = fees = income = _uncovered_result(flow_context)
+        result.append(TrendMonth(month=ym, spending=spending, fees=fees, income=income, complete=full))
+    return tuple(result)
 
 
 def _ranked(

@@ -1429,7 +1429,7 @@ export interface paths {
         };
         /**
          * Reported Analysis Read
-         * @description M3b.1 step 04: reported Analysis over all pockets by default.
+         * @description M3b.1 step 04-05: reported Analysis over all pockets by default.
          *
          *     Additive to the legacy ``/api/v1/analysis``; that route's schema,
          *     default currency filter and outputs are unchanged.
@@ -2202,6 +2202,8 @@ export interface components {
             merchant_ranking: components["schemas"]["RankedGroupOut"][];
             /** Contributors Handle */
             contributors_handle: string;
+            /** Trend */
+            trend: components["schemas"]["TrendMonthOut"][];
         };
         /** ReviewProposal */
         ReviewProposal: {
@@ -2310,6 +2312,9 @@ export interface components {
             comparison_reasons: string[];
             /** Handle */
             handle: string;
+            delta: components["schemas"]["MoneyDTO"] | null;
+            /** Pct */
+            pct: string | null;
         };
         /** Total */
         Total: {
@@ -2341,6 +2346,16 @@ export interface components {
             spending: string | null;
             /** Income */
             income: string | null;
+            /** Complete */
+            complete: boolean;
+        };
+        /** TrendMonthOut */
+        TrendMonthOut: {
+            /** Month */
+            month: string;
+            spending: components["schemas"]["ConsolidatedValuationDTO"];
+            fees: components["schemas"]["ConsolidatedValuationDTO"];
+            income: components["schemas"]["ConsolidatedValuationDTO"];
             /** Complete */
             complete: boolean;
         };
@@ -4868,6 +4883,7 @@ export interface operations {
                 merchant?: string | null;
                 comparison?: string | null;
                 top_n?: number;
+                trend_range?: string;
             };
             header?: never;
             path?: never;

@@ -2,23 +2,26 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { money, shortCategory, type Contributor } from '@/lib/api'
-import { loadContributors } from './api'
+import { Money } from '@/components/Money'
+import { shortCategory } from '@/lib/api'
+import { loadReportedContributors, type ContributorRowOut } from './reportedApi'
 
 /**
- * The exact components behind whatever total the reader clicked. Server-paged
- * off the opaque handle, so it always matches the current generation and scope;
- * a stale handle returns 409 and the caller reopens Analysis.
+ * The exact reported components behind whatever total the reader clicked
+ * (§6, step 04 item 6). Server-paged off the opaque reported handle, so it
+ * always matches the current generation, reporting policy and rate
+ * inventory; a mismatched handle returns 409 and the caller reopens Analysis.
+ * Off-ledger components (a debt event with no bank row) show their own
+ * `owning_source` — never a fabricated transaction id.
  */
 export function ContributorTable({
-  title, handle, currency, onClose,
+  title, handle, onClose,
 }: {
   title: string
   handle: string
-  currency: string
   onClose: () => void
 }) {
-  const [rows, setRows] = useState<Contributor[]>([])
+  const [rows, setRows] = useState<ContributorRowOut[]>([])
   const [cursor, setCursor] = useState<string | null | undefined>(undefined)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -27,8 +30,8 @@ export function ContributorTable({
   useEffect(() => {
     let live = true
     setRows([]); setCursor(undefined); setLoading(true); setError('')
-    loadContributors(handle)
-      .then(page => { if (live) { setRows(page.components); setCursor(page.next_cursor); setTotal(page.total) } })
+    loadReportedContributors(handle)
+      .then(page => { if (live) { setRows(page.rows); setCursor(page.next_cursor); setTotal(page.total) } })
       .catch(e => { if (live) setError((e as Error).message) })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
@@ -37,8 +40,8 @@ export function ContributorTable({
   function more() {
     if (!cursor) return
     setLoading(true)
-    loadContributors(handle, cursor)
-      .then(page => { setRows(r => [...r, ...page.components]); setCursor(page.next_cursor) })
+    loadReportedContributors(handle, cursor)
+      .then(page => { setRows(r => [...r, ...page.rows]); setCursor(page.next_cursor) })
       .catch(e => setError((e as Error).message))
       .finally(() => setLoading(false))
   }
@@ -56,16 +59,21 @@ export function ContributorTable({
       <div className="table-scroll">
         <table className="transactions-table">
           <thead>
-            <tr><th>Date</th><th>Merchant</th><th>Category</th><th>Role</th><th className="amount">Amount</th></tr>
+            <tr><th>Date</th><th>Merchant</th><th>Category</th><th>Source</th><th>Role</th><th className="amount">Amount</th></tr>
           </thead>
           <tbody>
             {rows.map(c => (
               <tr key={c.component_id}>
                 <td className="date-cell">{c.date}{c.precision === 'MONTH' && <small>Month precision</small>}</td>
-                <td>{c.merchant}</td>
+                <td>{c.merchant ?? '—'}</td>
                 <td>{shortCategory(c.category)}</td>
+                <td>
+                  {c.owning_source.kind === 'debt_event'
+                    ? <span title={c.owning_source.id}>Off-ledger debt event</span>
+                    : <span>Transaction</span>}
+                </td>
                 <td>{c.role}{!c.nets && <small>excluded from net</small>}</td>
-                <td className="amount">{money(c.value, currency)}</td>
+                <td className="amount"><Money value={c.valuation} /></td>
               </tr>
             ))}
           </tbody>

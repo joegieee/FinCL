@@ -1,27 +1,34 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartFrame } from '@/components/ChartFrame'
-import { money, type TrendPoint } from '@/lib/api'
+import { money } from '@/lib/api'
 import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_SEMANTIC, CHART_TOOLTIP_STYLE, currencyTick } from '@/lib/chart-theme'
+import type { TrendMonthOut } from './reportedApi'
+
+function cellValue(cell: TrendMonthOut['spending']): string | null {
+  return cell.total?.value ?? cell.partial_total?.value ?? null
+}
 
 /**
  * A selected number of complete calendar months ending at the most recent
  * complete month whose end does not exceed the selected end. Gross-spending bars carry a separate,
  * labelled fees series; income is its own series. Gaps are explicit nulls, not
  * zero. The full range is shown so it cannot be read as the selected-period
- * total.
+ * total. Every cell is a reported, all-pocket consolidated value; a chart
+ * bar's height is a display-only `Number()` read of the same exact decimal
+ * the table row (and the `<ConsolidatedMoney>` cell in it) renders verbatim.
  */
 export function TrendChart({
   trend, currency, range,
 }: {
-  trend: TrendPoint[]
+  trend: TrendMonthOut[]
   currency: string
   range: '6' | '12' | 'all'
 }) {
   const data = trend.map(t => ({
     month: t.month,
-    spending: t.spending ? Number(t.spending.value) : null,
-    fees: t.fees ? Number(t.fees.value) : null,
-    income: t.income ? Number(t.income.value) : null,
+    spending: t.complete ? Number(cellValue(t.spending) ?? '0') : null,
+    fees: t.complete ? Number(cellValue(t.fees) ?? '0') : null,
+    income: t.complete ? Number(cellValue(t.income) ?? '0') : null,
     complete: t.complete,
   }))
   const historyLabel = range === '6' ? 'SIX-MONTH VIEW'
@@ -47,9 +54,9 @@ export function TrendChart({
           {trend.map(t => (
             <tr key={t.month}>
               <td>{t.month}</td>
-              <td>{money(t.spending?.value ?? null, currency)}</td>
-              <td>{money(t.fees?.value ?? null, currency)}</td>
-              <td>{money(t.income?.value ?? null, currency)}</td>
+              <td>{t.complete ? money(cellValue(t.spending), currency) : '—'}</td>
+              <td>{t.complete ? money(cellValue(t.fees), currency) : '—'}</td>
+              <td>{t.complete ? money(cellValue(t.income), currency) : '—'}</td>
               <td>{t.complete ? 'Complete' : 'Missing period'}</td>
             </tr>
           ))}

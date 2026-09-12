@@ -1,71 +1,15 @@
 import { useId } from 'react'
+import type { components } from '@/lib/api'
 
-// Wire shape of `valuation.ValuedMoneyDTO` (PLAN-reporting-currency-and-money-flow.md
-// §3.3, §4.1, §7.2). Hand-typed here rather than imported from the generated
-// `lib/schema.d.ts`: no route emits this DTO yet (M3b.1 step 03 is
-// reusable-pieces-only; step 04 wires the first real route). Kept aligned
-// with `valuation.RateInputDTO`/`ConsolidatedValuationDTO` by hand until
-// step 05 replaces every type here with the generated ones.
-export type RateInputDTO = {
-  base_currency: string
-  quote_currency: string
-  period_month: string | null
-  effective_on: string | null
-  observation_kind: string
-  source: string
-  source_version: string
-  inverted: boolean
-  // Exact applied ratio as decimal-string integers — never a JS `number`,
-  // which silently loses precision above 2**53 (§4.1).
-  applied_numerator: string
-  applied_denominator: string
-  direction: 'direct' | 'inverse'
-  // The genuinely imported printed decimal, when one is on file; `null` only
-  // when no printed text exists for either direction. For an inverse leg
-  // this is the *other* direction's own printed text, never the applied
-  // ratio re-rendered as a rounded finite decimal (§4.1).
-  imported_rate_text: string | null
-}
-
-// Wire shape of `valuation.ExcludedScopeDetailDTO` (§4.1, §4.3): why exactly
-// one currency/period scope was excluded, distinct from a flat global reason
-// list. Every reason here is a *rate*-availability gap — a caller combining
-// this with an evidence-coverage result (missing balance/movement evidence)
-// must keep the two lists visibly separate, never merge them into one.
-export type ExcludedScopeDetailDTO = {
-  currency: string
-  period: string | null
-  entry_count: number
-  reasons: string[]
-  remedies: string[]
-}
-
-export type UnavailabilityDTO = {
-  reason: string
-  message: string
-  remedy: string
-}
-
-export type MoneyAmountDTO = {
-  value: string
-  currency: string
-}
-
-export type ValuedMoneyDTO = {
-  native: MoneyAmountDTO
-  reported: MoneyAmountDTO | null
-  purpose: 'flow' | 'position' | 'forecast'
-  basis:
-    | 'identity' | 'realized' | 'exact_observation' | 'prior_observation'
-    | 'monthly_average' | 'monthly_proxy' | 'current_mark' | 'held_latest'
-    | null
-  valuation_as_of: string
-  rate_as_of: string | null
-  rate_period: string | null
-  rate_path: RateInputDTO[]
-  forward_policy: string | null
-  unavailable: UnavailabilityDTO | null
-}
+// Generated wire shapes (PLAN-reporting-currency-and-money-flow.md §3.3, §4.1,
+// §7.2), now that step 04 exposes them through real routes
+// (`GET /api/v1/reporting/analysis`, `GET /api/v1/reporting/contributors/{handle}`).
+// These replace the hand-typed duplicates M3b.1 step 03 carried temporarily.
+export type RateInputDTO = components['schemas']['RateInputDTO']
+export type ExcludedScopeDetailDTO = components['schemas']['ExcludedScopeDetailDTO']
+export type UnavailabilityDTO = components['schemas']['UnavailabilityDTO']
+export type MoneyAmountDTO = components['schemas']['MoneyDTO']
+export type ValuedMoneyDTO = components['schemas']['ValuedMoneyDTO']
 
 // Groups formatting digits with thousand separators without assuming a fixed
 // number of decimal places — the DTO's `value` is already printed at its own

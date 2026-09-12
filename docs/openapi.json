@@ -4117,7 +4117,7 @@
     "/api/v1/reporting/analysis": {
       "get": {
         "summary": "Reported Analysis Read",
-        "description": "M3b.1 step 04: reported Analysis over all pockets by default.\n\nAdditive to the legacy ``/api/v1/analysis``; that route's schema,\ndefault currency filter and outputs are unchanged.",
+        "description": "M3b.1 step 04-05: reported Analysis over all pockets by default.\n\nAdditive to the legacy ``/api/v1/analysis``; that route's schema,\ndefault currency filter and outputs are unchanged.",
         "operationId": "reported_analysis_read_api_v1_reporting_analysis_get",
         "parameters": [
           {
@@ -4248,6 +4248,16 @@
               "type": "integer",
               "default": 10,
               "title": "Top N"
+            }
+          },
+          {
+            "name": "trend_range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "6",
+              "title": "Trend Range"
             }
           }
         ],
@@ -6635,6 +6645,13 @@
           "contributors_handle": {
             "type": "string",
             "title": "Contributors Handle"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/TrendMonthOut"
+            },
+            "type": "array",
+            "title": "Trend"
           }
         },
         "additionalProperties": false,
@@ -6653,7 +6670,8 @@
           "gross_burn",
           "category_ranking",
           "merchant_ranking",
-          "contributors_handle"
+          "contributors_handle",
+          "trend"
         ],
         "title": "ReportedAnalysisOut"
       },
@@ -7009,6 +7027,27 @@
           "handle": {
             "type": "string",
             "title": "Handle"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct"
           }
         },
         "additionalProperties": false,
@@ -7018,7 +7057,9 @@
           "previous",
           "comparison_available",
           "comparison_reasons",
-          "handle"
+          "handle",
+          "delta",
+          "pct"
         ],
         "title": "SummaryEntryOut"
       },
@@ -7138,6 +7179,37 @@
           "complete"
         ],
         "title": "Trend"
+      },
+      "TrendMonthOut": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "spending": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "fees": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "income": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "month",
+          "spending",
+          "fees",
+          "income",
+          "complete"
+        ],
+        "title": "TrendMonthOut"
       },
       "TrendPoint": {
         "properties": {

@@ -1,21 +1,24 @@
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { shortCategory } from '@/lib/api'
-import { type AnalysisFilters, emptyFilters, filtersActive } from './api'
+import { type AnalysisFilters, emptyFilters, filtersActive } from './reportedApi'
 
 /**
- * The Analysis-local scope strip. Period and currency stay in the shared
- * scope bar above; this row owns the comparison mode and the account /
- * category / merchant narrowing, which are visibly local to Analysis and
- * reset here without touching Overview.
+ * The Analysis-local scope strip (§6.3). Period stays in the shared scope bar
+ * above; everything here — comparison mode, chart history, the explicit
+ * Account-currency filter, and account/category/merchant narrowing — is
+ * visibly local to Analysis and resets here without touching Overview or the
+ * ledger's reporting-currency setting. Reporting currency is shown as a
+ * setting, never as a record filter: it has no control in this row at all.
  */
 export function ScopeBar({
-  filters, setFilters, accounts, categories, comparisonKind,
+  filters, setFilters, accounts, categories, currencies, comparisonKind,
 }: {
   filters: AnalysisFilters
   setFilters: (f: AnalysisFilters) => void
   accounts: string[]
   categories: string[]
+  currencies: string[]
   comparisonKind: string
 }) {
   const active = filtersActive(filters)
@@ -50,6 +53,17 @@ export function ScopeBar({
           <option value="6">Last 6 months</option>
           <option value="12">Last 12 months</option>
           <option value="all">All covered history</option>
+        </select>
+      </label>
+      <label>
+        Account currency
+        <select
+          aria-label="Account currency filter"
+          value={filters.pocketCurrency}
+          onChange={e => setFilters({ ...filters, pocketCurrency: e.target.value })}
+        >
+          <option value="">All pockets</option>
+          {currencies.map(c => <option key={c}>{c}</option>)}
         </select>
       </label>
       <label>

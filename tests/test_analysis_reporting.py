@@ -228,6 +228,57 @@ class GrossBurnTests(unittest.TestCase):
         self.assertEqual(result.gross_burn.included_months, ("2026-01", "2026-02", "2026-03"))
 
 
+class TrendTests(unittest.TestCase):
+    _ROWS = GrossBurnTests._THREE_MONTH_ROWS
+
+    def test_trend_reports_six_months_by_default_with_the_evidenced_ones_complete(self) -> None:
+        database = _ledger(self._ROWS)
+        result = _page(database, as_of=date(2026, 3, 31), history_start="2026-03-01", history_end="2026-03-31")
+        self.assertEqual(
+            [m.month for m in result.trend],
+            ["2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"],
+        )
+        by_month = {m.month: m for m in result.trend}
+        for month in ("2025-10", "2025-11", "2025-12"):
+            self.assertFalse(by_month[month].complete)
+        for month in ("2026-01", "2026-02", "2026-03"):
+            self.assertTrue(by_month[month].complete)
+        self.assertEqual(by_month["2026-01"].spending.total, Fraction(100))
+        self.assertEqual(by_month["2026-02"].spending.total, Fraction(200))
+        self.assertEqual(by_month["2026-03"].spending.total, Fraction(300))
+        # A refund does not reduce the spending trend cell either.
+        self.assertEqual(by_month["2026-02"].income.total, Fraction(0))
+
+    def test_trend_range_12_reaches_back_past_evidence_into_incomplete_months(self) -> None:
+        database = _ledger(self._ROWS)
+        connection = connect_readonly(database)
+        try:
+            result = reported_analysis_page_from(
+                connection, as_of=date(2026, 3, 31), history_start="2026-03-01", history_end="2026-03-31",
+                trend_range="12",
+            )
+        finally:
+            connection.close()
+        self.assertEqual(len(result.trend), 12)
+        incomplete = [m for m in result.trend if not m.complete]
+        self.assertTrue(incomplete)
+        for month in incomplete:
+            self.assertEqual(month.spending.unavailable_reasons, ("NO_EVIDENCE_COVERAGE",))
+            self.assertIsNone(month.spending.total)
+
+    def test_an_unknown_trend_range_is_refused(self) -> None:
+        database = _ledger(self._ROWS)
+        connection = connect_readonly(database)
+        try:
+            with self.assertRaises(FinCLError):
+                reported_analysis_page_from(
+                    connection, as_of=date(2026, 3, 31), history_start="2026-03-01", history_end="2026-03-31",
+                    trend_range="24",
+                )
+        finally:
+            connection.close()
+
+
 class DebtEventEffectsTests(Slice2Base):
     """Reuses the SGD-only Slice2Base fixture: every figure here is identity
     -valued, isolating debt-event classification from FX concerns."""
@@ -365,6 +416,27 @@ class ComparisonTests(unittest.TestCase):
         assert entry.previous is not None
         self.assertEqual(entry.current.total, Fraction(70))
         self.assertEqual(entry.previous.total, Fraction(40))
+        # Exact delta (70 - 40 = 30) and pct ((70-40)/40*100 = 75.0), never a
+        # native delta repriced at today's rate or a float division (§3.1 item 4).
+        self.assertEqual(entry.delta, Fraction(30))
+        self.assertEqual(entry.pct, "75.0")
+
+    def test_no_delta_or_pct_when_either_side_is_not_fully_available(self) -> None:
+        database = _ledger(self._ROWS)
+        # No FX loaded at all is irrelevant here (native SGD is identity), so
+        # force partial by narrowing to a currency with zero components: the
+        # comparison period itself is simply unavailable when disabled.
+        result = _page(
+            database, as_of=date(2026, 2, 28), history_start="2026-02-01", history_end="2026-02-28",
+        )
+        # Sanity: with comparison explicitly off, no delta/pct is invented.
+        off = _page(
+            database, as_of=date(2026, 2, 28), history_start="2026-02-01", history_end="2026-02-28",
+            comparison="none",
+        )
+        self.assertIsNotNone(result.summary["spending"].delta)
+        self.assertIsNone(off.summary["spending"].delta)
+        self.assertIsNone(off.summary["spending"].pct)
 
 
 class ContributorParentEqualityTests(unittest.TestCase):

@@ -30,7 +30,14 @@ from .reporting_currency import (
     currency_registry_dto,
     reporting_policy,
 )
-from .valuation import ConsolidatedValuationDTO, ValuedMoneyDTO, to_consolidated_dto, to_dto
+from .valuation import (
+    ConsolidatedValuationDTO,
+    MoneyDTO,
+    ValuedMoneyDTO,
+    quantize,
+    to_consolidated_dto,
+    to_dto,
+)
 
 
 class _StrictModel(BaseModel):
@@ -115,6 +122,8 @@ class SummaryEntryOut(_StrictModel):
     comparison_available: bool
     comparison_reasons: list[str]
     handle: str
+    delta: MoneyDTO | None
+    pct: str | None
 
 
 class RankedGroupOut(_StrictModel):
@@ -128,6 +137,14 @@ class GrossBurnOut(_StrictModel):
     included_months: list[str]
     month_count: int
     reason: str | None
+
+
+class TrendMonthOut(_StrictModel):
+    month: str
+    spending: ConsolidatedValuationDTO
+    fees: ConsolidatedValuationDTO
+    income: ConsolidatedValuationDTO
+    complete: bool
 
 
 class ReportedAnalysisOut(_StrictModel):
@@ -145,11 +162,21 @@ class ReportedAnalysisOut(_StrictModel):
     category_ranking: list[RankedGroupOut]
     merchant_ranking: list[RankedGroupOut]
     contributors_handle: str
+    trend: list[TrendMonthOut]
 
 
 def _reported_analysis_out(result: ReportedAnalysisResult) -> ReportedAnalysisOut:
+    reporting_currency = result.context.reporting_currency
+    definition = CURRENCY_REGISTRY[reporting_currency]
+
     def _cv(consolidated: Any) -> ConsolidatedValuationDTO:
         return to_consolidated_dto(consolidated, currency_registry=CURRENCY_REGISTRY)
+
+    def _delta_dto(delta: Any) -> MoneyDTO | None:
+        if delta is None:
+            return None
+        money = quantize(delta, scale=definition.minor_unit_scale)
+        return MoneyDTO(value=money.text, currency=reporting_currency)
 
     return ReportedAnalysisOut(
         generation=result.context.generation_token,
@@ -168,6 +195,7 @@ def _reported_analysis_out(result: ReportedAnalysisResult) -> ReportedAnalysisOu
                 comparison_available=entry.comparison_available,
                 comparison_reasons=list(entry.comparison_reasons),
                 handle=entry.handle,
+                delta=_delta_dto(entry.delta), pct=entry.pct,
             )
             for name, entry in result.summary.items()
         },
@@ -186,6 +214,13 @@ def _reported_analysis_out(result: ReportedAnalysisResult) -> ReportedAnalysisOu
             for group in result.merchant_ranking
         ],
         contributors_handle=result.contributors_handle,
+        trend=[
+            TrendMonthOut(
+                month=month.month, spending=_cv(month.spending), fees=_cv(month.fees),
+                income=_cv(month.income), complete=month.complete,
+            )
+            for month in result.trend
+        ],
     )
 
 
@@ -316,8 +351,9 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         merchant: str | None = None,
         comparison: str | None = None,
         top_n: int = 10,
+        trend_range: str = '6',
     ) -> Any:
-        """M3b.1 step 04: reported Analysis over all pockets by default.
+        """M3b.1 step 04-05: reported Analysis over all pockets by default.
 
         Additive to the legacy ``/api/v1/analysis``; that route's schema,
         default currency filter and outputs are unchanged.
@@ -328,7 +364,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
             result = reported_analysis_page_from(
                 connection, as_of=resolved_as_of, history_start=history_start, history_end=history_end,
                 pocket_currency=pocket_currency, accounts=accounts or (), category_keys=category_keys or (),
-                merchant=merchant, comparison=comparison, top_n=top_n,
+                merchant=merchant, comparison=comparison, top_n=top_n, trend_range=trend_range,
             )
             return _reported_analysis_out(result)
         except FinCLError as exc:

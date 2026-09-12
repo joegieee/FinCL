@@ -1,6 +1,8 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
-import { money, type Analysis } from '@/lib/api'
+import { ConsolidatedMoney } from '@/components/Money'
+import { money } from '@/lib/api'
+import type { ReportedAnalysis } from './reportedApi'
 
 const CARDS: { key: string; title: string; note: string }[] = [
   { key: 'spending', title: 'Spending', note: 'Gross purchases; fees shown separately' },
@@ -24,24 +26,30 @@ function DeltaChip({ delta, pct, currency }: { delta: string | null; pct: string
   )
 }
 
-export function ComparisonCards({ analysis, currency }: { analysis: Analysis; currency: string }) {
-  const { summary, comparison } = analysis
+/** The four headline comparison cards (§3.1 item 4, §6.3). Every delta/pct
+ * here is computed once, server-side, from exact Fractions — never
+ * reconstructed from two already-rendered decimal strings in React. */
+export function ComparisonCards({ analysis }: { analysis: ReportedAnalysis }) {
+  const currency = analysis.reporting_currency
   return (
     <div className="comparison-grid">
       {CARDS.map(({ key, title, note }) => {
-        const cell = summary[key]
+        const entry = analysis.summary[key]
+        if (!entry) return null
+        const previousTotal = entry.previous?.total ?? entry.previous?.partial_total ?? null
         return (
           <Card key={key} className="comparison-card">
             <span className="comparison-label">{title}</span>
-            <strong>{money(cell?.value?.value ?? null, currency)}</strong>
-            {comparison.available
-              ? <DeltaChip delta={cell?.delta?.value ?? null} pct={cell?.pct ?? null} currency={currency} />
-              : <span className="delta muted">{comparison.kind === 'none' ? 'Comparison off' : comparison.reasons[0] ?? 'No comparison'}</span>}
+            <strong><ConsolidatedMoney
+              total={entry.current.total} partialTotal={entry.current.partial_total} currency={currency}
+              unavailableReasons={entry.current.unavailable_reasons} excludedDetail={entry.current.excluded_detail}
+            /></strong>
+            {entry.comparison_available
+              ? <DeltaChip delta={entry.delta?.value ?? null} pct={entry.pct} currency={currency} />
+              : <span className="delta muted">{analysis.comparison_kind === 'none' ? 'Comparison off' : entry.comparison_reasons[0] ?? 'No comparison'}</span>}
             <small>{note}</small>
-            {comparison.available && cell?.previous && (
-              <small className="comparison-prev">
-                was {money(cell.previous.value, currency)} · {comparison.start} to {comparison.end}
-              </small>
+            {entry.comparison_available && previousTotal && (
+              <small className="comparison-prev">was {money(previousTotal.value, currency)}</small>
             )}
           </Card>
         )
