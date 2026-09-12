@@ -25,6 +25,7 @@ from .coverage import dated_reporting_coverage
 from .db import connect_readonly
 from .errors import FinCLError
 from .generation import current_generation
+from .money_flow import MoneyFlowResult, money_flow_page_from
 from .reporting_currency import (
     CURRENCY_REGISTRY,
     currency_coverage_preview,
@@ -416,6 +417,126 @@ class TransactionAnchorsOut(_StrictModel):
     cap: int
 
 
+class EconomicFlowOut(_StrictModel):
+    inflow: ConsolidatedValuationDTO
+    outflow: ConsolidatedValuationDTO
+    net: ConsolidatedValuationDTO
+    exceptional_adjustments: ConsolidatedValuationDTO
+
+
+class GrossBurnCardOut(_StrictModel):
+    amount: ConsolidatedValuationDTO | None
+    included_months: list[str]
+    excluded_months: list[str]
+    month_count: int
+    reason: str | None
+    definition_version: str
+
+
+class CashAtCutoffOut(_StrictModel):
+    amount: ConsolidatedValuationDTO
+    balance_as_of: str | None
+    valuation_as_of: str
+
+
+class ForecastClosingOut(_StrictModel):
+    base: ConsolidatedValuationDTO
+    conservative: ConsolidatedValuationDTO
+    opening_balance_as_of: str | None
+    valuation_as_of: str
+    horizon_end: str | None
+
+
+class MoneyFlowSummaryOut(_StrictModel):
+    economic_flow: EconomicFlowOut
+    gross_burn: GrossBurnCardOut
+    cash_at_cutoff: CashAtCutoffOut
+    forecast_closing: ForecastClosingOut
+
+
+class MoneyFlowCutoffOut(_StrictModel):
+    supported_cash_cutoff: str | None
+    first_modelled_day: str | None
+    stale_days: int | None
+
+
+class MoneyFlowProvenanceOut(_StrictModel):
+    generation_manifest_digest: str
+    rate_inventory_digest: str
+    policy_versions: dict[str, str]
+
+
+class MoneyFlowOut(_StrictModel):
+    generation: str
+    freshness: str
+    reporting_currency: str
+    policy_version: str | None
+    as_of: str
+    history_start: str
+    history_end: str
+    pocket_currency: str | None
+    summary: MoneyFlowSummaryOut
+    cutoff: MoneyFlowCutoffOut
+    limitations: list[str]
+    provenance: MoneyFlowProvenanceOut
+
+
+def _money_flow_out(result: MoneyFlowResult) -> MoneyFlowOut:
+    def _cv(consolidated: Any) -> ConsolidatedValuationDTO:
+        return to_consolidated_dto(consolidated, currency_registry=CURRENCY_REGISTRY)
+
+    summary = result.summary
+    return MoneyFlowOut(
+        generation=result.context.generation_token,
+        freshness="current",
+        reporting_currency=result.context.reporting_currency,
+        policy_version=result.context.policy.policy_version,
+        as_of=result.context.scope.valuation_as_of.isoformat(),
+        history_start=result.context.scope.history_start or "",
+        history_end=result.context.scope.history_end or "",
+        pocket_currency=result.context.scope.pocket_currency,
+        summary=MoneyFlowSummaryOut(
+            economic_flow=EconomicFlowOut(
+                inflow=_cv(summary.inflow.current),
+                outflow=_cv(summary.outflow.current),
+                net=_cv(summary.net_economic_flow.current),
+                exceptional_adjustments=_cv(summary.exceptional_adjustments.current),
+            ),
+            gross_burn=GrossBurnCardOut(
+                amount=_cv(summary.gross_burn.result) if summary.gross_burn.result is not None else None,
+                included_months=list(summary.gross_burn.included_months),
+                excluded_months=list(summary.gross_burn_excluded_months),
+                month_count=summary.gross_burn.month_count,
+                reason=summary.gross_burn.reason,
+                definition_version=result.policy_versions["gross_burn"],
+            ),
+            cash_at_cutoff=CashAtCutoffOut(
+                amount=_cv(summary.cash_at_cutoff.result),
+                balance_as_of=summary.cash_at_cutoff.balance_as_of,
+                valuation_as_of=summary.cash_at_cutoff.valuation_as_of.isoformat(),
+            ),
+            forecast_closing=ForecastClosingOut(
+                base=_cv(summary.forecast_closing.base),
+                conservative=_cv(summary.forecast_closing.conservative),
+                opening_balance_as_of=summary.forecast_closing.opening_balance_as_of,
+                valuation_as_of=summary.forecast_closing.valuation_as_of.isoformat(),
+                horizon_end=summary.forecast_closing.horizon_end,
+            ),
+        ),
+        cutoff=MoneyFlowCutoffOut(
+            supported_cash_cutoff=result.supported_cash_cutoff,
+            first_modelled_day=result.first_modelled_day,
+            stale_days=result.cash_stale_days,
+        ),
+        limitations=list(result.limitations),
+        provenance=MoneyFlowProvenanceOut(
+            generation_manifest_digest=result.context.generation_token,
+            rate_inventory_digest=result.context.rate_inventory_digest,
+            policy_versions=dict(result.policy_versions),
+        ),
+    )
+
+
 def register_reporting_routes(app: FastAPI, database: Path) -> None:
     @app.get('/api/v1/reporting-currency')
     def reporting_currency_read() -> Any:
@@ -497,6 +618,31 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
                 merchant=merchant, comparison=comparison, top_n=top_n, trend_range=trend_range,
             )
             return _reported_analysis_out(result)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/money-flow', response_model=MoneyFlowOut)
+    def money_flow_read(
+        history_start: str, history_end: str, as_of: str | None = None, pocket_currency: str | None = None,
+    ) -> Any:
+        """M3b.3 step 09: the composite Overview read (§3.3-3.4, §6.2).
+
+        One connection/one read transaction composing reported Analysis,
+        supported cash-at-cutoff and both forecast closings; additive, and
+        introduces no per-request reporting-currency override (§6.1).
+        """
+        connection = connect_readonly(database)
+        try:
+            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            result = money_flow_page_from(
+                connection, today=resolved_as_of, history_start=history_start, history_end=history_end,
+                pocket_currency=pocket_currency,
+            )
+            return _money_flow_out(result)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
                 raise HTTPException(409, str(exc)) from exc

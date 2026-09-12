@@ -1443,6 +1443,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/money-flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Money Flow Read
+         * @description M3b.3 step 09: the composite Overview read (§3.3-3.4, §6.2).
+         *
+         *     One connection/one read transaction composing reported Analysis,
+         *     supported cash-at-cutoff and both forecast closings; additive, and
+         *     introduces no per-request reporting-currency override (§6.1).
+         */
+        get: operations["money_flow_read_api_v1_money_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/contributors/{handle}": {
         parameters: {
             query?: never;
@@ -1647,6 +1671,14 @@ export interface components {
         Bootstrap: {
             /** Secret */
             secret: string;
+        };
+        /** CashAtCutoffOut */
+        CashAtCutoffOut: {
+            amount: components["schemas"]["ConsolidatedValuationDTO"];
+            /** Balance As Of */
+            balance_as_of: string | null;
+            /** Valuation As Of */
+            valuation_as_of: string;
         };
         /** CategorizationImpactDraft */
         CategorizationImpactDraft: {
@@ -1936,6 +1968,13 @@ export interface components {
             /** Transfer Proposals */
             transfer_proposals: components["schemas"]["Proposal"][];
         };
+        /** EconomicFlowOut */
+        EconomicFlowOut: {
+            inflow: components["schemas"]["ConsolidatedValuationDTO"];
+            outflow: components["schemas"]["ConsolidatedValuationDTO"];
+            net: components["schemas"]["ConsolidatedValuationDTO"];
+            exceptional_adjustments: components["schemas"]["ConsolidatedValuationDTO"];
+        };
         /** EffectiveRateOut */
         EffectiveRateOut: {
             /** Base Currency */
@@ -2050,6 +2089,17 @@ export interface components {
              */
             clear_roles: boolean;
         };
+        /** ForecastClosingOut */
+        ForecastClosingOut: {
+            base: components["schemas"]["ConsolidatedValuationDTO"];
+            conservative: components["schemas"]["ConsolidatedValuationDTO"];
+            /** Opening Balance As Of */
+            opening_balance_as_of: string | null;
+            /** Valuation As Of */
+            valuation_as_of: string;
+            /** Horizon End */
+            horizon_end: string | null;
+        };
         /** FundConfirmationDraft */
         FundConfirmationDraft: {
             /** Proposal Id */
@@ -2058,6 +2108,20 @@ export interface components {
             generation: string;
             /** Reason */
             reason: string;
+        };
+        /** GrossBurnCardOut */
+        GrossBurnCardOut: {
+            amount: components["schemas"]["ConsolidatedValuationDTO"] | null;
+            /** Included Months */
+            included_months: string[];
+            /** Excluded Months */
+            excluded_months: string[];
+            /** Month Count */
+            month_count: number;
+            /** Reason */
+            reason: string | null;
+            /** Definition Version */
+            definition_version: string;
         };
         /** GrossBurnOut */
         GrossBurnOut: {
@@ -2117,6 +2181,57 @@ export interface components {
             value: string;
             /** Currency */
             currency: string;
+        };
+        /** MoneyFlowCutoffOut */
+        MoneyFlowCutoffOut: {
+            /** Supported Cash Cutoff */
+            supported_cash_cutoff: string | null;
+            /** First Modelled Day */
+            first_modelled_day: string | null;
+            /** Stale Days */
+            stale_days: number | null;
+        };
+        /** MoneyFlowOut */
+        MoneyFlowOut: {
+            /** Generation */
+            generation: string;
+            /** Freshness */
+            freshness: string;
+            /** Reporting Currency */
+            reporting_currency: string;
+            /** Policy Version */
+            policy_version: string | null;
+            /** As Of */
+            as_of: string;
+            /** History Start */
+            history_start: string;
+            /** History End */
+            history_end: string;
+            /** Pocket Currency */
+            pocket_currency: string | null;
+            summary: components["schemas"]["MoneyFlowSummaryOut"];
+            cutoff: components["schemas"]["MoneyFlowCutoffOut"];
+            /** Limitations */
+            limitations: string[];
+            provenance: components["schemas"]["MoneyFlowProvenanceOut"];
+        };
+        /** MoneyFlowProvenanceOut */
+        MoneyFlowProvenanceOut: {
+            /** Generation Manifest Digest */
+            generation_manifest_digest: string;
+            /** Rate Inventory Digest */
+            rate_inventory_digest: string;
+            /** Policy Versions */
+            policy_versions: {
+                [key: string]: string;
+            };
+        };
+        /** MoneyFlowSummaryOut */
+        MoneyFlowSummaryOut: {
+            economic_flow: components["schemas"]["EconomicFlowOut"];
+            gross_burn: components["schemas"]["GrossBurnCardOut"];
+            cash_at_cutoff: components["schemas"]["CashAtCutoffOut"];
+            forecast_closing: components["schemas"]["ForecastClosingOut"];
         };
         /** OwningSourceOut */
         OwningSourceOut: {
@@ -5061,6 +5176,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportedAnalysisOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    money_flow_read_api_v1_money_flow_get: {
+        parameters: {
+            query: {
+                history_start: string;
+                history_end: string;
+                as_of?: string | null;
+                pocket_currency?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MoneyFlowOut"];
                 };
             };
             /** @description Validation Error */

@@ -4285,6 +4285,87 @@
         }
       }
     },
+    "/api/v1/money-flow": {
+      "get": {
+        "summary": "Money Flow Read",
+        "description": "M3b.3 step 09: the composite Overview read (\u00a73.3-3.4, \u00a76.2).\n\nOne connection/one read transaction composing reported Analysis,\nsupported cash-at-cutoff and both forecast closings; additive, and\nintroduces no per-request reporting-currency override (\u00a76.1).",
+        "operationId": "money_flow_read_api_v1_money_flow_get",
+        "parameters": [
+          {
+            "name": "history_start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History Start"
+            }
+          },
+          {
+            "name": "history_end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History End"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "pocket_currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pocket Currency"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoneyFlowOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/contributors/{handle}": {
       "get": {
         "summary": "Reported Contributors Read",
@@ -5176,6 +5257,36 @@
           "secret"
         ],
         "title": "Bootstrap"
+      },
+      "CashAtCutoffOut": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "balance_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance As Of"
+          },
+          "valuation_as_of": {
+            "type": "string",
+            "title": "Valuation As Of"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "amount",
+          "balance_as_of",
+          "valuation_as_of"
+        ],
+        "title": "CashAtCutoffOut"
       },
       "CategorizationImpactDraft": {
         "properties": {
@@ -6190,6 +6301,31 @@
         ],
         "title": "Dashboard"
       },
+      "EconomicFlowOut": {
+        "properties": {
+          "inflow": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "outflow": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "net": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "exceptional_adjustments": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "inflow",
+          "outflow",
+          "net",
+          "exceptional_adjustments"
+        ],
+        "title": "EconomicFlowOut"
+      },
       "EffectiveRateOut": {
         "properties": {
           "base_currency": {
@@ -6510,6 +6646,52 @@
         ],
         "title": "FinancialRoleImpactDraft"
       },
+      "ForecastClosingOut": {
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "conservative": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "opening_balance_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Balance As Of"
+          },
+          "valuation_as_of": {
+            "type": "string",
+            "title": "Valuation As Of"
+          },
+          "horizon_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon End"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "base",
+          "conservative",
+          "opening_balance_as_of",
+          "valuation_as_of",
+          "horizon_end"
+        ],
+        "title": "ForecastClosingOut"
+      },
       "FundConfirmationDraft": {
         "properties": {
           "proposal_id": {
@@ -6539,6 +6721,64 @@
           "reason"
         ],
         "title": "FundConfirmationDraft"
+      },
+      "GrossBurnCardOut": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "included_months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Included Months"
+          },
+          "excluded_months": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Excluded Months"
+          },
+          "month_count": {
+            "type": "integer",
+            "title": "Month Count"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "definition_version": {
+            "type": "string",
+            "title": "Definition Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "amount",
+          "included_months",
+          "excluded_months",
+          "month_count",
+          "reason",
+          "definition_version"
+        ],
+        "title": "GrossBurnCardOut"
       },
       "GrossBurnOut": {
         "properties": {
@@ -6722,6 +6962,186 @@
           "currency"
         ],
         "title": "MoneyDTO"
+      },
+      "MoneyFlowCutoffOut": {
+        "properties": {
+          "supported_cash_cutoff": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supported Cash Cutoff"
+          },
+          "first_modelled_day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Modelled Day"
+          },
+          "stale_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stale Days"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "supported_cash_cutoff",
+          "first_modelled_day",
+          "stale_days"
+        ],
+        "title": "MoneyFlowCutoffOut"
+      },
+      "MoneyFlowOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "freshness": {
+            "type": "string",
+            "title": "Freshness"
+          },
+          "reporting_currency": {
+            "type": "string",
+            "title": "Reporting Currency"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "history_start": {
+            "type": "string",
+            "title": "History Start"
+          },
+          "history_end": {
+            "type": "string",
+            "title": "History End"
+          },
+          "pocket_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pocket Currency"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/MoneyFlowSummaryOut"
+          },
+          "cutoff": {
+            "$ref": "#/components/schemas/MoneyFlowCutoffOut"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/MoneyFlowProvenanceOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "freshness",
+          "reporting_currency",
+          "policy_version",
+          "as_of",
+          "history_start",
+          "history_end",
+          "pocket_currency",
+          "summary",
+          "cutoff",
+          "limitations",
+          "provenance"
+        ],
+        "title": "MoneyFlowOut"
+      },
+      "MoneyFlowProvenanceOut": {
+        "properties": {
+          "generation_manifest_digest": {
+            "type": "string",
+            "title": "Generation Manifest Digest"
+          },
+          "rate_inventory_digest": {
+            "type": "string",
+            "title": "Rate Inventory Digest"
+          },
+          "policy_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Policy Versions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation_manifest_digest",
+          "rate_inventory_digest",
+          "policy_versions"
+        ],
+        "title": "MoneyFlowProvenanceOut"
+      },
+      "MoneyFlowSummaryOut": {
+        "properties": {
+          "economic_flow": {
+            "$ref": "#/components/schemas/EconomicFlowOut"
+          },
+          "gross_burn": {
+            "$ref": "#/components/schemas/GrossBurnCardOut"
+          },
+          "cash_at_cutoff": {
+            "$ref": "#/components/schemas/CashAtCutoffOut"
+          },
+          "forecast_closing": {
+            "$ref": "#/components/schemas/ForecastClosingOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "economic_flow",
+          "gross_burn",
+          "cash_at_cutoff",
+          "forecast_closing"
+        ],
+        "title": "MoneyFlowSummaryOut"
       },
       "OwningSourceOut": {
         "properties": {
