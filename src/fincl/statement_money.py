@@ -169,6 +169,23 @@ def _parse_money_token(token: str) -> tuple[str | None, ExactMoney]:
     return match.group("symbol"), ExactMoney.parse(match.group("amount").replace(",", ""))
 
 
+def _canonical_stored_decimal(text: str) -> str:
+    """Tolerate a legacy thousands-separator in an already-stored
+    `source_amount_*` column.
+
+    A now-fixed write-time bug once persisted the printed spelling of a
+    foreign amount (comma grouping included) into this canonical-decimal
+    column instead of `format_decimal`'s plain form. This module never
+    rewrites `ledger_entries` (its own docstring: "performs no writes"), so
+    an already-accepted row from before that fix still carries the comma;
+    stripping it here is the same normalization `_parse_money_token` already
+    applies to freshly decoded raw text, just applied to the stored column
+    too, so a legacy row renders correctly instead of raising out of
+    `ExactMoney.parse`.
+    """
+    return text.replace(",", "")
+
+
 def _amounts_equal(left_text: str, right_text: str) -> bool:
     return compare(ExactMoney.parse(left_text), ExactMoney.parse(right_text)) == 0
 
@@ -362,9 +379,10 @@ def read_statement_money_detail(
     if row is None:
         raise FinCLError(f"no ledger entry found for id {ledger_entry_id!r}")
 
-    settled = ExactAmountDTO(row["currency_pocket"], row["amount_text"])
+    settled = ExactAmountDTO(row["currency_pocket"], _canonical_stored_decimal(row["amount_text"]))
     explicit_fee = (
-        ExactAmountDTO(row["currency_pocket"], row["fee_text"]) if row["fee_text"] is not None else None
+        ExactAmountDTO(row["currency_pocket"], _canonical_stored_decimal(row["fee_text"]))
+        if row["fee_text"] is not None else None
     )
     document_record_id = row["document_record_id"]
 
@@ -392,7 +410,7 @@ def read_statement_money_detail(
             raw_fields = candidate
 
     stored_original = (
-        ExactAmountDTO(row["source_currency"], row["source_amount_text"])
+        ExactAmountDTO(row["source_currency"], _canonical_stored_decimal(row["source_amount_text"]))
         if row["source_currency"] is not None and row["source_amount_text"] is not None
         else None
     )
