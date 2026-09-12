@@ -26,6 +26,7 @@ from .db import connect_readonly
 from .errors import FinCLError
 from .generation import current_generation
 from .money_flow import MoneyFlowResult, money_flow_page_from
+from .position.reporting import ReportedCashPage, reported_cash_page_from
 from .reporting_currency import (
     CURRENCY_REGISTRY,
     currency_coverage_preview,
@@ -537,6 +538,178 @@ def _money_flow_out(result: MoneyFlowResult) -> MoneyFlowOut:
     )
 
 
+class MissingIntervalOut(_StrictModel):
+    account_id: str
+    currency_pocket: str
+    start: str
+    end: str
+    reason: str
+
+
+class CashBridgePocketOut(_StrictModel):
+    account_id: str
+    currency_pocket: str
+    opening: str
+    opening_as_of: str
+    external_inflows: str
+    external_outflows: str
+    owned_transfer_inflows: str
+    owned_transfer_outflows: str
+    closing: str
+    closing_as_of: str
+    calculated_closing: str
+    reconciled: bool
+    movement_count: int
+    paired_transfer_link_count: int
+    unsupported_reason: str | None
+
+
+class CashBridgeCombinedOut(_StrictModel):
+    opening: str
+    external_inflows: str
+    external_outflows: str
+    closing: str
+    reconciled: bool
+    owned_transfer_pairs_cancelled: int
+
+
+class CashBridgeOut(_StrictModel):
+    pockets: list[CashBridgePocketOut]
+    combined_by_currency: dict[str, CashBridgeCombinedOut]
+    owned_transfer_pairs_cancelled: int
+    policy: str
+
+
+class BoundaryDetailOut(_StrictModel):
+    balance: str
+    as_of: str
+    basis: str
+    observation: str | None = None
+
+
+class CashPocketOut(_StrictModel):
+    account_id: str
+    institution: str | None
+    display_name: str | None
+    source_type: str | None
+    currency_pocket: str
+    liquid: bool
+    excluded_reason: str | None
+    basis: str
+    balance: str | None
+    as_of: str | None
+    date_precision: str | None
+    stale: bool
+    staleness_days: int | None
+    unavailable_reason: str | None
+    statement_running_balance: BoundaryDetailOut | None
+    manual_observation: BoundaryDetailOut | None
+    derived_balance: str | None
+    derived_as_of: str | None
+    derived_basis: str | None
+    coverage_status: str
+    # §3.3: each pocket's own native balance/derived-balance, valued at its
+    # own as-of date -- ``None`` means no native amount to value (missing
+    # balance evidence), never a fabricated zero. A present-but-unavailable
+    # ``ValuedMoneyDTO`` means a real native amount with no importable rate
+    # (missing FX) -- the two must render as different explanations.
+    reported_balance: ValuedMoneyDTO | None
+    reported_derived_balance: ValuedMoneyDTO | None
+
+
+class CashPageOut(_StrictModel):
+    generation: str
+    reporting_currency: str
+    policy_version: str | None
+    as_of: str
+    pocket_currency: str | None
+    generated_for: str
+    stale_after_days: int
+    supported_cutoff: str | None
+    current_position_supported: bool
+    current_position_reasons: list[str]
+    # Native, unchanged per-currency totals (§1 invariant 3) shown *beside*
+    # the reported aggregate below -- never replaced by it.
+    combined_liquid_position: dict[str, str]
+    liquid_total: dict[str, str]
+    liquid_total_withheld: dict[str, str]
+    combined: CashAtCutoffOut
+    pockets: list[CashPocketOut]
+    stale: bool
+    missing_intervals: list[MissingIntervalOut]
+    cash_bridge: CashBridgeOut
+
+
+def _boundary_detail_out(detail: Any) -> BoundaryDetailOut | None:
+    if detail is None:
+        return None
+    return BoundaryDetailOut(
+        balance=str(detail["balance"]), as_of=str(detail["as_of"]), basis=str(detail["basis"]),
+        observation=detail.get("observation"),
+    )
+
+
+def _cash_pocket_out(pocket: Any) -> CashPocketOut:
+    native = pocket.native
+    return CashPocketOut(
+        account_id=native["account_id"], institution=native["institution"],
+        display_name=native["display_name"], source_type=native["source_type"],
+        currency_pocket=native["currency_pocket"], liquid=native["liquid"],
+        excluded_reason=native["excluded_reason"], basis=native["basis"],
+        balance=native["balance"], as_of=native["as_of"], date_precision=native["date_precision"],
+        stale=native["stale"], staleness_days=native["staleness_days"],
+        unavailable_reason=native["unavailable_reason"],
+        statement_running_balance=_boundary_detail_out(native["statement_running_balance"]),
+        manual_observation=_boundary_detail_out(native["manual_observation"]),
+        derived_balance=native["derived_balance"], derived_as_of=native["derived_as_of"],
+        derived_basis=native["derived_basis"], coverage_status=native["coverage_status"],
+        reported_balance=(
+            to_dto(pocket.reported_balance, currency_registry=CURRENCY_REGISTRY)
+            if pocket.reported_balance is not None else None
+        ),
+        reported_derived_balance=(
+            to_dto(pocket.reported_derived_balance, currency_registry=CURRENCY_REGISTRY)
+            if pocket.reported_derived_balance is not None else None
+        ),
+    )
+
+
+def _cash_page_out(page: ReportedCashPage) -> CashPageOut:
+    position = page.position
+    bridge = position["cash_bridge"]
+    combined_bridge = bridge["combined"]
+    return CashPageOut(
+        generation=page.context.generation_token, reporting_currency=page.context.reporting_currency,
+        policy_version=page.context.policy.policy_version,
+        as_of=page.context.scope.valuation_as_of.isoformat(),
+        pocket_currency=page.context.scope.pocket_currency,
+        generated_for=position["generated_for"], stale_after_days=position["stale_after_days"],
+        supported_cutoff=position["supported_cutoff"],
+        current_position_supported=position["current_position_supported"],
+        current_position_reasons=list(position["current_position_reasons"]),
+        combined_liquid_position=dict(position["combined_liquid_position"]),
+        liquid_total=dict(position["liquid_total"]),
+        liquid_total_withheld=dict(position["liquid_total_withheld"]),
+        combined=CashAtCutoffOut(
+            amount=to_consolidated_dto(page.combined.result, currency_registry=CURRENCY_REGISTRY),
+            balance_as_of=page.combined.balance_as_of,
+            valuation_as_of=page.combined.valuation_as_of.isoformat(),
+        ),
+        pockets=[_cash_pocket_out(pocket) for pocket in page.pockets],
+        stale=position["stale"],
+        missing_intervals=[MissingIntervalOut(**gap) for gap in position["missing_intervals"]],
+        cash_bridge=CashBridgeOut(
+            pockets=[CashBridgePocketOut(**bridge_pocket) for bridge_pocket in bridge["pockets"]],
+            combined_by_currency={
+                currency: CashBridgeCombinedOut(**cell)
+                for currency, cell in combined_bridge["by_currency"].items()
+            },
+            owned_transfer_pairs_cancelled=combined_bridge["owned_transfer_pairs_cancelled"],
+            policy=combined_bridge["policy"],
+        ),
+    )
+
+
 def register_reporting_routes(app: FastAPI, database: Path) -> None:
     @app.get('/api/v1/reporting-currency')
     def reporting_currency_read() -> Any:
@@ -643,6 +816,30 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
                 pocket_currency=pocket_currency,
             )
             return _money_flow_out(result)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/reporting/cash', response_model=CashPageOut)
+    def reported_cash_read(as_of: str | None = None, pocket_currency: str | None = None) -> Any:
+        """M4 step 12: the reported Cash workspace (§3.3).
+
+        Additive to the legacy ``/api/v1/position``, which is unchanged.
+        Every native fact (basis, as-of date, staleness, owner exclusions,
+        reconciliation status, unsupported intervals) is read straight
+        through; only a reported equivalent is attached, at each amount's own
+        as-of date, never summed across different dates into a same-date total.
+        """
+        connection = connect_readonly(database)
+        try:
+            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            page = reported_cash_page_from(
+                connection, today=resolved_as_of, pocket_currency=pocket_currency,
+            )
+            return _cash_page_out(page)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
                 raise HTTPException(409, str(exc)) from exc

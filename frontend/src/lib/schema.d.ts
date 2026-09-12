@@ -1467,6 +1467,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reporting/cash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Cash Read
+         * @description M4 step 12: the reported Cash workspace (§3.3).
+         *
+         *     Additive to the legacy ``/api/v1/position``, which is unchanged.
+         *     Every native fact (basis, as-of date, staleness, owner exclusions,
+         *     reconciliation status, unsupported intervals) is read straight
+         *     through; only a reported equivalent is attached, at each amount's own
+         *     as-of date, never summed across different dates into a same-date total.
+         */
+        get: operations["reported_cash_read_api_v1_reporting_cash_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/contributors/{handle}": {
         parameters: {
             query?: never;
@@ -1672,6 +1698,17 @@ export interface components {
             /** Secret */
             secret: string;
         };
+        /** BoundaryDetailOut */
+        BoundaryDetailOut: {
+            /** Balance */
+            balance: string;
+            /** As Of */
+            as_of: string;
+            /** Basis */
+            basis: string;
+            /** Observation */
+            observation?: string | null;
+        };
         /** CashAtCutoffOut */
         CashAtCutoffOut: {
             amount: components["schemas"]["ConsolidatedValuationDTO"];
@@ -1679,6 +1716,153 @@ export interface components {
             balance_as_of: string | null;
             /** Valuation As Of */
             valuation_as_of: string;
+        };
+        /** CashBridgeCombinedOut */
+        CashBridgeCombinedOut: {
+            /** Opening */
+            opening: string;
+            /** External Inflows */
+            external_inflows: string;
+            /** External Outflows */
+            external_outflows: string;
+            /** Closing */
+            closing: string;
+            /** Reconciled */
+            reconciled: boolean;
+            /** Owned Transfer Pairs Cancelled */
+            owned_transfer_pairs_cancelled: number;
+        };
+        /** CashBridgeOut */
+        CashBridgeOut: {
+            /** Pockets */
+            pockets: components["schemas"]["CashBridgePocketOut"][];
+            /** Combined By Currency */
+            combined_by_currency: {
+                [key: string]: components["schemas"]["CashBridgeCombinedOut"];
+            };
+            /** Owned Transfer Pairs Cancelled */
+            owned_transfer_pairs_cancelled: number;
+            /** Policy */
+            policy: string;
+        };
+        /** CashBridgePocketOut */
+        CashBridgePocketOut: {
+            /** Account Id */
+            account_id: string;
+            /** Currency Pocket */
+            currency_pocket: string;
+            /** Opening */
+            opening: string;
+            /** Opening As Of */
+            opening_as_of: string;
+            /** External Inflows */
+            external_inflows: string;
+            /** External Outflows */
+            external_outflows: string;
+            /** Owned Transfer Inflows */
+            owned_transfer_inflows: string;
+            /** Owned Transfer Outflows */
+            owned_transfer_outflows: string;
+            /** Closing */
+            closing: string;
+            /** Closing As Of */
+            closing_as_of: string;
+            /** Calculated Closing */
+            calculated_closing: string;
+            /** Reconciled */
+            reconciled: boolean;
+            /** Movement Count */
+            movement_count: number;
+            /** Paired Transfer Link Count */
+            paired_transfer_link_count: number;
+            /** Unsupported Reason */
+            unsupported_reason: string | null;
+        };
+        /** CashPageOut */
+        CashPageOut: {
+            /** Generation */
+            generation: string;
+            /** Reporting Currency */
+            reporting_currency: string;
+            /** Policy Version */
+            policy_version: string | null;
+            /** As Of */
+            as_of: string;
+            /** Pocket Currency */
+            pocket_currency: string | null;
+            /** Generated For */
+            generated_for: string;
+            /** Stale After Days */
+            stale_after_days: number;
+            /** Supported Cutoff */
+            supported_cutoff: string | null;
+            /** Current Position Supported */
+            current_position_supported: boolean;
+            /** Current Position Reasons */
+            current_position_reasons: string[];
+            /** Combined Liquid Position */
+            combined_liquid_position: {
+                [key: string]: string;
+            };
+            /** Liquid Total */
+            liquid_total: {
+                [key: string]: string;
+            };
+            /** Liquid Total Withheld */
+            liquid_total_withheld: {
+                [key: string]: string;
+            };
+            combined: components["schemas"]["CashAtCutoffOut"];
+            /** Pockets */
+            pockets: components["schemas"]["CashPocketOut"][];
+            /** Stale */
+            stale: boolean;
+            /** Missing Intervals */
+            missing_intervals: components["schemas"]["MissingIntervalOut"][];
+            cash_bridge: components["schemas"]["CashBridgeOut"];
+        };
+        /** CashPocketOut */
+        CashPocketOut: {
+            /** Account Id */
+            account_id: string;
+            /** Institution */
+            institution: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Source Type */
+            source_type: string | null;
+            /** Currency Pocket */
+            currency_pocket: string;
+            /** Liquid */
+            liquid: boolean;
+            /** Excluded Reason */
+            excluded_reason: string | null;
+            /** Basis */
+            basis: string;
+            /** Balance */
+            balance: string | null;
+            /** As Of */
+            as_of: string | null;
+            /** Date Precision */
+            date_precision: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Staleness Days */
+            staleness_days: number | null;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            statement_running_balance: components["schemas"]["BoundaryDetailOut"] | null;
+            manual_observation: components["schemas"]["BoundaryDetailOut"] | null;
+            /** Derived Balance */
+            derived_balance: string | null;
+            /** Derived As Of */
+            derived_as_of: string | null;
+            /** Derived Basis */
+            derived_basis: string | null;
+            /** Coverage Status */
+            coverage_status: string;
+            reported_balance: components["schemas"]["ValuedMoneyDTO"] | null;
+            reported_derived_balance: components["schemas"]["ValuedMoneyDTO"] | null;
         };
         /** CategorizationImpactDraft */
         CategorizationImpactDraft: {
@@ -2174,6 +2358,19 @@ export interface components {
             count: number;
             /** Handle */
             handle: string | null;
+        };
+        /** MissingIntervalOut */
+        MissingIntervalOut: {
+            /** Account Id */
+            account_id: string;
+            /** Currency Pocket */
+            currency_pocket: string;
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            /** Reason */
+            reason: string;
         };
         /** MoneyDTO */
         MoneyDTO: {
@@ -5210,6 +5407,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MoneyFlowOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_cash_read_api_v1_reporting_cash_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+                pocket_currency?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashPageOut"];
                 };
             };
             /** @description Validation Error */

@@ -30,7 +30,7 @@ from .coverage import GROSS_BURN_DEFINITION_VERSION
 from .db import connect_readonly
 from .forecast.engine import SCENARIO_BASE, SCENARIO_CONSERVATIVE, cash_timeline_from
 from .money import ExactMoney
-from .position.queries import position_page_from
+from .position.reporting import CashAtCutoffResult, cash_at_cutoff
 from .reporting_context import ReportedScope, ReportingContext, build_reporting_context
 from .valuation import (
     FLOW_RATE_V1,
@@ -147,16 +147,6 @@ def _burn_excluded_months(burn: GrossBurnResult, *, history_end: str) -> tuple[s
 
 
 @dataclass(frozen=True, slots=True)
-class CashAtCutoffResult:
-    """§3.3: supported liquid cash at the owner's common cutoff, never each
-    account's own latest (differently dated) balance."""
-
-    result: ConsolidatedValuation
-    balance_as_of: str | None
-    valuation_as_of: date
-
-
-@dataclass(frozen=True, slots=True)
 class ForecastClosingResult:
     """§3.3: both scenarios valued under one issue-date held-rate context.
 
@@ -197,46 +187,6 @@ class MoneyFlowResult:
     cash_stale_days: int | None
     limitations: tuple[str, ...]
     policy_versions: dict[str, str]
-
-
-def _cash_at_cutoff(
-    connection: Any, *, context: ReportingContext, today: date, pocket_currency: str | None,
-) -> tuple[CashAtCutoffResult, str | None, tuple[str, ...]]:
-    position = position_page_from(connection, today=today)
-    cutoff = position.get("supported_cutoff")
-    combined: dict[str, str] = dict(position.get("combined_liquid_position") or {})
-    if pocket_currency is not None:
-        combined = {currency: amount for currency, amount in combined.items() if currency == pocket_currency}
-
-    if cutoff is None or not combined:
-        reasons = tuple(position.get("current_position_reasons") or ()) or (
-            "no supported liquid account pockets share a common balance cutoff",
-        )
-        context_at_today = ValuationContext(
-            reporting_currency=context.reporting_currency, purpose=ValuationPurpose.POSITION,
-            valuation_as_of=today, rate_selection_policy=POSITION_MONTHLY_CLOSED_V1,
-        )
-        result = ConsolidatedValuation(
-            total=None, status=ConsolidationStatus.UNAVAILABLE, partial_total=None,
-            included=(), excluded=(), excluded_entry_count=0,
-            unavailable_reasons=reasons, excluded_detail=(),
-            rate_inputs=(), context=context_at_today, values=(),
-        )
-        return CashAtCutoffResult(result=result, balance_as_of=cutoff, valuation_as_of=today), cutoff, ()
-
-    cutoff_date = date.fromisoformat(str(cutoff))
-    position_context = ValuationContext(
-        reporting_currency=context.reporting_currency, purpose=ValuationPurpose.POSITION,
-        valuation_as_of=cutoff_date, rate_selection_policy=POSITION_MONTHLY_CLOSED_V1,
-    )
-    items = [
-        ValuationItem(
-            native=ExactMoney.parse(str(amount)), native_currency=currency, purpose=ValuationPurpose.POSITION,
-        )
-        for currency, amount in sorted(combined.items())
-    ]
-    result = consolidate(connection, items, context=position_context)
-    return CashAtCutoffResult(result=result, balance_as_of=cutoff, valuation_as_of=cutoff_date), cutoff, ()
 
 
 def _forecast_closings(
@@ -337,9 +287,10 @@ def money_flow_page_from(
     )
     gross_burn_excluded = _burn_excluded_months(analysis.gross_burn, history_end=history_end)
 
-    cash_result, cash_cutoff, cash_limitations = _cash_at_cutoff(
+    cash_result, cash_cutoff = cash_at_cutoff(
         connection, context=context, today=today, pocket_currency=pocket_currency,
     )
+    cash_limitations: tuple[str, ...] = ()
     forecast_result, forecast_cutoff, forecast_limitations = _forecast_closings(
         connection, context=context, today=today, pocket_currency=pocket_currency,
     )

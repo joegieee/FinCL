@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ApiError } from '@/lib/api'
-import { recordBalanceObservation, retireBalanceObservation, type CashPocket } from './api'
+import { recordBalanceObservation, retireBalanceObservation } from './api'
+import type { CashPocketOut } from './reportedApi'
 
 function today() {
   const d = new Date()
@@ -27,7 +28,7 @@ function today() {
 export function BalanceObservationForm({
   pocket, generation, onSaved, onCancel,
 }: {
-  pocket: CashPocket
+  pocket: CashPocketOut
   generation: string
   onSaved: (status: string) => void | Promise<void>
   onCancel: () => void
@@ -120,8 +121,8 @@ export function BalanceObservationForm({
               <input aria-label="Observed on" type="date" value={observedOn} max={today()} onChange={(e) => setObservedOn(e.target.value)} disabled={busy} />
             </label>
             <label>
-              Balance
-              <input aria-label="Balance" placeholder="0.00" value={balance} onChange={(e) => setBalance(e.target.value)} disabled={busy} />
+              {`Balance (${pocket.currency_pocket})`}
+              <input aria-label={`Balance (${pocket.currency_pocket})`} placeholder="0.00" value={balance} onChange={(e) => setBalance(e.target.value)} disabled={busy} />
             </label>
             <label className="debt-event-reason">
               Reason

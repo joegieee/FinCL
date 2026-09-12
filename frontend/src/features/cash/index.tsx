@@ -3,66 +3,183 @@ import { AlertTriangle, CheckCircle2, PenLine, RefreshCw, ShieldCheck } from 'lu
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { money } from '@/lib/api'
+import { ApiError, money } from '@/lib/api'
+import { ConsolidatedMoney, Money } from '@/components/Money'
 import { BalanceObservationForm } from './BalanceObservationForm'
-import { loadCashPosition, type CashBridgePocket, type CashPocket, type CashPosition } from './api'
+import {
+  type CashFilters, type CashPageOut, type CashPocketOut, type ReportingPolicySummary,
+  emptyCashFilters, loadReportedCash, loadReportingPolicy, cashScopeKey,
+} from './reportedApi'
+
+type StaleBanner = 'none' | 'same-scope' | 'refresh-required'
+type LastGood = { key: string; policyCurrency: string; response: CashPageOut }
 
 /**
- * Cash-flow framework Stage 2A — the evidence-backed liquid position.
+ * Cash-flow framework Stage 2A — the evidence-backed liquid position (M4
+ * step 12, plan §3.3).
  *
- * Read-only. Every figure is resolved from a printed closing balance, a
- * reconciled statement close or a journalled operator observation, and carries
- * its basis, as-of date and staleness. Nothing here is a mutable "current
- * balance".
+ * Read-only. Every native figure is resolved from a printed closing balance,
+ * a reconciled statement close or a journalled operator observation, and
+ * carries its basis, as-of date and staleness -- exactly as before. This
+ * step additionally attaches a reported equivalent to each priceable native
+ * amount, valued at that amount's own date under the shared reporting
+ * policy; it changes no native calculation.
  *
  * Guardrails this view must keep:
  * - When today's opening cash lacks complete actual-movement coverage it is
  *   withheld. A historical common cutoff remains a dated observed-derived view,
  *   and no "available today" figure, reserve verdict or spending allowance is
- *   shown — the module never emits those and this view never invents them.
+ *   shown -- the module never emits those and this view never invents them.
  * - A currency total the module withholds shows its stated reason, never a zero.
  * - A receivable is not cash: only settled bank and e-wallet pockets are liquid.
+ * - Same-date totals require supported balances for that date: a pocket with
+ *   no common cutoff never gets summed with another pocket at a different date.
  */
 export function CashView({
   generation, onSaved,
 }: { generation: string; onSaved?: (status: string) => void | Promise<void> }) {
-  const [page, setPage] = useState<CashPosition | null>(null)
-  const [error, setError] = useState('')
+  const [filters, setFilters] = useState<CashFilters>(emptyCashFilters)
+  const [page, setPage] = useState<CashPageOut | null>(null)
   const [loading, setLoading] = useState(true)
-  const [observing, setObserving] = useState<CashPocket | null>(null)
+  const [error, setError] = useState('')
+  const [staleBanner, setStaleBanner] = useState<StaleBanner>('none')
+  const [policy, setPolicy] = useState<ReportingPolicySummary | null>(null)
+  const [observing, setObserving] = useState<CashPocketOut | null>(null)
+  const lastGood = useRef<LastGood | null>(null)
   const seq = useRef(0)
+
+  const refreshPolicy = useCallback(() => { loadReportingPolicy().then(setPolicy).catch(() => {}) }, [])
+  useEffect(() => { refreshPolicy() }, [refreshPolicy])
 
   const load = useCallback(() => {
     const id = ++seq.current
+    const key = cashScopeKey({ filters })
     setLoading(true); setError('')
-    loadCashPosition()
-      .then(p => { if (id === seq.current) setPage(p) })
-      .catch(e => { if (id === seq.current) setError((e as Error).message) })
+    loadReportedCash({ filters })
+      .then(response => {
+        if (id !== seq.current) return
+        lastGood.current = { key, policyCurrency: response.reporting_currency, response }
+        setPage(response); setStaleBanner('none')
+      })
+      .catch(async caught => {
+        if (id !== seq.current) return
+        if (caught instanceof ApiError && caught.status === 409) {
+          const saved = lastGood.current
+          if (saved && saved.key === key) {
+            try {
+              const current = await loadReportingPolicy()
+              if (id !== seq.current) return
+              setPolicy(current)
+              if (current.currency === saved.policyCurrency) {
+                setPage(saved.response); setStaleBanner('same-scope'); return
+              }
+            } catch { /* fall through to refresh-required below */ }
+          }
+          lastGood.current = null
+          setPage(null); setStaleBanner('refresh-required')
+          return
+        }
+        setError((caught as Error).message); setPage(null); setStaleBanner('none')
+      })
       .finally(() => { if (id === seq.current) setLoading(false) })
-  }, [])
+  }, [filters])
   useEffect(() => { load() }, [load])
 
-  if (loading && !page) return <div className="skeleton-page" aria-label="Loading cash position"><div /><div /><div /></div>
-  if (error && !page) {
-    return <div className="alert error" role="alert"><div><strong>We couldn’t load the cash position.</strong><p>{error}</p></div><Button variant="outline" onClick={load}>Try again</Button></div>
+  if (loading && !page && staleBanner === 'none' && !error) {
+    return <div className="skeleton-page" aria-label="Loading cash position"><div /><div /><div /></div>
   }
-  if (!page) return null
 
+  const reportingCurrency = page?.reporting_currency ?? policy?.currency ?? 'SGD'
+
+  return (
+    <div className="cash-view" aria-busy={loading}>
+      <div className="scope-caption">
+        <span>Reporting in {reportingCurrency}</span>
+        <Button variant="ghost" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</Button>
+      </div>
+
+      {filters.pocketCurrency && (
+        <p className="analysis-scope-note">
+          Showing only {filters.pocketCurrency} pockets.{' '}
+          <button className="linkish" onClick={() => setFilters(emptyCashFilters)}>Show all pockets</button>
+        </p>
+      )}
+
+      {error && (
+        <div className="alert error" role="alert">
+          <div><strong>We couldn’t load the cash position.</strong><p>{error}</p></div>
+          <Button variant="outline" onClick={load}>Try again</Button>
+        </div>
+      )}
+
+      {staleBanner === 'refresh-required' && (
+        <div className="alert" role="alert">
+          <div>
+            <strong>Refresh required.</strong>
+            <p>The ledger has changed since the last refresh (new evidence, a rate import, or a reporting-policy change). Refresh before reading this position.</p>
+          </div>
+          <Button variant="outline" onClick={load}>Refresh</Button>
+        </div>
+      )}
+      {staleBanner === 'same-scope' && page && (
+        <div className="alert" role="status">
+          <div>
+            <strong>Showing the last loaded values for this exact scope.</strong>
+            <p>New ledger inputs are available. Refresh to recompute.</p>
+          </div>
+          <Button variant="outline" onClick={load}>Refresh</Button>
+        </div>
+      )}
+
+      {page && <CashPage page={page} filters={filters} onFiltersChange={setFilters} generation={generation} onObserve={setObserving} />}
+
+      {observing && (
+        <BalanceObservationForm
+          pocket={observing}
+          generation={generation}
+          onCancel={() => setObserving(null)}
+          onSaved={async (status) => {
+            setObserving(null)
+            load()
+            await onSaved?.(status)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function CashPage({
+  page, filters, onFiltersChange, generation, onObserve,
+}: {
+  page: CashPageOut
+  filters: CashFilters
+  onFiltersChange: (f: CashFilters) => void
+  generation: string
+  onObserve: (pocket: CashPocketOut) => void
+}) {
+  const currency = page.reporting_currency
   const observedToday = page.current_position_supported
   const withheld = Object.entries(page.liquid_total_withheld)
   const carried = Object.entries(page.combined_liquid_position)
   const excluded = page.pockets.filter(p => !p.liquid)
   const included = page.pockets.filter(p => p.liquid)
+  const pocketCurrencies = Array.from(new Set(page.pockets.map(p => p.currency_pocket))).sort()
 
   return (
-    <div className="cash-view">
-      <div className="scope-caption">
-        <span>
-          {included.length} liquid pocket{included.length === 1 ? '' : 's'}
-          {' · '}{Array.from(new Set(included.map(p => p.currency_pocket))).join(', ') || 'no currency'}
-          {page.supported_cutoff ? ` · supported cutoff ${page.supported_cutoff}` : ' · no common supported cutoff'}
-        </span>
-        <Button variant="ghost" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</Button>
+    <>
+      <div className="scope-caption cash-account-filter">
+        <label className="currency-label">
+          Account currency
+          <select
+            aria-label="Filter by account currency"
+            value={filters.pocketCurrency}
+            onChange={e => onFiltersChange({ pocketCurrency: e.target.value })}
+          >
+            <option value="">All pockets</option>
+            {pocketCurrencies.map(c => <option key={c}>{c}</option>)}
+          </select>
+        </label>
       </div>
 
       <Card className="cash-today-card">
@@ -77,6 +194,13 @@ export function CashView({
           </div>
           <Badge variant="outline" className={observedToday ? '' : 'review-badge'}>{observedToday ? 'Observed through today' : page.supported_cutoff ? `Observed through ${page.supported_cutoff}` : 'Not supported'}</Badge>
         </div>
+        <p className="muted-note">
+          Reported total ({currency}), same common cutoff: <ConsolidatedMoney
+            total={page.combined.amount.total} partialTotal={page.combined.amount.partial_total} currency={currency}
+            unavailableReasons={page.combined.amount.unavailable_reasons} excludedDetail={page.combined.amount.excluded_detail}
+          />
+          {page.combined.balance_as_of && ` as of ${page.combined.balance_as_of}`}.
+        </p>
         {observedToday
           ? <p className="muted-note"><CheckCircle2 size={14} /> Complete actual movements run from the supported cutoff through today.</p>
           : (
@@ -115,9 +239,9 @@ export function CashView({
       <Card className="cash-pockets-card">
         <div className="panel-title"><div><p className="eyebrow">PER-ACCOUNT &amp; PER-POCKET NATIVE BALANCES</p><h2>{included.length === 0 ? 'No included pockets' : `${included.length} in liquid scope`}</h2></div></div>
         <table className="pocket-table">
-          <thead><tr><th>Account</th><th>Pocket</th><th>Native balance</th><th>Coverage-backed balance</th><th>Basis</th><th>As of</th><th>Scope</th><th><span className="sr-only">Manual observation</span></th></tr></thead>
+          <thead><tr><th>Account</th><th>Pocket</th><th>Native balance</th><th>Reported ({currency})</th><th>Coverage-backed balance</th><th>Reported ({currency})</th><th>Basis</th><th>As of</th><th>Scope</th><th><span className="sr-only">Manual observation</span></th></tr></thead>
           <tbody>
-            {page.pockets.map(pocket => <PocketRow key={`${pocket.account_id}:${pocket.currency_pocket}`} pocket={pocket} staleAfter={page.stale_after_days} onObserve={() => setObserving(pocket)} />)}
+            {page.pockets.map(pocket => <PocketRow key={`${pocket.account_id}:${pocket.currency_pocket}`} pocket={pocket} staleAfter={page.stale_after_days} onObserve={() => onObserve(pocket)} />)}
           </tbody>
         </table>
         <p className="muted-note">
@@ -130,19 +254,6 @@ export function CashView({
           proves only that one day; it does not certify the days around it.
         </p>
       </Card>
-
-      {observing && (
-        <BalanceObservationForm
-          pocket={observing}
-          generation={generation}
-          onCancel={() => setObserving(null)}
-          onSaved={async (status) => {
-            setObserving(null)
-            load()
-            await onSaved?.(status)
-          }}
-        />
-      )}
 
       {excluded.length > 0 && (
         <Card className="cash-excluded-card">
@@ -161,8 +272,9 @@ export function CashView({
 
       <Card className="cash-bridge-card">
         <div className="panel-title"><div><p className="eyebrow">OPENING + MOVEMENTS → CLOSING</p><h2>{page.cash_bridge.pockets.length === 0 ? 'No reconstructable interval' : `${page.cash_bridge.pockets.length} account bridge${page.cash_bridge.pockets.length === 1 ? '' : 's'}`}</h2></div></div>
+        <p className="muted-note">Native evidence only; each bridge stays in its own account/pocket currency.</p>
         {page.cash_bridge.pockets.map(bridge => <BridgeRow key={`${bridge.account_id}:${bridge.currency_pocket}`} bridge={bridge} />)}
-        {Object.entries(page.cash_bridge.combined.by_currency).map(([currency, c]) => (
+        {Object.entries(page.cash_bridge.combined_by_currency).map(([currency, c]) => (
           <p key={currency} className="muted-note">
             Combined {currency}: {money(c.opening, currency)} opening + {money(c.external_inflows, currency)} in − {money(c.external_outflows, currency)} out → {money(c.closing, currency)} closing ·{' '}
             {c.reconciled ? 'reconciled' : 'not reconciled'} · {c.owned_transfer_pairs_cancelled} owned transfer pair{c.owned_transfer_pairs_cancelled === 1 ? '' : 's'} cancelled
@@ -191,11 +303,11 @@ export function CashView({
           stale. {page.stale ? 'At least one included pocket is stale.' : 'No included pocket is currently stale.'}
         </p>
       </Card>
-    </div>
+    </>
   )
 }
 
-function PocketRow({ pocket, staleAfter, onObserve }: { pocket: CashPocket; staleAfter: number; onObserve: () => void }) {
+function PocketRow({ pocket, staleAfter, onObserve }: { pocket: CashPocketOut; staleAfter: number; onObserve: () => void }) {
   return (
     <tr>
       <td>
@@ -211,11 +323,13 @@ function PocketRow({ pocket, staleAfter, onObserve }: { pocket: CashPocket; stal
           <small className="form-error">stale · {pocket.staleness_days} days &gt; {staleAfter}</small>
         )}
       </td>
+      <td>{pocket.reported_balance ? <Money value={pocket.reported_balance} /> : <small className="muted-note">No evidence</small>}</td>
       <td>
         {pocket.derived_balance === null
           ? <small className="muted-note">No common coverage-backed balance</small>
           : <><strong>{money(pocket.derived_balance, pocket.currency_pocket)}</strong><small>{pocket.derived_basis} · through {pocket.derived_as_of}</small></>}
       </td>
+      <td>{pocket.reported_derived_balance ? <Money value={pocket.reported_derived_balance} /> : <small className="muted-note">No common cutoff</small>}</td>
       <td>{pocket.basis}{pocket.date_precision && pocket.date_precision !== 'DAY' && <small>{pocket.date_precision} precision</small>}</td>
       <td>{pocket.as_of ?? '—'}</td>
       <td>
@@ -237,7 +351,7 @@ function PocketRow({ pocket, staleAfter, onObserve }: { pocket: CashPocket; stal
   )
 }
 
-function BridgeRow({ bridge }: { bridge: CashBridgePocket }) {
+function BridgeRow({ bridge }: { bridge: CashPageOut['cash_bridge']['pockets'][number] }) {
   return (
     <div className="cash-bridge-row">
       <p>

@@ -4366,6 +4366,69 @@
         }
       }
     },
+    "/api/v1/reporting/cash": {
+      "get": {
+        "summary": "Reported Cash Read",
+        "description": "M4 step 12: the reported Cash workspace (\u00a73.3).\n\nAdditive to the legacy ``/api/v1/position``, which is unchanged.\nEvery native fact (basis, as-of date, staleness, owner exclusions,\nreconciliation status, unsupported intervals) is read straight\nthrough; only a reported equivalent is attached, at each amount's own\nas-of date, never summed across different dates into a same-date total.",
+        "operationId": "reported_cash_read_api_v1_reporting_cash_get",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "pocket_currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pocket Currency"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CashPageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/contributors/{handle}": {
       "get": {
         "summary": "Reported Contributors Read",
@@ -5258,6 +5321,41 @@
         ],
         "title": "Bootstrap"
       },
+      "BoundaryDetailOut": {
+        "properties": {
+          "balance": {
+            "type": "string",
+            "title": "Balance"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "observation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "balance",
+          "as_of",
+          "basis"
+        ],
+        "title": "BoundaryDetailOut"
+      },
       "CashAtCutoffOut": {
         "properties": {
           "amount": {
@@ -5287,6 +5385,534 @@
           "valuation_as_of"
         ],
         "title": "CashAtCutoffOut"
+      },
+      "CashBridgeCombinedOut": {
+        "properties": {
+          "opening": {
+            "type": "string",
+            "title": "Opening"
+          },
+          "external_inflows": {
+            "type": "string",
+            "title": "External Inflows"
+          },
+          "external_outflows": {
+            "type": "string",
+            "title": "External Outflows"
+          },
+          "closing": {
+            "type": "string",
+            "title": "Closing"
+          },
+          "reconciled": {
+            "type": "boolean",
+            "title": "Reconciled"
+          },
+          "owned_transfer_pairs_cancelled": {
+            "type": "integer",
+            "title": "Owned Transfer Pairs Cancelled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "opening",
+          "external_inflows",
+          "external_outflows",
+          "closing",
+          "reconciled",
+          "owned_transfer_pairs_cancelled"
+        ],
+        "title": "CashBridgeCombinedOut"
+      },
+      "CashBridgeOut": {
+        "properties": {
+          "pockets": {
+            "items": {
+              "$ref": "#/components/schemas/CashBridgePocketOut"
+            },
+            "type": "array",
+            "title": "Pockets"
+          },
+          "combined_by_currency": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CashBridgeCombinedOut"
+            },
+            "type": "object",
+            "title": "Combined By Currency"
+          },
+          "owned_transfer_pairs_cancelled": {
+            "type": "integer",
+            "title": "Owned Transfer Pairs Cancelled"
+          },
+          "policy": {
+            "type": "string",
+            "title": "Policy"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pockets",
+          "combined_by_currency",
+          "owned_transfer_pairs_cancelled",
+          "policy"
+        ],
+        "title": "CashBridgeOut"
+      },
+      "CashBridgePocketOut": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "currency_pocket": {
+            "type": "string",
+            "title": "Currency Pocket"
+          },
+          "opening": {
+            "type": "string",
+            "title": "Opening"
+          },
+          "opening_as_of": {
+            "type": "string",
+            "title": "Opening As Of"
+          },
+          "external_inflows": {
+            "type": "string",
+            "title": "External Inflows"
+          },
+          "external_outflows": {
+            "type": "string",
+            "title": "External Outflows"
+          },
+          "owned_transfer_inflows": {
+            "type": "string",
+            "title": "Owned Transfer Inflows"
+          },
+          "owned_transfer_outflows": {
+            "type": "string",
+            "title": "Owned Transfer Outflows"
+          },
+          "closing": {
+            "type": "string",
+            "title": "Closing"
+          },
+          "closing_as_of": {
+            "type": "string",
+            "title": "Closing As Of"
+          },
+          "calculated_closing": {
+            "type": "string",
+            "title": "Calculated Closing"
+          },
+          "reconciled": {
+            "type": "boolean",
+            "title": "Reconciled"
+          },
+          "movement_count": {
+            "type": "integer",
+            "title": "Movement Count"
+          },
+          "paired_transfer_link_count": {
+            "type": "integer",
+            "title": "Paired Transfer Link Count"
+          },
+          "unsupported_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unsupported Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "account_id",
+          "currency_pocket",
+          "opening",
+          "opening_as_of",
+          "external_inflows",
+          "external_outflows",
+          "owned_transfer_inflows",
+          "owned_transfer_outflows",
+          "closing",
+          "closing_as_of",
+          "calculated_closing",
+          "reconciled",
+          "movement_count",
+          "paired_transfer_link_count",
+          "unsupported_reason"
+        ],
+        "title": "CashBridgePocketOut"
+      },
+      "CashPageOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "reporting_currency": {
+            "type": "string",
+            "title": "Reporting Currency"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "pocket_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pocket Currency"
+          },
+          "generated_for": {
+            "type": "string",
+            "title": "Generated For"
+          },
+          "stale_after_days": {
+            "type": "integer",
+            "title": "Stale After Days"
+          },
+          "supported_cutoff": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supported Cutoff"
+          },
+          "current_position_supported": {
+            "type": "boolean",
+            "title": "Current Position Supported"
+          },
+          "current_position_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Current Position Reasons"
+          },
+          "combined_liquid_position": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Combined Liquid Position"
+          },
+          "liquid_total": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Liquid Total"
+          },
+          "liquid_total_withheld": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Liquid Total Withheld"
+          },
+          "combined": {
+            "$ref": "#/components/schemas/CashAtCutoffOut"
+          },
+          "pockets": {
+            "items": {
+              "$ref": "#/components/schemas/CashPocketOut"
+            },
+            "type": "array",
+            "title": "Pockets"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale"
+          },
+          "missing_intervals": {
+            "items": {
+              "$ref": "#/components/schemas/MissingIntervalOut"
+            },
+            "type": "array",
+            "title": "Missing Intervals"
+          },
+          "cash_bridge": {
+            "$ref": "#/components/schemas/CashBridgeOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "reporting_currency",
+          "policy_version",
+          "as_of",
+          "pocket_currency",
+          "generated_for",
+          "stale_after_days",
+          "supported_cutoff",
+          "current_position_supported",
+          "current_position_reasons",
+          "combined_liquid_position",
+          "liquid_total",
+          "liquid_total_withheld",
+          "combined",
+          "pockets",
+          "stale",
+          "missing_intervals",
+          "cash_bridge"
+        ],
+        "title": "CashPageOut"
+      },
+      "CashPocketOut": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "institution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Institution"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "source_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Type"
+          },
+          "currency_pocket": {
+            "type": "string",
+            "title": "Currency Pocket"
+          },
+          "liquid": {
+            "type": "boolean",
+            "title": "Liquid"
+          },
+          "excluded_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Reason"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "date_precision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Precision"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale"
+          },
+          "staleness_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staleness Days"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "statement_running_balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoundaryDetailOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manual_observation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BoundaryDetailOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "derived_balance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derived Balance"
+          },
+          "derived_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derived As Of"
+          },
+          "derived_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Derived Basis"
+          },
+          "coverage_status": {
+            "type": "string",
+            "title": "Coverage Status"
+          },
+          "reported_balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reported_derived_balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "account_id",
+          "institution",
+          "display_name",
+          "source_type",
+          "currency_pocket",
+          "liquid",
+          "excluded_reason",
+          "basis",
+          "balance",
+          "as_of",
+          "date_precision",
+          "stale",
+          "staleness_days",
+          "unavailable_reason",
+          "statement_running_balance",
+          "manual_observation",
+          "derived_balance",
+          "derived_as_of",
+          "derived_basis",
+          "coverage_status",
+          "reported_balance",
+          "reported_derived_balance"
+        ],
+        "title": "CashPocketOut"
       },
       "CategorizationImpactDraft": {
         "properties": {
@@ -6943,6 +7569,40 @@
           "handle"
         ],
         "title": "MerchantRank"
+      },
+      "MissingIntervalOut": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "currency_pocket": {
+            "type": "string",
+            "title": "Currency Pocket"
+          },
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "account_id",
+          "currency_pocket",
+          "start",
+          "end",
+          "reason"
+        ],
+        "title": "MissingIntervalOut"
       },
       "MoneyDTO": {
         "properties": {
