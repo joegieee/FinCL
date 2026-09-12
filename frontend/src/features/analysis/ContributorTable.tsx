@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { X } from 'lucide-react'
+import { ArrowRight, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Money } from '@/components/Money'
 import { shortCategory } from '@/lib/api'
+import { encodeAnchor } from '@/features/transactions/reportedApi'
 import { loadReportedContributors, type ContributorRowOut } from './reportedApi'
 
 /**
@@ -12,20 +13,34 @@ import { loadReportedContributors, type ContributorRowOut } from './reportedApi'
  * always matches the current generation, reporting policy and rate
  * inventory; a mismatched handle returns 409 and the caller reopens Analysis.
  * Off-ledger components (a debt event with no bank row) show their own
- * `owning_source` — never a fabricated transaction id.
+ * `owning_source` — never a fabricated transaction id — and link to their
+ * owning Debts tab instead (M3b.2 step 08, §5.3/§6.3 "safe anchor encoding").
  */
 export function ContributorTable({
-  title, handle, onClose,
+  title, handle, onClose, onOpenTransaction, onOpenDebts,
 }: {
   title: string
   handle: string
   onClose: () => void
+  // `owning_source.id` for a "transaction" row is the *natural* anchor of
+  // the underlying ledger entry; it is encoded here (never server-side,
+  // since `ContributorRowOut` carries no pre-encoded anchor) before being
+  // handed to the same `GET /api/v1/reporting/transactions/{anchor}` route
+  // the Transactions list itself opens details through.
+  onOpenTransaction: (encodedAnchor: string) => Promise<void>
+  onOpenDebts: () => void
 }) {
   const [rows, setRows] = useState<ContributorRowOut[]>([])
   const [cursor, setCursor] = useState<string | null | undefined>(undefined)
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [opening, setOpening] = useState<string | null>(null)
+
+  async function open(componentId: string, action: () => Promise<void>) {
+    setOpening(componentId); setError('')
+    try { await action() } catch (e) { setError((e as Error).message) } finally { setOpening(null) }
+  }
 
   useEffect(() => {
     let live = true
@@ -69,8 +84,14 @@ export function ContributorTable({
                 <td>{shortCategory(c.category)}</td>
                 <td>
                   {c.owning_source.kind === 'debt_event'
-                    ? <span title={c.owning_source.id}>Off-ledger debt event</span>
-                    : <span>Transaction</span>}
+                    ? <button className="linkish" title={c.owning_source.id} onClick={onOpenDebts}>Off-ledger debt event <ArrowRight size={12} /></button>
+                    : <button
+                        className="linkish"
+                        disabled={opening === c.component_id}
+                        onClick={() => void open(c.component_id, () => onOpenTransaction(encodeAnchor(c.owning_source.id)))}
+                      >
+                        {opening === c.component_id ? 'Opening…' : 'Open transaction'} <ArrowRight size={12} />
+                      </button>}
                 </td>
                 <td>{c.role}{!c.nets && <small>excluded from net</small>}</td>
                 <td className="amount"><Money value={c.valuation} /></td>

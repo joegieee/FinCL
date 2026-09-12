@@ -113,6 +113,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 async function mount(props: Partial<{
   start: string; end: string; accounts: string[]; categories: string[]; currencies: string[]
   initialPocketCurrency: string; onOpenTransactions: (c: string, m: string) => void
+  onOpenTransactionAnchor: (a: string) => Promise<void>; onOpenDebts: () => void
 }> = {}) {
   const { AnalysisView } = await import('./index')
   return render(
@@ -124,6 +125,8 @@ async function mount(props: Partial<{
       currencies={['SGD', 'USD']}
       initialPocketCurrency="SGD"
       onOpenTransactions={() => {}}
+      onOpenTransactionAnchor={async () => {}}
+      onOpenDebts={() => {}}
       {...props}
     />,
   )
@@ -170,7 +173,40 @@ describe('AnalysisView', () => {
     await waitFor(() => expect(screen.getByText('EXACT CONTRIBUTORS')).toBeInTheDocument())
     expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('reporting/contributors/h-cat'))
     expect(screen.getByText('ALPHA', { selector: '.transactions-table td' })).toBeInTheDocument()
-    expect(screen.getByText('Transaction')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open transaction/ })).toBeInTheDocument()
+  })
+
+  it('opens a transaction contributor row through the reported detail route with its anchor encoded', async () => {
+    const onOpenTransactionAnchor = vi.fn(async () => {})
+    await mount({ onOpenTransactionAnchor })
+    const row = await screen.findByText('Groceries', { selector: '.change-name' })
+    fireEvent.click(row)
+    await waitFor(() => expect(screen.getByText('EXACT CONTRIBUTORS')).toBeInTheDocument())
+    fireEvent.click(await screen.findByRole('button', { name: /Open transaction/ }))
+    await waitFor(() => expect(onOpenTransactionAnchor).toHaveBeenCalledTimes(1))
+    // `owning_source.id` for this fixture's row is 'a1'; the encoded form
+    // must match Python's `base64.urlsafe_b64encode(b"a1")` == b'YTE='.
+    expect(onOpenTransactionAnchor).toHaveBeenCalledWith('YTE=')
+  })
+
+  it('routes an off-ledger debt-event contributor to the Debts tab instead of a fabricated transaction', async () => {
+    const onOpenDebts = vi.fn()
+    apiMock.mockImplementation(async (path: string) => {
+      if (path.startsWith('reporting/analysis?')) return reportedAnalysis()
+      if (path.startsWith('reporting/contributors/')) {
+        return {
+          ...contributors,
+          rows: [{ ...contributors.rows[0], origin_kind: 'DEBT_EVENT', owning_source: { kind: 'debt_event', id: 'event-1' } }],
+        }
+      }
+      if (path === 'reporting-currency') return reportingPolicy
+      throw new Error(`unmocked ${path}`)
+    })
+    await mount({ onOpenDebts })
+    const row = await screen.findByText('Groceries', { selector: '.change-name' })
+    fireEvent.click(row)
+    fireEvent.click(await screen.findByRole('button', { name: /Off-ledger debt event/ }))
+    expect(onOpenDebts).toHaveBeenCalledTimes(1)
   })
 
   it('shows an off-ledger component with its own owning source, never a fabricated transaction', async () => {

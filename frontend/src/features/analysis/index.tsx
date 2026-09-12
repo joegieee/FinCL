@@ -30,6 +30,7 @@ type LastGood = { key: string; policyCurrency: string; response: ReportedAnalysi
  */
 export function AnalysisView({
   start, end, accounts, categories, currencies, initialPocketCurrency, onOpenTransactions,
+  onOpenTransactionAnchor, onOpenDebts,
 }: {
   start: string
   end: string
@@ -43,6 +44,10 @@ export function AnalysisView({
   // app's other native-tab currency selector no longer affect one another.
   initialPocketCurrency: string
   onOpenTransactions: (category: string, merchant: string) => void
+  // M3b.2 step 08: exact transaction/owner drill-through from a contributor
+  // row (§5.3, §6.3 "safe anchor encoding").
+  onOpenTransactionAnchor: (encodedAnchor: string) => Promise<void>
+  onOpenDebts: () => void
 }) {
   const [filters, setFilters] = useState<AnalysisFilters>(() => ({ ...emptyFilters, pocketCurrency: initialPocketCurrency }))
   const [analysis, setAnalysis] = useState<ReportedAnalysis | null>(null)
@@ -214,7 +219,7 @@ export function AnalysisView({
           </div>
 
           {selected
-            ? <ContributorTable title={selected.title} handle={selected.handle} onClose={() => setSelected(null)} />
+            ? <ContributorTable title={selected.title} handle={selected.handle} onClose={() => setSelected(null)} onOpenTransaction={onOpenTransactionAnchor} onOpenDebts={onOpenDebts} />
             : analysis.contributors_handle && (
                 <Card className="question-card">
                   <h2>Go a little deeper</h2>
