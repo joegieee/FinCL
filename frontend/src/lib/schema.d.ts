@@ -1465,6 +1465,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reporting/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Transactions Read
+         * @description M3b.2 step 07: all-currency transaction list, default all pockets.
+         *
+         *     Additive to the legacy ``/api/v1/transactions``, whose single-pocket
+         *     default and native amount ordering are unchanged.
+         */
+        get: operations["reported_transactions_read_api_v1_reporting_transactions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reporting/transaction-anchors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Transaction Anchors Read
+         * @description M3b.2 step 07: the same candidate set as the list above, for bulk
+         *     selection. Additive to the legacy ``/api/v1/transaction-anchors``.
+         */
+        get: operations["reported_transaction_anchors_read_api_v1_reporting_transaction_anchors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reporting/transactions/{anchor}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Transaction Detail Read
+         * @description M3b.2 step 07: one entry's native detail, reported amount/fee and
+         *     normalized statement-money detail (§5.3), selected through the same
+         *     candidate view as the list -- no other narrowing applies.
+         */
+        get: operations["reported_transaction_detail_read_api_v1_reporting_transactions__anchor__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -1870,6 +1936,19 @@ export interface components {
             /** Transfer Proposals */
             transfer_proposals: components["schemas"]["Proposal"][];
         };
+        /** EffectiveRateOut */
+        EffectiveRateOut: {
+            /** Base Currency */
+            base_currency: string;
+            /** Quote Currency */
+            quote_currency: string;
+            /** Numerator */
+            numerator: string;
+            /** Denominator */
+            denominator: string;
+            /** Amount Basis */
+            amount_basis: string;
+        };
         /** Entry */
         Entry: {
             /** Id */
@@ -1927,6 +2006,13 @@ export interface components {
             event_id: string;
             /** New Date */
             new_date: string;
+        };
+        /** ExactAmountOut */
+        ExactAmountOut: {
+            /** Currency */
+            currency: string;
+            /** Amount Text */
+            amount_text: string;
         };
         /** ExcludedScopeDetailDTO */
         ExcludedScopeDetailDTO: {
@@ -2062,6 +2148,19 @@ export interface components {
             /** Remaining */
             remaining: string | null;
         };
+        /** PrintedConversionOut */
+        PrintedConversionOut: {
+            /** Base Currency */
+            base_currency: string;
+            /** Quote Currency */
+            quote_currency: string;
+            /** Base Amount Text */
+            base_amount_text: string;
+            /** Quote Amount Text */
+            quote_amount_text: string;
+            /** Raw Text */
+            raw_text: string;
+        };
         /** Proposal */
         Proposal: {
             /** Id */
@@ -2096,6 +2195,17 @@ export interface components {
             right_date: string;
             /** Basis */
             basis: string;
+        };
+        /** ProvenanceOut */
+        ProvenanceOut: {
+            /** Document Record Id */
+            document_record_id: string | null;
+            /** Source Location */
+            source_location: string | null;
+            /** Detail Basis */
+            detail_basis: string;
+            /** Normalizer Version */
+            normalizer_version: string;
         };
         /** RankedGroupOut */
         RankedGroupOut: {
@@ -2294,6 +2404,19 @@ export interface components {
             /** Hypothetical Income */
             hypothetical_income?: components["schemas"]["HypotheticalIncomeDraft"][];
         };
+        /** StatementMoneyDetailOut */
+        StatementMoneyDetailOut: {
+            original: components["schemas"]["ExactAmountOut"] | null;
+            settled: components["schemas"]["ExactAmountOut"];
+            explicit_fee: components["schemas"]["ExactAmountOut"] | null;
+            statement_cash_movement: components["schemas"]["ExactAmountOut"] | null;
+            printed_conversion: components["schemas"]["PrintedConversionOut"] | null;
+            /** Printed Charge Percent */
+            printed_charge_percent: string | null;
+            effective_rate: components["schemas"]["EffectiveRateOut"] | null;
+            validation: components["schemas"]["ValidationOut"];
+            provenance: components["schemas"]["ProvenanceOut"];
+        };
         /** SummaryCell */
         SummaryCell: {
             value: components["schemas"]["MoneyDTO"] | null;
@@ -2327,6 +2450,24 @@ export interface components {
             /** Handle */
             handle?: string | null;
         };
+        /** TransactionAnchorsOut */
+        TransactionAnchorsOut: {
+            /** Generation */
+            generation: string;
+            /** Anchors */
+            anchors: string[];
+            /** Truncated */
+            truncated: boolean;
+            /** Cap */
+            cap: number;
+        };
+        /** TransactionRowOut */
+        TransactionRowOut: {
+            entry: components["schemas"]["Entry"];
+            amount: components["schemas"]["ValuedMoneyDTO"];
+            fee: components["schemas"]["ValuedMoneyDTO"] | null;
+            statement_detail: components["schemas"]["StatementMoneyDetailOut"];
+        };
         /** TransactionsPage */
         TransactionsPage: {
             /** Generation */
@@ -2337,6 +2478,21 @@ export interface components {
             next_cursor: string | null;
             /** Total */
             total: number;
+        };
+        /** TransactionsPageOut */
+        TransactionsPageOut: {
+            /** Generation */
+            generation: string;
+            /** Reporting Currency */
+            reporting_currency: string;
+            /** Sort */
+            sort: string;
+            /** Rows */
+            rows: components["schemas"]["TransactionRowOut"][];
+            /** Total */
+            total: number;
+            /** Next Cursor */
+            next_cursor: string | null;
         };
         /** Trend */
         Trend: {
@@ -2390,6 +2546,13 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** ValidationOut */
+        ValidationOut: {
+            /** Status */
+            status: string;
+            /** Reason */
+            reason: string | null;
         };
         /**
          * ValuationPurpose
@@ -4932,6 +5095,133 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ContributorsPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_transactions_read_api_v1_reporting_transactions_get: {
+        parameters: {
+            query: {
+                history_start: string;
+                history_end: string;
+                as_of?: string | null;
+                pocket_currency?: string | null;
+                account?: string;
+                category?: string;
+                search?: string;
+                kind?: string;
+                direction?: string;
+                behavior?: string;
+                need?: string;
+                basis?: string;
+                unresolved_only?: boolean;
+                include_excluded?: boolean;
+                sort?: string;
+                cursor?: string | null;
+                limit?: number;
+                generation?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionsPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_transaction_anchors_read_api_v1_reporting_transaction_anchors_get: {
+        parameters: {
+            query: {
+                history_start: string;
+                history_end: string;
+                as_of?: string | null;
+                pocket_currency?: string | null;
+                account?: string;
+                category?: string;
+                search?: string;
+                kind?: string;
+                direction?: string;
+                behavior?: string;
+                need?: string;
+                basis?: string;
+                unresolved_only?: boolean;
+                include_excluded?: boolean;
+                generation?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionAnchorsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_transaction_detail_read_api_v1_reporting_transactions__anchor__get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+                generation?: string | null;
+            };
+            header?: never;
+            path: {
+                anchor: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionRowOut"];
                 };
             };
             /** @description Validation Error */

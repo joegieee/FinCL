@@ -4351,6 +4351,508 @@
         }
       }
     },
+    "/api/v1/reporting/transactions": {
+      "get": {
+        "summary": "Reported Transactions Read",
+        "description": "M3b.2 step 07: all-currency transaction list, default all pockets.\n\nAdditive to the legacy ``/api/v1/transactions``, whose single-pocket\ndefault and native amount ordering are unchanged.",
+        "operationId": "reported_transactions_read_api_v1_reporting_transactions_get",
+        "parameters": [
+          {
+            "name": "history_start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History Start"
+            }
+          },
+          {
+            "name": "history_end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History End"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "pocket_currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pocket Currency"
+            }
+          },
+          {
+            "name": "account",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Account"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Category"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Search"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Direction"
+            }
+          },
+          {
+            "name": "behavior",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Behavior"
+            }
+          },
+          {
+            "name": "need",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Need"
+            }
+          },
+          {
+            "name": "basis",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Basis"
+            }
+          },
+          {
+            "name": "unresolved_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Unresolved Only"
+            }
+          },
+          {
+            "name": "include_excluded",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Excluded"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "date",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionsPageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reporting/transaction-anchors": {
+      "get": {
+        "summary": "Reported Transaction Anchors Read",
+        "description": "M3b.2 step 07: the same candidate set as the list above, for bulk\nselection. Additive to the legacy ``/api/v1/transaction-anchors``.",
+        "operationId": "reported_transaction_anchors_read_api_v1_reporting_transaction_anchors_get",
+        "parameters": [
+          {
+            "name": "history_start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History Start"
+            }
+          },
+          {
+            "name": "history_end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "History End"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "pocket_currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pocket Currency"
+            }
+          },
+          {
+            "name": "account",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Account"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Category"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Search"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Direction"
+            }
+          },
+          {
+            "name": "behavior",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Behavior"
+            }
+          },
+          {
+            "name": "need",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Need"
+            }
+          },
+          {
+            "name": "basis",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Basis"
+            }
+          },
+          {
+            "name": "unresolved_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Unresolved Only"
+            }
+          },
+          {
+            "name": "include_excluded",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Excluded"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionAnchorsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reporting/transactions/{anchor}": {
+      "get": {
+        "summary": "Reported Transaction Detail Read",
+        "description": "M3b.2 step 07: one entry's native detail, reported amount/fee and\nnormalized statement-money detail (\u00a75.3), selected through the same\ncandidate view as the list -- no other narrowing applies.",
+        "operationId": "reported_transaction_detail_read_api_v1_reporting_transactions__anchor__get",
+        "parameters": [
+          {
+            "name": "anchor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Anchor"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionRowOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Index",
@@ -5688,6 +6190,40 @@
         ],
         "title": "Dashboard"
       },
+      "EffectiveRateOut": {
+        "properties": {
+          "base_currency": {
+            "type": "string",
+            "title": "Base Currency"
+          },
+          "quote_currency": {
+            "type": "string",
+            "title": "Quote Currency"
+          },
+          "numerator": {
+            "type": "string",
+            "title": "Numerator"
+          },
+          "denominator": {
+            "type": "string",
+            "title": "Denominator"
+          },
+          "amount_basis": {
+            "type": "string",
+            "title": "Amount Basis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "base_currency",
+          "quote_currency",
+          "numerator",
+          "denominator",
+          "amount_basis"
+        ],
+        "title": "EffectiveRateOut"
+      },
       "Entry": {
         "properties": {
           "id": {
@@ -5838,6 +6374,25 @@
           "new_date"
         ],
         "title": "EventDateChangeDraft"
+      },
+      "ExactAmountOut": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "amount_text": {
+            "type": "string",
+            "title": "Amount Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "amount_text"
+        ],
+        "title": "ExactAmountOut"
       },
       "ExcludedScopeDetailDTO": {
         "properties": {
@@ -6260,6 +6815,40 @@
         ],
         "title": "Plan"
       },
+      "PrintedConversionOut": {
+        "properties": {
+          "base_currency": {
+            "type": "string",
+            "title": "Base Currency"
+          },
+          "quote_currency": {
+            "type": "string",
+            "title": "Quote Currency"
+          },
+          "base_amount_text": {
+            "type": "string",
+            "title": "Base Amount Text"
+          },
+          "quote_amount_text": {
+            "type": "string",
+            "title": "Quote Amount Text"
+          },
+          "raw_text": {
+            "type": "string",
+            "title": "Raw Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "base_currency",
+          "quote_currency",
+          "base_amount_text",
+          "quote_amount_text",
+          "raw_text"
+        ],
+        "title": "PrintedConversionOut"
+      },
       "Proposal": {
         "properties": {
           "id": {
@@ -6348,6 +6937,49 @@
           "basis"
         ],
         "title": "Proposal"
+      },
+      "ProvenanceOut": {
+        "properties": {
+          "document_record_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Record Id"
+          },
+          "source_location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Location"
+          },
+          "detail_basis": {
+            "type": "string",
+            "title": "Detail Basis"
+          },
+          "normalizer_version": {
+            "type": "string",
+            "title": "Normalizer Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_record_id",
+          "source_location",
+          "detail_basis",
+          "normalizer_version"
+        ],
+        "title": "ProvenanceOut"
       },
       "RankedGroupOut": {
         "properties": {
@@ -6944,6 +7576,94 @@
         ],
         "title": "SpendingWhatIfDraft"
       },
+      "StatementMoneyDetailOut": {
+        "properties": {
+          "original": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactAmountOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "settled": {
+            "$ref": "#/components/schemas/ExactAmountOut"
+          },
+          "explicit_fee": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactAmountOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "statement_cash_movement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExactAmountOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "printed_conversion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PrintedConversionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "printed_charge_percent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Printed Charge Percent"
+          },
+          "effective_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EffectiveRateOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "validation": {
+            "$ref": "#/components/schemas/ValidationOut"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ProvenanceOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "original",
+          "settled",
+          "explicit_fee",
+          "statement_cash_movement",
+          "printed_conversion",
+          "printed_charge_percent",
+          "effective_rate",
+          "validation",
+          "provenance"
+        ],
+        "title": "StatementMoneyDetailOut"
+      },
       "SummaryCell": {
         "properties": {
           "value": {
@@ -7098,6 +7818,70 @@
         ],
         "title": "Total"
       },
+      "TransactionAnchorsOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "anchors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Anchors"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "cap": {
+            "type": "integer",
+            "title": "Cap"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "anchors",
+          "truncated",
+          "cap"
+        ],
+        "title": "TransactionAnchorsOut"
+      },
+      "TransactionRowOut": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/Entry"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "fee": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "statement_detail": {
+            "$ref": "#/components/schemas/StatementMoneyDetailOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "entry",
+          "amount",
+          "fee",
+          "statement_detail"
+        ],
+        "title": "TransactionRowOut"
+      },
       "TransactionsPage": {
         "properties": {
           "generation": {
@@ -7136,6 +7920,55 @@
           "total"
         ],
         "title": "TransactionsPage"
+      },
+      "TransactionsPageOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "reporting_currency": {
+            "type": "string",
+            "title": "Reporting Currency"
+          },
+          "sort": {
+            "type": "string",
+            "title": "Sort"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionRowOut"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "reporting_currency",
+          "sort",
+          "rows",
+          "total",
+          "next_cursor"
+        ],
+        "title": "TransactionsPageOut"
       },
       "Trend": {
         "properties": {
@@ -7326,6 +8159,32 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ValidationOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "reason"
+        ],
+        "title": "ValidationOut"
       },
       "ValuationPurpose": {
         "type": "string",

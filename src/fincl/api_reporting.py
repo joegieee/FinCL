@@ -20,6 +20,7 @@ from .analysis.reporting import (
     reported_analysis_page_from,
     reported_contributors_page_from,
 )
+from .api import Entry
 from .coverage import dated_reporting_coverage
 from .db import connect_readonly
 from .errors import FinCLError
@@ -30,6 +31,14 @@ from .reporting_currency import (
     currency_registry_dto,
     reporting_policy,
 )
+from .reporting_transactions import (
+    ReportedTransactionRow,
+    decode_anchor,
+    reported_transaction_anchors_from,
+    reported_transaction_detail_from,
+    reported_transactions_page_from,
+)
+from .statement_money import StatementMoneyDetailDTO
 from .valuation import (
     ConsolidatedValuationDTO,
     MoneyDTO,
@@ -286,6 +295,127 @@ def _contributors_page_out(page: ContributorsPageResult) -> ContributorsPageOut:
     )
 
 
+class ExactAmountOut(_StrictModel):
+    currency: str
+    amount_text: str
+
+
+class PrintedConversionOut(_StrictModel):
+    base_currency: str
+    quote_currency: str
+    base_amount_text: str
+    quote_amount_text: str
+    raw_text: str
+
+
+class EffectiveRateOut(_StrictModel):
+    base_currency: str
+    quote_currency: str
+    numerator: str
+    denominator: str
+    amount_basis: str
+
+
+class ValidationOut(_StrictModel):
+    status: str
+    reason: str | None
+
+
+class ProvenanceOut(_StrictModel):
+    document_record_id: str | None
+    source_location: str | None
+    detail_basis: str
+    normalizer_version: str
+
+
+class StatementMoneyDetailOut(_StrictModel):
+    original: ExactAmountOut | None
+    settled: ExactAmountOut
+    explicit_fee: ExactAmountOut | None
+    statement_cash_movement: ExactAmountOut | None
+    printed_conversion: PrintedConversionOut | None
+    printed_charge_percent: str | None
+    effective_rate: EffectiveRateOut | None
+    validation: ValidationOut
+    provenance: ProvenanceOut
+
+
+def _exact_amount_out(amount: Any) -> ExactAmountOut | None:
+    if amount is None:
+        return None
+    return ExactAmountOut(currency=amount.currency, amount_text=amount.amount_text)
+
+
+def _statement_detail_out(detail: StatementMoneyDetailDTO) -> StatementMoneyDetailOut:
+    printed = detail.printed_conversion
+    effective = detail.effective_rate
+    return StatementMoneyDetailOut(
+        original=_exact_amount_out(detail.original),
+        settled=ExactAmountOut(currency=detail.settled.currency, amount_text=detail.settled.amount_text),
+        explicit_fee=_exact_amount_out(detail.explicit_fee),
+        statement_cash_movement=_exact_amount_out(detail.statement_cash_movement),
+        printed_conversion=(
+            PrintedConversionOut(
+                base_currency=printed.base_currency, quote_currency=printed.quote_currency,
+                base_amount_text=printed.base_amount_text, quote_amount_text=printed.quote_amount_text,
+                raw_text=printed.raw_text,
+            )
+            if printed is not None else None
+        ),
+        printed_charge_percent=detail.printed_charge_percent,
+        effective_rate=(
+            EffectiveRateOut(
+                base_currency=effective.base_currency, quote_currency=effective.quote_currency,
+                numerator=effective.numerator, denominator=effective.denominator,
+                amount_basis=effective.amount_basis,
+            )
+            if effective is not None else None
+        ),
+        validation=ValidationOut(status=detail.validation.status, reason=detail.validation.reason),
+        provenance=ProvenanceOut(
+            document_record_id=detail.provenance.document_record_id,
+            source_location=detail.provenance.source_location,
+            detail_basis=detail.provenance.detail_basis,
+            normalizer_version=detail.provenance.normalizer_version,
+        ),
+    )
+
+
+class TransactionRowOut(_StrictModel):
+    entry: Entry
+    amount: ValuedMoneyDTO
+    fee: ValuedMoneyDTO | None
+    statement_detail: StatementMoneyDetailOut
+
+
+def _transaction_row_out(row: ReportedTransactionRow) -> TransactionRowOut:
+    return TransactionRowOut(
+        entry=Entry(**row.entry),
+        amount=to_dto(row.amount_valuation, currency_registry=CURRENCY_REGISTRY),
+        fee=(
+            to_dto(row.fee_valuation, currency_registry=CURRENCY_REGISTRY)
+            if row.fee_valuation is not None else None
+        ),
+        statement_detail=_statement_detail_out(row.statement_detail),
+    )
+
+
+class TransactionsPageOut(_StrictModel):
+    generation: str
+    reporting_currency: str
+    sort: str
+    rows: list[TransactionRowOut]
+    total: int
+    next_cursor: str | None
+
+
+class TransactionAnchorsOut(_StrictModel):
+    generation: str
+    anchors: list[str]
+    truncated: bool
+    cap: int
+
+
 def register_reporting_routes(app: FastAPI, database: Path) -> None:
     @app.get('/api/v1/reporting-currency')
     def reporting_currency_read() -> Any:
@@ -385,6 +515,115 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
             return _contributors_page_out(page)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION') or str(exc).startswith('STALE_REPORTING_CONTEXT'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/reporting/transactions', response_model=TransactionsPageOut)
+    def reported_transactions_read(
+        history_start: str,
+        history_end: str,
+        as_of: str | None = None,
+        pocket_currency: str | None = None,
+        account: str = '',
+        category: str = '',
+        search: str = '',
+        kind: str = '',
+        direction: str = '',
+        behavior: str = '',
+        need: str = '',
+        basis: str = '',
+        unresolved_only: bool = False,
+        include_excluded: bool = False,
+        sort: str = 'date',
+        cursor: str | None = None,
+        limit: int = 50,
+        generation: str | None = None,
+    ) -> Any:
+        """M3b.2 step 07: all-currency transaction list, default all pockets.
+
+        Additive to the legacy ``/api/v1/transactions``, whose single-pocket
+        default and native amount ordering are unchanged.
+        """
+        connection = connect_readonly(database)
+        try:
+            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            page = reported_transactions_page_from(
+                connection, as_of=resolved_as_of, history_start=history_start, history_end=history_end,
+                pocket_currency=pocket_currency, account=account, category=category, search=search,
+                kind=kind, direction=direction, behavior=behavior, need=need, basis=basis,
+                unresolved_only=unresolved_only, include_excluded=include_excluded, sort=sort,
+                cursor=cursor, limit=limit, generation=generation,
+            )
+            return TransactionsPageOut(
+                generation=page.context.generation_token, reporting_currency=page.context.reporting_currency,
+                sort=page.sort, rows=[_transaction_row_out(row) for row in page.rows],
+                total=page.total, next_cursor=page.next_cursor,
+            )
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/reporting/transaction-anchors', response_model=TransactionAnchorsOut)
+    def reported_transaction_anchors_read(
+        history_start: str,
+        history_end: str,
+        as_of: str | None = None,
+        pocket_currency: str | None = None,
+        account: str = '',
+        category: str = '',
+        search: str = '',
+        kind: str = '',
+        direction: str = '',
+        behavior: str = '',
+        need: str = '',
+        basis: str = '',
+        unresolved_only: bool = False,
+        include_excluded: bool = False,
+        generation: str | None = None,
+    ) -> Any:
+        """M3b.2 step 07: the same candidate set as the list above, for bulk
+        selection. Additive to the legacy ``/api/v1/transaction-anchors``."""
+        connection = connect_readonly(database)
+        try:
+            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            result = reported_transaction_anchors_from(
+                connection, as_of=resolved_as_of, history_start=history_start, history_end=history_end,
+                pocket_currency=pocket_currency, account=account, category=category, search=search,
+                kind=kind, direction=direction, behavior=behavior, need=need, basis=basis,
+                unresolved_only=unresolved_only, include_excluded=include_excluded, generation=generation,
+            )
+            return TransactionAnchorsOut(
+                generation=result.context.generation_token, anchors=list(result.anchors),
+                truncated=result.truncated, cap=result.cap,
+            )
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/reporting/transactions/{anchor}', response_model=TransactionRowOut)
+    def reported_transaction_detail_read(
+        anchor: str, as_of: str | None = None, generation: str | None = None
+    ) -> Any:
+        """M3b.2 step 07: one entry's native detail, reported amount/fee and
+        normalized statement-money detail (§5.3), selected through the same
+        candidate view as the list -- no other narrowing applies."""
+        connection = connect_readonly(database)
+        try:
+            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            row = reported_transaction_detail_from(
+                connection, as_of=resolved_as_of, anchor=decode_anchor(anchor), generation=generation,
+            )
+            return _transaction_row_out(row)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
                 raise HTTPException(409, str(exc)) from exc
             raise
         finally:
