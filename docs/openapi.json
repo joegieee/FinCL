@@ -4492,6 +4492,25 @@
         }
       }
     },
+    "/api/v1/reporting/forecast": {
+      "get": {
+        "summary": "Reported Forecast Read",
+        "description": "M4 step 14: the reported Forecast workspace (\u00a73.3, \u00a77 M4).\n\nAdditive to the legacy ``/api/v1/forecast``, which is unchanged.\nTakes no query parameter at all: the horizon is owner-defined from\nthe supported cash cutoff, never a caller-supplied history window\n(\u00a77 M4: \"A history filter must not change horizon\").",
+        "operationId": "reported_forecast_read_api_v1_reporting_forecast_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastPageOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/contributors/{handle}": {
       "get": {
         "summary": "Reported Contributors Read",
@@ -6177,6 +6196,31 @@
         ],
         "title": "CategoryCutDraft"
       },
+      "CombinedMinimumOut": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "amount",
+          "month"
+        ],
+        "title": "CombinedMinimumOut"
+      },
       "Command": {
         "properties": {
           "request_id": {
@@ -7380,6 +7424,117 @@
           "horizon_end"
         ],
         "title": "ForecastClosingOut"
+      },
+      "ForecastPageOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "reporting_currency": {
+            "type": "string",
+            "title": "Reporting Currency"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          },
+          "valuation_as_of": {
+            "type": "string",
+            "title": "Valuation As Of"
+          },
+          "opening_balance_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Balance As Of"
+          },
+          "horizon_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon End"
+          },
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/ReportedForecastCurrencyOut"
+            },
+            "type": "array",
+            "title": "Currencies"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/ForecastTotalsOut"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "native": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Native"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "reporting_currency",
+          "policy_version",
+          "valuation_as_of",
+          "opening_balance_as_of",
+          "horizon_end",
+          "currencies",
+          "totals",
+          "limitations",
+          "native"
+        ],
+        "title": "ForecastPageOut"
+      },
+      "ForecastTotalsOut": {
+        "properties": {
+          "base_closing": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "conservative_closing": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "base_combined_minimum": {
+            "$ref": "#/components/schemas/CombinedMinimumOut"
+          },
+          "conservative_combined_minimum": {
+            "$ref": "#/components/schemas/CombinedMinimumOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "base_closing",
+          "conservative_closing",
+          "base_combined_minimum",
+          "conservative_combined_minimum"
+        ],
+        "title": "ForecastTotalsOut"
       },
       "FundConfirmationDraft": {
         "properties": {
@@ -8914,6 +9069,122 @@
           "trend"
         ],
         "title": "ReportedAnalysisOut"
+      },
+      "ReportedForecastCurrencyOut": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "starting_balance": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "base": {
+            "$ref": "#/components/schemas/ReportedForecastScenarioOut"
+          },
+          "conservative": {
+            "$ref": "#/components/schemas/ReportedForecastScenarioOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "currency",
+          "starting_balance",
+          "base",
+          "conservative"
+        ],
+        "title": "ReportedForecastCurrencyOut"
+      },
+      "ReportedForecastEventOut": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "source_id",
+          "amount"
+        ],
+        "title": "ReportedForecastEventOut"
+      },
+      "ReportedForecastScenarioOut": {
+        "properties": {
+          "closing_balance": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "lowest_balance": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/ReportedMonthRowOut"
+            },
+            "type": "array",
+            "title": "Months"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ReportedForecastEventOut"
+            },
+            "type": "array",
+            "title": "Events"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "closing_balance",
+          "lowest_balance",
+          "months",
+          "events"
+        ],
+        "title": "ReportedForecastScenarioOut"
+      },
+      "ReportedMonthRowOut": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "opening": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "closing": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "income": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "expense": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "lowest_balance": {
+            "$ref": "#/components/schemas/ValuedMoneyDTO"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "month",
+          "opening",
+          "closing",
+          "income",
+          "expense",
+          "lowest_balance"
+        ],
+        "title": "ReportedMonthRowOut"
       },
       "ReviewProposal": {
         "properties": {

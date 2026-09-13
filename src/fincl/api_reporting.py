@@ -24,6 +24,13 @@ from .api import Entry
 from .coverage import dated_reporting_coverage
 from .db import connect_readonly
 from .errors import FinCLError
+from .forecast.reporting import (
+    CombinedMinimum,
+    ReportedCurrencyForecast,
+    ReportedForecastPage,
+    ReportedScenarioCell,
+    reported_forecast_page_from,
+)
 from .generation import current_generation
 from .money import format_decimal
 from .money_flow import MoneyFlowResult, money_flow_page_from
@@ -877,6 +884,123 @@ def _net_worth_page_out(page: ReportedNetWorthPage) -> NetWorthPageOut:
     )
 
 
+class ReportedMonthRowOut(_StrictModel):
+    month: str
+    opening: ValuedMoneyDTO
+    closing: ValuedMoneyDTO
+    income: ValuedMoneyDTO
+    expense: ValuedMoneyDTO
+    lowest_balance: ValuedMoneyDTO
+
+
+class ReportedForecastEventOut(_StrictModel):
+    event_id: str
+    source_id: str
+    amount: ValuedMoneyDTO
+
+
+class ReportedForecastScenarioOut(_StrictModel):
+    closing_balance: ValuedMoneyDTO
+    lowest_balance: ValuedMoneyDTO
+    months: list[ReportedMonthRowOut]
+    events: list[ReportedForecastEventOut]
+
+
+class ReportedForecastCurrencyOut(_StrictModel):
+    currency: str
+    starting_balance: ValuedMoneyDTO
+    base: ReportedForecastScenarioOut
+    conservative: ReportedForecastScenarioOut
+
+
+class CombinedMinimumOut(_StrictModel):
+    amount: ConsolidatedValuationDTO
+    # §7 M4 extrema rule: the calendar month the combined low day falls in
+    # -- the owner-defined checkpoint this metric is aligned to. No combined
+    # breach date, percentage or flag is added.
+    month: str | None
+
+
+class ForecastTotalsOut(_StrictModel):
+    base_closing: ConsolidatedValuationDTO
+    conservative_closing: ConsolidatedValuationDTO
+    base_combined_minimum: CombinedMinimumOut
+    conservative_combined_minimum: CombinedMinimumOut
+
+
+class ForecastPageOut(_StrictModel):
+    generation: str
+    reporting_currency: str
+    policy_version: str | None
+    valuation_as_of: str
+    opening_balance_as_of: str | None
+    horizon_end: str | None
+    currencies: list[ReportedForecastCurrencyOut]
+    totals: ForecastTotalsOut
+    limitations: list[str]
+    # The complete, unchanged native `cash_timeline_from` result (starting
+    # balances, cash-cutoff bridge status, monthly/daily walks, milestones,
+    # source events, action items, limitations, provenance) -- deliberately
+    # untyped here rather than duplicating its already-established frontend
+    # shape (`features/forecast/api.ts`'s `ForecastPage`) a second time in
+    # this backend model; the frontend casts this field to that existing
+    # type rather than re-declaring it as generated schema.
+    native: dict[str, Any]
+
+
+def _reported_money_out(value: Any) -> ValuedMoneyDTO:
+    return to_dto(value, currency_registry=CURRENCY_REGISTRY)
+
+
+def _reported_month_row_out(row: Any) -> ReportedMonthRowOut:
+    return ReportedMonthRowOut(
+        month=row.month, opening=_reported_money_out(row.opening), closing=_reported_money_out(row.closing),
+        income=_reported_money_out(row.income), expense=_reported_money_out(row.expense),
+        lowest_balance=_reported_money_out(row.lowest_balance),
+    )
+
+
+def _reported_scenario_out(cell: ReportedScenarioCell) -> ReportedForecastScenarioOut:
+    return ReportedForecastScenarioOut(
+        closing_balance=_reported_money_out(cell.closing_balance), lowest_balance=_reported_money_out(cell.lowest_balance),
+        months=[_reported_month_row_out(row) for row in cell.months],
+        events=[
+            ReportedForecastEventOut(event_id=e.event_id, source_id=e.source_id, amount=_reported_money_out(e.amount))
+            for e in cell.events
+        ],
+    )
+
+
+def _reported_currency_out(currency: ReportedCurrencyForecast) -> ReportedForecastCurrencyOut:
+    return ReportedForecastCurrencyOut(
+        currency=currency.currency, starting_balance=_reported_money_out(currency.starting_balance),
+        base=_reported_scenario_out(currency.base), conservative=_reported_scenario_out(currency.conservative),
+    )
+
+
+def _combined_minimum_out(minimum: CombinedMinimum) -> CombinedMinimumOut:
+    return CombinedMinimumOut(
+        amount=to_consolidated_dto(minimum.result, currency_registry=CURRENCY_REGISTRY), month=minimum.month,
+    )
+
+
+def _forecast_page_out(page: ReportedForecastPage) -> ForecastPageOut:
+    return ForecastPageOut(
+        generation=page.context.generation_token, reporting_currency=page.context.reporting_currency,
+        policy_version=page.context.policy.policy_version, valuation_as_of=page.valuation_as_of.isoformat(),
+        opening_balance_as_of=page.opening_balance_as_of, horizon_end=page.horizon_end,
+        currencies=[_reported_currency_out(currency) for currency in page.currencies],
+        totals=ForecastTotalsOut(
+            base_closing=to_consolidated_dto(page.totals.base_closing, currency_registry=CURRENCY_REGISTRY),
+            conservative_closing=to_consolidated_dto(page.totals.conservative_closing, currency_registry=CURRENCY_REGISTRY),
+            base_combined_minimum=_combined_minimum_out(page.totals.base_combined_minimum),
+            conservative_combined_minimum=_combined_minimum_out(page.totals.conservative_combined_minimum),
+        ),
+        limitations=list(page.limitations),
+        native=dict(page.native),
+    )
+
+
 def register_reporting_routes(app: FastAPI, database: Path) -> None:
     @app.get('/api/v1/reporting-currency')
     def reporting_currency_read() -> Any:
@@ -1034,6 +1158,26 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
                 connection, as_of=as_of, prior_as_of=prior_as_of, today=date.today(),
             )
             return _net_worth_page_out(page)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/reporting/forecast', response_model=ForecastPageOut)
+    def reported_forecast_read() -> Any:
+        """M4 step 14: the reported Forecast workspace (§3.3, §7 M4).
+
+        Additive to the legacy ``/api/v1/forecast``, which is unchanged.
+        Takes no query parameter at all: the horizon is owner-defined from
+        the supported cash cutoff, never a caller-supplied history window
+        (§7 M4: "A history filter must not change horizon").
+        """
+        connection = connect_readonly(database)
+        try:
+            page = reported_forecast_page_from(connection, today=date.today())
+            return _forecast_page_out(page)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
                 raise HTTPException(409, str(exc)) from exc

@@ -1519,6 +1519,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reporting/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Forecast Read
+         * @description M4 step 14: the reported Forecast workspace (§3.3, §7 M4).
+         *
+         *     Additive to the legacy ``/api/v1/forecast``, which is unchanged.
+         *     Takes no query parameter at all: the horizon is owner-defined from
+         *     the supported cash cutoff, never a caller-supplied history window
+         *     (§7 M4: "A history filter must not change horizon").
+         */
+        get: operations["reported_forecast_read_api_v1_reporting_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/contributors/{handle}": {
         parameters: {
             query?: never;
@@ -1947,6 +1972,12 @@ export interface components {
             /** Monthly Reduction */
             monthly_reduction: string;
         };
+        /** CombinedMinimumOut */
+        CombinedMinimumOut: {
+            amount: components["schemas"]["ConsolidatedValuationDTO"];
+            /** Month */
+            month: string | null;
+        };
         /** Command */
         Command: {
             /**
@@ -2309,6 +2340,37 @@ export interface components {
             valuation_as_of: string;
             /** Horizon End */
             horizon_end: string | null;
+        };
+        /** ForecastPageOut */
+        ForecastPageOut: {
+            /** Generation */
+            generation: string;
+            /** Reporting Currency */
+            reporting_currency: string;
+            /** Policy Version */
+            policy_version: string | null;
+            /** Valuation As Of */
+            valuation_as_of: string;
+            /** Opening Balance As Of */
+            opening_balance_as_of: string | null;
+            /** Horizon End */
+            horizon_end: string | null;
+            /** Currencies */
+            currencies: components["schemas"]["ReportedForecastCurrencyOut"][];
+            totals: components["schemas"]["ForecastTotalsOut"];
+            /** Limitations */
+            limitations: string[];
+            /** Native */
+            native: {
+                [key: string]: unknown;
+            };
+        };
+        /** ForecastTotalsOut */
+        ForecastTotalsOut: {
+            base_closing: components["schemas"]["ConsolidatedValuationDTO"];
+            conservative_closing: components["schemas"]["ConsolidatedValuationDTO"];
+            base_combined_minimum: components["schemas"]["CombinedMinimumOut"];
+            conservative_combined_minimum: components["schemas"]["CombinedMinimumOut"];
         };
         /** FundConfirmationDraft */
         FundConfirmationDraft: {
@@ -2793,6 +2855,41 @@ export interface components {
             contributors_handle: string;
             /** Trend */
             trend: components["schemas"]["TrendMonthOut"][];
+        };
+        /** ReportedForecastCurrencyOut */
+        ReportedForecastCurrencyOut: {
+            /** Currency */
+            currency: string;
+            starting_balance: components["schemas"]["ValuedMoneyDTO"];
+            base: components["schemas"]["ReportedForecastScenarioOut"];
+            conservative: components["schemas"]["ReportedForecastScenarioOut"];
+        };
+        /** ReportedForecastEventOut */
+        ReportedForecastEventOut: {
+            /** Event Id */
+            event_id: string;
+            /** Source Id */
+            source_id: string;
+            amount: components["schemas"]["ValuedMoneyDTO"];
+        };
+        /** ReportedForecastScenarioOut */
+        ReportedForecastScenarioOut: {
+            closing_balance: components["schemas"]["ValuedMoneyDTO"];
+            lowest_balance: components["schemas"]["ValuedMoneyDTO"];
+            /** Months */
+            months: components["schemas"]["ReportedMonthRowOut"][];
+            /** Events */
+            events: components["schemas"]["ReportedForecastEventOut"][];
+        };
+        /** ReportedMonthRowOut */
+        ReportedMonthRowOut: {
+            /** Month */
+            month: string;
+            opening: components["schemas"]["ValuedMoneyDTO"];
+            closing: components["schemas"]["ValuedMoneyDTO"];
+            income: components["schemas"]["ValuedMoneyDTO"];
+            expense: components["schemas"]["ValuedMoneyDTO"];
+            lowest_balance: components["schemas"]["ValuedMoneyDTO"];
         };
         /** ReviewProposal */
         ReviewProposal: {
@@ -5654,6 +5751,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_forecast_read_api_v1_reporting_forecast_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastPageOut"];
                 };
             };
         };
