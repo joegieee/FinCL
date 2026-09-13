@@ -94,7 +94,7 @@ class IncomeCandidateWorkflowTests(unittest.TestCase):
         self.assertEqual(len(payroll["occurrences"]), 6)
         self.assertEqual(
             {key for occ in payroll["occurrences"] for key in occ},
-            {"anchor", "date", "amount"},
+            {"anchor", "date", "amount", "description", "account"},
         )
         self.assertEqual(payroll["occurrences"][0]["amount"], "5000.00")
         self.assertEqual({o["anchor"] for o in payroll["occurrences"]}, set(self.payroll))

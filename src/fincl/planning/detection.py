@@ -148,7 +148,8 @@ def candidates(
     # it is still unreviewed and confirm its history in one step (§3.3).
     rows = connection.execute(
         f"SELECT natural_anchor, merchant, currency_pocket, account_id, bucket, "
-        f"substr(effective_at,1,10) day, amount_coefficient, amount_scale "
+        f"substr(effective_at,1,10) day, amount_coefficient, amount_scale, "
+        f"description, account "
         f"FROM ({_ENTRY_VIEW}) WHERE eligible AND bucket IN ('spending', 'income', 'pending_review') "
         f"AND effective_precision != 'MONTH' "
         f"ORDER BY merchant, currency_pocket, account_id, effective_at"
@@ -222,11 +223,16 @@ def candidates(
                 "seed_entry_anchors": [item["natural_anchor"] for item in items[-4:]],
                 # Every dated source, so a grouped confirmation can select the
                 # exact history it is classifying (§3.3).
+                # Description and account distinguish occurrences that share
+                # a date/amount, since the review question is about identity,
+                # not arithmetic (see the review_question above).
                 "occurrences": [
                     {
                         "anchor": item["natural_anchor"],
                         "date": day.isoformat(),
                         "amount": _money(amount),
+                        "description": item["description"],
+                        "account": item["account"],
                     }
                     for item, day, amount in zip(items, days, amounts, strict=False)
                 ],

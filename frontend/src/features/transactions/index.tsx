@@ -8,7 +8,7 @@ import { Money } from '@/components/Money'
 import { ApiError, money, shortCategory } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
 import { loadReportingPolicy, type ReportingPolicySummary } from '@/features/analysis/reportedApi'
-import { BulkAssign } from './BulkAssign'
+import { BulkEditor } from './BulkEditor'
 import {
   type TransactionFilters, type TransactionRowOut, type TransactionsPageOut,
   emptyFilters, filtersActive, loadReportedTransactions, scopeKey,
@@ -156,6 +156,7 @@ export function TransactionsView({
     if (rowIndex !== undefined) lastPicked.current = rowIndex
   }
   function clearPicks() { setPicked(new Set()); setMatchAll(null) }
+  function selectPage() { setMatchAll(null); setPicked(s => { const n = new Set(s); rows.forEach(r => n.add(r.entry.anchor)); return n }) }
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -276,16 +277,16 @@ export function TransactionsView({
         </table>
       </div>
       {(picked.size > 0 || matchAll) && (
-        <BulkAssign
+        <BulkEditor
           generation={generation} freshness={freshness} categories={categories}
-          pageAnchors={rows.map(r => r.entry.anchor)} picked={picked} matchAll={matchAll} total={page?.total ?? 0}
+          rows={rows} picked={picked} matchAll={matchAll} total={page?.total ?? 0}
           filters={{
             start, end, pocket_currency: filters.pocketCurrency || undefined, search: filters.search.trim(),
             category: filters.category, account: filters.account, kind: filters.kind, direction: filters.direction,
             behavior: filters.behavior, need: filters.need, basis: filters.basis,
             unresolved_only: filters.unresolvedOnly, include_excluded: filters.includeExcluded,
           }}
-          onSelectMatch={setMatchAll} onClear={clearPicks} onSaved={onSaved}
+          onSelectPage={selectPage} onSelectMatch={setMatchAll} onClear={clearPicks} onSaved={onSaved}
         />
       )}
       {error && (

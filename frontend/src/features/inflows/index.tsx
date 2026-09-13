@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowDownLeft, Check, RefreshCw } from 'lucide-react'
+import { ArrowDownLeft, ArrowRight, Check, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { useLedgerCommand } from '@/lib/command'
-import { ApiError, api, money } from '@/lib/api'
+import { useBatchCommand, useLedgerCommand } from '@/lib/command'
+import { ApiError, money } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
 import { Money } from '@/components/Money'
+import { CategoryPicker, rememberCategory } from '@/features/classification/CategoryPicker'
+import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
+import {
+  INCOMING_LABELS, previewClassification,
+  type ClassificationDraftBody, type ClassificationPreview,
+} from '@/features/classification/api'
 import {
   CLASSIFICATIONS, compileInboundRule, loadInboundRules,
   type IncomeCandidate, type InboundRulesPage,
@@ -32,8 +38,14 @@ type StaleBanner = 'none' | 'same-scope' | 'refresh-required'
  * receipt amount shown beside it; the classification form and inbound-rule
  * editor always submit the native anchor/amount/currency, unchanged.
  */
-export function InflowsView({ generation, freshness, onSaved }: {
+export function InflowsView({ generation, freshness, categories, onOpenTransactions, onSaved }: {
   generation: string; freshness: string
+  categories: string[]
+  /** Discoverable route to eligible one-off/unresolved credits that never
+   * satisfy recurring-candidate detection (§3.3, §9): opens Transactions
+   * filtered to unclassified incoming money instead of requiring three
+   * similar receipts before a credit can be classified here. */
+  onOpenTransactions: () => void
   onSaved: (status: string) => void | Promise<void>
 }) {
   const [page, setPage] = useState<IncomeCandidatesPageOut | null>(null)
@@ -102,6 +114,10 @@ export function InflowsView({ generation, freshness, onSaved }: {
         <span>Reporting in {reportingCurrency}{native ? ` · ${native.candidates.length} candidate${native.candidates.length === 1 ? '' : 's'} · ${native.exclusions.excluded_source_count} source${native.exclusions.excluded_source_count === 1 ? '' : 's'} excluded from grouping` : ''}</span>
         <Button variant="ghost" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</Button>
       </div>
+      <div className="alert" role="status">
+        <div><strong>Looking for a one-off receipt?</strong><p>A credit does not need three similar receipts to be classified. Isolated and unresolved incoming money can be classified directly from Transactions.</p></div>
+        <Button variant="outline" onClick={onOpenTransactions}>Open in Transactions <ArrowRight size={15} /></Button>
+      </div>
       {disabled && <div className="alert" role="status">New ledger inputs are available. Refresh before confirming income.</div>}
 
       {error && (
@@ -130,7 +146,7 @@ export function InflowsView({ generation, freshness, onSaved }: {
         {native.candidates.map(candidate => (
           <CandidateCard
             key={candidate.candidate} candidate={candidate} reported={reportedById[candidate.candidate]}
-            currency={reportingCurrency} generation={generation} disabled={disabled} onSaved={afterSave}
+            currency={reportingCurrency} categories={categories} generation={generation} disabled={disabled} onSaved={afterSave}
           />
         ))}
 
@@ -162,7 +178,7 @@ function VariationSummary({ variation, currency }: { variation: ReportedVariatio
   const min = variation.minimum?.reported
   const max = variation.maximum?.reported
   return <>
-    median {money(variation.mean.value, currency)}
+    average {money(variation.mean.value, currency)}
     {min && max && <> · {money(min.value, currency)}–{money(max.value, currency)}</>}
     {variation.priced_count < variation.total_count && (
       <small className="form-error"> · {variation.total_count - variation.priced_count} of {variation.total_count} receipts could not be priced</small>
@@ -170,19 +186,37 @@ function VariationSummary({ variation, currency }: { variation: ReportedVariatio
   </>
 }
 
-function CandidateCard({ candidate, reported, currency, generation, disabled, onSaved }: {
+function CandidateCard({ candidate, reported, currency, categories, generation, disabled, onSaved }: {
   candidate: IncomeCandidate; reported: ReportedIncomeCandidateOut | undefined; currency: string
-  generation: string; disabled: boolean; onSaved: (status: string) => Promise<void>
+  categories: string[]; generation: string; disabled: boolean; onSaved: (status: string) => Promise<void>
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(candidate.occurrences.map(o => o.anchor)))
+  const [category, setCategory] = useState('')
   const [classification, setClassification] = useState('income')
   const [reason, setReason] = useState('')
   const [saveRule, setSaveRule] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+  const [preparingRule, setPreparingRule] = useState(false)
+  const [ruleError, setRuleError] = useState('')
+  const [preview, setPreview] = useState<ClassificationPreview | null>(null)
+  const [previewError, setPreviewError] = useState('')
+  const [previewing, setPreviewing] = useState(false)
   const window = candidate.timing_window
   const chosen = candidate.occurrences.filter(o => selected.has(o.anchor))
+  const anchors = chosen.map(o => o.anchor)
   const reportedByAnchor = Object.fromEntries((reported?.occurrences ?? []).map(o => [o.anchor, o]))
+
+  // Reuses the exact combined preview and retry-safe batch lifecycle every
+  // other classification entry point uses (PLAN-unified-transaction-
+  // classification.md Step 4): confirming a candidate's history is a
+  // multi-anchor classification draft, not a bespoke direct batch write.
+  const batch = useBatchCommand(generation, async status => { await onSaved(status) })
+  useEffect(() => { if (batch.error && !batch.submitted) setPreview(null) }, [batch.error, batch.submitted])
+
+  const scopeKey = [...anchors].sort().join(',')
+  useEffect(() => {
+    setPreview(null); setPreviewError(''); batch.invalidate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey])
 
   function toggle(anchor: string) {
     setSelected(current => {
@@ -192,29 +226,46 @@ function CandidateCard({ candidate, reported, currency, generation, disabled, on
     })
   }
 
-  async function confirm() {
-    if (!chosen.length || !reason.trim()) return
-    setBusy(true); setError('')
+  function invalidatePreview() { setPreview(null); setPreviewError(''); batch.invalidate() }
+
+  async function reviewChanges() {
+    if (!anchors.length || !reason.trim() || previewing) return
+    setPreviewing(true); setPreviewError('')
     try {
-      // Native anchors and native classification only -- no reported value
-      // is ever computed or copied into a command.
-      const items: Array<{ kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }> =
-        chosen.map(o => ({ kind: 'INBOUND_CLASSIFICATION', anchors: { entry: o.anchor }, payload: { classification, reason: reason.trim() } }))
-      if (saveRule) {
-        const compiled = await compileInboundRule(generation, { description_contains: candidate.merchant_key }, classification, reason.trim())
-        items.push(compiled.command)
+      // Every chosen receipt is explicitly (re)classified -- this is the
+      // deliberate "confirm this history" decision, not a fill-missing
+      // default -- while category is left at Keep unless the user picks one,
+      // preserving every existing manual category untouched (§3.3, §9).
+      const draft: ClassificationDraftBody = {
+        generation, anchors,
+        category: category ? { intent: 'set', value: category } : undefined,
+        incoming_type: { intent: 'set', value: classification },
+        policy: 'replace', reason: reason.trim(),
       }
-      const result = await api<{ status: string }>('batch', {
-        request_id: crypto.randomUUID(), expected_generation: generation,
-        reason: reason.trim(), items,
-      })
-      await onSaved(result.status)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setBusy(false)
-    }
+      setPreview(await previewClassification(draft))
+      if (category) rememberCategory(category)
+    } catch (e) { setPreviewError((e as Error).message) }
+    finally { setPreviewing(false) }
   }
+
+  async function saveChanges() {
+    if (!preview) return
+    let items = preview.commands
+    if (saveRule && !batch.submitted) {
+      setPreparingRule(true); setRuleError('')
+      try {
+        const compiled = await compileInboundRule(generation, { description_contains: candidate.merchant_key }, classification, reason.trim())
+        items = [...items, compiled.command]
+      } catch (e) {
+        setRuleError((e as Error).message); setPreparingRule(false); return
+      }
+      setPreparingRule(false)
+    }
+    await batch.submit(items, reason.trim())
+  }
+
+  const retrying = Boolean(batch.submitted && batch.error)
+  const busy = previewing || batch.busy || preparingRule
 
   return (
     <Card className="income-candidate">
@@ -233,7 +284,7 @@ function CandidateCard({ candidate, reported, currency, generation, disabled, on
       </dl>
 
       <table className="income-occurrences">
-        <thead><tr><th className="pick-cell"><span className="sr-only">Select</span></th><th>Date</th><th className="amount">Native amount</th><th className="amount">Reported ({currency})</th></tr></thead>
+        <thead><tr><th className="pick-cell"><span className="sr-only">Select</span></th><th>Date</th><th>Description</th><th>Account</th><th className="amount">Native amount</th><th className="amount">Reported ({currency})</th></tr></thead>
         <tbody>
           {candidate.occurrences.map(o => {
             const reportedOccurrence = reportedByAnchor[o.anchor]
@@ -241,6 +292,8 @@ function CandidateCard({ candidate, reported, currency, generation, disabled, on
               <tr key={o.anchor}>
                 <td className="pick-cell"><input type="checkbox" aria-label={`Include ${o.date}`} checked={selected.has(o.anchor)} onChange={() => toggle(o.anchor)} /></td>
                 <td>{dateLabel(o.date)}</td>
+                <td title={o.description}>{o.description || <span className="muted-note">No description</span>}</td>
+                <td>{o.account}</td>
                 <td className="amount">{money(o.amount, candidate.currency)}</td>
                 <td className="amount">{reportedOccurrence?.reported ? <Money value={reportedOccurrence.reported} /> : <span className="muted-note">No evidence</span>}</td>
               </tr>
@@ -249,24 +302,36 @@ function CandidateCard({ candidate, reported, currency, generation, disabled, on
         </tbody>
       </table>
 
-      <div className="bulk-form">
-        <label>Classify as
-          <select aria-label="Classification" value={classification} onChange={e => setClassification(e.target.value)}>
-            {CLASSIFICATIONS.map(c => <option key={c} value={c}>{c.replaceAll('_', ' ')}</option>)}
-          </select>
-        </label>
-        <label>Reason<Input aria-label="Reason" required maxLength={2000} value={reason} onChange={e => setReason(e.target.value)} placeholder="Why is this the right classification?" /></label>
-      </div>
-      <label className="inline-check"><input type="checkbox" checked={saveRule} onChange={e => setSaveRule(e.target.checked)} /> Also save a reusable rule for future credits whose description contains “{candidate.merchant_key}”</label>
+      <form onSubmit={event => { event.preventDefault(); if (!preview) void reviewChanges(); else void saveChanges() }} onChange={invalidatePreview}>
+        <div className="bulk-form">
+          <div className="bulk-field">
+            <CategoryPicker id={`income-category-${candidate.candidate}`} categories={categories} value={category}
+              onChange={setCategory} disabled={disabled || busy} />
+            <small className="field-context">Optional — leave blank to keep each receipt’s own category.</small>
+          </div>
+          <label>Classify as
+            <select aria-label="Classification" value={classification} disabled={disabled || busy} onChange={e => setClassification(e.target.value)}>
+              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{INCOMING_LABELS[c] ?? c.replaceAll('_', ' ')}</option>)}
+            </select>
+          </label>
+          <label>Reason<Input aria-label="Reason" required maxLength={2000} disabled={disabled || busy} value={reason} onChange={e => setReason(e.target.value)} placeholder="Why is this the right classification?" /></label>
+        </div>
+        <label className="inline-check"><input type="checkbox" checked={saveRule} disabled={disabled || busy} onChange={e => setSaveRule(e.target.checked)} /> Also save a reusable rule that <strong>suggests</strong> this classification for future credits whose description contains “{candidate.merchant_key}” — it never classifies them automatically</label>
 
-      {error && <p className="form-error" role="alert">{error}</p>}
-      {disabled && <p className="form-error">Refresh the ledger before confirming income.</p>}
-      <div className="dialog-actions">
-        <Button type="button" disabled={disabled || busy || !chosen.length || !reason.trim()} onClick={() => void confirm()}>
-          {busy ? 'Saving…' : `Confirm ${chosen.length} receipt${chosen.length === 1 ? '' : 's'}${saveRule ? ' + rule' : ''}`}
-        </Button>
-        <span className="muted-note">{chosen.length ? `${candidate.currency} ${sumAmounts(chosen.map(o => o.amount))} (native)` : 'Select at least one receipt'}</span>
-      </div>
+        {previewError && <p className="form-error" role="alert">{previewError}</p>}
+        {ruleError && <p className="form-error" role="alert">{ruleError}</p>}
+        {batch.error && <p className="form-error" role="alert">{batch.error}</p>}
+        {preview && <ClassificationPreviewSummary preview={preview} />}
+        {retrying && <p className="muted-note">The outcome may be unknown. Retry sends the same request safely; do not create a second decision.</p>}
+        {disabled && <p className="form-error">Refresh the ledger before confirming income.</p>}
+        <div className="dialog-actions">
+          <Button type="submit" disabled={disabled || busy || !anchors.length || (!preview && !reason.trim())}>
+            {previewing ? 'Checking…' : busy ? 'Working…' : preview ? (retrying ? 'Retry same save' : `Save ${preview.changed_transactions} receipt${preview.changed_transactions === 1 ? '' : 's'}${saveRule ? ' + rule' : ''}`) : 'Review changes'}
+            {!previewing && !busy && <ArrowRight size={15} />}
+          </Button>
+          <span className="muted-note">{anchors.length ? `${candidate.currency} ${sumAmounts(chosen.map(o => o.amount))} (native)` : 'Select at least one receipt'}</span>
+        </div>
+      </form>
     </Card>
   )
 }

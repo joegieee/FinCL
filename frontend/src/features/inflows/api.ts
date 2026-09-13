@@ -1,6 +1,6 @@
 import { api } from '@/lib/api'
 
-export type Occurrence = { anchor: string; date: string; amount: string }
+export type Occurrence = { anchor: string; date: string; amount: string; description: string; account: string }
 
 export type IncomeCandidate = {
   candidate: string

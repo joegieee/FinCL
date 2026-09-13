@@ -274,6 +274,13 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .bulk-form label{margin-bottom:0;font-size:11px}
 .bulk-form label:nth-child(2){flex:1;min-width:200px}
 @media(max-width:700px){.bulk-form{flex-direction:column;align-items:stretch}}
+/* Step 3 — the shared bulk editor's field groups (PLAN-unified-transaction-classification.md) */
+.bulk-field{display:flex;flex-direction:column;gap:3px;min-width:180px}
+.bulk-field .field-context{color:var(--muted);font-size:10px}
+.bulk-field label{margin-bottom:0;font-size:11px}
+.bulk-policy{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;display:flex;flex-direction:column;gap:4px}
+.bulk-policy legend{font-size:10px;color:var(--muted);padding:0 4px}
+.bulk-policy label{display:flex;align-items:baseline;gap:6px;margin-bottom:0}
 .transactions-table tr[tabindex]:focus-visible{outline:var(--focus-ring,2px solid var(--primary));outline-offset:-2px}
 /* M4 — narrow screens: stack each transaction row as a labelled card */
 @media(max-width:600px){
