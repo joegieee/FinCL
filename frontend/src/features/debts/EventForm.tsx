@@ -51,6 +51,16 @@ export function EventForm({
     if (!next.opening) setOpeningBalance(false)
   }
 
+  // Seeds the principal from the first source picked, but never overwrites a
+  // number already there: the stated principal is the claim the allocations are
+  // checked against, so once it exists it stays the user's to change.
+  function updateRows(next: AllocationInput[]) {
+    setRows(next)
+    if (principal.trim()) return
+    const total = principalTotalMinor(next)
+    if (Number.isFinite(total) && total > 0) setPrincipal((total / 100).toFixed(2))
+  }
+
   async function submit() {
     if (inFlight.current) return
     if (!reason.trim() || !principal.trim() || (needsCategory && !expenseCategory.trim())) {
@@ -159,7 +169,7 @@ export function EventForm({
           generation={generation}
           currency={debt.currency}
           rows={rows.length ? rows : [emptyAllocation()]}
-          onChange={setRows}
+          onChange={updateRows}
           eventPrincipal={principal || '0'}
         />
       )}

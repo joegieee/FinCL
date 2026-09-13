@@ -76,6 +76,31 @@ describe('EventForm', () => {
     expect(commit.payload.expense_category).toBeNull()
   })
 
+  it('seeds an empty event principal from the first source picked', async () => {
+    await mount()
+    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
+
+    await screen.findByLabelText('Allocation 1 source')
+    fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'rent' } })
+    fireEvent.click(await screen.findByText('Flat rent March'))
+
+    await waitFor(() => expect(screen.getByLabelText('Event principal')).toHaveValue('120.00'))
+    expect(screen.queryByText(/must match the event principal/)).not.toBeInTheDocument()
+  })
+
+  it('leaves a principal the user already typed alone', async () => {
+    await mount()
+    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
+    fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '80.00' } })
+
+    await screen.findByLabelText('Allocation 1 source')
+    fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'rent' } })
+    fireEvent.click(await screen.findByText('Flat rent March'))
+
+    await screen.findByText(/must match the event principal/)
+    expect(screen.getByLabelText('Event principal')).toHaveValue('80.00')
+  })
+
   it('requires the source allocations to sum to the event principal', async () => {
     await mount()
     fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
