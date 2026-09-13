@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Plus, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Loader2, Plus, Search, X } from 'lucide-react'
 import { ApiError, money } from '@/lib/api'
 import {
   loadAllocationCandidates,
@@ -29,6 +29,9 @@ export function principalTotalMinor(rows: AllocationInput[]): number {
   return rows.reduce((acc, r) => acc + toMinor(r.principal_amount), 0)
 }
 
+const SEARCH_DEBOUNCE_MS = 250
+const MIN_SEARCH_LENGTH = 2
+
 function sourceLabel(candidate: AllocationCandidate): string {
   return candidate.description?.trim() || candidate.entry_anchor
 }
@@ -48,6 +51,7 @@ function SourcePicker({
   id,
   label,
   candidates,
+  search,
   value,
   currency,
   onChange,
@@ -55,29 +59,54 @@ function SourcePicker({
   id: string
   label: string
   candidates: AllocationCandidate[]
+  search: (query: string) => Promise<AllocationCandidate[]>
   value: string
   currency: string
   onChange: (anchor: string) => void
 }) {
-  const picked = candidates.find((c) => c.entry_anchor === value)
-  const [query, setQuery] = useState(picked ? sourceLabel(picked) : value)
+  const initial = candidates.find((c) => c.entry_anchor === value)
+  const [chosen, setChosen] = useState<AllocationCandidate | undefined>(initial)
+  const [query, setQuery] = useState(initial ? sourceLabel(initial) : value)
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
+  const [remote, setRemote] = useState<AllocationCandidate[] | null>(null)
+  const [searching, setSearching] = useState(false)
+  const requestId = useRef(0)
 
   useEffect(() => {
-    const next = candidates.find((c) => c.entry_anchor === value)
-    setQuery(next ? sourceLabel(next) : value)
-  }, [value, candidates])
+    const trimmed = query.trim()
+    if (trimmed.length < MIN_SEARCH_LENGTH) {
+      setRemote(null)
+      setSearching(false)
+      return
+    }
+    setSearching(true)
+    const thisRequest = ++requestId.current
+    const timer = setTimeout(() => {
+      search(trimmed)
+        .then((results) => { if (requestId.current === thisRequest) setRemote(results) })
+        .catch(() => { if (requestId.current === thisRequest) setRemote(null) })
+        .finally(() => { if (requestId.current === thisRequest) setSearching(false) })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [query, search])
 
-  const filtered = candidates.filter((c) => matches(c, query))
+  const trimmed = query.trim()
+  const filtered = trimmed.length >= MIN_SEARCH_LENGTH && remote
+    ? remote
+    : candidates.filter((c) => matches(c, query))
+  const known = [...(chosen ? [chosen] : []), ...candidates, ...(remote ?? [])]
+  const picked = known.find((c) => c.entry_anchor === value)
 
   function choose(candidate: AllocationCandidate) {
+    setChosen(candidate)
     onChange(candidate.entry_anchor)
     setQuery(sourceLabel(candidate))
     setOpen(false)
   }
 
   function clear() {
+    setChosen(undefined)
     onChange('')
     setQuery('')
     setOpen(false)
@@ -88,7 +117,7 @@ function SourcePicker({
   return (
     <div className="alloc-combobox">
       <div className="alloc-combobox-input">
-        <Search size={12} />
+        {searching ? <Loader2 size={12} className="spin" /> : <Search size={12} />}
         <input
           id={id}
           role="combobox"
@@ -98,7 +127,7 @@ function SourcePicker({
           aria-label={label}
           autoComplete="off"
           value={query}
-          placeholder="Search by description, date, or amount…"
+          placeholder="Search all transactions by description…"
           onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlight(0) }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -144,7 +173,13 @@ function SourcePicker({
               </button>
             </li>
           ))}
-          {!filtered.length && <li className="alloc-combobox-empty">No transaction matches "{query}".</li>}
+          {!filtered.length && !searching && (
+            <li className="alloc-combobox-empty">
+              {trimmed.length < MIN_SEARCH_LENGTH
+                ? `No transaction matches "${query}".`
+                : `No transaction matching "${query}" found across the ledger.`}
+            </li>
+          )}
         </ul>
       )}
     </div>
@@ -182,6 +217,12 @@ export function AllocationTable({
     return () => { live = false }
   }, [debtId, eventKind, generation])
 
+  const search = useCallback(
+    (query: string) =>
+      loadAllocationCandidates({ debtId, eventKind, generation, search: query, limit: 25 }).then((p) => p.candidates),
+    [debtId, eventKind, generation],
+  )
+
   function patch(index: number, field: keyof AllocationInput, value: string) {
     onChange(rows.map((r, i) => (i === index ? { ...r, [field]: value } : r)))
   }
@@ -214,6 +255,7 @@ export function AllocationTable({
                   id={`alloc-${index}-source`}
                   label={`Allocation ${index + 1} source`}
                   candidates={candidates}
+                  search={search}
                   value={row.entry_anchor}
                   currency={currency}
                   onChange={(anchor) => patch(index, 'entry_anchor', anchor)}

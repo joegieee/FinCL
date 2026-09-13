@@ -1411,13 +1411,13 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 raise HTTPException(422, str(exc)) from exc
 
     @app.get('/api/v1/debts/allocation-candidates')
-    def debt_allocation_candidates(debt: str, event_kind: str | None = None,
+    def debt_allocation_candidates(debt: str, event_kind: str | None = None, search: str | None = None,
                                    cursor: str | None = None, limit: int = 50,
                                    generation: str | None = None) -> Any:
         from .debts.queries import allocation_candidates
         with ledger_writer(database):
             try:
-                return allocation_candidates(database, debt_id=debt, event_kind=event_kind,
+                return allocation_candidates(database, debt_id=debt, event_kind=event_kind, search=search,
                                              cursor=cursor, limit=limit, expected=generation)
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):

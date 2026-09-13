@@ -7,6 +7,9 @@ Decimal strings are authoritative.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 from datetime import date
 from fractions import Fraction
 from pathlib import Path
@@ -20,6 +23,23 @@ from .models import events_for_direction
 from .projection import expected_bank_direction
 
 _DATE_RE_LEN = 10
+
+
+def _decode_allocation_cursor(cursor: str | None) -> tuple[str, str] | None:
+    if not cursor:
+        return None
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+        if {"at", "anchor"} <= set(payload) and all(isinstance(payload[k], str) for k in ("at", "anchor")):
+            return payload["at"], payload["anchor"]
+    except (binascii.Error, ValueError, TypeError):
+        pass
+    raise FinCLError("The page cursor is not valid; reload the list")
+
+
+def _encode_allocation_cursor(effective_at: str, entry_anchor: str) -> str:
+    payload = {"at": effective_at, "anchor": entry_anchor}
+    return base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode()
 
 
 def _check_as_of(as_of: str | None) -> str:
@@ -266,6 +286,7 @@ def allocation_candidates(
     *,
     debt_id: str,
     event_kind: str | None = None,
+    search: str | None = None,
     cursor: str | None = None,
     limit: int = 50,
     expected: str | None = None,
@@ -274,8 +295,10 @@ def allocation_candidates(
 
     Scoped to the debt's currency and to the bank direction the chosen event kind
     requires (increase kind by default). Each row carries the component magnitude
-    and the amount still unclaimed by any domain. No fuzzy ranking: newest first,
-    keyset by ``natural_anchor``.
+    and the amount still unclaimed by any domain. Newest first, keyset by
+    ``(effective_at, natural_anchor)``. ``search`` narrows by a case-insensitive
+    substring match against the transaction's description, unbounded by the page
+    window (mirrors the transaction list's own search).
     """
     from ..analysis.allocations import open_residual
 
@@ -298,10 +321,14 @@ def allocation_candidates(
         want = expected_bank_direction(str(debt["direction"]), kinds[event_kind])
 
         params: list[Any] = [str(debt["currency"]), want]
-        cursor_clause = ""
-        if cursor is not None:
-            cursor_clause = " AND e.natural_anchor > ?"
-            params.append(cursor)
+        clauses = ""
+        if search:
+            clauses += " AND instr(lower(COALESCE(r.description_raw, d.description_raw, '')), lower(?)) > 0"
+            params.append(search)
+        keyset = _decode_allocation_cursor(cursor)
+        if keyset is not None:
+            clauses += " AND (e.effective_at < ? OR (e.effective_at = ? AND e.natural_anchor > ?))"
+            params.extend([keyset[0], keyset[0], keyset[1]])
         rows = connection.execute(
             f"""
             SELECT e.natural_anchor, e.effective_at, e.economic_direction,
@@ -312,14 +339,21 @@ def allocation_candidates(
               ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
             LEFT JOIN raw_records r ON r.id = e.raw_record_id
             LEFT JOIN document_records d ON d.id = e.document_record_id
-            WHERE e.currency_pocket = ? AND e.economic_direction = ?{cursor_clause}
-            ORDER BY e.natural_anchor
+            LEFT JOIN entry_categories c ON c.entry_id = e.id
+            WHERE e.currency_pocket = ? AND e.economic_direction = ?
+              AND (c.group_name IS NULL OR c.group_name != 'Internal'){clauses}
+            ORDER BY e.effective_at DESC, e.natural_anchor ASC
             LIMIT ?
             """,
             (*params, limit + 1),
         ).fetchall()
-        next_cursor = str(rows[limit]["natural_anchor"]) if len(rows) > limit else None
+        has_more = len(rows) > limit
         rows = rows[:limit]
+        next_cursor = (
+            _encode_allocation_cursor(str(rows[-1]["effective_at"]), str(rows[-1]["natural_anchor"]))
+            if has_more and rows
+            else None
+        )
 
         def _decimal(fraction: Fraction, scale: int) -> str:
             scaled = fraction * (10**scale)
@@ -330,6 +364,8 @@ def allocation_candidates(
             scale = int(row["amount_scale"])
             magnitude = Fraction(abs(int(row["amount_coefficient"])), 10**scale)
             remaining = open_residual(connection, str(row["natural_anchor"]), role="amount")
+            if remaining <= 0:
+                continue  # fully reconciled elsewhere; not a usable source
             candidates.append(
                 {
                     "entry_anchor": str(row["natural_anchor"]),

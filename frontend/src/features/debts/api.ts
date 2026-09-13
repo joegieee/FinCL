@@ -104,9 +104,12 @@ export function loadAllocationCandidates(opts: {
   debtId: string
   eventKind?: string
   generation: string
+  search?: string
+  limit?: number
 }): Promise<AllocationCandidatesPage> {
-  const q = new URLSearchParams({ debt: opts.debtId, generation: opts.generation, limit: '100' })
+  const q = new URLSearchParams({ debt: opts.debtId, generation: opts.generation, limit: String(opts.limit ?? 50) })
   if (opts.eventKind) q.set('event_kind', opts.eventKind)
+  if (opts.search) q.set('search', opts.search)
   return api<AllocationCandidatesPage>('debts/allocation-candidates?' + q)
 }
 

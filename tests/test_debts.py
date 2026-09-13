@@ -7,6 +7,7 @@ import json
 import sqlite3
 import tempfile
 import unittest
+import urllib.parse
 import uuid
 from pathlib import Path
 
@@ -355,8 +356,44 @@ class DebtApiTests(ApiTestBase):
         self.assertEqual(len(got), 3)  # the three SGD OUT entries, no inflow
         for candidate in got.values():
             self.assertEqual(candidate["open_amount"], candidate["amount"])
+        # newest transaction first, not an arbitrary anchor-hash order
+        dates = [c["effective_at"][:10] for c in page["candidates"]]
+        self.assertEqual(dates, sorted(dates, reverse=True))
 
-    def test_source_linked_command_consumes_the_candidate_component(self) -> None:
+    def test_allocation_candidates_search_narrows_by_description(self) -> None:
+        debt_id = str(uuid.uuid4())
+        self._command(
+            "PERSONAL_DEBT_OPEN",
+            {"debt": debt_id},
+            {"direction": "RECEIVABLE", "currency": "SGD", "counterparty_label": "Ana",
+             "opened_on": "2026-01-01", "due_on": None, "reason": "Ana owes me"},
+        )
+        page = self.client.get(f"/api/v1/debts/allocation-candidates?debt={debt_id}&search=book").json()
+        self.assertEqual([c["description"] for c in page["candidates"]], ["Bookshop"])
+
+    def test_allocation_candidates_cursor_reaches_entries_past_the_first_page(self) -> None:
+        debt_id = str(uuid.uuid4())
+        self._command(
+            "PERSONAL_DEBT_OPEN",
+            {"debt": debt_id},
+            {"direction": "RECEIVABLE", "currency": "SGD", "counterparty_label": "Ana",
+             "opened_on": "2026-01-01", "due_on": None, "reason": "Ana owes me"},
+        )
+        first = self.client.get(f"/api/v1/debts/allocation-candidates?debt={debt_id}&limit=1").json()
+        self.assertEqual(len(first["candidates"]), 1)
+        self.assertIsNotNone(first["next_cursor"])
+        cursor = urllib.parse.quote(first["next_cursor"], safe="")
+        response = self.client.get(
+            f"/api/v1/debts/allocation-candidates?debt={debt_id}&limit=1&cursor={cursor}"
+        )
+        second = response.json()
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(len(second["candidates"]), 1)
+        self.assertNotEqual(
+            first["candidates"][0]["entry_anchor"], second["candidates"][0]["entry_anchor"],
+        )
+
+    def test_source_linked_command_removes_the_fully_consumed_candidate(self) -> None:
         debt_id = str(uuid.uuid4())
         self._command(
             "PERSONAL_DEBT_OPEN",
@@ -376,8 +413,8 @@ class DebtApiTests(ApiTestBase):
              "reason": "Lent Ana the price of the book"},
         )
         page = self.client.get(f"/api/v1/debts/allocation-candidates?debt={debt_id}").json()
-        consumed = next(c for c in page["candidates"] if c["entry_anchor"] == anchor)
-        self.assertEqual(consumed["open_amount"], "0.00")
+        # fully allocated elsewhere: no longer offered as a source
+        self.assertTrue(all(c["entry_anchor"] != anchor for c in page["candidates"]))
         detail = self.client.get(f"/api/v1/debts/{debt_id}").json()
         self.assertEqual(detail["debt"]["remaining_principal"]["value"], "19.00")
 
