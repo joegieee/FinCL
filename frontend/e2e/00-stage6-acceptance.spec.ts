@@ -3,16 +3,16 @@ import { expect, test } from '@playwright/test'
 test.describe.configure({ mode: 'serial' })
 
 async function openTab(page: import('@playwright/test').Page, name: string) {
-  await page.locator('.navigation').getByRole('button', { name, exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click()
 }
 
 async function upload(page: import('@playwright/test').Page, fixture: string) {
   await openTab(page, 'Setup')
-  await page.getByLabel('Statement files').setInputFiles(`e2e/fixtures/${fixture}`)
+  await page.getByLabel('Statement files').setInputFiles(`/tmp/fincl-e2e-fixtures/${fixture.replace(/\.csv$/, '.pdf')}`)
   await page.getByRole('button', { name: 'Upload', exact: true }).click()
   await expect(page.locator('.upload-result')).toContainText('1 of 1 file accepted')
   const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh'))
-  await page.locator('.navigation').getByRole('button', { name: 'Refresh', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Refresh', exact: true }).click()
   expect((await refreshed).status()).toBe(200)
 }
 
@@ -21,7 +21,8 @@ async function classifyGroup(page: import('@playwright/test').Page, label: strin
   await expect(group).toBeVisible()
   await group.click()
   const dialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: label }) })
-  await dialog.getByLabel('Category').selectOption({ label: category })
+  await dialog.getByLabel('Category').fill(category)
+  await dialog.getByLabel('Category').press('Enter')
   await dialog.getByLabel(/Reason/).fill('Reviewed against the synthetic statement evidence')
   await dialog.getByRole('button', { name: 'Check exact impact' }).click()
   await dialog.getByRole('button', { name: 'Preview rule' }).click()
@@ -110,7 +111,7 @@ test('whole-framework journey derives amounts from evidence and survives backup 
   await expect(page.getByText('Backup and restore verified')).toBeVisible()
   await expect(page.getByText(/restored generation/)).toBeVisible()
   const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh'))
-  await page.locator('.navigation').getByRole('button', { name: 'Refresh', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Refresh', exact: true }).click()
   expect((await refreshed).status()).toBe(200)
   await page.reload()
   await expect(page.getByText(/New ledger inputs are available/)).toHaveCount(0)

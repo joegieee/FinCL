@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowDownLeft, ArrowRight, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,8 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
   onSaved: (status: string) => Promise<void>
   statementDetail?: TransactionRowOut
 }) {
+  const returnFocus = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+  useEffect(() => () => returnFocus.current?.focus(), [])
   // A statement-detail panel is only ever shown for the exact entry it was fetched for.
   const detail = statementDetail && statementDetail.entry.anchor === e.anchor ? statementDetail : undefined
   const bucket = detailBucket(e)

@@ -182,9 +182,9 @@ function CategoryCombobox({ id, categories, value, onChange, onCreate, disabled 
         else if (e.key === 'Escape') { setOpen(false) }
       }}
     />
-    {open && <ul className="category-combobox-list" id={`${id}-list`}>
-      {filtered.map((category, i) => <li key={category}><button type="button" className={i === highlight ? 'is-active' : ''} onMouseDown={e => e.preventDefault()} onClick={() => choose(category)}>
-        <span>{category}</span>{recent[0] === category && category !== value && <span className="tag">Suggested</span>}
+    {open && <ul className="category-combobox-list" id={`${id}-list`} role="listbox">
+      {filtered.map((category, i) => <li key={category} role="option" aria-selected={category === value}><button type="button" className={i === highlight ? 'is-active' : ''} onMouseDown={e => e.preventDefault()} onClick={() => choose(category)}>
+        <span>{category}</span>{recent.includes(category) && category !== value && <span className="tag">Recent</span>}
       </button></li>)}
       {!filtered.length && <li className="category-combobox-empty">No category matches "{query}".</li>}
       {query.trim() && !options.includes(query.trim()) && query.trim().includes(' / ') && <li><button type="button" onMouseDown={e => e.preventDefault()} onClick={() => void createFromQuery()} disabled={creating}>{creating ? 'Creating…' : `Create "${query.trim()}"`}</button></li>}
