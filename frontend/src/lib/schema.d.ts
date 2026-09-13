@@ -778,6 +778,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/classification/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Classification Preview Route
+         * @description Exact, non-mutating combined preview for the unified classification
+         *     draft (category, spending pattern/need, incoming type together).
+         *
+         *     Returns the exact ``commands`` a caller submits verbatim via the
+         *     existing ``POST /api/v1/batch`` to commit this draft; preview and
+         *     commit therefore cannot disagree about what a draft implies.
+         */
+        post: operations["classification_preview_route_api_v1_classification_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/financial-roles/rules/compile": {
         parameters: {
             query?: never;
@@ -1998,6 +2023,42 @@ export interface components {
             /** Monthly Reduction */
             monthly_reduction: string;
         };
+        /**
+         * ClassificationDraftIn
+         * @description Step 1 unified draft: one explicit keep/set intent per field, applied to
+         *     a frozen anchor selection. See ``fincl.classification`` for the semantics.
+         */
+        ClassificationDraftIn: {
+            /** Generation */
+            generation: string;
+            /** Anchors */
+            anchors: string[];
+            category?: components["schemas"]["FieldEditIn"] | null;
+            cost_behavior?: components["schemas"]["FieldEditIn"] | null;
+            need?: components["schemas"]["FieldEditIn"] | null;
+            incoming_type?: components["schemas"]["FieldEditIn"] | null;
+            /**
+             * Clear Category
+             * @default false
+             */
+            clear_category: boolean;
+            /**
+             * Clear Roles
+             * @default false
+             */
+            clear_roles: boolean;
+            /**
+             * Policy
+             * @default replace
+             * @enum {string}
+             */
+            policy: "fill_missing" | "replace";
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+        };
         /** CombinedMinimumOut */
         CombinedMinimumOut: {
             amount: components["schemas"]["ConsolidatedValuationDTO"];
@@ -2332,6 +2393,16 @@ export interface components {
             reasons: string[];
             /** Remedies */
             remedies: string[];
+        };
+        /** FieldEditIn */
+        FieldEditIn: {
+            /**
+             * Intent
+             * @enum {string}
+             */
+            intent: "keep" | "set";
+            /** Value */
+            value?: string | null;
         };
         /** FinancialRoleImpactDraft */
         FinancialRoleImpactDraft: {
@@ -4538,6 +4609,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FinancialRoleImpactDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    classification_preview_route_api_v1_classification_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassificationDraftIn"];
             };
         };
         responses: {

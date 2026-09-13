@@ -52,3 +52,61 @@ export function useLedgerCommand(generation: string, onSaved: (status: string) =
 
   return { busy, error, previewed, attempted, reset, act }
 }
+
+export type BatchItem = { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }
+export type BatchBody = {
+  request_id: string
+  expected_generation: string
+  reason: string
+  items: BatchItem[]
+}
+
+/**
+ * Retry-safe lifecycle for an already-previewed batch (e.g. the exact
+ * `commands` a `classification/preview` call returned). Unlike the two-step
+ * single-command lifecycle above, a batch's server-side preview already
+ * happened out of band; this hook only owns the one property every direct
+ * batch-save caller in the codebase currently lacks (PLAN-unified-
+ * transaction-classification.md Step 0/1): the submitted request id and body
+ * are frozen on the first attempt and reused verbatim on every retry, so an
+ * uncertain network failure can never turn into a duplicate write. A 409/422
+ * is definitive and clears the frozen body so the next attempt re-submits a
+ * fresh draft; any other failure keeps it so a retry reuses the same id.
+ */
+export function useBatchCommand(generation: string, onSaved: (status: string) => void | Promise<void>) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [submitted, setSubmitted] = useState<BatchBody | null>(null)
+  const inFlight = useRef(false)
+
+  /** Call when the draft, selection, policy, preset, or generation changes so
+   * a stale frozen body is never resubmitted after those are no longer what
+   * was reviewed. A body already sent (attempted) is left alone. */
+  function invalidate() {
+    if (!busy) { setSubmitted(null); setError('') }
+  }
+
+  async function submit(items: BatchItem[], reason: string) {
+    if (inFlight.current) return
+    inFlight.current = true; setBusy(true); setError('')
+    try {
+      const body: BatchBody = submitted ?? { request_id: crypto.randomUUID(), expected_generation: generation, reason, items }
+      if (!submitted) setSubmitted(body)
+      const result = await api<{ status: string }>('batch', body)
+      await onSaved(result.status)
+      setSubmitted(null)
+    } catch (e) {
+      setError((e as Error).message)
+      if (e instanceof ApiError && [409, 422].includes(e.status)) setSubmitted(null)
+    } finally {
+      inFlight.current = false; setBusy(false)
+    }
+  }
+
+  /** Resubmit the exact frozen request after an uncertain (non-409/422) failure. */
+  async function retry() {
+    if (submitted) await submit(submitted.items, submitted.reason)
+  }
+
+  return { busy, error, submitted, invalidate, submit, retry }
+}

@@ -201,6 +201,26 @@ class FinancialRoleImpactDraft(StrictModel):
     clear_roles: bool = False
 
 
+class FieldEditIn(StrictModel):
+    intent: Literal['keep','set']
+    value: str | None = None
+
+
+class ClassificationDraftIn(StrictModel):
+    """Step 1 unified draft: one explicit keep/set intent per field, applied to
+    a frozen anchor selection. See ``fincl.classification`` for the semantics."""
+    generation: str = Field(min_length=1, max_length=100)
+    anchors: list[str] = Field(min_length=1, max_length=200)
+    category: FieldEditIn | None = None
+    cost_behavior: FieldEditIn | None = None
+    need: FieldEditIn | None = None
+    incoming_type: FieldEditIn | None = None
+    clear_category: bool = False
+    clear_roles: bool = False
+    policy: Literal['fill_missing','replace'] = 'replace'
+    reason: str = Field(default='', max_length=2000)
+
+
 class RoleRuleDraft(StrictModel):
     generation: str = Field(min_length=1, max_length=100)
     match: dict[str, Any]
@@ -1254,6 +1274,41 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     'protected_overrides': 0,
                     'cash_flow_effect': 'spending total unchanged; reserve eligibility may improve',
                 }
+            finally:
+                connection.close()
+
+    @app.post('/api/v1/classification/preview')
+    def classification_preview_route(draft: ClassificationDraftIn) -> Any:
+        """Exact, non-mutating combined preview for the unified classification
+        draft (category, spending pattern/need, incoming type together).
+
+        Returns the exact ``commands`` a caller submits verbatim via the
+        existing ``POST /api/v1/batch`` to commit this draft; preview and
+        commit therefore cannot disagree about what a draft implies."""
+        from .classification import ClassificationDraft, FieldEdit
+        from .classification import evaluate_classification_draft as _evaluate
+
+        def _edit(raw: FieldEditIn | None) -> FieldEdit:
+            return FieldEdit(raw.intent, raw.value) if raw is not None else FieldEdit()
+
+        with ledger_writer(database):
+            connection = connect_readonly(database)
+            try:
+                generation = current_generation(connection)
+                if generation is None or generation['generation_token'] != draft.generation:
+                    raise HTTPException(409, 'STALE_GENERATION: reload and preview again. Your draft is preserved.')
+                internal = ClassificationDraft(
+                    anchors=tuple(draft.anchors),
+                    category=_edit(draft.category), cost_behavior=_edit(draft.cost_behavior),
+                    need=_edit(draft.need), incoming_type=_edit(draft.incoming_type),
+                    clear_category=draft.clear_category, clear_roles=draft.clear_roles,
+                    policy=draft.policy, reason=draft.reason,
+                )
+                try:
+                    result = _evaluate(connection, internal, custom_categories=frozenset(custom_categories(database)))
+                except FinCLError as exc:
+                    raise HTTPException(422, str(exc)) from exc
+                return {'generation': draft.generation, **result}
             finally:
                 connection.close()
 

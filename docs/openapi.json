@@ -2052,6 +2052,45 @@
         }
       }
     },
+    "/api/v1/classification/preview": {
+      "post": {
+        "summary": "Classification Preview Route",
+        "description": "Exact, non-mutating combined preview for the unified classification\ndraft (category, spending pattern/need, incoming type together).\n\nReturns the exact ``commands`` a caller submits verbatim via the\nexisting ``POST /api/v1/batch`` to commit this draft; preview and\ncommit therefore cannot disagree about what a draft implies.",
+        "operationId": "classification_preview_route_api_v1_classification_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassificationDraftIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Classification Preview Route Api V1 Classification Preview Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/financial-roles/rules/compile": {
       "post": {
         "summary": "Financial Role Rule Compile",
@@ -6215,6 +6254,98 @@
         ],
         "title": "CategoryCutDraft"
       },
+      "ClassificationDraftIn": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Generation"
+          },
+          "anchors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Anchors"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldEditIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_behavior": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldEditIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "need": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldEditIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incoming_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FieldEditIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "clear_category": {
+            "type": "boolean",
+            "title": "Clear Category",
+            "default": false
+          },
+          "clear_roles": {
+            "type": "boolean",
+            "title": "Clear Roles",
+            "default": false
+          },
+          "policy": {
+            "type": "string",
+            "enum": [
+              "fill_missing",
+              "replace"
+            ],
+            "title": "Policy",
+            "default": "replace"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Reason",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "anchors"
+        ],
+        "title": "ClassificationDraftIn",
+        "description": "Step 1 unified draft: one explicit keep/set intent per field, applied to\na frozen anchor selection. See ``fincl.classification`` for the semantics."
+      },
       "CombinedMinimumOut": {
         "properties": {
           "amount": {
@@ -7328,6 +7459,35 @@
           "remedies"
         ],
         "title": "ExcludedScopeDetailDTO"
+      },
+      "FieldEditIn": {
+        "properties": {
+          "intent": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "set"
+            ],
+            "title": "Intent"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "intent"
+        ],
+        "title": "FieldEditIn"
       },
       "FinancialRoleImpactDraft": {
         "properties": {
