@@ -54,7 +54,7 @@ function SourcePicker({
   search,
   value,
   currency,
-  onChange,
+  onSelect,
 }: {
   id: string
   label: string
@@ -62,7 +62,7 @@ function SourcePicker({
   search: (query: string) => Promise<AllocationCandidate[]>
   value: string
   currency: string
-  onChange: (anchor: string) => void
+  onSelect: (candidate: AllocationCandidate | null) => void
 }) {
   const initial = candidates.find((c) => c.entry_anchor === value)
   const [chosen, setChosen] = useState<AllocationCandidate | undefined>(initial)
@@ -100,14 +100,14 @@ function SourcePicker({
 
   function choose(candidate: AllocationCandidate) {
     setChosen(candidate)
-    onChange(candidate.entry_anchor)
+    onSelect(candidate)
     setQuery(sourceLabel(candidate))
     setOpen(false)
   }
 
   function clear() {
     setChosen(undefined)
-    onChange('')
+    onSelect(null)
     setQuery('')
     setOpen(false)
   }
@@ -127,6 +127,7 @@ function SourcePicker({
           aria-label={label}
           autoComplete="off"
           value={query}
+          title={query}
           placeholder="Search all transactions by description…"
           onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlight(0) }}
           onFocus={() => setOpen(true)}
@@ -227,6 +228,18 @@ export function AllocationTable({
     onChange(rows.map((r, i) => (i === index ? { ...r, [field]: value } : r)))
   }
 
+  function selectSource(index: number, candidate: AllocationCandidate | null) {
+    onChange(
+      rows.map((r, i) =>
+        i === index
+          ? candidate
+            ? { ...r, entry_anchor: candidate.entry_anchor, principal_amount: candidate.open_amount }
+            : { ...r, entry_anchor: '' }
+          : r,
+      ),
+    )
+  }
+
   const totalMinor = principalTotalMinor(rows)
   const wantMinor = toMinor(eventPrincipal)
   const balanced = Number.isFinite(totalMinor) && totalMinor === wantMinor
@@ -258,7 +271,7 @@ export function AllocationTable({
                   search={search}
                   value={row.entry_anchor}
                   currency={currency}
-                  onChange={(anchor) => patch(index, 'entry_anchor', anchor)}
+                  onSelect={(candidate) => selectSource(index, candidate)}
                 />
               </td>
               {(['principal_amount', 'interest_amount', 'fee_amount', 'separate_fee_amount'] as const).map(
