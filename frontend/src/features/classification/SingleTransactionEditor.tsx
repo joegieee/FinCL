@@ -11,6 +11,7 @@ import type { TransactionRowOut } from '@/features/transactions/reportedApi'
 import { CategoryPicker, rememberCategory } from './CategoryPicker'
 import { PresetPicker } from './PresetPicker'
 import type { PresetFields } from './presets'
+import { RuleSection } from './RuleSection'
 import {
   COST_BEHAVIORS, NEEDS, INCOMING_TYPES, INCOMING_LABELS, applicability, detailBucket, label,
   previewClassification, type ClassificationDraftBody, type ClassificationPreview, type FieldName,
@@ -212,6 +213,9 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
           </Button>
         </div>}
       </form>
+      {!notEditable && <RuleSection generation={data.generation} anchors={[e.anchor]}
+        category={categoryChanged ? category : ''} costBehavior={costBehaviorChanged ? costBehavior : ''} need={needChanged ? need : ''}
+        reason={reason} disabled={disabled || batch.busy} onSaved={onSaved}/>}
     </DialogContent>
   </Dialog>
 }

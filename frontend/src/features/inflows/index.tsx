@@ -16,7 +16,7 @@ import {
 } from '@/features/classification/api'
 import {
   CLASSIFICATIONS, compileInboundRule, loadInboundRules,
-  type IncomeCandidate, type InboundRulesPage,
+  type CompiledInboundRule, type IncomeCandidate, type InboundRulesPage,
 } from './api'
 import {
   type IncomeCandidatesPageOut, type ReportedIncomeCandidateOut, type ReportedVariationOut,
@@ -195,7 +195,7 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
   const [classification, setClassification] = useState('income')
   const [reason, setReason] = useState('')
   const [saveRule, setSaveRule] = useState(false)
-  const [preparingRule, setPreparingRule] = useState(false)
+  const [ruleCompiled, setRuleCompiled] = useState<CompiledInboundRule | null>(null)
   const [ruleError, setRuleError] = useState('')
   const [preview, setPreview] = useState<ClassificationPreview | null>(null)
   const [previewError, setPreviewError] = useState('')
@@ -226,11 +226,11 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
     })
   }
 
-  function invalidatePreview() { setPreview(null); setPreviewError(''); batch.invalidate() }
+  function invalidatePreview() { setPreview(null); setPreviewError(''); setRuleCompiled(null); setRuleError(''); batch.invalidate() }
 
   async function reviewChanges() {
     if (!anchors.length || !reason.trim() || previewing) return
-    setPreviewing(true); setPreviewError('')
+    setPreviewing(true); setPreviewError(''); setRuleError('')
     try {
       // Every chosen receipt is explicitly (re)classified -- this is the
       // deliberate "confirm this history" decision, not a fill-missing
@@ -242,30 +242,32 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
         incoming_type: { intent: 'set', value: classification },
         policy: 'replace', reason: reason.trim(),
       }
-      setPreview(await previewClassification(draft))
+      const result = await previewClassification(draft)
+      setPreview(result)
       if (category) rememberCategory(category)
+      // The optional rule's own match impact (PLAN-unified-transaction-
+      // classification.md Step 7) is now checked and shown at the same
+      // review step as the receipt classification, rather than compiled
+      // silently right before commit with no chance to see it first. A rule
+      // compile failure never discards the classification preview above --
+      // the receipt classification and the optional rule are reviewed
+      // together but stay two distinguishable outcomes.
+      if (saveRule) {
+        try { setRuleCompiled(await compileInboundRule(generation, { description_contains: candidate.merchant_key }, classification, reason.trim())) }
+        catch (e) { setRuleError((e as Error).message) }
+      }
     } catch (e) { setPreviewError((e as Error).message) }
     finally { setPreviewing(false) }
   }
 
   async function saveChanges() {
     if (!preview) return
-    let items = preview.commands
-    if (saveRule && !batch.submitted) {
-      setPreparingRule(true); setRuleError('')
-      try {
-        const compiled = await compileInboundRule(generation, { description_contains: candidate.merchant_key }, classification, reason.trim())
-        items = [...items, compiled.command]
-      } catch (e) {
-        setRuleError((e as Error).message); setPreparingRule(false); return
-      }
-      setPreparingRule(false)
-    }
+    const items = ruleCompiled ? [...preview.commands, ruleCompiled.command] : preview.commands
     await batch.submit(items, reason.trim())
   }
 
   const retrying = Boolean(batch.submitted && batch.error)
-  const busy = previewing || batch.busy || preparingRule
+  const busy = previewing || batch.busy
 
   return (
     <Card className="income-candidate">
@@ -322,10 +324,15 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
         {ruleError && <p className="form-error" role="alert">{ruleError}</p>}
         {batch.error && <p className="form-error" role="alert">{batch.error}</p>}
         {preview && <ClassificationPreviewSummary preview={preview} />}
+        {ruleCompiled && <p className="muted-note" data-testid="rule-impact">
+          Rule impact: suggests this classification for {ruleCompiled.impact.inbound_matches} matching credit{ruleCompiled.impact.inbound_matches === 1 ? '' : 's'} in
+          total, {ruleCompiled.impact.still_unresolved} of which {ruleCompiled.impact.still_unresolved === 1 ? 'is' : 'are'} still unresolved today — it only
+          suggests, so none of them are classified by saving this rule.
+        </p>}
         {retrying && <p className="muted-note">The outcome may be unknown. Retry sends the same request safely; do not create a second decision.</p>}
         {disabled && <p className="form-error">Refresh the ledger before confirming income.</p>}
         <div className="dialog-actions">
-          <Button type="submit" disabled={disabled || busy || !anchors.length || (!preview && !reason.trim())}>
+          <Button type="submit" disabled={disabled || busy || !anchors.length || (!preview && !reason.trim()) || (Boolean(preview) && saveRule && !ruleCompiled)}>
             {previewing ? 'Checking…' : busy ? 'Working…' : preview ? (retrying ? 'Retry same save' : `Save ${preview.changed_transactions} receipt${preview.changed_transactions === 1 ? '' : 's'}${saveRule ? ' + rule' : ''}`) : 'Review changes'}
             {!previewing && !busy && <ArrowRight size={15} />}
           </Button>

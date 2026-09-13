@@ -62,3 +62,23 @@ export const loadRoleRules = () => api<RoleRulesPage>('financial-roles/rules')
 export const loadRules = () => api<RulesPage>('rules')
 export const compileRule = (match: Record<string, unknown>, category: string, reason: string) =>
   api<CompiledRule>('rules/compile', { match, category, reason })
+
+export type RoleRuleImpact = { matches: number; will_change: number; protected_overrides: number }
+export type CompiledRoleRule = {
+  command: { kind: 'ROLE_RULE_SET'; anchors: { rule_id: string }; payload: Record<string, unknown> }
+  impact: RoleRuleImpact
+}
+export const compileRoleRule = (
+  generation: string, match: Record<string, unknown>, cost_behavior: string | null, need: string | null, reason: string,
+) => api<CompiledRoleRule>('financial-roles/rules/compile', { generation, match, cost_behavior, need, reason })
+
+/** A closed, safe-predicate suggestion derived from a frozen anchor selection
+ * -- shared by grouped categorization and any other selection that wants to
+ * offer "save this as a reusable rule" (PLAN-unified-transaction-
+ * classification.md Step 7). Never auto-widens beyond what the backend's
+ * `derive_rule_options` finds; `unavailable_reason` is non-null exactly when
+ * `options` is empty. */
+export type RuleOption = { label: string; match: Record<string, unknown> }
+export type RuleOptionsPage = { generation: string; anchors: string[]; options: RuleOption[]; unavailable_reason: string | null }
+export const deriveRuleOptions = (generation: string, anchors: string[]) =>
+  api<RuleOptionsPage>('categorization/derive-rule', { generation, anchors })

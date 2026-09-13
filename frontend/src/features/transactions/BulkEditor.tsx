@@ -8,6 +8,7 @@ import { ClassificationPreviewSummary } from '@/features/classification/PreviewS
 import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
 import { PresetPicker } from '@/features/classification/PresetPicker'
 import type { PresetFields } from '@/features/classification/presets'
+import { RuleSection } from '@/features/classification/RuleSection'
 import {
   applicability, detailBucket, label,
   previewClassification, type ClassificationDraftBody, type ClassificationPreview, type FieldName,
@@ -210,6 +211,9 @@ export function BulkEditor({
       </div>
       {dirty && !preview && <p className="sr-only" aria-hidden="true">unsaved draft</p>}
     </form>
+    {anchors.length > 0 && <RuleSection generation={generation} anchors={anchors}
+      category={clearCategory ? '' : category} costBehavior={clearRoles ? '' : costBehavior} need={clearRoles ? '' : need}
+      reason={reason} disabled={disabled} onSaved={onSaved}/>}
   </div>
 }
 
