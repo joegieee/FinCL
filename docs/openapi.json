@@ -4511,6 +4511,25 @@
         }
       }
     },
+    "/api/v1/reporting/inflows/candidates": {
+      "get": {
+        "summary": "Reported Income Candidates Read",
+        "description": "M4 step 15: the reported Income (Inflows) workspace (\u00a73.1, \u00a77 M4).\n\nAdditive to the legacy ``/api/v1/inflows/candidates``, which is\nunchanged. Takes no query parameter: the queue's scope is unresolved\nincome work across the whole ledger, not the Overview history range,\nand there is no record filter to narrow since the native detector\naccepts none (\u00a77 M4: \"defaults to all pockets\").",
+        "operationId": "reported_income_candidates_read_api_v1_reporting_inflows_candidates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomeCandidatesPageOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/contributors/{handle}": {
       "get": {
         "summary": "Reported Contributors Read",
@@ -7753,6 +7772,56 @@
         ],
         "title": "InboundRuleDraft"
       },
+      "IncomeCandidatesPageOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "reporting_currency": {
+            "type": "string",
+            "title": "Reporting Currency"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          },
+          "valuation_as_of": {
+            "type": "string",
+            "title": "Valuation As Of"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/ReportedIncomeCandidateOut"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "native": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Native"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "reporting_currency",
+          "policy_version",
+          "valuation_as_of",
+          "candidates",
+          "native"
+        ],
+        "title": "IncomeCandidatesPageOut"
+      },
       "MerchantRank": {
         "properties": {
           "merchant": {
@@ -9152,6 +9221,32 @@
         ],
         "title": "ReportedForecastScenarioOut"
       },
+      "ReportedIncomeCandidateOut": {
+        "properties": {
+          "candidate": {
+            "type": "string",
+            "title": "Candidate"
+          },
+          "occurrences": {
+            "items": {
+              "$ref": "#/components/schemas/ReportedOccurrenceOut"
+            },
+            "type": "array",
+            "title": "Occurrences"
+          },
+          "variation": {
+            "$ref": "#/components/schemas/ReportedVariationOut"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate",
+          "occurrences",
+          "variation"
+        ],
+        "title": "ReportedIncomeCandidateOut"
+      },
       "ReportedMonthRowOut": {
         "properties": {
           "month": {
@@ -9185,6 +9280,94 @@
           "lowest_balance"
         ],
         "title": "ReportedMonthRowOut"
+      },
+      "ReportedOccurrenceOut": {
+        "properties": {
+          "anchor": {
+            "type": "string",
+            "title": "Anchor"
+          },
+          "reported": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "anchor",
+          "reported"
+        ],
+        "title": "ReportedOccurrenceOut"
+      },
+      "ReportedVariationOut": {
+        "properties": {
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priced_count": {
+            "type": "integer",
+            "title": "Priced Count"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "latest",
+          "minimum",
+          "maximum",
+          "mean",
+          "priced_count",
+          "total_count"
+        ],
+        "title": "ReportedVariationOut"
       },
       "ReviewProposal": {
         "properties": {

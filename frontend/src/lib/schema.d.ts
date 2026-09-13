@@ -1544,6 +1544,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reporting/inflows/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Income Candidates Read
+         * @description M4 step 15: the reported Income (Inflows) workspace (§3.1, §7 M4).
+         *
+         *     Additive to the legacy ``/api/v1/inflows/candidates``, which is
+         *     unchanged. Takes no query parameter: the queue's scope is unresolved
+         *     income work across the whole ledger, not the Overview history range,
+         *     and there is no record filter to narrow since the native detector
+         *     accepts none (§7 M4: "defaults to all pockets").
+         */
+        get: operations["reported_income_candidates_read_api_v1_reporting_inflows_candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/contributors/{handle}": {
         parameters: {
             query?: never;
@@ -2437,6 +2463,23 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** IncomeCandidatesPageOut */
+        IncomeCandidatesPageOut: {
+            /** Generation */
+            generation: string;
+            /** Reporting Currency */
+            reporting_currency: string;
+            /** Policy Version */
+            policy_version: string | null;
+            /** Valuation As Of */
+            valuation_as_of: string;
+            /** Candidates */
+            candidates: components["schemas"]["ReportedIncomeCandidateOut"][];
+            /** Native */
+            native: {
+                [key: string]: unknown;
+            };
+        };
         /** MerchantRank */
         MerchantRank: {
             /** Merchant */
@@ -2881,6 +2924,14 @@ export interface components {
             /** Events */
             events: components["schemas"]["ReportedForecastEventOut"][];
         };
+        /** ReportedIncomeCandidateOut */
+        ReportedIncomeCandidateOut: {
+            /** Candidate */
+            candidate: string;
+            /** Occurrences */
+            occurrences: components["schemas"]["ReportedOccurrenceOut"][];
+            variation: components["schemas"]["ReportedVariationOut"];
+        };
         /** ReportedMonthRowOut */
         ReportedMonthRowOut: {
             /** Month */
@@ -2890,6 +2941,23 @@ export interface components {
             income: components["schemas"]["ValuedMoneyDTO"];
             expense: components["schemas"]["ValuedMoneyDTO"];
             lowest_balance: components["schemas"]["ValuedMoneyDTO"];
+        };
+        /** ReportedOccurrenceOut */
+        ReportedOccurrenceOut: {
+            /** Anchor */
+            anchor: string;
+            reported: components["schemas"]["ValuedMoneyDTO"] | null;
+        };
+        /** ReportedVariationOut */
+        ReportedVariationOut: {
+            latest: components["schemas"]["ValuedMoneyDTO"] | null;
+            minimum: components["schemas"]["ValuedMoneyDTO"] | null;
+            maximum: components["schemas"]["ValuedMoneyDTO"] | null;
+            mean: components["schemas"]["MoneyDTO"] | null;
+            /** Priced Count */
+            priced_count: number;
+            /** Total Count */
+            total_count: number;
         };
         /** ReviewProposal */
         ReviewProposal: {
@@ -5771,6 +5839,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ForecastPageOut"];
+                };
+            };
+        };
+    };
+    reported_income_candidates_read_api_v1_reporting_inflows_candidates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncomeCandidatesPageOut"];
                 };
             };
         };

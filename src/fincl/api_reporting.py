@@ -35,6 +35,12 @@ from .generation import current_generation
 from .money import format_decimal
 from .money_flow import MoneyFlowResult, money_flow_page_from
 from .networth.reporting import ReportedNetWorthPage, reported_net_worth_page_from
+from .planning.reporting import (
+    ReportedIncomeCandidate,
+    ReportedIncomeCandidatesPage,
+    ReportedVariation,
+    reported_income_candidates_page_from,
+)
 from .position.reporting import ReportedCashPage, reported_cash_page_from
 from .reporting_currency import (
     CURRENCY_REGISTRY,
@@ -1001,6 +1007,84 @@ def _forecast_page_out(page: ReportedForecastPage) -> ForecastPageOut:
     )
 
 
+class ReportedOccurrenceOut(_StrictModel):
+    anchor: str
+    reported: ValuedMoneyDTO | None
+
+
+class ReportedVariationOut(_StrictModel):
+    latest: ValuedMoneyDTO | None
+    minimum: ValuedMoneyDTO | None
+    maximum: ValuedMoneyDTO | None
+    mean: MoneyDTO | None
+    priced_count: int
+    total_count: int
+
+
+class ReportedIncomeCandidateOut(_StrictModel):
+    # Only the identity and reported detail live here; every other native
+    # fact (merchant, currency, cadence, timing window, confidence, review
+    # question, native occurrence amount/date) stays on `IncomeCandidatesPageOut
+    # .native` unchanged -- the same documented passthrough choice as the
+    # reported Forecast page's own `native` field (step 14).
+    candidate: str
+    occurrences: list[ReportedOccurrenceOut]
+    variation: ReportedVariationOut
+
+
+class IncomeCandidatesPageOut(_StrictModel):
+    generation: str
+    reporting_currency: str
+    policy_version: str | None
+    valuation_as_of: str
+    candidates: list[ReportedIncomeCandidateOut]
+    # The complete, unchanged native `{generation, candidates, exclusions,
+    # policy}` slice `recurring_page_from` already exposes through the
+    # existing `GET /api/v1/inflows/candidates` route -- deliberately
+    # untyped here rather than duplicating that already-established
+    # frontend shape a second time as generated schema.
+    native: dict[str, Any]
+
+
+def _reported_occurrence_out(occurrence: Any) -> ReportedOccurrenceOut:
+    return ReportedOccurrenceOut(
+        anchor=str(occurrence.native["anchor"]),
+        reported=(
+            to_dto(occurrence.reported, currency_registry=CURRENCY_REGISTRY)
+            if occurrence.reported is not None else None
+        ),
+    )
+
+
+def _reported_variation_out(variation: ReportedVariation, *, currency: str) -> ReportedVariationOut:
+    return ReportedVariationOut(
+        latest=(to_dto(variation.latest, currency_registry=CURRENCY_REGISTRY) if variation.latest is not None else None),
+        minimum=(to_dto(variation.minimum, currency_registry=CURRENCY_REGISTRY) if variation.minimum is not None else None),
+        maximum=(to_dto(variation.maximum, currency_registry=CURRENCY_REGISTRY) if variation.maximum is not None else None),
+        mean=_money_from_fraction(variation.mean, currency=currency),
+        priced_count=variation.priced_count, total_count=variation.total_count,
+    )
+
+
+def _reported_income_candidate_out(candidate: ReportedIncomeCandidate, *, currency: str) -> ReportedIncomeCandidateOut:
+    return ReportedIncomeCandidateOut(
+        candidate=str(candidate.native["candidate"]),
+        occurrences=[_reported_occurrence_out(occurrence) for occurrence in candidate.occurrences],
+        variation=_reported_variation_out(candidate.variation, currency=currency),
+    )
+
+
+def _income_candidates_page_out(page: ReportedIncomeCandidatesPage) -> IncomeCandidatesPageOut:
+    currency = page.context.reporting_currency
+    return IncomeCandidatesPageOut(
+        generation=page.context.generation_token, reporting_currency=currency,
+        policy_version=page.context.policy.policy_version,
+        valuation_as_of=page.context.scope.valuation_as_of.isoformat(),
+        candidates=[_reported_income_candidate_out(candidate, currency=currency) for candidate in page.candidates],
+        native=dict(page.native),
+    )
+
+
 def register_reporting_routes(app: FastAPI, database: Path) -> None:
     @app.get('/api/v1/reporting-currency')
     def reporting_currency_read() -> Any:
@@ -1178,6 +1262,27 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         try:
             page = reported_forecast_page_from(connection, today=date.today())
             return _forecast_page_out(page)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/reporting/inflows/candidates', response_model=IncomeCandidatesPageOut)
+    def reported_income_candidates_read() -> Any:
+        """M4 step 15: the reported Income (Inflows) workspace (§3.1, §7 M4).
+
+        Additive to the legacy ``/api/v1/inflows/candidates``, which is
+        unchanged. Takes no query parameter: the queue's scope is unresolved
+        income work across the whole ledger, not the Overview history range,
+        and there is no record filter to narrow since the native detector
+        accepts none (§7 M4: "defaults to all pockets").
+        """
+        connection = connect_readonly(database)
+        try:
+            page = reported_income_candidates_page_from(connection, today=date.today())
+            return _income_candidates_page_out(page)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
                 raise HTTPException(409, str(exc)) from exc
