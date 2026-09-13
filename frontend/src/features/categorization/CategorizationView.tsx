@@ -11,6 +11,7 @@ import { rememberCategory as rememberSharedCategory } from '@/features/classific
 import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
 import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
 import { PresetPicker } from '@/features/classification/PresetPicker'
+import { RuleSection } from '@/features/classification/RuleSection'
 import type { PresetFields } from '@/features/classification/presets'
 import { previewClassification, type ClassificationDraftBody, type ClassificationPreview } from '@/features/classification/api'
 
@@ -343,6 +344,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const onlyChecked = checkedRecords()
   const onlyTarget = onlyChecked.length === 1 ? onlyChecked[0] : null
   const notAllLoaded = records.length < detail.candidate.transaction_count
+  const ruleAnchors = scope === 'one' ? (onlyTarget ? [onlyTarget.anchor] : []) : [...anchors]
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
     <DialogContent className="candidate-review candidate-review-dialog" showCloseButton={false} aria-label={`Review ${detail.candidate.label}`} onKeyDown={e => { if (e.key === 'Escape') onClose() }}>
     <DialogHeader className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><DialogTitle>{detail.candidate.label}</DialogTitle><DialogDescription>{detail.candidate.transaction_count} similar transactions. Choose exactly what should change before saving.</DialogDescription></div><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></div></DialogHeader>
@@ -388,6 +390,9 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       policy={policy} onPolicy={v => { setPolicy(v); resetChecks() }} showPolicy={scope === 'selected'}
       reason={reason} onReason={v => { setReason(v); resetChecks() }} reasonRequired={groupReasonRequired}
     />}
+    {(scope === 'one' || scope === 'selected') && ruleAnchors.length > 0 && <RuleSection generation={generation} anchors={ruleAnchors}
+      category={clearCategory ? '' : category} costBehavior={clearRoles ? '' : costBehavior} need={clearRoles ? '' : need}
+      reason={reason} disabled={disabled} onSaved={onSaved}/>}
     {error && <p className="form-error">{error}</p>}{command.error && <p className="form-error">{command.error}</p>}{batch.error && <p className="form-error">{batch.error}</p>}
     {scope === 'rule' && compiled && command.previewed && !command.attempted && <ImpactDetails impact={combinedImpact ?? compiled.impact}/>}
     {(scope === 'one' || scope === 'selected') && preview && <ClassificationPreviewSummary preview={preview}/>}

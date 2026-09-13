@@ -101,7 +101,7 @@ function RoleRulesPanel({ generation, disabled, onSaved }: {
     <Card className="rules-list">
       <div className="panel-title"><div><p className="eyebrow">COST-BEHAVIOR & NEED RULES</p><h2>Reusable role rules; a manual entry override still wins</h2></div></div>
       {error && <p className="form-error" role="alert">{error}</p>}
-      {rules?.length === 0 && <div className="empty"><SlidersHorizontal size={22} /><h3>No role rules yet</h3><p>Create one from Transactions: select rows, set a behavior or need, then “Suggest reusable role rule”. Reactivating a retired rule is the same flow.</p></div>}
+      {rules?.length === 0 && <div className="empty"><SlidersHorizontal size={22} /><h3>No role rules yet</h3><p>Create one from Transactions or Categorization: select rows, set a behavior or need, then “Also save a reusable rule from this selection”. Reactivating a retired rule is the same flow.</p></div>}
       {(rules ?? []).map(rule => <RoleRuleRow key={rule.rule_id} rule={rule} generation={generation} disabled={disabled} onSaved={afterSave} />)}
     </Card>
   )
