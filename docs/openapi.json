@@ -4429,6 +4429,69 @@
         }
       }
     },
+    "/api/v1/reporting/net-worth": {
+      "get": {
+        "summary": "Reported Net Worth Read",
+        "description": "M4 step 13: the reported Net worth workspace (\u00a73.3, \u00a77 M4).\n\nAdditive to the legacy ``/api/v1/net-worth``, which is unchanged.\nEvery native component/inclusion/exclusion fact is read straight\nthrough; only a reported equivalent is attached, each valued at that\ncomponent's own as-of date, then combined into one reporting-currency\ntotal -- never a native delta re-priced at today's rate for the trend.",
+        "operationId": "reported_net_worth_read_api_v1_reporting_net_worth_get",
+        "parameters": [
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "name": "prior_as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prior As Of"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetWorthPageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/contributors/{handle}": {
       "get": {
         "summary": "Reported Contributors Read",
@@ -7803,6 +7866,471 @@
         ],
         "title": "MoneyFlowSummaryOut"
       },
+      "NativeCurrencySummaryOut": {
+        "properties": {
+          "tracked_assets": {
+            "type": "string",
+            "title": "Tracked Assets"
+          },
+          "tracked_liabilities": {
+            "type": "string",
+            "title": "Tracked Liabilities"
+          },
+          "tracked_net_worth": {
+            "type": "string",
+            "title": "Tracked Net Worth"
+          },
+          "manual_assets": {
+            "type": "string",
+            "title": "Manual Assets"
+          },
+          "manual_liabilities": {
+            "type": "string",
+            "title": "Manual Liabilities"
+          },
+          "net_worth_including_manual": {
+            "type": "string",
+            "title": "Net Worth Including Manual"
+          },
+          "manual_basis_note": {
+            "type": "string",
+            "title": "Manual Basis Note"
+          },
+          "subtotal_note": {
+            "type": "string",
+            "title": "Subtotal Note"
+          },
+          "missing_components": {
+            "items": {
+              "$ref": "#/components/schemas/NetWorthMissingComponentOut"
+            },
+            "type": "array",
+            "title": "Missing Components"
+          },
+          "excluded_components": {
+            "items": {
+              "$ref": "#/components/schemas/NetWorthExcludedComponentOut"
+            },
+            "type": "array",
+            "title": "Excluded Components"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "valuation_dates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Valuation Dates"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tracked_assets",
+          "tracked_liabilities",
+          "tracked_net_worth",
+          "manual_assets",
+          "manual_liabilities",
+          "net_worth_including_manual",
+          "manual_basis_note",
+          "subtotal_note",
+          "missing_components",
+          "excluded_components",
+          "complete",
+          "valuation_dates",
+          "as_of"
+        ],
+        "title": "NativeCurrencySummaryOut",
+        "description": "Native, unchanged per-currency totals (\u00a71 invariant 3) shown *beside*\nthe reporting-currency totals below -- never replaced by them."
+      },
+      "NetWorthComponentOut": {
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "title": "Component Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "side": {
+            "type": "string",
+            "title": "Side"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "included": {
+            "type": "boolean",
+            "title": "Included"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reported": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "component_id",
+          "kind",
+          "side",
+          "currency",
+          "amount",
+          "as_of",
+          "basis",
+          "origin",
+          "label",
+          "included",
+          "confidence",
+          "note",
+          "reported"
+        ],
+        "title": "NetWorthComponentOut"
+      },
+      "NetWorthExcludedComponentOut": {
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "title": "Component Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "side": {
+            "type": "string",
+            "title": "Side"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "component_id",
+          "kind",
+          "side",
+          "reason",
+          "amount"
+        ],
+        "title": "NetWorthExcludedComponentOut"
+      },
+      "NetWorthMissingComponentOut": {
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "title": "Component Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "side": {
+            "type": "string",
+            "title": "Side"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "component_id",
+          "kind",
+          "side",
+          "reason"
+        ],
+        "title": "NetWorthMissingComponentOut"
+      },
+      "NetWorthPageOut": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "reporting_currency": {
+            "type": "string",
+            "title": "Reporting Currency"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "prior_as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prior As Of"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "is_total_personal_wealth": {
+            "type": "boolean",
+            "title": "Is Total Personal Wealth"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/NetWorthComponentOut"
+            },
+            "type": "array",
+            "title": "Components"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/NetWorthTotalsOut"
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NetWorthTrendOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "per_currency": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NativeCurrencySummaryOut"
+            },
+            "type": "object",
+            "title": "Per Currency"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "reporting_currency",
+          "policy_version",
+          "as_of",
+          "prior_as_of",
+          "label",
+          "is_total_personal_wealth",
+          "disclaimer",
+          "notes",
+          "components",
+          "totals",
+          "trend",
+          "per_currency"
+        ],
+        "title": "NetWorthPageOut"
+      },
+      "NetWorthTotalsOut": {
+        "properties": {
+          "assets": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "liabilities": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "net_worth": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "manual_assets": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "manual_liabilities": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "net_worth_including_manual": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assets",
+          "liabilities",
+          "net_worth",
+          "manual_assets",
+          "manual_liabilities",
+          "net_worth_including_manual"
+        ],
+        "title": "NetWorthTotalsOut"
+      },
+      "NetWorthTrendOut": {
+        "properties": {
+          "prior_as_of": {
+            "type": "string",
+            "title": "Prior As Of"
+          },
+          "current_as_of": {
+            "type": "string",
+            "title": "Current As Of"
+          },
+          "prior_net_worth": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "current_net_worth": {
+            "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "both_complete": {
+            "type": "boolean",
+            "title": "Both Complete"
+          },
+          "scope_changed": {
+            "type": "boolean",
+            "title": "Scope Changed"
+          },
+          "scope_changes": {
+            "items": {
+              "$ref": "#/components/schemas/ScopeChangeOut"
+            },
+            "type": "array",
+            "title": "Scope Changes"
+          },
+          "comparability": {
+            "type": "string",
+            "title": "Comparability"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "prior_as_of",
+          "current_as_of",
+          "prior_net_worth",
+          "current_net_worth",
+          "delta",
+          "both_complete",
+          "scope_changed",
+          "scope_changes",
+          "comparability"
+        ],
+        "title": "NetWorthTrendOut"
+      },
       "OwningSourceOut": {
         "properties": {
           "kind": {
@@ -8546,6 +9074,25 @@
           "reason"
         ],
         "title": "RuleDraft"
+      },
+      "ScopeChangeOut": {
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "title": "Component Id"
+          },
+          "change": {
+            "type": "string",
+            "title": "Change"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "component_id",
+          "change"
+        ],
+        "title": "ScopeChangeOut"
       },
       "ScopeDTO": {
         "properties": {

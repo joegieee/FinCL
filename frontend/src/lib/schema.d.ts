@@ -1493,6 +1493,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reporting/net-worth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reported Net Worth Read
+         * @description M4 step 13: the reported Net worth workspace (§3.3, §7 M4).
+         *
+         *     Additive to the legacy ``/api/v1/net-worth``, which is unchanged.
+         *     Every native component/inclusion/exclusion fact is read straight
+         *     through; only a reported equivalent is attached, each valued at that
+         *     component's own as-of date, then combined into one reporting-currency
+         *     total -- never a native delta re-priced at today's rate for the trend.
+         */
+        get: operations["reported_net_worth_read_api_v1_reporting_net_worth_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/contributors/{handle}": {
         parameters: {
             query?: never;
@@ -2430,6 +2456,147 @@ export interface components {
             cash_at_cutoff: components["schemas"]["CashAtCutoffOut"];
             forecast_closing: components["schemas"]["ForecastClosingOut"];
         };
+        /**
+         * NativeCurrencySummaryOut
+         * @description Native, unchanged per-currency totals (§1 invariant 3) shown *beside*
+         *     the reporting-currency totals below -- never replaced by them.
+         */
+        NativeCurrencySummaryOut: {
+            /** Tracked Assets */
+            tracked_assets: string;
+            /** Tracked Liabilities */
+            tracked_liabilities: string;
+            /** Tracked Net Worth */
+            tracked_net_worth: string;
+            /** Manual Assets */
+            manual_assets: string;
+            /** Manual Liabilities */
+            manual_liabilities: string;
+            /** Net Worth Including Manual */
+            net_worth_including_manual: string;
+            /** Manual Basis Note */
+            manual_basis_note: string;
+            /** Subtotal Note */
+            subtotal_note: string;
+            /** Missing Components */
+            missing_components: components["schemas"]["NetWorthMissingComponentOut"][];
+            /** Excluded Components */
+            excluded_components: components["schemas"]["NetWorthExcludedComponentOut"][];
+            /** Complete */
+            complete: boolean;
+            /** Valuation Dates */
+            valuation_dates: string[];
+            /** As Of */
+            as_of: string;
+        };
+        /** NetWorthComponentOut */
+        NetWorthComponentOut: {
+            /** Component Id */
+            component_id: string;
+            /** Kind */
+            kind: string;
+            /** Side */
+            side: string;
+            /** Currency */
+            currency: string;
+            /** Amount */
+            amount: string | null;
+            /** As Of */
+            as_of: string | null;
+            /** Basis */
+            basis: string;
+            /** Origin */
+            origin: string;
+            /** Label */
+            label: string;
+            /** Included */
+            included: boolean;
+            /** Confidence */
+            confidence: string | null;
+            /** Note */
+            note: string | null;
+            reported: components["schemas"]["ValuedMoneyDTO"] | null;
+        };
+        /** NetWorthExcludedComponentOut */
+        NetWorthExcludedComponentOut: {
+            /** Component Id */
+            component_id: string;
+            /** Kind */
+            kind: string;
+            /** Side */
+            side: string;
+            /** Reason */
+            reason: string | null;
+            /** Amount */
+            amount: string;
+        };
+        /** NetWorthMissingComponentOut */
+        NetWorthMissingComponentOut: {
+            /** Component Id */
+            component_id: string;
+            /** Kind */
+            kind: string;
+            /** Side */
+            side: string;
+            /** Reason */
+            reason: string | null;
+        };
+        /** NetWorthPageOut */
+        NetWorthPageOut: {
+            /** Generation */
+            generation: string;
+            /** Reporting Currency */
+            reporting_currency: string;
+            /** Policy Version */
+            policy_version: string | null;
+            /** As Of */
+            as_of: string;
+            /** Prior As Of */
+            prior_as_of: string | null;
+            /** Label */
+            label: string;
+            /** Is Total Personal Wealth */
+            is_total_personal_wealth: boolean;
+            /** Disclaimer */
+            disclaimer: string;
+            /** Notes */
+            notes: string[];
+            /** Components */
+            components: components["schemas"]["NetWorthComponentOut"][];
+            totals: components["schemas"]["NetWorthTotalsOut"];
+            trend: components["schemas"]["NetWorthTrendOut"] | null;
+            /** Per Currency */
+            per_currency: {
+                [key: string]: components["schemas"]["NativeCurrencySummaryOut"];
+            };
+        };
+        /** NetWorthTotalsOut */
+        NetWorthTotalsOut: {
+            assets: components["schemas"]["ConsolidatedValuationDTO"];
+            liabilities: components["schemas"]["ConsolidatedValuationDTO"];
+            net_worth: components["schemas"]["ConsolidatedValuationDTO"];
+            manual_assets: components["schemas"]["ConsolidatedValuationDTO"];
+            manual_liabilities: components["schemas"]["ConsolidatedValuationDTO"];
+            net_worth_including_manual: components["schemas"]["ConsolidatedValuationDTO"];
+        };
+        /** NetWorthTrendOut */
+        NetWorthTrendOut: {
+            /** Prior As Of */
+            prior_as_of: string;
+            /** Current As Of */
+            current_as_of: string;
+            prior_net_worth: components["schemas"]["ConsolidatedValuationDTO"];
+            current_net_worth: components["schemas"]["ConsolidatedValuationDTO"];
+            delta: components["schemas"]["MoneyDTO"] | null;
+            /** Both Complete */
+            both_complete: boolean;
+            /** Scope Changed */
+            scope_changed: boolean;
+            /** Scope Changes */
+            scope_changes: components["schemas"]["ScopeChangeOut"][];
+            /** Comparability */
+            comparability: string;
+        };
         /** OwningSourceOut */
         OwningSourceOut: {
             /** Kind */
@@ -2680,6 +2847,13 @@ export interface components {
             category: string;
             /** Reason */
             reason: string;
+        };
+        /** ScopeChangeOut */
+        ScopeChangeOut: {
+            /** Component Id */
+            component_id: string;
+            /** Change */
+            change: string;
         };
         /** ScopeDTO */
         ScopeDTO: {
@@ -5439,6 +5613,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CashPageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_net_worth_read_api_v1_reporting_net_worth_get: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+                prior_as_of?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NetWorthPageOut"];
                 };
             };
             /** @description Validation Error */

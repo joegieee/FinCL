@@ -44,7 +44,7 @@ from ..valuation import (
     ValuationItem,
     ValuationPurpose,
     consolidate,
-    value_one,
+    value_position_at_own_date,
 )
 from .queries import position_page_from
 
@@ -119,21 +119,14 @@ def _pocket_valuation(
 ) -> ExactValuation | None:
     """One pocket's own native amount, valued at its own ``as_of`` date.
 
-    ``None`` means there is no native amount to value at all (missing
-    *balance evidence*) -- distinct from an :class:`ExactValuation` whose
-    ``unavailable`` field is set (a real native amount with no importable
-    rate: missing *FX*). Callers must keep those two explanations separate.
+    A thin wrapper over the shared :func:`value_position_at_own_date` (§3.3,
+    §7 M4) -- Net worth (``networth/reporting.py``) values its own dated
+    native components through that same shared function, so this and that
+    module cannot silently diverge on what "position at its own date" means.
     """
-    if amount is None or as_of is None:
-        return None
-    position_context = ValuationContext(
-        reporting_currency=context.reporting_currency, purpose=ValuationPurpose.POSITION,
-        valuation_as_of=date.fromisoformat(as_of), rate_selection_policy=POSITION_MONTHLY_CLOSED_V1,
+    return value_position_at_own_date(
+        connection, reporting_currency=context.reporting_currency, amount=amount, currency=currency, as_of=as_of,
     )
-    item = ValuationItem(
-        native=ExactMoney.parse(amount), native_currency=currency, purpose=ValuationPurpose.POSITION,
-    )
-    return value_one(connection, item, context=position_context)
 
 
 @dataclass(frozen=True, slots=True)

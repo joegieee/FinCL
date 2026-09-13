@@ -25,7 +25,9 @@ from .coverage import dated_reporting_coverage
 from .db import connect_readonly
 from .errors import FinCLError
 from .generation import current_generation
+from .money import format_decimal
 from .money_flow import MoneyFlowResult, money_flow_page_from
+from .networth.reporting import ReportedNetWorthPage, reported_net_worth_page_from
 from .position.reporting import ReportedCashPage, reported_cash_page_from
 from .reporting_currency import (
     CURRENCY_REGISTRY,
@@ -710,6 +712,171 @@ def _cash_page_out(page: ReportedCashPage) -> CashPageOut:
     )
 
 
+class NetWorthMissingComponentOut(_StrictModel):
+    component_id: str
+    kind: str
+    side: str
+    reason: str | None
+
+
+class NetWorthExcludedComponentOut(_StrictModel):
+    component_id: str
+    kind: str
+    side: str
+    reason: str | None
+    amount: str
+
+
+class NativeCurrencySummaryOut(_StrictModel):
+    """Native, unchanged per-currency totals (§1 invariant 3) shown *beside*
+    the reporting-currency totals below -- never replaced by them."""
+
+    tracked_assets: str
+    tracked_liabilities: str
+    tracked_net_worth: str
+    manual_assets: str
+    manual_liabilities: str
+    net_worth_including_manual: str
+    manual_basis_note: str
+    subtotal_note: str
+    missing_components: list[NetWorthMissingComponentOut]
+    excluded_components: list[NetWorthExcludedComponentOut]
+    complete: bool
+    valuation_dates: list[str]
+    as_of: str
+
+
+class NetWorthComponentOut(_StrictModel):
+    component_id: str
+    kind: str
+    side: str
+    currency: str
+    amount: str | None
+    as_of: str | None
+    basis: str
+    origin: str
+    label: str
+    included: bool
+    confidence: str | None
+    note: str | None
+    # §3.3: this component's own reported equivalent, valued at its own
+    # as_of date -- ``None`` means no native amount/date to value at all
+    # (missing evidence), never a fabricated zero.
+    reported: ValuedMoneyDTO | None
+
+
+class NetWorthTotalsOut(_StrictModel):
+    assets: ConsolidatedValuationDTO
+    liabilities: ConsolidatedValuationDTO
+    net_worth: ConsolidatedValuationDTO
+    manual_assets: ConsolidatedValuationDTO
+    manual_liabilities: ConsolidatedValuationDTO
+    net_worth_including_manual: ConsolidatedValuationDTO
+
+
+class ScopeChangeOut(_StrictModel):
+    component_id: str
+    change: str
+
+
+class NetWorthTrendOut(_StrictModel):
+    prior_as_of: str
+    current_as_of: str
+    prior_net_worth: ConsolidatedValuationDTO
+    current_net_worth: ConsolidatedValuationDTO
+    delta: MoneyDTO | None
+    both_complete: bool
+    scope_changed: bool
+    scope_changes: list[ScopeChangeOut]
+    comparability: str
+
+
+class NetWorthPageOut(_StrictModel):
+    generation: str
+    reporting_currency: str
+    policy_version: str | None
+    as_of: str
+    prior_as_of: str | None
+    label: str
+    is_total_personal_wealth: bool
+    disclaimer: str
+    notes: list[str]
+    components: list[NetWorthComponentOut]
+    totals: NetWorthTotalsOut
+    trend: NetWorthTrendOut | None
+    per_currency: dict[str, NativeCurrencySummaryOut]
+
+
+def _net_worth_component_out(component: Any) -> NetWorthComponentOut:
+    native = component.native
+    return NetWorthComponentOut(
+        component_id=native["component_id"], kind=native["kind"], side=native["side"],
+        currency=native["currency"], amount=native["amount"], as_of=native["as_of"],
+        basis=native["basis"], origin=native["origin"], label=native["label"],
+        included=native["included"], confidence=native["confidence"], note=native["note"],
+        reported=(
+            to_dto(component.reported, currency_registry=CURRENCY_REGISTRY)
+            if component.reported is not None else None
+        ),
+    )
+
+
+def _money_from_fraction(value: Any, *, currency: str) -> MoneyDTO | None:
+    if value is None:
+        return None
+    definition = CURRENCY_REGISTRY.get(currency)
+    if definition is None:
+        raise FinCLError(f"reporting currency {currency!r} is not in the checked currency registry")
+    money = quantize(value, scale=definition.minor_unit_scale)
+    return MoneyDTO(value=format_decimal(money.coefficient, money.scale), currency=currency)
+
+
+def _net_worth_page_out(page: ReportedNetWorthPage) -> NetWorthPageOut:
+    def _cv(consolidated: Any) -> ConsolidatedValuationDTO:
+        return to_consolidated_dto(consolidated, currency_registry=CURRENCY_REGISTRY)
+
+    native = page.native
+    trend_out = None
+    if page.trend is not None:
+        trend_out = NetWorthTrendOut(
+            prior_as_of=page.trend.prior_as_of, current_as_of=page.trend.current_as_of,
+            prior_net_worth=_cv(page.trend.prior_net_worth), current_net_worth=_cv(page.trend.current_net_worth),
+            delta=_money_from_fraction(page.trend.delta, currency=page.context.reporting_currency),
+            both_complete=page.trend.both_complete, scope_changed=page.trend.scope_changed,
+            scope_changes=[ScopeChangeOut(**sc) for sc in page.trend.scope_changes],
+            comparability=page.trend.comparability,
+        )
+    return NetWorthPageOut(
+        generation=page.context.generation_token, reporting_currency=page.context.reporting_currency,
+        policy_version=page.context.policy.policy_version, as_of=str(native["as_of"]),
+        prior_as_of=(page.trend.prior_as_of if page.trend is not None else None),
+        label=native["label"], is_total_personal_wealth=native["is_total_personal_wealth"],
+        disclaimer=native["disclaimer"], notes=list(native["notes"]),
+        components=[_net_worth_component_out(component) for component in page.components],
+        totals=NetWorthTotalsOut(
+            assets=_cv(page.totals.assets), liabilities=_cv(page.totals.liabilities),
+            net_worth=_cv(page.totals.net_worth), manual_assets=_cv(page.totals.manual_assets),
+            manual_liabilities=_cv(page.totals.manual_liabilities),
+            net_worth_including_manual=_cv(page.totals.net_worth_including_manual),
+        ),
+        trend=trend_out,
+        per_currency={
+            currency: NativeCurrencySummaryOut(
+                tracked_assets=summary["tracked_assets"], tracked_liabilities=summary["tracked_liabilities"],
+                tracked_net_worth=summary["tracked_net_worth"], manual_assets=summary["manual_assets"],
+                manual_liabilities=summary["manual_liabilities"],
+                net_worth_including_manual=summary["net_worth_including_manual"],
+                manual_basis_note=summary["manual_basis_note"], subtotal_note=summary["subtotal_note"],
+                missing_components=[NetWorthMissingComponentOut(**m) for m in summary["missing_components"]],
+                excluded_components=[NetWorthExcludedComponentOut(**x) for x in summary["excluded_components"]],
+                complete=summary["complete"], valuation_dates=list(summary["valuation_dates"]),
+                as_of=summary["as_of"],
+            )
+            for currency, summary in native["per_currency"].items()
+        },
+    )
+
+
 def register_reporting_routes(app: FastAPI, database: Path) -> None:
     @app.get('/api/v1/reporting-currency')
     def reporting_currency_read() -> Any:
@@ -840,6 +1007,33 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
                 connection, today=resolved_as_of, pocket_currency=pocket_currency,
             )
             return _cash_page_out(page)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/reporting/net-worth', response_model=NetWorthPageOut)
+    def reported_net_worth_read(as_of: str | None = None, prior_as_of: str | None = None) -> Any:
+        """M4 step 13: the reported Net worth workspace (§3.3, §7 M4).
+
+        Additive to the legacy ``/api/v1/net-worth``, which is unchanged.
+        Every native component/inclusion/exclusion fact is read straight
+        through; only a reported equivalent is attached, each valued at that
+        component's own as-of date, then combined into one reporting-currency
+        total -- never a native delta re-priced at today's rate for the trend.
+        """
+        connection = connect_readonly(database)
+        try:
+            # ``today`` is the actual wall-clock date (native ``obligations_
+            # page_from``'s own separate aging input) -- never overridden by
+            # the requested ``as_of`` valuation date, exactly like the native
+            # ``/api/v1/net-worth`` route this one is additive to.
+            page = reported_net_worth_page_from(
+                connection, as_of=as_of, prior_as_of=prior_as_of, today=date.today(),
+            )
+            return _net_worth_page_out(page)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
                 raise HTTPException(409, str(exc)) from exc

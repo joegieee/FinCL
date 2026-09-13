@@ -83,6 +83,7 @@ __all__ = [
     "ValuationPurpose",
     "ValuationScope",
     "ValuedMoneyDTO",
+    "combine_independently_dated",
     "consolidate",
     "eligible_month_ceiling",
     "quantize",
@@ -94,6 +95,7 @@ __all__ = [
     "to_dto",
     "value_many",
     "value_one",
+    "value_position_at_own_date",
 ]
 
 PERIOD_UNKNOWN = "PERIOD_UNKNOWN"
@@ -436,6 +438,31 @@ def value_one(
     )
 
 
+def value_position_at_own_date(
+    connection: sqlite3.Connection, *, reporting_currency: str, amount: str | None, currency: str, as_of: str | None,
+) -> ExactValuation | None:
+    """Value one native POSITION amount at its own as-of date (§3.3, §7 M4).
+
+    Every consumer that owns a dated native balance/mark -- a cash pocket, a
+    net-worth component, a debt principal -- shares this one valuation shape
+    rather than re-deriving the closed-month ``ValuationContext`` each time.
+    ``None`` means there is no native amount to value at all (missing balance
+    or position evidence) -- distinct from an :class:`ExactValuation` whose
+    ``unavailable`` field is set (a real native amount with no importable
+    rate: missing FX). Callers must keep those two explanations separate.
+    """
+    if amount is None or as_of is None:
+        return None
+    context = ValuationContext(
+        reporting_currency=reporting_currency, purpose=ValuationPurpose.POSITION,
+        valuation_as_of=date.fromisoformat(as_of), rate_selection_policy=POSITION_MONTHLY_CLOSED_V1,
+    )
+    item = ValuationItem(
+        native=ExactMoney.parse(amount), native_currency=currency, purpose=ValuationPurpose.POSITION,
+    )
+    return value_one(connection, item, context=context)
+
+
 def _unavailable(
     item: ValuationItem, context: ValuationContext, reason: str, message: str, remedy: str
 ) -> ExactValuation:
@@ -630,6 +657,85 @@ def consolidate(
         unavailable_reasons=tuple(sorted(reasons)),
         excluded_detail=tuple(sorted(excluded_detail, key=lambda d: _scope_key(d.scope))),
         rate_inputs=inventory.rate_inputs,
+        context=context,
+        values=tuple(values),
+    )
+
+
+def combine_independently_dated(
+    values: Sequence[ExactValuation], *, context: ValuationContext,
+) -> ConsolidatedValuation:
+    """Combine POSITION valuations that were each already priced at their
+    *own* as-of date (§3.3, §7 M4: "value each requested position at its own
+    explicit as-of date ... then combine exact reported results").
+
+    Every ``value`` must already be one component's own valuation -- produced
+    by :func:`value_position_at_own_date` (or an equivalent one-off, per-item
+    context) -- so this performs no re-derivation at a different date, only
+    exact grouping by ``(native currency, that value's own valuation_as_of)``
+    and summation of the already-computed ``Fraction``s. Use
+    :func:`consolidate` instead when every item legitimately shares one
+    common as-of date (e.g. Cash's own-cutoff aggregate): that function
+    revalues raw native amounts under one shared context, which would be
+    wrong here precisely because these components do *not* share one date.
+    ``context`` supplies only display/provenance fields (reporting currency,
+    a representative as-of); it is never used to reprice anything.
+    """
+    groups: dict[tuple[str, str], list[ExactValuation]] = defaultdict(list)
+    for value in values:
+        groups[(value.native_currency, value.context.valuation_as_of.isoformat())].append(value)
+
+    included: list[ValuationScope] = []
+    excluded: list[ValuationScope] = []
+    excluded_detail: list[ExcludedScopeDetail] = []
+    reasons: set[str] = set()
+    excluded_entry_count = 0
+    available_total = Fraction(0)
+    any_unavailable = False
+
+    for (currency, as_of), group in sorted(groups.items()):
+        scope = ValuationScope(currency=currency, period=as_of)
+        unavailable_values = [v for v in group if v.unavailable is not None]
+        available_values = [v for v in group if v.unavailable is None]
+        if unavailable_values:
+            any_unavailable = True
+            excluded.append(scope)
+            excluded_entry_count += len(unavailable_values)
+            scope_reasons = {v.unavailable.reason for v in unavailable_values if v.unavailable is not None}
+            scope_remedies = {v.unavailable.remedy for v in unavailable_values if v.unavailable is not None}
+            reasons.update(scope_reasons)
+            excluded_detail.append(
+                ExcludedScopeDetail(
+                    scope=scope, entry_count=len(unavailable_values),
+                    reasons=tuple(sorted(scope_reasons)), remedies=tuple(sorted(scope_remedies)),
+                )
+            )
+        if available_values:
+            included.append(scope)
+            for v in available_values:
+                assert v.reported_exact is not None
+                available_total += v.reported_exact
+
+    if any_unavailable and not included:
+        status = ConsolidationStatus.UNAVAILABLE
+        total, partial_total = None, None
+    elif any_unavailable:
+        status = ConsolidationStatus.PARTIAL
+        total, partial_total = None, available_total
+    else:
+        status = ConsolidationStatus.AVAILABLE
+        total, partial_total = available_total, None
+
+    return ConsolidatedValuation(
+        total=total,
+        status=status,
+        partial_total=partial_total,
+        included=tuple(sorted(included, key=_scope_key)),
+        excluded=tuple(sorted(excluded, key=_scope_key)),
+        excluded_entry_count=excluded_entry_count,
+        unavailable_reasons=tuple(sorted(reasons)),
+        excluded_detail=tuple(sorted(excluded_detail, key=lambda d: _scope_key(d.scope))),
+        rate_inputs=_rate_inventory(list(values)).rate_inputs,
         context=context,
         values=tuple(values),
     )

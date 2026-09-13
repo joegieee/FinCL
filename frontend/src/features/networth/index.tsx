@@ -4,76 +4,182 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { AsyncView } from '@/components/AsyncView'
-import { money } from '@/lib/api'
+import { ApiError, money } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
-import { loadNetWorth, type NetWorthComponent, type NetWorthPage } from './api'
+import { ConsolidatedMoney, Money } from '@/components/Money'
+import {
+  type NativeCurrencySummaryOut, type NetWorthComponentOut, type NetWorthPageOut,
+  type NetWorthTotalsOut, type ReportingPolicySummary,
+  loadReportedNetWorth, loadReportingPolicy, netWorthScopeKey,
+} from './reportedApi'
 
-const KIND_LABEL: Record<NetWorthComponent['kind'], string> = {
+const KIND_LABEL: Record<string, string> = {
   cash: 'Cash position',
   debt: 'Debt / receivable',
   card_liability: 'Card liability',
 }
 
+type Scope = { asOf: string; priorAsOf: string }
+type StaleBanner = 'none' | 'same-scope' | 'refresh-required'
+type LastGood = { key: string; policyCurrency: string; response: NetWorthPageOut }
+
 /**
- * Cash-flow framework Stage 5B — tracked net worth.
+ * Cash-flow framework Stage 5B — tracked net worth (M4 step 13, plan §3.3).
  *
- * Read-only. A per-currency subtotal built from the dated cash, debt,
- * receivable and card positions the ledger can already support — each figure
- * taken from exactly one upstream read, so an installment already inside a card
- * statement, or a manual debt linked to a tracked card, cannot be counted
- * twice. Components the ledger cannot value are listed as missing, never as
- * zero. Manual values keep their basis on a separate line. This is a tracked
- * subtotal, not a statement of total personal wealth, and is never labelled as
- * one.
+ * Read-only. Every native component (kind, side, currency, amount, as-of
+ * date, basis, inclusion, exclusion) is exactly as before — one authority
+ * per contributing figure, so an installment already inside a card statement
+ * or a manual debt linked to a tracked card still cannot be counted twice.
+ * This step adds a reported equivalent to each priceable component, each
+ * valued at its own explicit as-of date, then combined into one reporting
+ * -currency total shown *beside* the unchanged native per-currency subtotals.
+ * Components the ledger cannot value are listed as missing, never as zero;
+ * manual values keep their own basis and stay out of the tracked subtotal.
+ * This remains a tracked subtotal, not a statement of total personal wealth.
  */
 export function NetWorthView() {
-  const [page, setPage] = useState<NetWorthPage | null>(null)
-  const [error, setError] = useState('')
+  const [asOfInput, setAsOfInput] = useState('')
+  const [priorAsOfInput, setPriorAsOfInput] = useState('')
+  const [scope, setScope] = useState<Scope>({ asOf: '', priorAsOf: '' })
+  const [page, setPage] = useState<NetWorthPageOut | null>(null)
   const [loading, setLoading] = useState(true)
-  const [asOf, setAsOf] = useState('')
-  const [priorAsOf, setPriorAsOf] = useState('')
+  const [error, setError] = useState('')
+  const [staleBanner, setStaleBanner] = useState<StaleBanner>('none')
+  const [policy, setPolicy] = useState<ReportingPolicySummary | null>(null)
+  const lastGood = useRef<LastGood | null>(null)
   const seq = useRef(0)
 
-  const load = useCallback((params?: { as_of?: string; prior_as_of?: string }) => {
+  const refreshPolicy = useCallback(() => { loadReportingPolicy().then(setPolicy).catch(() => {}) }, [])
+  useEffect(() => { refreshPolicy() }, [refreshPolicy])
+
+  const load = useCallback(() => {
     const id = ++seq.current
+    const key = netWorthScopeKey(scope)
     setLoading(true); setError('')
-    loadNetWorth(params)
-      .then(p => { if (id === seq.current) setPage(p) })
-      .catch(e => { if (id === seq.current) setError((e as Error).message) })
+    loadReportedNetWorth({ asOf: scope.asOf || undefined, priorAsOf: scope.priorAsOf || undefined })
+      .then(response => {
+        if (id !== seq.current) return
+        lastGood.current = { key, policyCurrency: response.reporting_currency, response }
+        setPage(response); setStaleBanner('none')
+      })
+      .catch(async caught => {
+        if (id !== seq.current) return
+        if (caught instanceof ApiError && caught.status === 409) {
+          const saved = lastGood.current
+          if (saved && saved.key === key) {
+            try {
+              const current = await loadReportingPolicy()
+              if (id !== seq.current) return
+              setPolicy(current)
+              if (current.currency === saved.policyCurrency) {
+                setPage(saved.response); setStaleBanner('same-scope'); return
+              }
+            } catch { /* fall through to refresh-required below */ }
+          }
+          lastGood.current = null
+          setPage(null); setStaleBanner('refresh-required')
+          return
+        }
+        setError((caught as Error).message); setPage(null); setStaleBanner('none')
+      })
       .finally(() => { if (id === seq.current) setLoading(false) })
-  }, [])
+  }, [scope])
   useEffect(() => { load() }, [load])
 
-  return (
-    <AsyncView loading={loading} error={error} data={page} onRetry={() => load()} loadingLabel="Loading tracked net worth" errorTitle="We couldn’t load tracked net worth.">
-      {page => <NetWorthContent page={page} loading={loading} load={load} asOf={asOf} setAsOf={setAsOf} priorAsOf={priorAsOf} setPriorAsOf={setPriorAsOf} />}
-    </AsyncView>
-  )
-}
+  if (loading && !page && staleBanner === 'none' && !error) {
+    return <div className="skeleton-page" aria-label="Loading tracked net worth"><div /><div /><div /></div>
+  }
 
-function NetWorthContent({ page, loading, load, asOf, setAsOf, priorAsOf, setPriorAsOf }: {
-  page: NetWorthPage; loading: boolean; load: (params?: { as_of?: string; prior_as_of?: string }) => void
-  asOf: string; setAsOf: (v: string) => void; priorAsOf: string; setPriorAsOf: (v: string) => void
-}) {
-  const currencies = Object.keys(page.per_currency).sort()
+  const reportingCurrency = page?.reporting_currency ?? policy?.currency ?? 'SGD'
 
   return (
-    <div className="networth-view">
+    <div className="networth-view" aria-busy={loading}>
       <div className="scope-caption">
-        <span>
-          Tracked subtotal as of {page.as_of}
-          {' · '}{currencies.join(', ') || 'no currency'}
-          {' · '}not a statement of total personal wealth
-        </span>
-        <Button variant="ghost" size="sm" onClick={() => load({ as_of: asOf || undefined, prior_as_of: priorAsOf || undefined })} disabled={loading}>
+        <span>Reporting in {reportingCurrency}{page ? ` · tracked subtotal as of ${page.as_of}` : ''} · not a statement of total personal wealth</span>
+        <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
           <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
         </Button>
       </div>
 
+      {error && (
+        <div className="alert error" role="alert">
+          <div><strong>We couldn’t load tracked net worth.</strong><p>{error}</p></div>
+          <Button variant="outline" onClick={load}>Try again</Button>
+        </div>
+      )}
+
+      {staleBanner === 'refresh-required' && (
+        <div className="alert" role="alert">
+          <div>
+            <strong>Refresh required.</strong>
+            <p>The ledger has changed since the last refresh (new evidence, a rate import, or a reporting-policy change). Refresh before reading this subtotal.</p>
+          </div>
+          <Button variant="outline" onClick={load}>Refresh</Button>
+        </div>
+      )}
+      {staleBanner === 'same-scope' && page && (
+        <div className="alert" role="status">
+          <div>
+            <strong>Showing the last loaded values for this exact scope.</strong>
+            <p>New ledger inputs are available. Refresh to recompute.</p>
+          </div>
+          <Button variant="outline" onClick={load}>Refresh</Button>
+        </div>
+      )}
+
+      {page && (
+        <NetWorthContent
+          page={page} loading={loading}
+          asOfInput={asOfInput} setAsOfInput={setAsOfInput}
+          priorAsOfInput={priorAsOfInput} setPriorAsOfInput={setPriorAsOfInput}
+          onApply={() => setScope({ asOf: asOfInput, priorAsOf: priorAsOfInput })}
+        />
+      )}
+    </div>
+  )
+}
+
+function NetWorthContent({
+  page, loading, asOfInput, setAsOfInput, priorAsOfInput, setPriorAsOfInput, onApply,
+}: {
+  page: NetWorthPageOut
+  loading: boolean
+  asOfInput: string; setAsOfInput: (v: string) => void
+  priorAsOfInput: string; setPriorAsOfInput: (v: string) => void
+  onApply: () => void
+}) {
+  const currency = page.reporting_currency
+  const currencies = Object.keys(page.per_currency).sort()
+  const totals = page.totals
+
+  return (
+    <>
       <div className="alert" role="status">
         <div><strong>This is a tracked subtotal, not your net worth.</strong><p>{page.disclaimer}</p></div>
       </div>
+
+      <Card className="obl-card">
+        <div className="panel-title">
+          <div>
+            <p className="eyebrow">{currency} · REPORTED TRACKED SUBTOTAL</p>
+            <h2><ConsolidatedMoney total={totals.net_worth.total} partialTotal={totals.net_worth.partial_total} currency={currency} unavailableReasons={totals.net_worth.unavailable_reasons} excludedDetail={totals.net_worth.excluded_detail} /> tracked net worth</h2>
+          </div>
+        </div>
+        <dl className="baseline-metrics">
+          <div><dt>Assets</dt><dd><ConsolidatedMoney total={totals.assets.total} partialTotal={totals.assets.partial_total} currency={currency} unavailableReasons={totals.assets.unavailable_reasons} excludedDetail={totals.assets.excluded_detail} /></dd></div>
+          <div><dt>Liabilities</dt><dd><ConsolidatedMoney total={totals.liabilities.total} partialTotal={totals.liabilities.partial_total} currency={currency} unavailableReasons={totals.liabilities.unavailable_reasons} excludedDetail={totals.liabilities.excluded_detail} /></dd></div>
+          <div><dt>Tracked net worth</dt><dd><ConsolidatedMoney total={totals.net_worth.total} partialTotal={totals.net_worth.partial_total} currency={currency} unavailableReasons={totals.net_worth.unavailable_reasons} excludedDetail={totals.net_worth.excluded_detail} /></dd></div>
+        </dl>
+        <p className="muted-note">Each component valued at its own as-of date, then combined once into {currency} — never a native amount summed across currencies before valuation.</p>
+
+        <div className="panel-title"><div><p className="eyebrow">MANUAL VALUES · SEPARATE BASIS</p></div></div>
+        <dl className="baseline-metrics">
+          <div><dt>Manual assets</dt><dd><ConsolidatedMoney total={totals.manual_assets.total} partialTotal={totals.manual_assets.partial_total} currency={currency} unavailableReasons={totals.manual_assets.unavailable_reasons} excludedDetail={totals.manual_assets.excluded_detail} /></dd></div>
+          <div><dt>Manual liabilities</dt><dd><ConsolidatedMoney total={totals.manual_liabilities.total} partialTotal={totals.manual_liabilities.partial_total} currency={currency} unavailableReasons={totals.manual_liabilities.unavailable_reasons} excludedDetail={totals.manual_liabilities.excluded_detail} /></dd></div>
+          <div><dt>Net worth incl. manual</dt><dd><ConsolidatedMoney total={totals.net_worth_including_manual.total} partialTotal={totals.net_worth_including_manual.partial_total} currency={currency} unavailableReasons={totals.net_worth_including_manual.unavailable_reasons} excludedDetail={totals.net_worth_including_manual.excluded_detail} /></dd></div>
+        </dl>
+        <p className="muted-note">Manual values keep their own basis and are reported here separately; they are not part of the evidence-only tracked subtotal.</p>
+      </Card>
 
       <Card className="obl-card">
         <div className="panel-title">
@@ -83,9 +189,9 @@ function NetWorthContent({ page, loading, load, asOf, setAsOf, priorAsOf, setPri
           </div>
         </div>
         <div className="date-controls">
-          <label>As of<Input type="date" aria-label="As of date" value={asOf} onChange={e => setAsOf(e.target.value)} /></label>
-          <label>Compare with<Input type="date" aria-label="Prior observation date" value={priorAsOf} onChange={e => setPriorAsOf(e.target.value)} /></label>
-          <Button variant="outline" onClick={() => load({ as_of: asOf || undefined, prior_as_of: priorAsOf || undefined })} disabled={loading}>Apply</Button>
+          <label>As of<Input type="date" aria-label="As of date" value={asOfInput} onChange={e => setAsOfInput(e.target.value)} /></label>
+          <label>Compare with<Input type="date" aria-label="Prior observation date" value={priorAsOfInput} onChange={e => setPriorAsOfInput(e.target.value)} /></label>
+          <Button variant="outline" onClick={onApply} disabled={loading}>Apply</Button>
         </div>
         {page.trend ? (
           <>
@@ -96,16 +202,18 @@ function NetWorthContent({ page, loading, load, asOf, setAsOf, priorAsOf, setPri
                 : page.trend.comparability}
             </p>
             <dl className="baseline-metrics">
-              {Object.entries(page.trend.change_by_currency).map(([currency, c]) => (
-                <div key={currency}>
-                  <dt>{currency} · tracked net worth change</dt>
-                  <dd>
-                    {money(c.prior_tracked_net_worth, currency)} → {money(c.current_tracked_net_worth, currency)}
-                    {' '}(Δ {money(c.delta, currency)})
-                    {!c.both_complete && <small className="form-error">one or both observations were incomplete</small>}
-                  </dd>
-                </div>
-              ))}
+              <div>
+                <dt>{currency} · reported tracked net worth change</dt>
+                <dd>
+                  <ConsolidatedMoney total={page.trend.prior_net_worth.total} partialTotal={page.trend.prior_net_worth.partial_total} currency={currency} unavailableReasons={page.trend.prior_net_worth.unavailable_reasons} excludedDetail={page.trend.prior_net_worth.excluded_detail} />
+                  {' → '}
+                  <ConsolidatedMoney total={page.trend.current_net_worth.total} partialTotal={page.trend.current_net_worth.partial_total} currency={currency} unavailableReasons={page.trend.current_net_worth.unavailable_reasons} excludedDetail={page.trend.current_net_worth.excluded_detail} />
+                  {page.trend.delta
+                    ? <> {' '}(Δ {money(page.trend.delta.value, page.trend.delta.currency)})</>
+                    : <small className="form-error"> delta unavailable — one or both sides could not be valued</small>}
+                  {!page.trend.both_complete && <small className="form-error">one or both observations were incomplete</small>}
+                </dd>
+              </div>
             </dl>
             {page.trend.scope_changes.length > 0 && (
               <ul className="issue-list">
@@ -120,63 +228,9 @@ function NetWorthContent({ page, loading, load, asOf, setAsOf, priorAsOf, setPri
         )}
       </Card>
 
-      {currencies.map(currency => {
-        const s = page.per_currency[currency]
-        return (
-          <Card className="obl-card" key={currency}>
-            <div className="panel-title">
-              <div>
-                <p className="eyebrow">{currency} · EVIDENCE-ONLY TRACKED SUBTOTAL</p>
-                <h2>{money(s.tracked_net_worth, currency)} tracked net worth</h2>
-              </div>
-              <Badge variant="outline" className={s.complete ? '' : 'review-badge'}>
-                {s.complete ? 'All components valued' : 'Known subtotal — components missing'}
-              </Badge>
-            </div>
-            <dl className="baseline-metrics">
-              <div><dt>Assets</dt><dd>{money(s.tracked_assets, currency)}</dd></div>
-              <div><dt>Liabilities</dt><dd>{money(s.tracked_liabilities, currency)}</dd></div>
-              <div><dt>Tracked net worth</dt><dd>{money(s.tracked_net_worth, currency)}</dd></div>
-            </dl>
-            <p className="muted-note">{s.subtotal_note}</p>
-
-            <div className="panel-title"><div><p className="eyebrow">MANUAL VALUES · SEPARATE BASIS</p></div></div>
-            <dl className="baseline-metrics">
-              <div><dt>Manual assets</dt><dd>{money(s.manual_assets, currency)}</dd></div>
-              <div><dt>Manual liabilities</dt><dd>{money(s.manual_liabilities, currency)}</dd></div>
-              <div><dt>Net worth incl. manual</dt><dd>{money(s.net_worth_including_manual, currency)}</dd></div>
-            </dl>
-            <p className="muted-note">{s.manual_basis_note}</p>
-
-            {s.missing_components.length > 0 && (
-              <>
-                <div className="panel-title"><div><p className="eyebrow">MISSING COMPONENTS</p></div></div>
-                <ul className="issue-list">
-                  {s.missing_components.map(m => (
-                    <li key={m.component_id}>
-                      <strong>{m.component_id}</strong> ({m.side}) — {m.reason ?? 'no valuation available'}
-                    </li>
-                  ))}
-                </ul>
-                <p className="muted-note">An unvalued or unsupported component is a named missing position here, never a zero.</p>
-              </>
-            )}
-
-            {s.excluded_components.length > 0 && (
-              <>
-                <div className="panel-title"><div><p className="eyebrow">EXPLICITLY EXCLUDED</p></div></div>
-                <ul className="issue-list">
-                  {s.excluded_components.map(x => (
-                    <li key={x.component_id}>
-                      <strong>{x.component_id}</strong> · {money(x.amount, currency)} — {x.reason ?? 'excluded'}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </Card>
-        )
-      })}
+      {currencies.map(currency => (
+        <NativeCurrencyCard key={currency} currency={currency} summary={page.per_currency[currency]} />
+      ))}
 
       <Card className="obl-card">
         <div className="panel-title"><div><p className="eyebrow">WHERE EACH FIGURE COMES FROM</p><h2>Components</h2></div></div>
@@ -185,34 +239,15 @@ function NetWorthContent({ page, loading, load, asOf, setAsOf, priorAsOf, setPri
             <tr>
               <th>Component</th>
               <th>Side</th>
-              <th>Amount</th>
+              <th>Native amount</th>
+              <th>Reported ({currency})</th>
               <th>Basis</th>
               <th>As of</th>
               <th>Origin</th>
             </tr>
           </thead>
           <tbody>
-            {page.components.map(c => (
-              <tr key={c.component_id} className={c.included ? '' : 'obl-group-likely'}>
-                <td>
-                  <strong>{c.label}</strong>
-                  <small>{KIND_LABEL[c.kind]} · {c.currency}</small>
-                  {c.confidence && <small>confidence: {c.confidence}</small>}
-                </td>
-                <td>{c.side}</td>
-                <td>
-                  {c.amount === null
-                    ? <span className="obl-gap">Missing</span>
-                    : money(c.amount, c.currency)}
-                  {!c.included && <small>{c.note ?? 'not counted'}</small>}
-                </td>
-                <td>
-                  <Badge variant="outline" className={c.basis === 'manual' ? 'review-badge' : ''}>{c.basis}</Badge>
-                </td>
-                <td>{c.as_of ? dateLabel(c.as_of) : '—'}</td>
-                <td><small>{c.origin}</small></td>
-              </tr>
-            ))}
+            {page.components.map(c => <ComponentRow key={c.component_id} component={c} />)}
           </tbody>
         </table>
       </Card>
@@ -234,6 +269,80 @@ function NetWorthContent({ page, loading, load, asOf, setAsOf, priorAsOf, setPri
           </div>
         </Card>
       )}
-    </div>
+    </>
+  )
+}
+
+function NativeCurrencyCard({ currency, summary }: { currency: string; summary: NativeCurrencySummaryOut }) {
+  return (
+    <Card className="obl-card">
+      <div className="panel-title">
+        <div>
+          <p className="eyebrow">{currency} · NATIVE EVIDENCE-ONLY SUBTOTAL</p>
+          <h2>{money(summary.tracked_net_worth, currency)} tracked net worth</h2>
+        </div>
+        <Badge variant="outline" className={summary.complete ? '' : 'review-badge'}>
+          {summary.complete ? 'All components valued' : 'Known subtotal — components missing'}
+        </Badge>
+      </div>
+      <dl className="baseline-metrics">
+        <div><dt>Assets</dt><dd>{money(summary.tracked_assets, currency)}</dd></div>
+        <div><dt>Liabilities</dt><dd>{money(summary.tracked_liabilities, currency)}</dd></div>
+        <div><dt>Tracked net worth</dt><dd>{money(summary.tracked_net_worth, currency)}</dd></div>
+      </dl>
+      <p className="muted-note">{summary.subtotal_note}</p>
+
+      {summary.missing_components.length > 0 && (
+        <>
+          <div className="panel-title"><div><p className="eyebrow">MISSING COMPONENTS</p></div></div>
+          <ul className="issue-list">
+            {summary.missing_components.map(m => (
+              <li key={m.component_id}>
+                <strong>{m.component_id}</strong> ({m.side}) — {m.reason ?? 'no valuation available'}
+              </li>
+            ))}
+          </ul>
+          <p className="muted-note">An unvalued or unsupported component is a named missing position here, never a zero.</p>
+        </>
+      )}
+
+      {summary.excluded_components.length > 0 && (
+        <>
+          <div className="panel-title"><div><p className="eyebrow">EXPLICITLY EXCLUDED</p></div></div>
+          <ul className="issue-list">
+            {summary.excluded_components.map(x => (
+              <li key={x.component_id}>
+                <strong>{x.component_id}</strong> · {money(x.amount, currency)} — {x.reason ?? 'excluded'}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
+  )
+}
+
+function ComponentRow({ component }: { component: NetWorthComponentOut }) {
+  return (
+    <tr className={component.included ? '' : 'obl-group-likely'}>
+      <td>
+        <strong>{component.label}</strong>
+        <small>{KIND_LABEL[component.kind] ?? component.kind} · {component.currency}</small>
+        {component.confidence && <small>confidence: {component.confidence}</small>}
+      </td>
+      <td>{component.side}</td>
+      <td>
+        {component.amount === null
+          ? <span className="obl-gap">Missing</span>
+          : money(component.amount, component.currency)}
+        {!component.included && <small>{component.note ?? 'not counted'}</small>}
+      </td>
+      <td>{component.reported ? <Money value={component.reported} /> : <small className="muted-note">No evidence</small>}</td>
+      <td>
+        <Badge variant="outline" className={component.basis === 'manual' ? 'review-badge' : ''}>{component.basis}</Badge>
+      </td>
+      <td>{component.as_of ? dateLabel(component.as_of) : '—'}</td>
+      <td><small>{component.origin}</small></td>
+    </tr>
   )
 }
