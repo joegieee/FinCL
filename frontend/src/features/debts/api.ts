@@ -87,6 +87,7 @@ export type AllocationCandidate = {
   currency: string
   amount: string
   open_amount: string
+  description: string | null
 }
 
 export type AllocationCandidatesPage = {

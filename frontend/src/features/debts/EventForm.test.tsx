@@ -20,7 +20,7 @@ const candidates = {
   required_direction: 'OUT', currency: 'SGD', next_cursor: null,
   candidates: [
     { entry_anchor: 'anchor-120', effective_at: '2026-03-05T10:00:00', economic_direction: 'OUT',
-      currency: 'SGD', amount: '120.00', open_amount: '120.00' },
+      currency: 'SGD', amount: '120.00', open_amount: '120.00', description: 'Flat rent March' },
   ],
 }
 
@@ -82,8 +82,9 @@ describe('EventForm', () => {
     fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '80.00' } })
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: "Jo's share of the flat" } })
 
-    await screen.findByText(/120.00/)  // candidate loaded
-    fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'anchor-120' } })
+    await screen.findByLabelText('Allocation 1 source')  // candidate list loaded
+    fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'rent' } })
+    fireEvent.click(await screen.findByText('Flat rent March'))
 
     // principal field still 0.00 -> unbalanced -> blocked
     fireEvent.click(screen.getByText('Preview and save'))

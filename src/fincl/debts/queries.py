@@ -305,10 +305,13 @@ def allocation_candidates(
         rows = connection.execute(
             f"""
             SELECT e.natural_anchor, e.effective_at, e.economic_direction,
-                   e.amount_coefficient, e.amount_scale, e.currency_pocket
+                   e.amount_coefficient, e.amount_scale, e.currency_pocket,
+                   COALESCE(r.description_raw, d.description_raw) AS description_raw
             FROM ledger_entries e
             JOIN extraction_runs x
               ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+            LEFT JOIN raw_records r ON r.id = e.raw_record_id
+            LEFT JOIN document_records d ON d.id = e.document_record_id
             WHERE e.currency_pocket = ? AND e.economic_direction = ?{cursor_clause}
             ORDER BY e.natural_anchor
             LIMIT ?
@@ -335,6 +338,7 @@ def allocation_candidates(
                     "currency": str(row["currency_pocket"]),
                     "amount": _decimal(magnitude, scale),
                     "open_amount": _decimal(remaining, scale),
+                    "description": row["description_raw"],
                 }
             )
         return {
