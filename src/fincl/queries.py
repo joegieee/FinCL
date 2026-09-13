@@ -108,7 +108,7 @@ _SORTS: dict[str, dict[str, str]] = {
 _ROW_KEYS = ('id','anchor','date','precision','amount','fee','currency','account','merchant',
              'description','category','basis','source_location','bucket','eligible','review',
              'source_family','lifecycle_state','cost_behavior','cost_behavior_basis','need','need_basis','role_review_state',
-             'suggested_classification')
+             'suggested_classification','linked','classification')
 
 
 def money(value: Decimal) -> str:

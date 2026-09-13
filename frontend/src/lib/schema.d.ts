@@ -2366,6 +2366,10 @@ export interface components {
             role_review_state: string;
             /** Suggested Classification */
             suggested_classification: string;
+            /** Linked */
+            linked: boolean;
+            /** Classification */
+            classification: string | null;
         };
         /** EventDateChangeDraft */
         EventDateChangeDraft: {

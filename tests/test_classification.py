@@ -429,6 +429,11 @@ class InternalBucketTests(ClassificationTestBase):
         refresh_ledger(self.database)
         entries = self._entries()
         self.assertEqual(entries[a]["bucket"], "internal")
+        # The frontend's shared editor (Step 2) has no server-side bucket-detail
+        # call before rendering; it distinguishes this case from an unlinked
+        # self_transfer row using exactly this `linked` flag on the Entry API
+        # response (see frontend/src/features/classification/api.ts detailBucket).
+        self.assertTrue(entries[a]["linked"])
 
         result = self._evaluate(ClassificationDraft(
             anchors=(a,), category=FieldEdit("set", "Food & Dining / Groceries"),
@@ -448,6 +453,10 @@ class InternalBucketTests(ClassificationTestBase):
         refresh_ledger(self.database)
         entries = self._entries()
         self.assertEqual(entries[anchor]["bucket"], "internal")
+        # Same distinction as above, the other way: unlinked, so the frontend
+        # editor still offers incoming type.
+        self.assertFalse(entries[anchor]["linked"])
+        self.assertEqual(entries[anchor]["classification"], "self_transfer")
 
         result = self._evaluate(ClassificationDraft(
             anchors=(anchor,), incoming_type=FieldEdit("set", "other"),

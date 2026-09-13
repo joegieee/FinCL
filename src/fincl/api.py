@@ -261,6 +261,8 @@ class Entry(StrictModel):
     need_basis: str
     role_review_state: str
     suggested_classification: str
+    linked: bool
+    classification: str | None
 
 
 class Total(StrictModel):
