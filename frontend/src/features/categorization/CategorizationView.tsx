@@ -10,6 +10,8 @@ import { ImpactDetails } from '@/features/rules'
 import { rememberCategory as rememberSharedCategory } from '@/features/classification/CategoryPicker'
 import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
 import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
+import { PresetPicker } from '@/features/classification/PresetPicker'
+import type { PresetFields } from '@/features/classification/presets'
 import { previewClassification, type ClassificationDraftBody, type ClassificationPreview } from '@/features/classification/api'
 
 type Summary = {
@@ -228,6 +230,18 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const command = useLedgerCommand(generation, onSaved) // "rule" scope only
   const batch = useBatchCommand(generation, onSaved) // "one"/"selected" scopes only
   const categoryFieldId = useRef(`category-${detail.candidate.candidate_id}`).current
+  const allFieldsApplicable = { category: true, cost_behavior: true, need: true, incoming_type: true }
+  const currentPresetFields: PresetFields = {
+    ...(!clearCategory && category ? { category } : {}), ...(!clearRoles && costBehavior ? { cost_behavior: costBehavior } : {}),
+    ...(!clearRoles && need ? { need } : {}), ...(incomingType ? { incoming_type: incomingType } : {}),
+  }
+  function applyPreset(fields: PresetFields) {
+    if (fields.category !== undefined) { setClearCategory(false); setCategory(fields.category) }
+    if (fields.cost_behavior !== undefined) { setClearRoles(false); setCostBehavior(fields.cost_behavior) }
+    if (fields.need !== undefined) { setClearRoles(false); setNeed(fields.need) }
+    if (fields.incoming_type !== undefined) setIncomingType(fields.incoming_type)
+    resetChecks()
+  }
   useEffect(() => {
     api<{ options: RuleOption[] }>('categorization/derive-rule', { generation, anchors: detail.records.map(r => r.anchor) })
       .then(result => { setOptions(result.options); if (!result.options.length) setScope('one') })
@@ -360,6 +374,8 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       </label>}
     </div>
     {scope === 'rule' && <label>Reason<input value={reason} onChange={e => { setReason(e.target.value); resetChecks() }} /></label>}
+    {(scope === 'one' || scope === 'selected') && <PresetPicker applicable={allFieldsApplicable} categories={localCategories}
+      current={currentPresetFields} onApply={applyPreset} disabled={disabled || command.attempted || batching || batch.busy}/>}
     {(scope === 'one' || scope === 'selected') && <ClassificationFieldsFieldset
       hideCategory
       categoryId={categoryFieldId} categories={localCategories} disabled={disabled} busy={batch.busy}

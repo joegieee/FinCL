@@ -9,6 +9,8 @@ import { useBatchCommand } from '@/lib/command'
 import { StatementDetailPanel } from '@/features/transactions'
 import type { TransactionRowOut } from '@/features/transactions/reportedApi'
 import { CategoryPicker, rememberCategory } from './CategoryPicker'
+import { PresetPicker } from './PresetPicker'
+import type { PresetFields } from './presets'
 import {
   COST_BEHAVIORS, NEEDS, INCOMING_TYPES, INCOMING_LABELS, applicability, detailBucket, label,
   previewClassification, type ClassificationDraftBody, type ClassificationPreview, type FieldName,
@@ -67,6 +69,24 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
   const dirty = hasEdit || reason !== ''
 
   function invalidatePreview() { setPreview(null); setPreviewError(''); batch.invalidate() }
+
+  // "Current" for save-as-preset means fields the user has actively chosen —
+  // i.e. already-changed relative to this entry's existing value — not
+  // merely what the select happens to show, which starts pre-filled with the
+  // entry's current value rather than a "keep existing" sentinel.
+  const currentPresetFields: PresetFields = {
+    ...(categoryChanged ? { category } : {}),
+    ...(costBehaviorChanged ? { cost_behavior: costBehavior } : {}),
+    ...(needChanged ? { need } : {}),
+    ...(incomingChanged ? { incoming_type: incomingType } : {}),
+  }
+  function applyPreset(fields: PresetFields) {
+    if (fields.category !== undefined) { setClearCategory(false); setCategory(fields.category) }
+    if (fields.cost_behavior !== undefined) { setClearRoles(false); setCostBehavior(fields.cost_behavior) }
+    if (fields.need !== undefined) { setClearRoles(false); setNeed(fields.need) }
+    if (fields.incoming_type !== undefined) setIncomingType(fields.incoming_type)
+    invalidatePreview()
+  }
 
   function close() {
     if (batch.busy) return
@@ -135,6 +155,8 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
                 : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
             </p>
           : <>
+            <PresetPicker applicable={applicable} categories={data.categories} current={currentPresetFields}
+              onApply={applyPreset} disabled={disabled || batch.busy}/>
             {applicable.category && <>
               <CategoryPicker id={`category-${e.anchor}`} categories={data.categories} value={clearCategory ? '' : category}
                 onChange={c => { setClearCategory(false); setCategory(c) }} disabled={disabled || batch.busy || clearCategory}/>

@@ -281,6 +281,14 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .bulk-policy{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:11px;display:flex;flex-direction:column;gap:4px}
 .bulk-policy legend{font-size:10px;color:var(--muted);padding:0 4px}
 .bulk-policy label{display:flex;align-items:baseline;gap:6px;margin-bottom:0}
+.preset-picker{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:10px 0;display:flex;flex-direction:column;gap:8px;background:var(--secondary)}
+.preset-picker-head{display:flex;align-items:center;gap:6px;font-size:12px}
+.preset-picker-head small{color:var(--muted);font-weight:400;margin-left:2px}
+.preset-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.preset-list li{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.preset-summary{color:var(--muted);font-size:10px;flex:1;min-width:120px}
+.preset-save-row{display:flex;gap:8px;align-items:center}
+.preset-save-row input{flex:1;min-width:160px}
 .transactions-table tr[tabindex]:focus-visible{outline:var(--focus-ring,2px solid var(--primary));outline-offset:-2px}
 /* M4 — narrow screens: stack each transaction row as a labelled card */
 @media(max-width:600px){

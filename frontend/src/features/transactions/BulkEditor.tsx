@@ -6,6 +6,8 @@ import { useBatchCommand } from '@/lib/command'
 import { rememberCategory } from '@/features/classification/CategoryPicker'
 import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
 import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
+import { PresetPicker } from '@/features/classification/PresetPicker'
+import type { PresetFields } from '@/features/classification/presets'
 import {
   applicability, detailBucket, label,
   previewClassification, type ClassificationDraftBody, type ClassificationPreview, type FieldName,
@@ -92,6 +94,19 @@ export function BulkEditor({
 
   function invalidatePreview() { setPreview(null); setPreviewError(''); batch.invalidate() }
 
+  const allFieldsApplicable = { category: true, cost_behavior: true, need: true, incoming_type: true }
+  const currentPresetFields: PresetFields = {
+    ...(category ? { category } : {}), ...(costBehavior ? { cost_behavior: costBehavior } : {}),
+    ...(need ? { need } : {}), ...(incomingType ? { incoming_type: incomingType } : {}),
+  }
+  function applyPreset(fields: PresetFields) {
+    if (fields.category !== undefined) { setClearCategory(false); setCategory(fields.category) }
+    if (fields.cost_behavior !== undefined) { setClearRoles(false); setCostBehavior(fields.cost_behavior) }
+    if (fields.need !== undefined) { setClearRoles(false); setNeed(fields.need) }
+    if (fields.incoming_type !== undefined) setIncomingType(fields.incoming_type)
+    invalidatePreview()
+  }
+
   function fieldValues(name: FieldName): string[] {
     return known
       .filter(r => applicability(detailBucket(r.entry))[name])
@@ -171,6 +186,8 @@ export function BulkEditor({
     {matchError && <p className="form-error" role="alert">{matchError}</p>}
 
     <form onSubmit={event => { event.preventDefault(); if (!preview) void reviewChanges(); else void saveChanges() }} onChange={invalidatePreview}>
+      <PresetPicker applicable={allFieldsApplicable} categories={categories} current={currentPresetFields}
+        onApply={applyPreset} disabled={disabled || batch.busy}/>
       <ClassificationFieldsFieldset
         categoryId="bulk-category" categories={categories} disabled={disabled} busy={batch.busy}
         category={category} onCategory={setCategory} clearCategory={clearCategory} onClearCategory={setClearCategory}
