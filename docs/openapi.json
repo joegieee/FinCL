@@ -1112,6 +1112,16 @@
               "default": "",
               "title": "End"
             }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "category",
+              "title": "Focus"
+            }
           }
         ],
         "responses": {
@@ -1257,6 +1267,16 @@
               "type": "string",
               "default": "",
               "title": "End"
+            }
+          },
+          {
+            "name": "focus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "category",
+              "title": "Focus"
             }
           }
         ],

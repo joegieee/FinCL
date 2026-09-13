@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Layers3, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { api, shortCategory } from '@/lib/api'
 import { useBatchCommand } from '@/lib/command'
-import { CategoryPicker, rememberCategory } from '@/features/classification/CategoryPicker'
+import { rememberCategory } from '@/features/classification/CategoryPicker'
 import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
+import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
 import {
-  COST_BEHAVIORS, NEEDS, INCOMING_TYPES, INCOMING_LABELS, applicability, detailBucket, label,
+  applicability, detailBucket, label,
   previewClassification, type ClassificationDraftBody, type ClassificationPreview, type FieldName,
 } from '@/features/classification/api'
 import type { TransactionRowOut } from './reportedApi'
@@ -171,58 +171,16 @@ export function BulkEditor({
     {matchError && <p className="form-error" role="alert">{matchError}</p>}
 
     <form onSubmit={event => { event.preventDefault(); if (!preview) void reviewChanges(); else void saveChanges() }} onChange={invalidatePreview}>
-      <div className="bulk-form">
-        <div className="bulk-field">
-          <CategoryPicker id="bulk-category" categories={categories} value={clearCategory ? '' : category}
-            onChange={c => { setClearCategory(false); setCategory(c) }} disabled={disabled || batch.busy || clearCategory}/>
-          <small className="field-context">Current: {fieldContext('category')}</small>
-          <label><input type="checkbox" checked={clearCategory} disabled={disabled || batch.busy}
-            onChange={event => { setClearCategory(event.target.checked); if (event.target.checked) setCategory('') }}/>
-            {' '}Remove manual category overrides <small>(only affects transactions that have one)</small>
-          </label>
-        </div>
-        <div className="bulk-field">
-          <label>Spending pattern
-            <select aria-label="Set spending pattern" value={clearRoles ? '' : costBehavior} disabled={disabled || batch.busy || clearRoles} onChange={e => setCostBehavior(e.target.value)}>
-              <option value="">Keep existing values</option>
-              {COST_BEHAVIORS.map(v => <option key={v} value={v}>{label('cost_behavior', v)}</option>)}
-            </select>
-          </label>
-          <small className="field-context">Current: {fieldContext('cost_behavior')}</small>
-        </div>
-        <div className="bulk-field">
-          <label>Spending need
-            <select aria-label="Set spending need" value={clearRoles ? '' : need} disabled={disabled || batch.busy || clearRoles} onChange={e => setNeed(e.target.value)}>
-              <option value="">Keep existing values</option>
-              {NEEDS.map(v => <option key={v} value={v}>{label('need', v)}</option>)}
-            </select>
-          </label>
-          <small className="field-context">Current: {fieldContext('need')}</small>
-          <label><input type="checkbox" checked={clearRoles} disabled={disabled || batch.busy}
-            onChange={event => { setClearRoles(event.target.checked); if (event.target.checked) { setCostBehavior(''); setNeed('') } }}/>
-            {' '}Remove manual spending classifications <small>(only affects transactions that have one; both pattern and need return to category defaults)</small>
-          </label>
-        </div>
-        <div className="bulk-field">
-          <label>Incoming type
-            <select aria-label="Set incoming type" value={incomingType} disabled={disabled || batch.busy} onChange={e => setIncomingType(e.target.value)}>
-              <option value="">Keep existing values</option>
-              {INCOMING_TYPES.map(v => <option key={v} value={v}>{INCOMING_LABELS[v]}</option>)}
-            </select>
-          </label>
-          <small className="field-context">Current: {fieldContext('incoming_type')}</small>
-        </div>
-        <fieldset className="bulk-policy">
-          <legend>When a chosen field already has a value</legend>
-          <label><input type="radio" name="bulk-policy" checked={policy === 'fill_missing'} disabled={disabled || batch.busy} onChange={() => setPolicy('fill_missing')}/> Fill missing fields only <small>(never overwrites an existing value)</small></label>
-          <label><input type="radio" name="bulk-policy" checked={policy === 'replace'} disabled={disabled || batch.busy} onChange={() => setPolicy('replace')}/> Replace selected fields <small>(overwrites existing values, including manual ones)</small></label>
-        </fieldset>
-        <label>Reason {!reasonRequired && <small>(optional)</small>}
-          <Input maxLength={2000} disabled={disabled || batch.busy} required={reasonRequired}
-            placeholder={reasonRequired ? 'Why is this the right classification?' : 'Optional note for your history'}
-            value={reason} onChange={e => setReason(e.target.value)}/>
-        </label>
-      </div>
+      <ClassificationFieldsFieldset
+        categoryId="bulk-category" categories={categories} disabled={disabled} busy={batch.busy}
+        category={category} onCategory={setCategory} clearCategory={clearCategory} onClearCategory={setClearCategory}
+        costBehavior={costBehavior} onCostBehavior={setCostBehavior} need={need} onNeed={setNeed}
+        clearRoles={clearRoles} onClearRoles={setClearRoles}
+        incomingType={incomingType} onIncomingType={setIncomingType}
+        policy={policy} onPolicy={setPolicy}
+        reason={reason} onReason={setReason} reasonRequired={reasonRequired}
+        fieldContext={fieldContext}
+      />
       {previewError && <p className="form-error" role="alert">{previewError}</p>}
       {batch.error && <p className="form-error" role="alert">{batch.error}</p>}
       {preview && <ClassificationPreviewSummary preview={preview}/>}

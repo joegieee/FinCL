@@ -4154,6 +4154,7 @@ export interface operations {
                 kind?: string;
                 start?: string;
                 end?: string;
+                focus?: string;
             };
             header?: never;
             path?: never;
@@ -4194,6 +4195,7 @@ export interface operations {
                 kind?: string;
                 start?: string;
                 end?: string;
+                focus?: string;
             };
             header?: never;
             path: {

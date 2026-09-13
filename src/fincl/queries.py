@@ -46,7 +46,8 @@ WITH base AS (
       WHERE o.entry_anchor=e.natural_anchor AND o.bound=1 AND rc.status='active') AS recurring_confirmed,
     EXISTS(SELECT 1 FROM transfer_links t WHERE t.status='CONFIRMED' AND (t.left_entry_id=e.id OR t.right_entry_id=e.id)) AS linked,
     (e.analytics_eligible=1 AND e.lifecycle_state='COMPLETED' AND x.selection_state='SELECTED'
-      AND (e.source_family='CSV' OR s.selection_state='SELECTED')) AS eligible
+      AND (e.source_family='CSV' OR s.selection_state='SELECTED')) AS eligible,
+    x.selection_state AS selection_state
   FROM ledger_entries e JOIN accounts a ON a.id=e.account_id
   JOIN extraction_runs x ON x.id=e.extraction_run_id
   LEFT JOIN statements s ON s.id=e.statement_id

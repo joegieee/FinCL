@@ -1,19 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronRight, RefreshCw, Tag } from 'lucide-react'
+import { ChevronRight, RefreshCw, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api, money } from '@/lib/api'
-import { useLedgerCommand } from '@/lib/command'
+import { useLedgerCommand, useBatchCommand } from '@/lib/command'
 import { compileRule, type CompiledRule } from '@/features/rules/api'
 import { ImpactDetails } from '@/features/rules'
+import { rememberCategory as rememberSharedCategory } from '@/features/classification/CategoryPicker'
+import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
+import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
+import { previewClassification, type ClassificationDraftBody, type ClassificationPreview } from '@/features/classification/api'
 
-type Summary = { counts: Record<string, number>; active_categorization_denominator: number; progress_numerator: number; needs_attention: number }
+type Summary = {
+  counts: Record<string, number>; active_categorization_denominator: number; progress_numerator: number
+  needs_attention: number; combined_completeness?: { numerator: number; denominator: number }
+}
 type Candidate = { candidate_id: string; kind: string; label: string; transaction_count: number; active_count: number; date_range: { first: string; last: string }; accounts: string[]; directions: Record<string, number>; examples: string[] }
 type CandidatesPage = { candidates: Candidate[]; next_cursor: string | null; total: number }
 type CandidateRecord = { anchor: string; description: string | null; account: string; currency: string; amount: string; date: string; direction: string; active: boolean; merchant_raw?: string | null; merchant_normalized?: string | null }
 type Detail = { candidate: Candidate; records: CandidateRecord[]; next_cursor?: string | null }
 type RuleOption = { label: string; match: Record<string, unknown> }
+
+// Quick-discovery focuses (PLAN-unified-transaction-classification.md Step 5).
+// "category" is the original inbox; the others group by an authoritative
+// *effective* dimension computed server-side across the full result set, not
+// just the currently loaded page (`fincl.categorization_queries._focus_groups`).
+const FOCUSES: { value: string; label: string }[] = [
+  { value: 'category', label: 'Missing category' },
+  { value: 'spending_details', label: 'Missing spending details' },
+  { value: 'incoming', label: 'Incoming money to classify' },
+  { value: 'conflicts', label: 'Conflicts' },
+]
 
 const RECENT_CATEGORIES_KEY = 'fincl.categorization.recentCategories'
 
@@ -41,7 +59,8 @@ export function CategorizationView({ generation, freshness, categories, accounts
   const [kind, setKind] = useState('')
   const [account, setAccount] = useState('')
   const [currency, setCurrency] = useState('')
-  const filters = new URLSearchParams({ direction, lifecycle, kind, account, currency, start, end })
+  const [focus, setFocus] = useState('category')
+  const filters = new URLSearchParams({ direction, lifecycle, kind, account, currency, start, end, focus })
   function candidateQuery(cursor = '') {
     const query = new URLSearchParams({ generation, ...Object.fromEntries(filters) })
     if (cursor) query.set('cursor', cursor)
@@ -55,8 +74,9 @@ export function CategorizationView({ generation, freshness, categories, accounts
         api<CandidatesPage>(`categorization/candidates?${candidateQuery()}`),
       ])
       setSummary(s); setPage(p)
-    } catch (e) { setError((e as Error).message) }
-  }, [generation, direction, lifecycle, kind, account, currency, start, end])
+      return p
+    } catch (e) { setError((e as Error).message); return null }
+  }, [generation, direction, lifecycle, kind, account, currency, start, end, focus])
   useEffect(() => { void load() }, [load])
   const queue = page?.candidates ?? []
   async function open(candidate: Candidate, index: number) {
@@ -77,28 +97,41 @@ export function CategorizationView({ generation, freshness, categories, accounts
     else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); setActiveIndex(i => Math.max(i - 1, 0)) }
     else if (e.key === 'Enter') { e.preventDefault(); const candidate = queue[activeIndex]; if (candidate) void open(candidate, activeIndex) }
   }
-  /** Save-and-next advances through the batch as it was loaded when review began, not a post-save reload's reordering. */
+  /** Save-and-next recomputes its target against the *freshly refreshed*
+   * queue, never the pre-save `queue` closure: a stale-indexing bug would
+   * otherwise silently skip or reopen the wrong group whenever a save
+   * removes the current candidate (the common case -- it is now resolved)
+   * and shifts every later one up by one position. Prefers reopening the
+   * candidate that was next before the save, found by id so a resort does
+   * not defeat it; falls back to whatever now sits at the old index (the
+   * usual case once the current group disappears); shows the existing empty
+   * state once the queue is exhausted. */
   async function afterSave(status: string) {
     await onSaved(status)
-    const nextIndex = selectedIndex !== null ? selectedIndex + 1 : null
-    await load()
-    if (nextIndex !== null && queue[nextIndex]) await open(queue[nextIndex], nextIndex)
+    const wasNextId = selectedIndex !== null ? (queue[selectedIndex + 1]?.candidate_id ?? null) : null
+    const oldIndex = selectedIndex
+    const freshPage = await load()
+    const freshQueue = freshPage?.candidates ?? []
+    let nextIndex = wasNextId ? freshQueue.findIndex(c => c.candidate_id === wasNextId) : -1
+    if (nextIndex === -1 && oldIndex !== null) nextIndex = oldIndex
+    if (nextIndex >= 0 && freshQueue[nextIndex]) await open(freshQueue[nextIndex], nextIndex)
     else { setSelected(null); setSelectedIndex(null) }
   }
   const disabled = freshness === 'stale'
   return <div className="categorization-view">
     {error && <div className="alert error" role="alert">{error}</div>}
-    <div className="scope-caption"><span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision. <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>Enter</kbd> to open.</span><span className="categorization-filters"><select aria-label="Filter categorization candidate kind" value={kind} onChange={e => setKind(e.target.value)}><option value="">All group types</option><option value="merchant">Merchant</option><option value="paynow_recipient">PayNow recipient</option><option value="description">Description</option><option value="missing_merchant">Missing merchant</option></select><select aria-label="Filter categorization direction" value={direction} onChange={e => setDirection(e.target.value)}><option value="">All directions</option><option value="OUT">Outgoing</option><option value="IN">Incoming</option></select><select aria-label="Filter categorization lifecycle" value={lifecycle} onChange={e => setLifecycle(e.target.value)}><option value="">All lifecycle states</option><option value="COMPLETED">Active only</option><option value="PENDING">Pending</option><option value="REVERTED">Reverted</option></select><select aria-label="Filter categorization account" value={account} onChange={e => setAccount(e.target.value)}><option value="">All accounts</option>{accounts.map(a => <option key={a}>{a}</option>)}</select><select aria-label="Filter categorization currency" value={currency} onChange={e => setCurrency(e.target.value)}><option value="">All currencies</option>{currencies.map(c => <option key={c}>{c}</option>)}</select><Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button></span></div>
+    <div className="scope-caption"><span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision. <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>Enter</kbd> to open.</span><span className="categorization-filters"><select aria-label="Filter categorization focus" value={focus} onChange={e => setFocus(e.target.value)}>{FOCUSES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select><select aria-label="Filter categorization candidate kind" value={kind} onChange={e => setKind(e.target.value)}><option value="">All group types</option><option value="merchant">Merchant</option><option value="paynow_recipient">PayNow recipient</option><option value="description">Description</option><option value="missing_merchant">Missing merchant</option></select><select aria-label="Filter categorization direction" value={direction} onChange={e => setDirection(e.target.value)}><option value="">All directions</option><option value="OUT">Outgoing</option><option value="IN">Incoming</option></select><select aria-label="Filter categorization lifecycle" value={lifecycle} onChange={e => setLifecycle(e.target.value)}><option value="">All lifecycle states</option><option value="COMPLETED">Active only</option><option value="PENDING">Pending</option><option value="REVERTED">Reverted</option></select><select aria-label="Filter categorization account" value={account} onChange={e => setAccount(e.target.value)}><option value="">All accounts</option>{accounts.map(a => <option key={a}>{a}</option>)}</select><select aria-label="Filter categorization currency" value={currency} onChange={e => setCurrency(e.target.value)}><option value="">All currencies</option>{currencies.map(c => <option key={c}>{c}</option>)}</select><Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button></span></div>
     {summary && <CoverageSummary summary={summary}/>}
     <Card className="candidate-list" onKeyDown={onListKeyDown}>
-      <div className="panel-title"><div><p className="eyebrow">CATEGORIZATION INBOX</p><h2>{page ? `${page.total} groups need review` : 'Loading groups…'}</h2></div></div>
-      {!page?.candidates.length && <p className="empty-line">Everything active is categorized, or no groups match the current ledger generation.</p>}
+      <div className="panel-title"><div><p className="eyebrow">CATEGORIZATION INBOX</p><h2>{page ? (focus === 'category' ? `${page.total} groups need review` : `${page.total} groups match ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2></div></div>
+      {!page?.candidates.length && <p className="empty-line">{focus === 'category' ? 'Everything active is categorized, or no groups match the current ledger generation.' : 'Nothing active matches this focus, or no groups match the current ledger generation.'}</p>}
       {page?.candidates.map((candidate, index) => <button className={`candidate-card${index === activeIndex ? ' is-active' : ''}`} key={candidate.candidate_id} tabIndex={index === activeIndex ? 0 : -1} onFocus={() => setActiveIndex(index)} onClick={() => void open(candidate, index)}>
         <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small></span><ChevronRight size={16}/>
       </button>)}
       {page?.next_cursor && <div className="dialog-actions"><Button variant="outline" onClick={() => void loadMoreCandidates()}>Load more groups</Button></div>}
     </Card>
     {selected && <CandidateReview
+      key={selected.candidate.candidate_id}
       detail={selected} generation={generation} categories={categories} disabled={disabled}
       hasNext={selectedIndex !== null && selectedIndex + 1 < queue.length}
       onClose={() => { setSelected(null); setSelectedIndex(null) }}
@@ -109,7 +142,9 @@ export function CategorizationView({ generation, freshness, categories, accounts
 
 function CoverageSummary({ summary }: { summary: Summary }) {
   const percent = summary.active_categorization_denominator ? Math.round(summary.progress_numerator / summary.active_categorization_denominator * 100) : 100
-  return <div className="coverage-summary"><Card><small>Rule-assigned</small><strong>{summary.counts.rule_assigned || 0}</strong></Card><Card><small>Manually assigned</small><strong>{summary.counts.manual_override || 0}</strong></Card><Card><small>Needs a category</small><strong>{summary.counts.unclassified_active || 0}</strong></Card><Card><small>Progress</small><strong>{percent}%</strong><small>{summary.progress_numerator} / {summary.active_categorization_denominator}</small></Card>{summary.needs_attention > 0 && <Card><small>Needs attention</small><strong>{summary.needs_attention}</strong></Card>}</div>
+  const combined = summary.combined_completeness
+  const combinedPercent = combined?.denominator ? Math.round(combined.numerator / combined.denominator * 100) : 100
+  return <div className="coverage-summary"><Card><small>Rule-assigned</small><strong>{summary.counts.rule_assigned || 0}</strong></Card><Card><small>Manually assigned</small><strong>{summary.counts.manual_override || 0}</strong></Card><Card><small>Needs a category</small><strong>{summary.counts.unclassified_active || 0}</strong></Card><Card><small>Category progress</small><strong>{percent}%</strong><small>{summary.progress_numerator} / {summary.active_categorization_denominator}</small></Card>{combined && <Card><small>Combined completeness</small><strong>{combinedPercent}%</strong><small>{combined.numerator} / {combined.denominator} — category, spending pattern/need, and incoming type where each applies</small></Card>}{summary.needs_attention > 0 && <Card><small>Needs attention</small><strong>{summary.needs_attention}</strong></Card>}</div>
 }
 
 function CategoryCombobox({ id, categories, value, onChange, onCreate, disabled }: {
@@ -173,11 +208,25 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const [error, setError] = useState('')
   const [batching, setBatching] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [batchChecked, setBatchChecked] = useState(false)
+  // Grocery-trio fields for the "one"/"selected" scopes (Step 5), shared with
+  // the single-transaction editor (Step 2) and bulk editor (Step 3) via
+  // `previewClassification`/`useBatchCommand` -- one draft/preview/save
+  // implementation, not a third copy of it. The "rule" scope below keeps its
+  // own existing category+alias flow untouched, per the plan's instruction
+  // to preserve existing rule/alias capabilities in this step.
+  const [costBehavior, setCostBehavior] = useState('')
+  const [need, setNeed] = useState('')
+  const [incomingType, setIncomingType] = useState('')
+  const [clearCategory, setClearCategory] = useState(false)
+  const [clearRoles, setClearRoles] = useState(false)
+  const [policy, setPolicy] = useState<'fill_missing' | 'replace'>('replace')
+  const [preview, setPreview] = useState<ClassificationPreview | null>(null)
+  const [previewing, setPreviewing] = useState(false)
   const variants = [...new Set(detail.records.map(row => row.merchant_normalized).filter((value): value is string => Boolean(value)))]
   const [aliasVariants, setAliasVariants] = useState<Set<string>>(() => new Set())
   const [aliasCanonical, setAliasCanonical] = useState(detail.candidate.label)
-  const command = useLedgerCommand(generation, onSaved)
+  const command = useLedgerCommand(generation, onSaved) // "rule" scope only
+  const batch = useBatchCommand(generation, onSaved) // "one"/"selected" scopes only
   const categoryFieldId = useRef(`category-${detail.candidate.candidate_id}`).current
   useEffect(() => {
     api<{ options: RuleOption[] }>('categorization/derive-rule', { generation, anchors: detail.records.map(r => r.anchor) })
@@ -189,7 +238,10 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     field?.focus()
   }, [categoryFieldId])
   useEffect(() => { if (command.previewed && category) rememberCategory(category) }, [command.previewed])
-  function resetChecks() { setCompiled(null); setBatchChecked(false); command.reset() }
+  // A definitive 409/422 clears the frozen batch body; re-preview before
+  // "Save changes"/"Save and next" can resubmit against a now-stale preview.
+  useEffect(() => { if (batch.error && !batch.submitted) setPreview(null) }, [batch.error, batch.submitted])
+  function resetChecks() { setCompiled(null); command.reset(); setPreview(null); batch.invalidate() }
   async function createCategory(name: string) {
     setError('')
     try {
@@ -219,17 +271,33 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     } catch (e) { setError((e as Error).message) }
   }
   function checkedRecords() { return records.filter(row => anchors.has(row.anchor)) }
-  async function applySelected() {
-    if (!batchChecked || !category || !anchors.size || batching) return
-    setBatching(true); setError('')
+  const hasAnyFieldEdit = Boolean(category || costBehavior || need || incomingType || clearCategory || clearRoles)
+  const groupReasonRequired = Boolean(costBehavior || need || incomingType || clearCategory || clearRoles)
+  /** The one shared draft/preview/save path for "one" and "selected", applied
+   * to exactly one anchor or to the checked set respectively -- the grocery
+   * trio (category + pattern + need) together, or incoming type where
+   * applicable, previewed and saved as one reviewed batch. */
+  async function reviewGroupChanges() {
+    const targetAnchors = scope === 'one' ? (onlyTarget ? [onlyTarget.anchor] : []) : [...anchors]
+    if (!targetAnchors.length || previewing || !hasAnyFieldEdit || (groupReasonRequired && !reason.trim())) return
+    setPreviewing(true); setError('')
     try {
-      const result = await api<{ status: string }>('batch', {
-        request_id: crypto.randomUUID(), expected_generation: generation, reason: reason.trim(),
-        items: [...anchors].map(entry => ({ kind: 'CATEGORY_OVERRIDE', anchors: { entry }, payload: { category, reason: reason.trim() } })),
-      })
-      rememberCategory(category)
-      await onSaved(result.status)
-    } catch (e) { setError((e as Error).message) } finally { setBatching(false) }
+      const draft: ClassificationDraftBody = {
+        generation, anchors: targetAnchors,
+        category: category ? { intent: 'set', value: category } : undefined,
+        cost_behavior: costBehavior ? { intent: 'set', value: costBehavior } : undefined,
+        need: need ? { intent: 'set', value: need } : undefined,
+        incoming_type: incomingType ? { intent: 'set', value: incomingType } : undefined,
+        clear_category: clearCategory, clear_roles: clearRoles,
+        policy: scope === 'one' ? 'replace' : policy, reason: reason.trim(),
+      }
+      setPreview(await previewClassification(draft))
+      if (category) rememberSharedCategory(category)
+    } catch (e) { setError((e as Error).message) } finally { setPreviewing(false) }
+  }
+  async function saveGroupChanges() {
+    if (!preview) return
+    await batch.submit(preview.commands, reason.trim())
   }
   async function loadMoreRecords() {
     if (!nextCursor || detailLoading) return
@@ -270,7 +338,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       {records.map(row => <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}</small></label>)}
     </div>
     {nextCursor && <Button variant="outline" size="sm" disabled={detailLoading} onClick={() => void loadMoreRecords()}>{detailLoading ? 'Loading records…' : 'Load more records'}</Button>}
-    <fieldset disabled={disabled || command.attempted || batching}><legend>Choose scope</legend>
+    <fieldset disabled={disabled || command.attempted || batching || batch.busy}><legend>Choose scope</legend>
       <label><input type="radio" checked={scope === 'one'} onChange={() => { setScope('one'); resetChecks() }}/> Only this transaction{onlyTarget ? ` — ${onlyTarget.date} · ${money(onlyTarget.amount, onlyTarget.currency)}${onlyTarget.description ? ` · ${onlyTarget.description}` : ''}` : ' (check exactly one below)'}</label>
       <label><input type="radio" checked={scope === 'selected'} onChange={() => { setScope('selected'); resetChecks() }}/> Selected transactions ({anchors.size} of {records.length} loaded)</label>
       <label><input type="radio" checked={scope === 'rule'} disabled={!options.length} onChange={() => { setScope('rule'); resetChecks() }}/> All matching transactions, now and later</label>
@@ -278,17 +346,48 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     {scope === 'one' && !onlyTarget && <p className="form-error">Check exactly one transaction above to act on it.</p>}
     {scope === 'rule' && options.length > 1 && <label>Match scope<select value={option} onChange={e => { setOption(Number(e.target.value)); resetChecks() }}>{options.map((item, index) => <option key={item.label} value={index}>{item.label}</option>)}</select></label>}
     {scope === 'rule' && variants.length > 0 && <fieldset className="alias-step"><legend>Normalize statement-name variants <small>(optional)</small></legend><label>Canonical merchant name<input value={aliasCanonical} onChange={e => setAliasCanonical(e.target.value)} /></label>{variants.map(variant => <label key={variant}><input type="checkbox" checked={aliasVariants.has(variant)} onChange={() => { setAliasVariants(current => { const next = new Set(current); next.has(variant) ? next.delete(variant) : next.add(variant); return next }); resetChecks() }}/>{variant}</label>)}</fieldset>}
-    <CategoryCombobox id={categoryFieldId} categories={localCategories} value={category} onChange={c => { setCategory(c); resetChecks() }} onCreate={createCategory} disabled={disabled || command.attempted || batching}/>
-    <label>Reason {(scope === 'one' || scope === 'selected') && <small>(optional)</small>}<input value={reason} onChange={e => { setReason(e.target.value); resetChecks() }} /></label>
-    {error && <p className="form-error">{error}</p>}{command.error && <p className="form-error">{command.error}</p>}
+    {/* One category field, always mounted at the same position regardless of
+        scope, so an in-flight derive-rule fetch flipping the default scope
+        from "rule" to "one" (empty options) can never remount it mid-input
+        and silently drop a value the user already typed. */}
+    <div className="bulk-field">
+      <CategoryCombobox id={categoryFieldId} categories={localCategories} value={clearCategory ? '' : category}
+        onChange={c => { setClearCategory(false); setCategory(c); resetChecks() }} onCreate={createCategory}
+        disabled={disabled || command.attempted || batching || batch.busy || clearCategory}/>
+      {(scope === 'one' || scope === 'selected') && <label><input type="checkbox" checked={clearCategory} disabled={disabled || batch.busy}
+        onChange={e => { setClearCategory(e.target.checked); if (e.target.checked) setCategory(''); resetChecks() }}/>
+        {' '}Remove manual category overrides <small>(only affects transactions that have one)</small>
+      </label>}
+    </div>
+    {scope === 'rule' && <label>Reason<input value={reason} onChange={e => { setReason(e.target.value); resetChecks() }} /></label>}
+    {(scope === 'one' || scope === 'selected') && <ClassificationFieldsFieldset
+      hideCategory
+      categoryId={categoryFieldId} categories={localCategories} disabled={disabled} busy={batch.busy}
+      category={category} onCategory={c => { setCategory(c); resetChecks() }}
+      clearCategory={clearCategory} onClearCategory={v => { setClearCategory(v); resetChecks() }}
+      costBehavior={costBehavior} onCostBehavior={v => { setCostBehavior(v); resetChecks() }}
+      need={need} onNeed={v => { setNeed(v); resetChecks() }}
+      clearRoles={clearRoles} onClearRoles={v => { setClearRoles(v); resetChecks() }}
+      incomingType={incomingType} onIncomingType={v => { setIncomingType(v); resetChecks() }}
+      policy={policy} onPolicy={v => { setPolicy(v); resetChecks() }} showPolicy={scope === 'selected'}
+      reason={reason} onReason={v => { setReason(v); resetChecks() }} reasonRequired={groupReasonRequired}
+    />}
+    {error && <p className="form-error">{error}</p>}{command.error && <p className="form-error">{command.error}</p>}{batch.error && <p className="form-error">{batch.error}</p>}
     {scope === 'rule' && compiled && command.previewed && !command.attempted && <ImpactDetails impact={combinedImpact ?? compiled.impact}/>}
-    {scope === 'selected' && batchChecked && <div className="preview" role="status"><Check size={16}/><div><strong>Ready to save</strong><p>{anchors.size} transaction{anchors.size === 1 ? '' : 's'} will be set to {category}.</p></div></div>}
+    {(scope === 'one' || scope === 'selected') && preview && <ClassificationPreviewSummary preview={preview}/>}
+    {batch.submitted && batch.error && <p className="muted-note">The outcome may be unknown. Retry sends the same request safely; do not create a second decision.</p>}
     <p className="keyboard-hint"><kbd>Esc</kbd> to close without saving.</p>
     <div className="dialog-actions">
-      {scope === 'one' ? <Button disabled={disabled || !category || !onlyTarget || command.busy} onClick={() => void command.act({ kind: 'CATEGORY_OVERRIDE', anchors: { entry: onlyTarget!.anchor }, payload: { category, reason } })}>{command.previewed ? (hasNext ? 'Save and next' : 'Save one transaction') : 'Preview one transaction'}</Button>
-      : scope === 'selected' ? (!batchChecked
-        ? <Button disabled={disabled || !category || !anchors.size} onClick={() => setBatchChecked(true)}>Check {anchors.size} transaction{anchors.size === 1 ? '' : 's'}</Button>
-        : <Button disabled={disabled || batching} onClick={() => void applySelected()}>{batching ? 'Saving selected transactions…' : hasNext ? 'Save and next' : `Save ${anchors.size} selected transactions`}</Button>)
+      {scope === 'one' ? <Button
+          disabled={disabled || previewing || batch.busy || !onlyTarget || (!preview && (!hasAnyFieldEdit || (groupReasonRequired && !reason.trim())))}
+          onClick={() => { if (preview) void saveGroupChanges(); else void reviewGroupChanges() }}>
+          {previewing ? 'Checking…' : batch.busy ? (batch.submitted && batch.error ? 'Retrying…' : 'Saving…') : preview ? (hasNext ? 'Save and next' : 'Save changes') : 'Review changes'}
+        </Button>
+      : scope === 'selected' ? <Button
+          disabled={disabled || previewing || batch.busy || !anchors.size || (!preview && (!hasAnyFieldEdit || (groupReasonRequired && !reason.trim())))}
+          onClick={() => { if (preview) void saveGroupChanges(); else void reviewGroupChanges() }}>
+          {previewing ? 'Checking…' : batch.busy ? (batch.submitted && batch.error ? 'Retrying…' : 'Saving…') : preview ? (hasNext ? 'Save and next' : `Save ${anchors.size} selected transactions`) : `Review ${anchors.size} selected transaction${anchors.size === 1 ? '' : 's'}`}
+        </Button>
       : aliasVariants.size ? <Button disabled={disabled || !command.previewed || !aliasCanonical.trim() || batching} onClick={() => void saveRuleWithAlias()}>{batching ? 'Saving alias and rule…' : 'Save alias and rule together'}</Button>
       : <Button disabled={disabled || !category || !reason.trim() || command.busy} onClick={() => { if (command.previewed) void command.act(compiled!.command); else void previewRule() }}>{command.previewed ? (hasNext ? 'Save and next' : 'Save rule') : 'Preview rule'}</Button>}
     </div>

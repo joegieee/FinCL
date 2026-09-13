@@ -1000,12 +1000,13 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     def categorization_candidates(generation: str, cursor: str | None = None,
                                   limit: int = Query(50, ge=1, le=100), account: str = '',
                                   currency: str = '', direction: str = '', lifecycle: str = '', kind: str = '',
-                                  start: str = '', end: str = '') -> Any:
+                                  start: str = '', end: str = '', focus: str = 'category') -> Any:
         from .categorization_queries import categorization_candidates as read_candidates
         try:
             return read_candidates(
                 database, generation=generation, cursor=cursor, limit=limit, account=account,
                 currency=currency, direction=direction, lifecycle=lifecycle, kind=kind, start=start, end=end,
+                focus=focus,
             )
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
@@ -1015,12 +1016,14 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.get('/api/v1/categorization/candidates/{candidate_id}')
     def categorization_candidate_detail(candidate_id: str, generation: str, cursor: str | None = None,
                                         limit: int = Query(50, ge=1, le=100), account: str = '', currency: str = '',
-                                        direction: str = '', lifecycle: str = '', kind: str = '', start: str = '', end: str = '') -> Any:
+                                        direction: str = '', lifecycle: str = '', kind: str = '', start: str = '', end: str = '',
+                                        focus: str = 'category') -> Any:
         from .categorization_queries import categorization_candidate_detail as read_detail
         try:
             return read_detail(
                 database, generation=generation, candidate_id=candidate_id, cursor=cursor, limit=limit,
                 account=account, currency=currency, direction=direction, lifecycle=lifecycle, kind=kind, start=start, end=end,
+                focus=focus,
             )
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
