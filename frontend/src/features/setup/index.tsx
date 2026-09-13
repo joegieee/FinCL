@@ -8,8 +8,8 @@ import { AsyncView } from '@/components/AsyncView'
 import { ApiError } from '@/lib/api'
 import {
   ADAPTERS, MAX_BYTES, MAX_FILES,
-  loadImportDetail, loadImports, loadSetup, submitImport,
-  type ImportDetail, type ImportRun, type SetupOptions, type UploadResult,
+  loadImportDetail, loadImports, loadSetup, submitFxRates, submitImport,
+  type FxRatesResult, type ImportDetail, type ImportRun, type SetupOptions, type UploadResult,
 } from './api'
 
 function when(value: string | null) {
@@ -69,6 +69,8 @@ function SetupContent({ setup, imports, loading, load, onImported, detail, setDe
       </Card>
 
       <ImportWizard onDone={() => { load(); onImported() }} />
+
+      <FxRatesWizard />
 
       <Card className="import-history">
         <div className="panel-title"><div><p className="eyebrow">IMPORT HISTORY</p><h2>Every import, with its evidence</h2></div>
@@ -209,6 +211,88 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
               </li>
             ))}
           </ul>
+          <Button variant="ghost" size="sm" onClick={() => setResult(null)}><X size={14} /> Dismiss</Button>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function FxRatesWizard() {
+  const [file, setFile] = useState<File | null>(null)
+  const [masWeeklyCsv, setMasWeeklyCsv] = useState(false)
+  const [sourceVersion, setSourceVersion] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<FxRatesResult | null>(null)
+  const [error, setError] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const needsVersion = masWeeklyCsv && !sourceVersion.trim()
+  const canSubmit = !!file && !needsVersion && !busy
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    if (!file || !canSubmit) return
+    setBusy(true); setError(''); setResult(null)
+    try {
+      const outcome = await submitFxRates(file, masWeeklyCsv, sourceVersion.trim())
+      setResult(outcome)
+      setFile(null)
+      if (inputRef.current) inputRef.current.value = ''
+    } catch (e) {
+      // Draft (file, format, source version) is intentionally preserved on failure.
+      setError(e instanceof ApiError ? e.message : (e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card className="import-wizard fx-rates-wizard">
+      <div className="panel-title"><div><p className="eyebrow">LOAD FX RATES</p><h2>Add reference exchange rates</h2></div></div>
+      <form onSubmit={submit}>
+        <label>File
+          <input
+            ref={inputRef}
+            type="file"
+            aria-label="FX rate document"
+            disabled={busy}
+            onChange={e => { setFile(e.target.files?.[0] ?? null); setResult(null); setError('') }}
+          />
+          <small>A JSON rate document, or a MAS weekly CSV with the option below.</small>
+        </label>
+        <label className="inline-check">
+          <input
+            type="checkbox"
+            checked={masWeeklyCsv}
+            disabled={busy}
+            onChange={e => { setMasWeeklyCsv(e.target.checked); setResult(null) }}
+          /> Parse as a MAS “Exchange Rates (Weekly)” CSV
+        </label>
+        {masWeeklyCsv && (
+          <label>Source version
+            <input
+              type="text"
+              placeholder="mas-weekly-2026-09"
+              disabled={busy}
+              value={sourceVersion}
+              onChange={e => { setSourceVersion(e.target.value); setResult(null) }}
+            />
+            <small>An immutable label for this rate set. Reimporting it later must supply the identical rates.</small>
+          </label>
+        )}
+        {error && (
+          <div className="alert error" role="alert">
+            <div><strong>The upload didn’t complete.</strong><p>{error}</p></div>
+          </div>
+        )}
+        <div className="dialog-actions">
+          <Button type="submit" disabled={!canSubmit}>{busy ? <>Uploading… <RefreshCw size={15} className="spin" /></> : <>Upload <Upload size={15} /></>}</Button>
+        </div>
+      </form>
+      {result && (
+        <div className="upload-result" role="status">
+          <p><Check size={15} /> {result.rates_written} rate{result.rates_written === 1 ? '' : 's'} loaded.</p>
           <Button variant="ghost" size="sm" onClick={() => setResult(null)}><X size={14} /> Dismiss</Button>
         </div>
       )}

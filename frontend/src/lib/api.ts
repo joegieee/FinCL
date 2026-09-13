@@ -45,6 +45,17 @@ export async function uploadFiles<T>(path:string, adapter:string, files:File[]):
   if (!response.ok) throw new ApiError(typeof value.detail==='string'?value.detail:'That upload could not be accepted.',response.status)
   return value as T
 }
+// The other multipart write: a single reference-data file plus scalar form
+// fields, distinct from the many-files statement upload above.
+export async function uploadFxRates<T>(file:File, fields:Record<string,string>):Promise<T> {
+  const form = new FormData()
+  form.append('file', file, file.name)
+  for (const [key, value] of Object.entries(fields)) form.append(key, value)
+  const response = await fetch('/api/v1/fx-rates',{method:'POST',headers:{'X-CSRF-Token':csrf},body:form})
+  const value = await response.json()
+  if (!response.ok) throw new ApiError(typeof value.detail==='string'?value.detail:'That upload could not be accepted.',response.status)
+  return value as T
+}
 let boot: Promise<{csrf:string;demo:boolean;label:string}> | undefined
 export function bootstrap() { return boot ??= doBootstrap() }
 async function doBootstrap() {

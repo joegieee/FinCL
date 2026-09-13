@@ -172,6 +172,44 @@
         }
       }
     },
+    "/api/v1/fx-rates": {
+      "post": {
+        "summary": "Fx Rates Create",
+        "operationId": "fx_rates_create_api_v1_fx_rates_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_fx_rates_create_api_v1_fx_rates_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Fx Rates Create Api V1 Fx Rates Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/accounts": {
       "get": {
         "summary": "Accounts Read",
@@ -2536,6 +2574,22 @@
                 }
               ],
               "title": "Event Kind"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
             }
           },
           {
@@ -5443,6 +5497,30 @@
           "payload"
         ],
         "title": "BatchItem"
+      },
+      "Body_fx_rates_create_api_v1_fx_rates_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "mas_weekly_csv": {
+            "type": "boolean",
+            "title": "Mas Weekly Csv",
+            "default": false
+          },
+          "source_version": {
+            "type": "string",
+            "title": "Source Version",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_fx_rates_create_api_v1_fx_rates_post"
       },
       "Body_imports_create_api_v1_imports_post": {
         "properties": {

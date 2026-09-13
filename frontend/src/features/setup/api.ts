@@ -1,4 +1,4 @@
-import { api, uploadFiles } from '@/lib/api'
+import { api, uploadFiles, uploadFxRates } from '@/lib/api'
 
 export type SetupOptions = {
   state: string
@@ -60,3 +60,7 @@ export const loadImports = () => api<ImportsPage>('imports')
 export const loadImportDetail = (id: string) => api<ImportDetail>(`imports/${encodeURIComponent(id)}`)
 export const submitImport = (adapter: string, files: File[]) =>
   uploadFiles<UploadResult>('imports', adapter, files)
+
+export type FxRatesResult = { status: string; rates_written: number }
+export const submitFxRates = (file: File, masWeeklyCsv: boolean, sourceVersion: string) =>
+  uploadFxRates<FxRatesResult>(file, { mas_weekly_csv: String(masWeeklyCsv), source_version: sourceVersion })

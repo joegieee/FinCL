@@ -691,7 +691,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             return JSONResponse({'detail':'Invalid origin'},status_code=403)
         content_type = request.headers.get('content-type','').split(';')[0]
         allowed_write_type = content_type == 'application/json' or (
-            request.url.path == '/api/v1/imports' and content_type == 'multipart/form-data'
+            request.url.path in ('/api/v1/imports','/api/v1/fx-rates') and content_type == 'multipart/form-data'
         )
         if request.method not in ('GET','HEAD') and (request.headers.get('origin') != origin or not allowed_write_type):
             return JSONResponse({'detail':'Same-origin JSON is required'},status_code=403)
@@ -772,6 +772,36 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 finally:
                     upload.file.close()
         return {'results':results,'accepted':sum(r.get('status') not in {'FAILED'} for r in results)}
+
+    @app.post('/api/v1/fx-rates')
+    def fx_rates_create(
+        file: UploadFile = File(...),
+        mas_weekly_csv: bool = Form(False),
+        source_version: str = Form(''),
+    ) -> Any:
+        from .db import connect_sqlite, initialize_schema
+        from .fx import load_fx_rates, parse_mas_weekly_csv
+        raw = file.file.read()
+        file.file.close()
+        if mas_weekly_csv:
+            if not source_version.strip():
+                raise FinCLError('--source-version is required with --mas-weekly-csv')
+            payload = parse_mas_weekly_csv(raw.decode('utf-8-sig'), source_version=source_version.strip())
+        else:
+            try:
+                payload = json.loads(raw)
+            except ValueError as exc:
+                raise FinCLError(f'cannot read fx rate document: {exc}') from exc
+            if not isinstance(payload, dict):
+                raise FinCLError('fx rate document must be a JSON object')
+        with ledger_writer(database):
+            connection = connect_sqlite(database)
+            try:
+                initialize_schema(connection)
+                written = load_fx_rates(connection, payload)
+            finally:
+                connection.close()
+        return {'status':'LOADED','rates_written':written}
 
     @app.get('/api/v1/accounts')
     def accounts_read() -> Any:

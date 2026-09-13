@@ -90,6 +90,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/fx-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fx Rates Create */
+        post: operations["fx_rates_create_api_v1_fx_rates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/accounts": {
         parameters: {
             query?: never;
@@ -1788,6 +1805,21 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** Body_fx_rates_create_api_v1_fx_rates_post */
+        Body_fx_rates_create_api_v1_fx_rates_post: {
+            /** File */
+            file: string;
+            /**
+             * Mas Weekly Csv
+             * @default false
+             */
+            mas_weekly_csv: boolean;
+            /**
+             * Source Version
+             * @default
+             */
+            source_version: string;
+        };
         /** Body_imports_create_api_v1_imports_post */
         Body_imports_create_api_v1_imports_post: {
             /** Files */
@@ -3475,6 +3507,39 @@ export interface operations {
             };
         };
     };
+    fx_rates_create_api_v1_fx_rates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_fx_rates_create_api_v1_fx_rates_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     accounts_read_api_v1_accounts_get: {
         parameters: {
             query?: never;
@@ -4838,6 +4903,7 @@ export interface operations {
             query: {
                 debt: string;
                 event_kind?: string | null;
+                search?: string | null;
                 cursor?: string | null;
                 limit?: number;
                 generation?: string | null;
