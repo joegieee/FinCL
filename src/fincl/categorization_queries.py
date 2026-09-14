@@ -189,6 +189,48 @@ def merchant_similar(database: Path, *, generation: str, merchant_key: str) -> d
     return {"generation": generation, "merchant_key": merchant_key, "suggestions": suggestions[:20]}
 
 
+_RULE_SUGGESTION_MIN_OVERRIDES = 3
+
+
+def rule_suggestions(database: Path, *, generation: str) -> dict[str, Any]:
+    """Merchants with >= 3 manual overrides that agree on one category and
+    have no category rule yet (Step 6c) -- a prompt, never an automatic rule.
+    """
+    from .categorization import rule_id_for
+
+    connection = _pinned_connection(database, generation)
+    try:
+        rows = connection.execute(
+            """
+            SELECT COALESCE(o.merchant_canonical, o.merchant_normalized) AS merchant_key,
+                   co.group_name, co.category, count(*) AS occurrences
+            FROM category_overrides co
+            JOIN ledger_entries e ON e.natural_anchor = co.entry_anchor
+            JOIN merchant_observations o ON o.entry_id = e.id
+            WHERE co.bound = 1 AND COALESCE(o.merchant_canonical, o.merchant_normalized) IS NOT NULL
+            GROUP BY merchant_key, co.group_name, co.category
+            HAVING count(*) >= ?
+            """,
+            (_RULE_SUGGESTION_MIN_OVERRIDES,),
+        ).fetchall()
+        suggestions = []
+        for row in rows:
+            match = {"merchant_canonical": row["merchant_key"]}
+            rule_id = rule_id_for(match)
+            if connection.execute("SELECT 1 FROM category_rules WHERE rule_id=?", (rule_id,)).fetchone():
+                continue
+            category = f'{row["group_name"]} / {row["category"]}'
+            suggestions.append({
+                "merchant_key": row["merchant_key"], "category": category, "occurrences": row["occurrences"],
+                "match": match,
+                "label": f'You categorized {row["merchant_key"]} as {category} {row["occurrences"]} times. Make it a rule?',
+            })
+        suggestions.sort(key=lambda item: (-item["occurrences"], item["merchant_key"]))
+        return {"generation": generation, "suggestions": suggestions}
+    finally:
+        connection.close()
+
+
 def _merchant_index(connection: Any) -> list[dict[str, Any]]:
     """Every observed merchant identity, aggregated across ledger history.
 

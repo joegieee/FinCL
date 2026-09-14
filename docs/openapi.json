@@ -1340,6 +1340,45 @@
         }
       }
     },
+    "/api/v1/categorization/rule-suggestions": {
+      "get": {
+        "summary": "Categorization Rule Suggestions",
+        "operationId": "categorization_rule_suggestions_api_v1_categorization_rule_suggestions_get",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Categorization Rule Suggestions Api V1 Categorization Rule Suggestions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categorization/merchant-merge/preview": {
       "post": {
         "summary": "Categorization Merchant Merge Preview",

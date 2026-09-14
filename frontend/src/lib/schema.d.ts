@@ -576,6 +576,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/categorization/rule-suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Categorization Rule Suggestions */
+        get: operations["categorization_rule_suggestions_api_v1_categorization_rule_suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/categorization/merchant-merge/preview": {
         parameters: {
             query?: never;
@@ -4483,6 +4500,37 @@ export interface operations {
                 "application/json": components["schemas"]["RuleDerivationDraft"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categorization_rule_suggestions_api_v1_categorization_rule_suggestions_get: {
+        parameters: {
+            query: {
+                generation: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

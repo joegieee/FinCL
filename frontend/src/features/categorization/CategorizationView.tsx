@@ -24,6 +24,7 @@ type CandidateRecord = { anchor: string; description: string | null; account: st
 type Detail = { candidate: Candidate; records: CandidateRecord[]; next_cursor?: string | null }
 type RuleOption = { label: string; match: Record<string, unknown> }
 type UndoEntry = { id: string; message: string; undo: () => Promise<void> }
+type RuleSuggestion = { merchant_key: string; category: string; occurrences: number; match: Record<string, unknown>; label: string }
 
 // Quick-discovery focuses (PLAN-unified-transaction-classification.md Step 5).
 // "category" is the original inbox; the others group by an authoritative
@@ -59,6 +60,9 @@ export function CategorizationView({ generation, freshness, categories, accounts
   const [currency, setCurrency] = useState('')
   const [focus, setFocus] = useState('category')
   const [undoEntry, setUndoEntry] = useState<UndoEntry | null>(null)
+  const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([])
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set())
+  const [applyingSuggestion, setApplyingSuggestion] = useState<string | null>(null)
   function candidateQuery(cursor = '', focusOverride?: string) {
     const query = new URLSearchParams({ generation, direction, lifecycle, kind, account, currency, focus: focusOverride ?? focus })
     if (cursor) query.set('cursor', cursor)
@@ -74,6 +78,9 @@ export function CategorizationView({ generation, freshness, categories, accounts
         ...otherFocuses.map(f => api<CandidatesPage>(`categorization/candidates?${candidateQuery('', f.value)}`)),
       ])
       setSummary(s); setPage(p)
+      api<{ suggestions: RuleSuggestion[] }>(`categorization/rule-suggestions?generation=${encodeURIComponent(generation)}`)
+        .then(result => setSuggestions(result.suggestions))
+        .catch(() => {})
       setFocusCounts({ [focus]: p.total, ...Object.fromEntries(otherFocuses.map((f, i) => [f.value, others[i].total])) })
       return p
     } catch (e) { setError((e as Error).message); return null }
@@ -118,9 +125,32 @@ export function CategorizationView({ generation, freshness, categories, accounts
     if (nextIndex >= 0 && freshQueue[nextIndex]) await open(freshQueue[nextIndex], nextIndex)
     else { setSelected(null); setSelectedIndex(null) }
   }
+  /** Step 6c: a merchant categorized the same way manually 3+ times, with no
+   * rule yet, is offered as a one-click rule -- reusing the same
+   * compile-combined + batch path the review panel's "rule" scope uses. */
+  async function applySuggestion(suggestion: RuleSuggestion) {
+    setApplyingSuggestion(suggestion.merchant_key); setError('')
+    try {
+      const reason = `Categorized ${suggestion.merchant_key} as ${suggestion.category} from repeated manual edits`
+      const compiled = await compileCombinedRule(generation, suggestion.match, { category: suggestion.category }, reason)
+      await api('batch', { request_id: crypto.randomUUID(), expected_generation: generation, reason, items: compiled.commands })
+      setSuggestions(current => current.filter(s => s.merchant_key !== suggestion.merchant_key))
+      await afterSave('recorded')
+    } catch (e) { setError((e as Error).message) } finally { setApplyingSuggestion(null) }
+  }
+  const visibleSuggestions = suggestions.filter(s => !dismissedSuggestions.has(s.merchant_key))
   const disabled = freshness === 'stale'
   return <div className="categorization-view">
     {error && <div className="alert error" role="alert">{error}</div>}
+    {visibleSuggestions.map(suggestion => <div className="alert rule-suggestion" role="status" key={suggestion.merchant_key}>
+      <span>{suggestion.label}</span>
+      <span className="rule-suggestion-actions">
+        <Button size="sm" disabled={applyingSuggestion === suggestion.merchant_key} onClick={() => void applySuggestion(suggestion)}>
+          {applyingSuggestion === suggestion.merchant_key ? 'Making rule…' : 'Make it a rule'}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setDismissedSuggestions(current => new Set(current).add(suggestion.merchant_key))}>Dismiss</Button>
+      </span>
+    </div>)}
     <div className="scope-caption">
       <span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision. <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>Enter</kbd> to open.</span>
       <span className="categorization-filters">

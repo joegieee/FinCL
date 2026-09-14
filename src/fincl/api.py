@@ -1116,6 +1116,16 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 raise HTTPException(409, str(exc)) from exc
             raise
 
+    @app.get('/api/v1/categorization/rule-suggestions')
+    def categorization_rule_suggestions(generation: str) -> Any:
+        from .categorization_queries import rule_suggestions
+        try:
+            return rule_suggestions(database, generation=generation)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+
     @app.post('/api/v1/categorization/merchant-merge/preview')
     def categorization_merchant_merge_preview(draft: MerchantMergeDraft) -> Any:
         from .categorization_queries import merchant_merge_preview
