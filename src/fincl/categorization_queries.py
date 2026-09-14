@@ -25,6 +25,67 @@ CANDIDATE_GROUPING_VERSION = "categorization-candidates-2026-v2"
 FOCUS_KINDS = ("category", "spending_details", "incoming", "conflicts")
 
 
+def merchant_merge_preview(database: Path, *, generation: str, sources: list[str], target: str,
+                           display_name: str | None, reason: str) -> dict[str, Any]:
+    """Return the frozen journal children for a deliberate merchant merge.
+
+    This is deliberately a read-only compiler: the caller previews these exact
+    set-new/retire-old children and submits them as one existing idempotent
+    batch. No projection table is edited directly.
+    """
+    from .categorization import canonical_match, rule_id_for, validate_alias_patterns
+    if not sources or len(set(sources)) != len(sources) or target in sources:
+        raise FinCLError("Choose distinct source merchant identities and a different target")
+    if not target.strip() or not reason.strip():
+        raise FinCLError("A target merchant identity and reason are required")
+    connection = _pinned_connection(database, generation)
+    try:
+        aliases = {row["canonical"]: dict(row) for row in connection.execute(
+            "SELECT canonical,patterns_json,display_name FROM merchant_aliases"
+        )}
+        patterns: list[dict[str, str]] = []
+        for canonical in [*sources, target]:
+            if canonical in aliases:
+                patterns.extend(json.loads(aliases[canonical]["patterns_json"]))
+        # Source identities without an alias are still observable statement
+        # names, so preserve them as exact patterns in the new canonical.
+        marks = ",".join("?" for _ in sources)
+        for row in connection.execute(
+            f"SELECT DISTINCT merchant_normalized FROM merchant_observations WHERE merchant_canonical IN ({marks})", sources,
+        ):
+            if row["merchant_normalized"]:
+                patterns.append({"exact": row["merchant_normalized"]})
+        patterns = validate_alias_patterns(list({canonical_json(p): p for p in patterns}.values()))
+        commands: list[dict[str, Any]] = [{
+            "kind": "MERCHANT_ALIAS_SET", "anchors": {"canonical": target},
+            "payload": {"patterns": patterns, "replace_patterns": True,
+                        "display_name": display_name or aliases.get(target, {}).get("display_name"), "reason": reason},
+        }]
+        for table, set_kind, retire_kind, fields in (
+            ("category_rules", "CATEGORY_RULE_SET", "CATEGORY_RULE_RETIRE", ("category",)),
+            ("role_rules", "ROLE_RULE_SET", "ROLE_RULE_RETIRE", ("cost_behavior", "need")),
+        ):
+            for row in connection.execute(f"SELECT * FROM {table}").fetchall():
+                match = json.loads(row["match_json"])
+                if match.get("merchant_canonical") not in sources:
+                    continue
+                new_match = canonical_match({"merchant_canonical": target})
+                payload: dict[str, Any] = {"match": new_match, "reason": reason}
+                if set_kind == "CATEGORY_RULE_SET":
+                    payload["category"] = f"{row['group_name']} / {row['category']}"
+                else:
+                    payload.update({field: row[field] for field in fields})
+                commands.append({"kind": set_kind, "anchors": {"rule_id": rule_id_for(new_match)}, "payload": payload})
+                commands.append({"kind": retire_kind, "anchors": {"rule_id": row["rule_id"]}, "payload": {"reason": reason}})
+        for source in sources:
+            if source in aliases:
+                commands.append({"kind": "MERCHANT_ALIAS_RETIRE", "anchors": {"canonical": source}, "payload": {"reason": reason}})
+        return {"generation": generation, "sources": sources, "target": target, "patterns": patterns,
+                "commands": commands, "dependent_rules": sum(1 for item in commands if item["kind"] in {"CATEGORY_RULE_RETIRE", "ROLE_RULE_RETIRE"})}
+    finally:
+        connection.close()
+
+
 def categorization_summary(database: Path, *, generation: str) -> dict[str, Any]:
     """Return disjoint effective-category buckets plus the attention overlay."""
     connection = _pinned_connection(database, generation)

@@ -576,6 +576,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/categorization/merchant-merge/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Categorization Merchant Merge Preview */
+        post: operations["categorization_merchant_merge_preview_api_v1_categorization_merchant_merge_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/categorization/impact": {
         parameters: {
             query?: never;
@@ -2587,6 +2604,19 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** MerchantMergeDraft */
+        MerchantMergeDraft: {
+            /** Generation */
+            generation: string;
+            /** Sources */
+            sources: string[];
+            /** Target */
+            target: string;
+            /** Display Name */
+            display_name?: string | null;
+            /** Reason */
+            reason: string;
+        };
         /** MerchantRank */
         MerchantRank: {
             /** Merchant */
@@ -4296,6 +4326,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RuleDerivationDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categorization_merchant_merge_preview_api_v1_categorization_merchant_merge_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantMergeDraft"];
             };
         };
         responses: {

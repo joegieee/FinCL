@@ -123,6 +123,14 @@ class RuleDerivationDraft(StrictModel):
     anchors: list[str] = Field(min_length=1, max_length=200)
 
 
+class MerchantMergeDraft(StrictModel):
+    generation: str = Field(min_length=1, max_length=100)
+    sources: list[str] = Field(min_length=1, max_length=50)
+    target: str = Field(min_length=1, max_length=200)
+    display_name: str | None = Field(default=None, max_length=200)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
 class BatchItem(StrictModel):
     kind: Literal[
         'CATEGORY_OVERRIDE','CATEGORY_OVERRIDE_RETIRE','INBOUND_CLASSIFICATION',
@@ -1067,6 +1075,17 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .categorization_queries import derive_rule_options
         try:
             return derive_rule_options(database, generation=draft.generation, anchors=draft.anchors)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+
+    @app.post('/api/v1/categorization/merchant-merge/preview')
+    def categorization_merchant_merge_preview(draft: MerchantMergeDraft) -> Any:
+        from .categorization_queries import merchant_merge_preview
+        try:
+            return merchant_merge_preview(database, generation=draft.generation, sources=draft.sources,
+                                          target=draft.target, display_name=draft.display_name, reason=draft.reason)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
                 raise HTTPException(409, str(exc)) from exc

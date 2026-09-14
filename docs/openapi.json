@@ -1340,6 +1340,44 @@
         }
       }
     },
+    "/api/v1/categorization/merchant-merge/preview": {
+      "post": {
+        "summary": "Categorization Merchant Merge Preview",
+        "operationId": "categorization_merchant_merge_preview_api_v1_categorization_merchant_merge_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MerchantMergeDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Categorization Merchant Merge Preview Api V1 Categorization Merchant Merge Preview Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categorization/impact": {
       "post": {
         "summary": "Categorization Impact",
@@ -8056,6 +8094,58 @@
           "native"
         ],
         "title": "IncomeCandidatesPageOut"
+      },
+      "MerchantMergeDraft": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Generation"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Sources"
+          },
+          "target": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Target"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "sources",
+          "target",
+          "reason"
+        ],
+        "title": "MerchantMergeDraft"
       },
       "MerchantRank": {
         "properties": {
