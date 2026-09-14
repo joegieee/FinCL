@@ -13,7 +13,7 @@ import { ClassificationPreviewSummary } from '@/features/classification/PreviewS
 import { PresetPicker } from '@/features/classification/PresetPicker'
 import { RuleSection } from '@/features/classification/RuleSection'
 import type { PresetFields } from '@/features/classification/presets'
-import { previewClassification, type ClassificationDraftBody, type ClassificationPreview } from '@/features/classification/api'
+import { previewClassification, type Applicability, type ClassificationDraftBody, type ClassificationPreview } from '@/features/classification/api'
 
 type Summary = {
   counts: Record<string, number>; active_categorization_denominator: number; progress_numerator: number
@@ -21,7 +21,7 @@ type Summary = {
 }
 type Candidate = { candidate_id: string; kind: string; label: string; transaction_count: number; active_count: number; date_range: { first: string; last: string }; accounts: string[]; directions: Record<string, number>; examples: string[] }
 type CandidatesPage = { candidates: Candidate[]; next_cursor: string | null; total: number }
-type CandidateRecord = { anchor: string; description: string | null; account: string; currency: string; amount: string; date: string; direction: string; active: boolean; merchant_raw?: string | null; merchant_normalized?: string | null }
+type CandidateRecord = { anchor: string; description: string | null; account: string; currency: string; amount: string; date: string; direction: string; active: boolean; merchant_raw?: string | null; merchant_normalized?: string | null; detail_bucket?: string; applicable_fields?: Applicability; effective?: Record<string, string | null> }
 type Detail = { candidate: Candidate; records: CandidateRecord[]; next_cursor?: string | null }
 type RuleOption = { label: string; match: Record<string, unknown> }
 
@@ -231,7 +231,6 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const command = useLedgerCommand(generation, onSaved) // "rule" scope only
   const batch = useBatchCommand(generation, onSaved) // "one"/"selected" scopes only
   const categoryFieldId = useRef(`category-${detail.candidate.candidate_id}`).current
-  const allFieldsApplicable = { category: true, cost_behavior: true, need: true, incoming_type: true }
   const currentPresetFields: PresetFields = {
     ...(!clearCategory && category ? { category } : {}), ...(!clearRoles && costBehavior ? { cost_behavior: costBehavior } : {}),
     ...(!clearRoles && need ? { need } : {}), ...(incomingType ? { incoming_type: incomingType } : {}),
@@ -343,6 +342,15 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   }
   const onlyChecked = checkedRecords()
   const onlyTarget = onlyChecked.length === 1 ? onlyChecked[0] : null
+  const targetRecords = scope === 'one' ? (onlyTarget ? [onlyTarget] : []) : onlyChecked
+  const applicableCounts = (['category', 'cost_behavior', 'need', 'incoming_type'] as const).reduce((counts, field) => {
+    counts[field] = targetRecords.filter(row => row.applicable_fields?.[field] ?? true).length
+    return counts
+  }, {} as Record<keyof Applicability, number>)
+  const applicableFields = (['category', 'cost_behavior', 'need', 'incoming_type'] as const).reduce((fields, field) => {
+    fields[field] = applicableCounts[field] > 0
+    return fields
+  }, {} as Applicability)
   const notAllLoaded = records.length < detail.candidate.transaction_count
   const ruleAnchors = scope === 'one' ? (onlyTarget ? [onlyTarget.anchor] : []) : [...anchors]
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
@@ -376,7 +384,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       </label>}
     </div>
     {scope === 'rule' && <label>Reason<input value={reason} onChange={e => { setReason(e.target.value); resetChecks() }} /></label>}
-    {(scope === 'one' || scope === 'selected') && <PresetPicker applicable={allFieldsApplicable} categories={localCategories}
+    {(scope === 'one' || scope === 'selected') && <PresetPicker applicable={applicableFields} categories={localCategories}
       current={currentPresetFields} onApply={applyPreset} disabled={disabled || command.attempted || batching || batch.busy}/>}
     {(scope === 'one' || scope === 'selected') && <ClassificationFieldsFieldset
       hideCategory
@@ -389,7 +397,9 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       incomingType={incomingType} onIncomingType={v => { setIncomingType(v); resetChecks() }}
       policy={policy} onPolicy={v => { setPolicy(v); resetChecks() }} showPolicy={scope === 'selected'}
       reason={reason} onReason={v => { setReason(v); resetChecks() }} reasonRequired={groupReasonRequired}
+      applicable={applicableFields}
     />}
+    {(scope === 'one' || scope === 'selected') && targetRecords.length > 0 && <p className="muted-note">Field applicability: {(['category', 'cost_behavior', 'need', 'incoming_type'] as const).filter(field => applicableFields[field]).map(field => `${field.replaceAll('_', ' ')} applies to ${applicableCounts[field]} of ${targetRecords.length}`).join('; ') || 'no classification fields apply to this selection'}.</p>}
     {(scope === 'one' || scope === 'selected') && ruleAnchors.length > 0 && <RuleSection generation={generation} anchors={ruleAnchors}
       category={clearCategory ? '' : category} costBehavior={clearRoles ? '' : costBehavior} need={clearRoles ? '' : need}
       reason={reason} disabled={disabled} onSaved={onSaved}/>}

@@ -50,7 +50,6 @@ class FocusDiscoveryTests(ClassificationTestBase):
         )
         self.assertEqual(queue_records, summary["counts"].get("unclassified_active", 0) + summary["counts"].get("unclassified_inactive", 0))
 
-    @unittest.expectedFailure
     def test_candidate_detail_exposes_authoritative_per_row_applicability(self) -> None:
         """Milestone 0 contract for the Milestone 2 row shape."""
         generation = self._generation()

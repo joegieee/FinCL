@@ -19,6 +19,7 @@ export function ClassificationFieldsFieldset({
   policy, onPolicy, showPolicy = true,
   reason, onReason, reasonRequired,
   fieldContext, hideCategory = false,
+  applicable = { category: true, cost_behavior: true, need: true, incoming_type: true },
 }: {
   categoryId: string
   categories: string[]
@@ -47,6 +48,7 @@ export function ClassificationFieldsFieldset({
    * grouped review's inline-category-creation combobox), while still sharing
    * the trio/incoming/policy/reason fields below. */
   hideCategory?: boolean
+  applicable?: Record<FieldName, boolean>
 }) {
   return <div className="bulk-form">
     {!hideCategory && <div className="bulk-field">
@@ -58,7 +60,7 @@ export function ClassificationFieldsFieldset({
         {' '}Remove manual category overrides <small>(only affects transactions that have one)</small>
       </label>
     </div>}
-    <div className="bulk-field">
+    {applicable.cost_behavior && <div className="bulk-field">
       <label>Spending pattern
         <select aria-label="Set spending pattern" value={clearRoles ? '' : costBehavior} disabled={disabled || busy || clearRoles} onChange={e => onCostBehavior(e.target.value)}>
           <option value="">Keep existing values</option>
@@ -66,8 +68,8 @@ export function ClassificationFieldsFieldset({
         </select>
       </label>
       {fieldContext && <small className="field-context">Current: {fieldContext('cost_behavior')}</small>}
-    </div>
-    <div className="bulk-field">
+    </div>}
+    {applicable.need && <div className="bulk-field">
       <label>Spending need
         <select aria-label="Set spending need" value={clearRoles ? '' : need} disabled={disabled || busy || clearRoles} onChange={e => onNeed(e.target.value)}>
           <option value="">Keep existing values</option>
@@ -79,8 +81,8 @@ export function ClassificationFieldsFieldset({
         onChange={event => { onClearRoles(event.target.checked); if (event.target.checked) { onCostBehavior(''); onNeed('') } }}/>
         {' '}Remove manual spending classifications <small>(only affects transactions that have one; both pattern and need return to category defaults)</small>
       </label>
-    </div>
-    <div className="bulk-field">
+    </div>}
+    {applicable.incoming_type && <div className="bulk-field">
       <label>Incoming type
         <select aria-label="Set incoming type" value={incomingType} disabled={disabled || busy} onChange={e => onIncomingType(e.target.value)}>
           <option value="">Keep existing values</option>
@@ -88,7 +90,7 @@ export function ClassificationFieldsFieldset({
         </select>
       </label>
       {fieldContext && <small className="field-context">Current: {fieldContext('incoming_type')}</small>}
-    </div>
+    </div>}
     {showPolicy && <fieldset className="bulk-policy">
       <legend>When a chosen field already has a value</legend>
       <label><input type="radio" name="classification-policy" checked={policy === 'fill_missing'} disabled={disabled || busy} onChange={() => onPolicy('fill_missing')}/> Fill missing fields only <small>(never overwrites an existing value)</small></label>

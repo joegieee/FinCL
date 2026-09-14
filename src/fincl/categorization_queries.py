@@ -165,8 +165,27 @@ def categorization_candidate_detail(
                 reverse=True,
             )
             offset = _decode_cursor(cursor)
+            # The inbox is a read model, but its row applicability and current
+            # values must use the same evaluator as classification preview.
+            from .baseline.outliers import outlier_anchor_set
+            from .classification import _applicability, _detail_bucket
+            from .queries import _ENTRY_VIEW, _rule_tables, _shape
+            page_members = ordered[offset:offset + limit]
+            anchors = [row["natural_anchor"] for row, _label in page_members]
+            marks = ",".join("?" for _ in anchors)
+            effective_rows = connection.execute(
+                f"SELECT * FROM ({_ENTRY_VIEW}) WHERE natural_anchor IN ({marks})", anchors,
+            ).fetchall() if anchors else []
+            effective_by_anchor = {item["natural_anchor"]: item for item in effective_rows}
+            role_rules, inbound_rules = _rule_tables(connection)
+            current = current_generation(connection)
+            outliers = outlier_anchor_set(connection, current["generation_token"]) if current else set()
             records = []
-            for row, _label in ordered[offset:offset + limit]:
+            for row, _label in page_members:
+                effective = effective_by_anchor[row["natural_anchor"]]
+                raw = dict(effective)
+                bucket = _detail_bucket(raw)
+                shaped = _shape(effective, role_rules, inbound_rules, outliers)
                 records.append({
                     "anchor": row["natural_anchor"], "account": row["account_id"],
                     "currency": row["currency_pocket"], "amount": row["amount_text"],
@@ -175,6 +194,13 @@ def categorization_candidate_detail(
                     "description": row["description_text"], "merchant": row["merchant_canonical"] or row["merchant_normalized"],
                     "merchant_raw": row["merchant_raw"], "merchant_normalized": row["merchant_normalized"],
                     "paynow_to": row["paynow_to"],
+                    "detail_bucket": bucket, "applicable_fields": _applicability(bucket),
+                    "effective": {
+                        "category": shaped["category"], "category_basis": shaped["basis"],
+                        "cost_behavior": shaped["cost_behavior"], "cost_behavior_basis": shaped["cost_behavior_basis"],
+                        "need": shaped["need"], "need_basis": shaped["need_basis"],
+                        "incoming_type": raw.get("classification"),
+                    },
                 })
             return {"generation": generation, "candidate_version": CANDIDATE_GROUPING_VERSION,
                     "candidate": card, "records": records, "focus": focus,
