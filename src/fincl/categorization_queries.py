@@ -10,6 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from .categorization import MIN_LITERAL_LENGTH
 from .common import canonical_json
 from .db import connect_readonly
 from .errors import FinCLError
@@ -535,6 +536,20 @@ def _amount_band_options(connection: Any, *, base_match: dict[str, str], where: 
     return options
 
 
+def _longest_common_prefix(strings: set[str]) -> str:
+    items = list(strings)
+    prefix = items[0]
+    for other in items[1:]:
+        limit = min(len(prefix), len(other))
+        cut = 0
+        while cut < limit and prefix[cut] == other[cut]:
+            cut += 1
+        prefix = prefix[:cut]
+        if not prefix:
+            break
+    return prefix
+
+
 def derive_rule_options(database: Path, *, generation: str, anchors: list[str]) -> dict[str, Any]:
     """Derive only closed predicates supported by the categorization engine."""
     if not anchors or len(set(anchors)) != len(anchors):
@@ -572,6 +587,13 @@ def derive_rule_options(database: Path, *, generation: str, anchors: list[str]) 
             if len(accounts) == 1:
                 match["account"] = next(iter(accounts))
             options.append({"label": "Transactions whose description contains this text", "match": match})
+        elif len(descriptions) > 1 and None not in descriptions:
+            prefix = _longest_common_prefix(descriptions)
+            if len(prefix) >= MIN_LITERAL_LENGTH:
+                options.append({
+                    "label": f'Transactions whose description starts with "{prefix}"',
+                    "match": {"description_prefix": prefix},
+                })
         return {"generation": generation, "anchors": sorted(anchors), "options": options,
                 "unavailable_reason": "The selected transactions do not share a safe reusable predicate" if not options else None}
     finally:
