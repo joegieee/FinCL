@@ -4217,8 +4217,6 @@ export interface operations {
                 direction?: string;
                 lifecycle?: string;
                 kind?: string;
-                start?: string;
-                end?: string;
                 focus?: string;
             };
             header?: never;
@@ -4258,8 +4256,6 @@ export interface operations {
                 direction?: string;
                 lifecycle?: string;
                 kind?: string;
-                start?: string;
-                end?: string;
                 focus?: string;
             };
             header?: never;

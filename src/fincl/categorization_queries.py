@@ -114,7 +114,7 @@ def _combined_completeness(connection: Any) -> dict[str, int]:
 def categorization_candidates(
     database: Path, *, generation: str, cursor: str | None = None, limit: int = 50,
     account: str = "", currency: str = "", direction: str = "", lifecycle: str = "", kind: str = "",
-    start: str = "", end: str = "", focus: str = "category",
+    focus: str = "category",
 ) -> dict[str, Any]:
     """Group unclassified records, or another quick-discovery focus, without
     persisting a second projection."""
@@ -122,7 +122,7 @@ def categorization_candidates(
     try:
         limit = max(1, min(int(limit), 100))
         groups = _focus_groups(
-            connection, focus=focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle, start=start, end=end,
+            connection, focus=focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle,
         )
         cards = [_candidate_card(group_kind, key, members, focus=focus) for (group_kind, key), members in groups.items()
                  if not kind or group_kind == kind]
@@ -145,13 +145,13 @@ def categorization_candidates(
 def categorization_candidate_detail(
     database: Path, *, generation: str, candidate_id: str, cursor: str | None = None, limit: int = 50,
     account: str = "", currency: str = "", direction: str = "", lifecycle: str = "", kind: str = "",
-    start: str = "", end: str = "", focus: str = "category",
+    focus: str = "category",
 ) -> dict[str, Any]:
     """Return one current candidate and its bounded, inspectable members."""
     connection = _pinned_connection(database, generation)
     try:
         for (group_kind, key), members in _focus_groups(
-            connection, focus=focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle, start=start, end=end,
+            connection, focus=focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle,
         ).items():
             if kind and group_kind != kind:
                 continue
@@ -224,7 +224,6 @@ def derive_rule_options(database: Path, *, generation: str, anchors: list[str]) 
 
 def _candidate_groups(
     connection: Any, *, account: str = "", currency: str = "", direction: str = "", lifecycle: str = "",
-    start: str = "", end: str = "",
 ) -> dict[tuple[str, str], list[Any]]:
     groups: dict[tuple[str, str], list[Any]] = defaultdict(list)
     clauses = ["ec.group_name='Unclassified'", "ec.category='Unclassified'"]
@@ -232,11 +231,6 @@ def _candidate_groups(
     for field, value in (("e.account_id", account), ("e.currency_pocket", currency), ("e.economic_direction", direction), ("e.lifecycle_state", lifecycle)):
         if value:
             clauses.append(f"{field}=?")
-            params.append(value)
-    for operator, value in ((">=", start), ("<=", end)):
-        if value:
-            _validated_date(value)
-            clauses.append(f"substr(e.effective_at,1,10){operator}?")
             params.append(value)
     rows = connection.execute(
         f"""
@@ -257,22 +251,22 @@ def _candidate_groups(
 
 def _focus_groups(
     connection: Any, *, focus: str, account: str = "", currency: str = "", direction: str = "",
-    lifecycle: str = "", start: str = "", end: str = "",
+    lifecycle: str = "",
 ) -> dict[tuple[str, str], list[Any]]:
     if focus == "category":
         return _candidate_groups(
-            connection, account=account, currency=currency, direction=direction, lifecycle=lifecycle, start=start, end=end,
+            connection, account=account, currency=currency, direction=direction, lifecycle=lifecycle,
         )
     if focus not in FOCUS_KINDS:
         raise FinCLError(f"Unknown categorization focus {focus!r}")
     return _derived_focus_groups(
-        connection, focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle, start=start, end=end,
+        connection, focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle,
     )
 
 
 def _derived_focus_groups(
     connection: Any, focus: str, *, account: str = "", currency: str = "", direction: str = "",
-    lifecycle: str = "", start: str = "", end: str = "",
+    lifecycle: str = "",
 ) -> dict[tuple[str, str], list[Any]]:
     """Group entries by the same merchant/PayNow/description identity as the
     category inbox (§10's "authoritative filters", not a frontend-only
@@ -295,11 +289,6 @@ def _derived_focus_groups(
     for field, value in (("account_id", account), ("currency_pocket", currency), ("economic_direction", direction), ("lifecycle_state", lifecycle)):
         if value:
             clauses.append(f"{field}=?")
-            params.append(value)
-    for operator, value in ((">=", start), ("<=", end)):
-        if value:
-            _validated_date(value)
-            clauses.append(f"substr(effective_at,1,10){operator}?")
             params.append(value)
     rows = connection.execute(
         f"SELECT * FROM ({_ENTRY_VIEW}) WHERE {' AND '.join(clauses)}", params,

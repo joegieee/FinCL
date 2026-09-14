@@ -48,8 +48,8 @@ function rememberCategory(category: string) {
   } catch { /* private browsing or storage disabled */ }
 }
 
-export function CategorizationView({ generation, freshness, categories, accounts = [], currencies = [], start = '', end = '', onSaved }: {
-  generation: string; freshness: string; categories: string[]; accounts?: string[]; currencies?: string[]; start?: string; end?: string; onSaved: (status: string) => void | Promise<void>
+export function CategorizationView({ generation, freshness, categories, accounts = [], currencies = [], onSaved }: {
+  generation: string; freshness: string; categories: string[]; accounts?: string[]; currencies?: string[]; onSaved: (status: string) => void | Promise<void>
 }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [page, setPage] = useState<CandidatesPage | null>(null)
@@ -63,7 +63,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
   const [account, setAccount] = useState('')
   const [currency, setCurrency] = useState('')
   const [focus, setFocus] = useState('category')
-  const filters = new URLSearchParams({ direction, lifecycle, kind, account, currency, start, end, focus })
+  const filters = new URLSearchParams({ direction, lifecycle, kind, account, currency, focus })
   function candidateQuery(cursor = '') {
     const query = new URLSearchParams({ generation, ...Object.fromEntries(filters) })
     if (cursor) query.set('cursor', cursor)
@@ -79,7 +79,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
       setSummary(s); setPage(p)
       return p
     } catch (e) { setError((e as Error).message); return null }
-  }, [generation, direction, lifecycle, kind, account, currency, start, end, focus])
+  }, [generation, direction, lifecycle, kind, account, currency, focus])
   useEffect(() => { void load() }, [load])
   const queue = page?.candidates ?? []
   async function open(candidate: Candidate, index: number) {
@@ -126,7 +126,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
     <div className="scope-caption"><span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision. <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>Enter</kbd> to open.</span><span className="categorization-filters"><select aria-label="Filter categorization focus" value={focus} onChange={e => setFocus(e.target.value)}>{FOCUSES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select><select aria-label="Filter categorization candidate kind" value={kind} onChange={e => setKind(e.target.value)}><option value="">All group types</option><option value="merchant">Merchant</option><option value="paynow_recipient">PayNow recipient</option><option value="description">Description</option><option value="missing_merchant">Missing merchant</option></select><select aria-label="Filter categorization direction" value={direction} onChange={e => setDirection(e.target.value)}><option value="">All directions</option><option value="OUT">Outgoing</option><option value="IN">Incoming</option></select><select aria-label="Filter categorization lifecycle" value={lifecycle} onChange={e => setLifecycle(e.target.value)}><option value="">All lifecycle states</option><option value="COMPLETED">Active only</option><option value="PENDING">Pending</option><option value="REVERTED">Reverted</option></select><select aria-label="Filter categorization account" value={account} onChange={e => setAccount(e.target.value)}><option value="">All accounts</option>{accounts.map(a => <option key={a}>{a}</option>)}</select><select aria-label="Filter categorization currency" value={currency} onChange={e => setCurrency(e.target.value)}><option value="">All currencies</option>{currencies.map(c => <option key={c}>{c}</option>)}</select><Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button></span></div>
     {summary && <CoverageSummary summary={summary}/>}
     <Card className="candidate-list" onKeyDown={onListKeyDown}>
-      <div className="panel-title"><div><p className="eyebrow">CATEGORIZATION INBOX</p><h2>{page ? (focus === 'category' ? `${page.total} groups need review` : `${page.total} groups match ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow"><span>CATEGORIZATION INBOX</span> · ALL SELECTED HISTORY</p><h2>{page ? (focus === 'category' ? `${page.total} groups need review` : `${page.total} groups match ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2></div></div>
       {!page?.candidates.length && <p className="empty-line">{focus === 'category' ? 'Everything active is categorized, or no groups match the current ledger generation.' : 'Nothing active matches this focus, or no groups match the current ledger generation.'}</p>}
       {page?.candidates.map((candidate, index) => <button className={`candidate-card${index === activeIndex ? ' is-active' : ''}`} key={candidate.candidate_id} tabIndex={index === activeIndex ? 0 : -1} onFocus={() => setActiveIndex(index)} onClick={() => void open(candidate, index)}>
         <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small></span><ChevronRight size={16}/>
