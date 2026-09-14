@@ -15,6 +15,20 @@ export type ContributorsPage = components['schemas']['ContributorsPage']
 export type Contributor = components['schemas']['Contributor']
 let csrf = ''
 export class ApiError extends Error { constructor(message:string,public status:number){super(message)} }
+// FinCLError payload-validation messages are internal shape descriptions
+// (`invalid categorization payload: category must be a non-empty string`),
+// not user-facing copy. Strip the technical prefix so the UI shows the
+// actual problem in plain language.
+const ERROR_PREFIXES: [RegExp, string][] = [
+  [/^invalid categorization payload: /, ''],
+  [/^invalid regex alias pattern: /, 'That pattern is not valid: '],
+]
+function humanizeError(message:string):string {
+  for (const [pattern, replacement] of ERROR_PREFIXES) {
+    if (pattern.test(message)) { const rest = message.replace(pattern, replacement); return rest.charAt(0).toUpperCase() + rest.slice(1) }
+  }
+  return message
+}
 // In-flight GET requests are shared by identical method+path+body key, so
 // switching tabs or re-rendering while a request is outstanding issues one
 // fetch instead of a duplicate (PLAN-ui-cohesion.md §1.5). This is dedup
@@ -29,7 +43,7 @@ export async function api<T>(path:string, body?:unknown, options?:{signal?:Abort
   const promise = (async () => {
     const response = await fetch(`/api/v1/${path}`,{method,headers:body===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:body===undefined?undefined:JSON.stringify(body),signal:options?.signal})
     const value = await response.json()
-    if (!response.ok) throw new ApiError(typeof value.detail==='string'?value.detail:'Please check the entered values.',response.status)
+    if (!response.ok) throw new ApiError(typeof value.detail==='string'?humanizeError(value.detail):'Please check the entered values.',response.status)
     return value as T
   })()
   if (key) { inFlightGets.set(key, promise); const cleanup = () => inFlightGets.delete(key); promise.then(cleanup, cleanup) }

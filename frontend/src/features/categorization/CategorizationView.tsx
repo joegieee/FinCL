@@ -43,8 +43,9 @@ function cycle(options: readonly string[], current: string): string {
   return values[(index + 1) % values.length]
 }
 
-export function CategorizationView({ generation, freshness, categories, accounts = [], currencies = [], onSaved }: {
+export function CategorizationView({ generation, freshness, categories, accounts = [], currencies = [], onSaved, onOpenRules, onOpenTransactions }: {
   generation: string; freshness: string; categories: string[]; accounts?: string[]; currencies?: string[]; onSaved: (status: string) => void | Promise<void>
+  onOpenRules?: () => void; onOpenTransactions?: () => void
 }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [page, setPage] = useState<CandidatesPage | null>(null)
@@ -204,9 +205,12 @@ export function CategorizationView({ generation, freshness, categories, accounts
     <div className="categorization-split">
       <Card className="candidate-list" onKeyDown={onListKeyDown}>
         <div className="panel-title"><div><p className="eyebrow"><span>CATEGORIZATION INBOX</span> · ALL SELECTED HISTORY</p><h2>{page ? (focus === 'category' ? `${page.total} groups need review` : `${page.total} groups match ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2><p className="muted-note">Covers every imported statement, all dates and currencies. Rules also apply to future imports. Pending, reverted and superseded rows are shown but not counted as active.</p></div></div>
-        {!page?.candidates.length && <p className="empty-line">{focus === 'category' ? 'Everything active is categorized, or no groups match the current ledger generation.' : 'Nothing active matches this focus, or no groups match the current ledger generation.'}</p>}
+        {!page?.candidates.length && <p className="empty-line">
+          {focus === 'category' ? 'Everything active is categorized, or no groups match the current ledger generation.' : 'Nothing active matches this focus, or no groups match the current ledger generation.'}
+          {' '}Check the <Button variant="link" size="sm" onClick={onOpenRules}>Rules</Button> page for existing rules, or browse <Button variant="link" size="sm" onClick={onOpenTransactions}>Transactions</Button> directly.
+        </p>}
         {page?.candidates.map((candidate, index) => <button className={`candidate-card${index === activeIndex ? ' is-active' : ''}`} key={candidate.candidate_id} tabIndex={index === activeIndex ? 0 : -1} onFocus={() => setActiveIndex(index)} onClick={() => void open(candidate, index)}>
-          <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small>{candidate.directions.IN > 0 && candidate.directions.OUT > 0 && <small className="tag">includes {candidate.directions.IN} incoming</small>}{candidate.currencies && Object.keys(candidate.currencies).length > 1 && <small className="tag">{Object.keys(candidate.currencies).length} currencies</small>}</span><ChevronRight size={16}/>
+          <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.filter(example => example !== candidate.label).slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small>{candidate.directions.IN > 0 && candidate.directions.OUT > 0 && <small className="tag">includes {candidate.directions.IN} incoming</small>}{candidate.currencies && Object.keys(candidate.currencies).length > 1 && <small className="tag">{Object.keys(candidate.currencies).length} currencies</small>}</span><ChevronRight size={16}/>
         </button>)}
         {page?.next_cursor && <div className="dialog-actions"><Button variant="outline" onClick={() => void loadMoreCandidates()}>Load more groups</Button></div>}
       </Card>

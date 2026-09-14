@@ -136,7 +136,7 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
         <div><dt>Cash-flow treatment</dt><dd>{e.bucket.replaceAll('_', ' ')}</dd></div>
         <div><dt>Category basis</dt><dd>{e.basis}</dd></div>
         {applicable.cost_behavior && <>
-          <div><dt>Behavior basis</dt><dd>{e.cost_behavior_basis}</dd></div>
+          <div><dt>Spending pattern basis</dt><dd>{e.cost_behavior_basis}</dd></div>
           <div><dt>Need basis</dt><dd>{e.need_basis}</dd></div>
         </>}
       </dl>

@@ -199,8 +199,8 @@ export function TransactionsView({
           <option value="out">Money out</option>
           <option value="in">Money in</option>
         </select>
-        <select aria-label="Filter behavior" value={filters.behavior} onChange={e => setFilters(f => ({ ...f, behavior: e.target.value }))}>
-          <option value="">Any behavior</option>
+        <select aria-label="Filter spending pattern" value={filters.behavior} onChange={e => setFilters(f => ({ ...f, behavior: e.target.value }))}>
+          <option value="">Any spending pattern</option>
           {['fixed_recurring', 'variable_routine', 'irregular', 'unresolved'].map(v => <option key={v} value={v}>{v.replaceAll('_', ' ')}</option>)}
         </select>
         <select aria-label="Filter need" value={filters.need} onChange={e => setFilters(f => ({ ...f, need: e.target.value }))}>
@@ -242,7 +242,7 @@ export function TransactionsView({
           <thead>
             <tr>
               <th className="pick-cell"><input type="checkbox" aria-label="Select all rows on this page" checked={rows.length > 0 && rows.every(r => picked.has(r.entry.anchor))} onChange={ev => { setMatchAll(null); setPicked(s => { const n = new Set(s); rows.forEach(r => ev.target.checked ? n.add(r.entry.anchor) : n.delete(r.entry.anchor)); return n }) }} /></th>
-              <th>Date</th><th>Merchant / description</th><th>Account</th><th>Category</th><th>Behavior</th><th>Need</th><th className="amount">Amount</th><th>Status</th><th><span className="sr-only">Details</span></th>
+              <th>Date</th><th>Merchant / description</th><th>Account</th><th>Category</th><th>Spending pattern</th><th>Need</th><th className="amount">Amount</th><th>Status</th><th><span className="sr-only">Details</span></th>
             </tr>
           </thead>
           <tbody>
@@ -261,7 +261,7 @@ export function TransactionsView({
                   <td data-label="Merchant"><strong>{e.merchant}</strong><small title={e.description}>{e.description}</small></td>
                   <td data-label="Account">{e.account}</td>
                   <td data-label="Category"><button className="category-chip" onClick={() => onOpenEntry(row)}>{shortCategory(e.category)}</button></td>
-                  <td data-label="Behavior"><button className="category-chip" title={`Basis: ${costBehaviorBasis}`} onClick={() => onOpenEntry(row)}>{costBehavior.replaceAll('_', ' ')}</button></td>
+                  <td data-label="Spending pattern"><button className="category-chip" title={`Basis: ${costBehaviorBasis}`} onClick={() => onOpenEntry(row)}>{costBehavior.replaceAll('_', ' ')}</button></td>
                   <td data-label="Need"><button className="category-chip" title={`Basis: ${needBasis}`} onClick={() => onOpenEntry(row)}>{need}</button></td>
                   <td className="amount" data-label="Amount">
                     <Money value={row.amount} />

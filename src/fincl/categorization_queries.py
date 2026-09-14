@@ -713,11 +713,12 @@ def _candidate_groups(
         f"""
         SELECT e.natural_anchor,e.account_id,e.currency_pocket,e.effective_at,e.economic_direction,
                e.amount_text,e.analytics_eligible,e.lifecycle_state,o.merchant_canonical,ma.display_name,
-               o.merchant_raw,o.merchant_normalized,o.paynow_to,o.description_text
+               o.merchant_raw,o.merchant_normalized,o.paynow_to,o.description_text,a.display_name AS account_display_name
         FROM entry_categories ec JOIN ledger_entries e ON e.id=ec.entry_id
         JOIN extraction_runs x ON x.id=e.extraction_run_id AND x.selection_state='SELECTED'
         JOIN merchant_observations o ON o.entry_id=e.id
         LEFT JOIN merchant_aliases ma ON ma.canonical=o.merchant_canonical
+        LEFT JOIN accounts a ON a.id=e.account_id
         WHERE {' AND '.join(clauses)}
         """, params,
     ).fetchall()
@@ -807,7 +808,7 @@ def _derived_focus_groups(
             "merchant_canonical": raw["role_merchant_match"], "merchant_raw": raw["role_merchant_match"],
             "merchant_normalized": raw["role_merchant_match"],
             "display_name": display_names.get(raw["role_merchant_match"]), "paynow_to": raw["role_paynow_to"],
-            "description_text": raw["role_description_text"],
+            "description_text": raw["role_description_text"], "account_display_name": raw["account"],
         }
         kind, key, label = _candidate_key(adapted)
         groups[(kind, key)].append((adapted, label))
@@ -831,7 +832,11 @@ def _candidate_key(row: Any) -> tuple[str, str, str]:
     description = (row["description_text"] or "").strip()
     if description:
         return "description", description.casefold(), description
-    return "missing_merchant", str(row["account_id"]), f"Missing merchant — {row['account_id']}"
+    try:
+        account_label = row["account_display_name"] or row["account_id"]
+    except (KeyError, IndexError):
+        account_label = row["account_id"]
+    return "missing_merchant", str(row["account_id"]), f"Missing merchant — {account_label}"
 
 
 def _candidate_card(kind: str, key: str, members: list[tuple[Any, str]], *, focus: str = "category") -> dict[str, Any]:
