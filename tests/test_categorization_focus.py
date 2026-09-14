@@ -7,8 +7,6 @@ the shared editor uses, rather than a second reimplementation.
 """
 from __future__ import annotations
 
-import unittest
-
 from fincl.categorization_queries import (
     categorization_candidate_detail,
     categorization_candidates,
