@@ -63,8 +63,16 @@ export function CategorizationView({ generation, freshness, categories, accounts
   const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([])
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set())
   const [applyingSuggestion, setApplyingSuggestion] = useState<string | null>(null)
+  /** Step 6f: a `STALE_GENERATION` error from any child call means some other
+   * write moved the ledger past the `generation` this view was handed. Rather
+   * than surface the raw error, fetch the now-current token from the one
+   * endpoint that isn't generation-pinned (`overview`) and use it locally
+   * until the parent's own next render catches up with a matching prop. */
+  const [generationOverride, setGenerationOverride] = useState<string | null>(null)
+  const effectiveGeneration = generationOverride ?? generation
+  useEffect(() => { setGenerationOverride(null) }, [generation])
   function candidateQuery(cursor = '', focusOverride?: string) {
-    const query = new URLSearchParams({ generation, direction, lifecycle, kind, account, currency, focus: focusOverride ?? focus })
+    const query = new URLSearchParams({ generation: effectiveGeneration, direction, lifecycle, kind, account, currency, focus: focusOverride ?? focus })
     if (cursor) query.set('cursor', cursor)
     return query.toString()
   }
@@ -73,18 +81,18 @@ export function CategorizationView({ generation, freshness, categories, accounts
     try {
       const otherFocuses = FOCUSES.filter(f => f.value !== focus)
       const [s, p, ...others] = await Promise.all([
-        api<Summary>(`categorization/summary?generation=${encodeURIComponent(generation)}`),
+        api<Summary>(`categorization/summary?generation=${encodeURIComponent(effectiveGeneration)}`),
         api<CandidatesPage>(`categorization/candidates?${candidateQuery()}`),
         ...otherFocuses.map(f => api<CandidatesPage>(`categorization/candidates?${candidateQuery('', f.value)}`)),
       ])
       setSummary(s); setPage(p)
-      api<{ suggestions: RuleSuggestion[] }>(`categorization/rule-suggestions?generation=${encodeURIComponent(generation)}`)
+      api<{ suggestions: RuleSuggestion[] }>(`categorization/rule-suggestions?generation=${encodeURIComponent(effectiveGeneration)}`)
         .then(result => setSuggestions(result.suggestions))
         .catch(() => {})
       setFocusCounts({ [focus]: p.total, ...Object.fromEntries(otherFocuses.map((f, i) => [f.value, others[i].total])) })
       return p
     } catch (e) { setError((e as Error).message); return null }
-  }, [generation, direction, lifecycle, kind, account, currency, focus])
+  }, [effectiveGeneration, direction, lifecycle, kind, account, currency, focus])
   useEffect(() => { void load() }, [load])
   const queue = page?.candidates ?? []
   async function open(candidate: Candidate, index: number) {
@@ -132,11 +140,33 @@ export function CategorizationView({ generation, freshness, categories, accounts
     setApplyingSuggestion(suggestion.merchant_key); setError('')
     try {
       const reason = `Categorized ${suggestion.merchant_key} as ${suggestion.category} from repeated manual edits`
-      const compiled = await compileCombinedRule(generation, suggestion.match, { category: suggestion.category }, reason)
-      await api('batch', { request_id: crypto.randomUUID(), expected_generation: generation, reason, items: compiled.commands })
+      const compiled = await compileCombinedRule(effectiveGeneration, suggestion.match, { category: suggestion.category }, reason)
+      await api('batch', { request_id: crypto.randomUUID(), expected_generation: effectiveGeneration, reason, items: compiled.commands })
       setSuggestions(current => current.filter(s => s.merchant_key !== suggestion.merchant_key))
       await afterSave('recorded')
     } catch (e) { setError((e as Error).message) } finally { setApplyingSuggestion(null) }
+  }
+  /** Step 6f: fetch the current generation directly (the one read that isn't
+   * generation-pinned), reload the queue with it, and reopen the same
+   * candidate if it still exists -- `CandidateReview` keeps its `key` (the
+   * candidate id) across this, so its draft fields (category, reason,
+   * scope, ...) are left exactly as the user had them. */
+  async function recoverFromStaleGeneration(reopenCandidateId?: string) {
+    try {
+      const fresh = await api<{ generation: string }>('overview')
+      setGenerationOverride(fresh.generation)
+      const freshQuery = new URLSearchParams({ generation: fresh.generation, direction, lifecycle, kind, account, currency, focus }).toString()
+      const freshPage = await api<CandidatesPage>(`categorization/candidates?${freshQuery}`)
+      setPage(freshPage)
+      const index = reopenCandidateId ? freshPage.candidates.findIndex(c => c.candidate_id === reopenCandidateId) : -1
+      if (index >= 0) {
+        setSelected(await api<Detail>(`categorization/candidates/${freshPage.candidates[index].candidate_id}?${freshQuery}`))
+        setSelectedIndex(index); setActiveIndex(index)
+      } else if (reopenCandidateId) {
+        setSelected(null); setSelectedIndex(null)
+      }
+      setError('')
+    } catch (e) { setError((e as Error).message) }
   }
   const visibleSuggestions = suggestions.filter(s => !dismissedSuggestions.has(s.merchant_key))
   const disabled = freshness === 'stale'
@@ -176,12 +206,13 @@ export function CategorizationView({ generation, freshness, categories, accounts
       {selected
         ? <CandidateReview
             key={selected.candidate.candidate_id}
-            detail={selected} generation={generation} categories={categories} disabled={disabled}
+            detail={selected} generation={effectiveGeneration} categories={categories} disabled={disabled}
             hasNext={selectedIndex !== null && selectedIndex + 1 < queue.length}
             onClose={() => { setSelected(null); setSelectedIndex(null) }}
             onNavigate={async delta => { if (selectedIndex !== null && queue[selectedIndex + delta]) await open(queue[selectedIndex + delta], selectedIndex + delta) }}
             onSaved={afterSave}
             onUndoable={setUndoEntry}
+            onStaleGeneration={() => recoverFromStaleGeneration(selected.candidate.candidate_id)}
           />
         : <Card className="categorization-panel categorization-panel-empty"><p className="empty-line">Select a group from the list to review it here.</p></Card>}
     </div>
@@ -301,9 +332,9 @@ function CategoryCombobox({ id, categories, value, onChange, onCreate, disabled 
 const FIELD_NAMES: FieldName[] = ['category', 'cost_behavior', 'need', 'incoming_type']
 const RETIRE_KIND: Record<string, string> = { CATEGORY_RULE_SET: 'CATEGORY_RULE_RETIRE', ROLE_RULE_SET: 'ROLE_RULE_RETIRE', INBOUND_RULE_SET: 'INBOUND_RULE_RETIRE' }
 
-function CandidateReview({ detail, generation, categories, disabled, hasNext, onClose, onNavigate, onSaved, onUndoable }: {
+function CandidateReview({ detail, generation, categories, disabled, hasNext, onClose, onNavigate, onSaved, onUndoable, onStaleGeneration }: {
   detail: Detail; generation: string; categories: string[]; disabled: boolean; hasNext: boolean; onClose: () => void; onNavigate: (delta: number) => Promise<void>; onSaved: (status: string) => void | Promise<void>
-  onUndoable: (entry: UndoEntry) => void
+  onUndoable: (entry: UndoEntry) => void; onStaleGeneration: () => void | Promise<void>
 }) {
   const [scope, setScope] = useState<'one'|'selected'|'rule'>('rule')
   const [anchors, setAnchors] = useState(() => new Set(detail.records.map(row => row.anchor)))
@@ -323,6 +354,14 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const [error, setError] = useState('')
   const [detailLoading, setDetailLoading] = useState(false)
   const [merging, setMerging] = useState(false)
+  /** Step 6f: a STALE_GENERATION error means the ledger moved past this
+   * `generation` from outside this form -- recover instead of just showing
+   * the raw error, so the user's draft fields aren't lost to a dead end. */
+  function reportError(e: unknown) {
+    const message = (e as Error).message
+    if (message.startsWith('STALE_GENERATION')) void onStaleGeneration()
+    else setError(message)
+  }
   // Grocery-trio fields for the "one"/"selected" scopes (Step 5), shared with
   // the single-transaction editor (Step 2) and bulk editor (Step 3) via
   // `previewClassification`/`useBatchCommand` -- one draft/preview/save
@@ -407,7 +446,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   useEffect(() => {
     api<{ options: RuleOption[] }>('categorization/derive-rule', { generation, anchors: detail.records.map(r => r.anchor) })
       .then(result => { setOptions(result.options); setScope(result.options.length ? 'rule' : 'selected') })
-      .catch(e => setError((e as Error).message))
+      .catch(reportError)
   }, [detail, generation])
   useEffect(() => {
     const field = document.getElementById(categoryFieldId)
@@ -427,7 +466,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       await api('commands', body)
       setLocalCategories(current => current.includes(name) ? current : [...current, name])
       return true
-    } catch (e) { setError((e as Error).message); return false }
+    } catch (e) { reportError(e); return false }
   }
   /** Impact check and rule preview run automatically (Step 5.3): 400ms after
    * any field settles, this compiles the same 1-3 commands sharing one
@@ -441,7 +480,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
         category: category || null, cost_behavior: costBehavior || null,
         need: need || null, incoming_type: incomingType || null,
       }, reason.trim()))
-    } catch (e) { setError((e as Error).message) } finally { setCompiling(false) }
+    } catch (e) { reportError(e) } finally { setCompiling(false) }
   }
   function checkedRecords() { return records.filter(row => anchors.has(row.anchor)) }
   /** Step 6d: a new rule that would leave rows ambiguous or in direction
@@ -475,7 +514,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       }
       setPreview(await previewClassification(draft))
       if (category) rememberCategory(category)
-    } catch (e) { setError((e as Error).message) } finally { setPreviewing(false) }
+    } catch (e) { reportError(e) } finally { setPreviewing(false) }
   }
   async function saveGroupChanges() {
     if (!preview) return
@@ -494,7 +533,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       // additional records are inspectable, then explicitly selectable.
       setRecords(current => [...current, ...more.records])
       setNextCursor(more.next_cursor ?? null)
-    } catch (e) { setError((e as Error).message) } finally { setDetailLoading(false) }
+    } catch (e) { reportError(e) } finally { setDetailLoading(false) }
   }
   const onlyChecked = checkedRecords()
   const onlyTarget = onlyChecked.length === 1 ? onlyChecked[0] : null
