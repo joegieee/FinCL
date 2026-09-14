@@ -59,6 +59,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
   const [account, setAccount] = useState('')
   const [currency, setCurrency] = useState('')
   const [focus, setFocus] = useState('category')
+  const [sort, setSort] = useState<'active' | 'amount'>('active')
   const [undoEntry, setUndoEntry] = useState<UndoEntry | null>(null)
   const [suggestions, setSuggestions] = useState<RuleSuggestion[]>([])
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set())
@@ -72,7 +73,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
   const effectiveGeneration = generationOverride ?? generation
   useEffect(() => { setGenerationOverride(null) }, [generation])
   function candidateQuery(cursor = '', focusOverride?: string) {
-    const query = new URLSearchParams({ generation: effectiveGeneration, direction, lifecycle, kind, account, currency, focus: focusOverride ?? focus })
+    const query = new URLSearchParams({ generation: effectiveGeneration, direction, lifecycle, kind, account, currency, focus: focusOverride ?? focus, sort })
     if (cursor) query.set('cursor', cursor)
     return query.toString()
   }
@@ -92,7 +93,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
       setFocusCounts({ [focus]: p.total, ...Object.fromEntries(otherFocuses.map((f, i) => [f.value, others[i].total])) })
       return p
     } catch (e) { setError((e as Error).message); return null }
-  }, [effectiveGeneration, direction, lifecycle, kind, account, currency, focus])
+  }, [effectiveGeneration, direction, lifecycle, kind, account, currency, focus, sort])
   useEffect(() => { void load() }, [load])
   const queue = page?.candidates ?? []
   async function open(candidate: Candidate, index: number) {
@@ -189,6 +190,12 @@ export function CategorizationView({ generation, freshness, categories, accounts
           lifecycle={lifecycle} setLifecycle={setLifecycle} account={account} setAccount={setAccount} accounts={accounts}
           currency={currency} setCurrency={setCurrency} currencies={currencies}
         />
+        <label className="categorization-sort">Sort
+          <select aria-label="Sort categorization groups" value={sort} onChange={e => setSort(e.target.value as 'active' | 'amount')}>
+            <option value="active">Most active first</option>
+            <option value="amount">Largest total first</option>
+          </select>
+        </label>
         <Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button>
       </span>
     </div>

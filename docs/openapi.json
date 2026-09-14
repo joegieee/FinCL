@@ -1140,6 +1140,16 @@
               "default": "category",
               "title": "Focus"
             }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "active",
+              "title": "Sort"
+            }
           }
         ],
         "responses": {

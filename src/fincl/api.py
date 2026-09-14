@@ -1074,13 +1074,13 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     def categorization_candidates(generation: str, cursor: str | None = None,
                                   limit: int = Query(50, ge=1, le=100), account: str = '',
                                   currency: str = '', direction: str = '', lifecycle: str = '', kind: str = '',
-                                  focus: str = 'category') -> Any:
+                                  focus: str = 'category', sort: str = 'active') -> Any:
         from .categorization_queries import categorization_candidates as read_candidates
         try:
             return read_candidates(
                 database, generation=generation, cursor=cursor, limit=limit, account=account,
                 currency=currency, direction=direction, lifecycle=lifecycle, kind=kind,
-                focus=focus,
+                focus=focus, sort=sort,
             )
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):

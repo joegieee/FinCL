@@ -15,7 +15,7 @@ from .common import canonical_json
 from .db import connect_readonly
 from .errors import FinCLError
 from .generation import current_generation
-from .money import format_decimal
+from .money import ExactMoney, exact_sum, format_decimal
 
 CANDIDATE_GROUPING_VERSION = "categorization-candidates-2026-v2"
 
@@ -401,13 +401,23 @@ def _combined_completeness(connection: Any) -> dict[str, int]:
     return {"numerator": numerator, "denominator": denominator}
 
 
+CANDIDATE_SORTS = ("active", "amount")
+
+
+def _card_total_decimal(card: dict[str, Any]) -> Decimal:
+    values = card["total_abs_amount"].values()
+    return max((Decimal(value) for value in values), default=Decimal(0))
+
+
 def categorization_candidates(
     database: Path, *, generation: str, cursor: str | None = None, limit: int = 50,
     account: str = "", currency: str = "", direction: str = "", lifecycle: str = "", kind: str = "",
-    focus: str = "category",
+    focus: str = "category", sort: str = "active",
 ) -> dict[str, Any]:
     """Group unclassified records, or another quick-discovery focus, without
     persisting a second projection."""
+    if sort not in CANDIDATE_SORTS:
+        raise FinCLError(f"Unknown categorization sort {sort!r}")
     connection = _pinned_connection(database, generation)
     try:
         limit = max(1, min(int(limit), 100))
@@ -417,11 +427,16 @@ def categorization_candidates(
         cards = [_candidate_card(group_kind, key, members, focus=focus) for (group_kind, key), members in groups.items()
                  if not kind or group_kind == kind]
         # Stable passes make the requested priority explicit: actionable rows,
-        # then total matching rows, then the newest occurrence and stable id.
+        # then total matching rows, then the newest occurrence and stable id
+        # -- or, under `sort="amount"` (Step 6g), the largest observed total
+        # first, so high-value groups are handled before high-count ones.
         cards.sort(key=lambda card: card["candidate_id"])
         cards.sort(key=lambda card: card["date_range"]["last"], reverse=True)
-        cards.sort(key=lambda card: card["transaction_count"], reverse=True)
-        cards.sort(key=lambda card: card["active_count"], reverse=True)
+        if sort == "amount":
+            cards.sort(key=_card_total_decimal, reverse=True)
+        else:
+            cards.sort(key=lambda card: card["transaction_count"], reverse=True)
+            cards.sort(key=lambda card: card["active_count"], reverse=True)
         offset = _decode_cursor(cursor)
         page = cards[offset:offset + limit]
         next_cursor = _encode_cursor(offset + limit) if offset + limit < len(cards) else None
@@ -432,6 +447,7 @@ def categorization_candidates(
             "next_cursor": next_cursor,
             "total": len(cards),
             "focus": focus,
+            "sort": sort,
         }
     finally:
         connection.close()
@@ -829,12 +845,18 @@ def _candidate_card(kind: str, key: str, members: list[tuple[Any, str]], *, focu
     directions = Counter(row["economic_direction"] for row in rows)
     active_count = sum(bool(row["analytics_eligible"]) and row["lifecycle_state"] == "COMPLETED" for row in rows)
     examples = list(dict.fromkeys((row["description_text"] or "").strip() for row in rows if row["description_text"]))[:3]
+    by_currency: dict[str, list[ExactMoney]] = defaultdict(list)
+    for row in rows:
+        amount = ExactMoney.parse(row["amount_text"])
+        by_currency[row["currency_pocket"]].append(ExactMoney(abs(amount.coefficient), amount.scale, amount.text))
+    total_abs_amount = {currency: format_decimal(*exact_sum(*values)) for currency, values in by_currency.items()}
     card = {
         "candidate_id": candidate_id, "kind": kind, "label": label,
         "transaction_count": len(rows), "active_count": active_count,
         "date_range": {"first": min(row["effective_at"][:10] for row in rows), "last": max(row["effective_at"][:10] for row in rows)},
         "currencies": dict(sorted(currencies.items())), "directions": dict(sorted(directions.items())),
         "accounts": sorted({str(row["account_id"]) for row in rows}), "examples": examples,
+        "total_abs_amount": dict(sorted(total_abs_amount.items())),
     }
     # `candidate_id` already hashes `key`; `merchant_key` exposes the raw
     # canonical/normalized value itself so a rename action has something to

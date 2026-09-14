@@ -4420,6 +4420,7 @@ export interface operations {
                 lifecycle?: string;
                 kind?: string;
                 focus?: string;
+                sort?: string;
             };
             header?: never;
             path?: never;
