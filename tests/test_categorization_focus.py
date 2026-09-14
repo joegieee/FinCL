@@ -7,6 +7,8 @@ the shared editor uses, rather than a second reimplementation.
 """
 from __future__ import annotations
 
+import unittest
+
 from fincl.categorization_queries import (
     categorization_candidate_detail,
     categorization_candidates,
@@ -34,6 +36,52 @@ class FocusDiscoveryTests(ClassificationTestBase):
         self.assertTrue(page["candidates"])
         for card in page["candidates"]:
             self.assertNotIn("spending_details", card["candidate_id"])
+
+    @unittest.expectedFailure
+    def test_category_queue_ignores_reporting_dates_and_agrees_with_all_time_summary(self) -> None:
+        """Milestone 0 contract: reporting dates must not hide selected history."""
+        generation = self._generation()
+        summary = categorization_summary(self.database, generation=generation)
+        all_time = categorization_candidates(self.database, generation=generation, focus="category")
+        dated = categorization_candidates(
+            self.database, generation=generation, focus="category", start="2026-02-01", end="2026-02-28",
+        )
+        self.assertEqual(dated["candidates"], all_time["candidates"])
+        queue_records = sum(
+            len(categorization_candidate_detail(
+                self.database, generation=generation, candidate_id=card["candidate_id"], focus="category",
+            )["records"])
+            for card in all_time["candidates"]
+        )
+        self.assertEqual(queue_records, summary["counts"].get("unclassified_active", 0))
+
+    @unittest.expectedFailure
+    def test_candidate_detail_exposes_authoritative_per_row_applicability(self) -> None:
+        """Milestone 0 contract for the Milestone 2 row shape."""
+        generation = self._generation()
+        card = categorization_candidates(self.database, generation=generation, focus="category")["candidates"][0]
+        record = categorization_candidate_detail(
+            self.database, generation=generation, candidate_id=card["candidate_id"], focus="category",
+        )["records"][0]
+        self.assertIn("detail_bucket", record)
+        self.assertEqual(set(record["applicable_fields"]), {"category", "cost_behavior", "need", "incoming_type"})
+
+    def test_alias_aware_regrouping_forms_one_candidate_after_refresh(self) -> None:
+        """Current regrouping behavior to preserve when canonical merge is added."""
+        self._decide(
+            kind="MERCHANT_ALIAS_SET", anchors={"canonical": "Everyday shops"},
+            payload={"patterns": [{"exact": "CORNER SHOP"}, {"exact": "BISTRO"}],
+                     "display_name": "Everyday shops", "reason": "synthetic merge"},
+        )
+        refresh_ledger(self.database)
+        generation = self._generation()
+        page = categorization_candidates(self.database, generation=generation, focus="category")
+        cards = [card for card in page["candidates"] if card["label"] == "Everyday shops"]
+        self.assertEqual(len(cards), 1)
+        detail = categorization_candidate_detail(
+            self.database, generation=generation, candidate_id=cards[0]["candidate_id"], focus="category",
+        )
+        self.assertEqual({record["merchant_normalized"] for record in detail["records"]}, {"CORNER SHOP", "BISTRO"})
 
     def test_spending_details_focus_finds_a_categorized_but_unresolved_row_across_the_full_result_set(self) -> None:
         # Give one Corner Shop entry a category outside the built-in
