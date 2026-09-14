@@ -7,10 +7,13 @@ import { AsyncView } from '@/components/AsyncView'
 import { useLedgerCommand, useBatchCommand } from '@/lib/command'
 import { api } from '@/lib/api'
 import { COST_BEHAVIORS, NEEDS, INCOMING_TYPES, INCOMING_LABELS, label } from '@/features/classification/api'
+import { MergeMerchantsDialog } from './MergeMerchants'
 import {
   compileCombinedRule, compileRule, loadGroupedRules, loadRules, merchantRenamePreview, retireCombinedPreview, PREDICATES,
   type CombinedRetirePreview, type CombinedRuleImpact, type CompiledCombinedRule, type CompiledRule, type GroupedRuleRow, type MerchantRenamePreview, type RulesPage,
 } from './api'
+
+export { MergeMerchantsDialog }
 
 /**
  * v0.5 slice 3 — merchant aliases and category rules. Predicates are the
@@ -429,6 +432,48 @@ function ruleSentence(match: Record<string, unknown>) {
   return `Description contains “${match.description_contains}”${match.account ? ` in ${match.account}` : ''}`
 }
 
+/**
+ * "Split" (unmerge) an alias: preview which rules still point at the merged
+ * key, then retire the alias. Rules are not restored to their pre-merge
+ * identities -- the preview says so explicitly (Plan Step 4, frontend item 3).
+ */
+function AliasSplitControl({ generation, canonical, disabled, onSaved }: {
+  generation: string; canonical: string; disabled: boolean; onSaved: (status: string) => void | Promise<void>
+}) {
+  const [dependentRules, setDependentRules] = useState<GroupedRuleRow[] | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [error, setError] = useState('')
+  const retire = useLedgerCommand(generation, async status => { setDependentRules(null); await onSaved(status) })
+
+  async function checkImpact() {
+    setChecking(true); setError('')
+    try {
+      const rules = await loadGroupedRules(generation)
+      setDependentRules(rules.grouped.filter(row => row.match.merchant_canonical === canonical))
+    } catch (e) { setError((e as Error).message) } finally { setChecking(false) }
+  }
+
+  if (dependentRules === null) {
+    return <span>
+      <Button variant="ghost" size="sm" disabled={disabled || checking} onClick={() => void checkImpact()}>{checking ? 'Checking…' : 'Split'}</Button>
+      {error && <p className="form-error" role="alert">{error}</p>}
+    </span>
+  }
+  return <span className="alias-split">
+    <p className="muted-note">
+      {dependentRules.length === 0 ? 'No active rules point at this merchant.'
+        : `${dependentRules.length} rule${dependentRules.length === 1 ? '' : 's'} still point${dependentRules.length === 1 ? 's' : ''} at "${canonical}": ${dependentRules.map(rule => rule.match_label).join(', ')}.`}
+      {' '}Splitting removes only the alias; rules are not automatically restored to their pre-merge identities.
+    </p>
+    {retire.error && <p className="form-error" role="alert">{retire.error}</p>}
+    <Button variant="ghost" size="sm" disabled={disabled || retire.busy}
+      onClick={() => void retire.act({ kind: 'MERCHANT_ALIAS_RETIRE', anchors: { canonical }, payload: { reason: `Split merchant ${canonical}` } })}>
+      {retire.busy ? 'Working…' : retire.previewed ? 'Confirm split' : 'Preview split'}
+    </Button>
+    <Button variant="ghost" size="sm" disabled={retire.busy} onClick={() => setDependentRules(null)}>Cancel</Button>
+  </span>
+}
+
 function AliasBuilder({ page, disabled, onSaved }: {
   page: RulesPage; disabled: boolean; onSaved: (status: string) => void | Promise<void>
 }) {
@@ -438,8 +483,9 @@ function AliasBuilder({ page, disabled, onSaved }: {
   const [reason, setReason] = useState('')
   const [history, setHistory] = useState<{ canonical: string; items: Array<{ journal_seq: number; kind: string; recorded_at: string; reason: string }> } | null>(null)
   const [historyError, setHistoryError] = useState('')
+  const [mergeSelection, setMergeSelection] = useState<Set<string>>(() => new Set())
+  const [merging, setMerging] = useState(false)
   const cmd = useLedgerCommand(page.generation, async s => { setCanonical(''); setSpec(''); setDisplay(''); setReason(''); await onSaved(s) })
-  const retire = useLedgerCommand(page.generation, onSaved)
 
   function patterns() {
     return spec.split(/\s*,\s*/).filter(Boolean).map(part => {
@@ -457,29 +503,41 @@ function AliasBuilder({ page, disabled, onSaved }: {
       setHistoryError((e as Error).message)
     }
   }
+  function toggleMergeSelection(canonical: string) {
+    setMergeSelection(current => {
+      const next = new Set(current)
+      if (next.has(canonical)) next.delete(canonical)
+      else next.add(canonical)
+      return next
+    })
+  }
 
   return (
     <Card className="alias-section">
-      <div className="panel-title"><div><p className="eyebrow">MERCHANT ALIASES</p><h2>Map raw statement text to one canonical merchant</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">MERCHANT ALIASES</p><h2>Map raw statement text to one canonical merchant</h2></div>
+        <Button variant="outline" size="sm" disabled={disabled || mergeSelection.size < 2} onClick={() => setMerging(true)}>Merge selected ({mergeSelection.size})</Button>
+      </div>
       {page.aliases.length > 0 && (
         <ul className="issue-list">
           {page.aliases.map(alias => (
             <li key={alias.canonical}>
+              <label className="merge-select"><input type="checkbox" aria-label={`Select ${alias.canonical} to merge`}
+                checked={mergeSelection.has(alias.canonical)} onChange={() => toggleMergeSelection(alias.canonical)} /></label>
               <Tag size={13} /> <strong>{alias.canonical}</strong>{alias.display_name ? ` (${alias.display_name})` : ''}
               <MerchantRenameControl generation={page.generation} merchantKey={alias.canonical}
                 currentLabel={alias.display_name || alias.canonical} disabled={disabled} onSaved={onSaved} />
               <p>{alias.metrics.observed_matches} observed match{alias.metrics.observed_matches === 1 ? '' : 'es'} · {alias.metrics.effective_assignments} effective assignment{alias.metrics.effective_assignments === 1 ? '' : 's'}</p>
               <small>{alias.patterns.map(p => Object.entries(p).map(([k, v]) => `${k}: ${v}`).join('')).join(', ')}{alias.metrics.first_match ? ` · ${alias.metrics.first_match} to ${alias.metrics.last_match}` : ''}</small>
-              <Button variant="ghost" size="sm" disabled={disabled || retire.busy}
-                onClick={() => void retire.act({ kind: 'MERCHANT_ALIAS_RETIRE', anchors: { canonical: alias.canonical }, payload: { reason: `Retire alias ${alias.canonical}` } })}>Retire</Button>
+              <AliasSplitControl generation={page.generation} canonical={alias.canonical} disabled={disabled} onSaved={onSaved} />
               <Button variant="ghost" size="sm" onClick={() => void loadHistory(alias.canonical)}>History</Button>
               {history?.canonical === alias.canonical && <ol className="rule-history">{history.items.map(item => <li key={`${item.journal_seq}-${item.kind}`}><strong>{item.kind.replaceAll('_', ' ').toLowerCase()}</strong> · {item.recorded_at}{item.reason ? ` · ${item.reason}` : ''}</li>)}</ol>}
             </li>
           ))}
         </ul>
       )}
-      {retire.error && <p className="form-error" role="alert">{retire.error}</p>}
       {historyError && <p className="form-error" role="alert">{historyError}</p>}
+      {merging && <MergeMerchantsDialog generation={page.generation} seedKeys={[...mergeSelection]} disabled={disabled}
+        onClose={() => setMerging(false)} onSaved={async status => { setMerging(false); setMergeSelection(new Set()); await onSaved(status) }} />}
       <form onChange={cmd.reset} onSubmit={e => {
         e.preventDefault()
         void cmd.act({ kind: 'MERCHANT_ALIAS_SET', anchors: { canonical: canonical.trim() },

@@ -1378,6 +1378,115 @@
         }
       }
     },
+    "/api/v1/merchants": {
+      "get": {
+        "summary": "Merchants Search",
+        "operationId": "merchants_search_api_v1_merchants_get",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Generation"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Merchants Search Api V1 Merchants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/merchants/similar": {
+      "get": {
+        "summary": "Merchants Similar Route",
+        "operationId": "merchants_similar_route_api_v1_merchants_similar_get",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Generation"
+            }
+          },
+          {
+            "name": "merchant_key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Merchant Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Merchants Similar Route Api V1 Merchants Similar Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categorization/merchant-rename/preview": {
       "post": {
         "summary": "Categorization Merchant Rename Preview",
@@ -8399,6 +8508,13 @@
             "maxLength": 2000,
             "minLength": 1,
             "title": "Reason"
+          },
+          "resolutions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Resolutions"
           }
         },
         "additionalProperties": false,

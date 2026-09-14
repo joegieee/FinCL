@@ -142,6 +142,7 @@ class MerchantMergeDraft(StrictModel):
     target: str = Field(min_length=1, max_length=200)
     display_name: str | None = Field(default=None, max_length=200)
     reason: str = Field(min_length=1, max_length=2000)
+    resolutions: dict[str, str] = Field(default_factory=dict)
 
 
 class MerchantRenameDraft(StrictModel):
@@ -1120,10 +1121,33 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .categorization_queries import merchant_merge_preview
         try:
             return merchant_merge_preview(database, generation=draft.generation, sources=draft.sources,
-                                          target=draft.target, display_name=draft.display_name, reason=draft.reason)
+                                          target=draft.target, display_name=draft.display_name, reason=draft.reason,
+                                          resolutions=draft.resolutions)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
                 raise HTTPException(409, str(exc)) from exc
+            raise
+
+    @app.get('/api/v1/merchants')
+    def merchants_search(generation: str, q: str = '', limit: int = Query(20, ge=1, le=100)) -> Any:
+        from .categorization_queries import merchant_search
+        try:
+            return merchant_search(database, generation=generation, query=q, limit=limit)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise
+
+    @app.get('/api/v1/merchants/similar')
+    def merchants_similar_route(generation: str, merchant_key: str) -> Any:
+        from .categorization_queries import merchant_similar
+        try:
+            return merchant_similar(database, generation=generation, merchant_key=merchant_key)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            if str(exc) == 'Unknown merchant identity':
+                raise HTTPException(404, str(exc)) from exc
             raise
 
     @app.post('/api/v1/categorization/merchant-rename/preview')

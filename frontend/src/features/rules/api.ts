@@ -126,3 +126,41 @@ export const compileCombinedRule = (generation: string, match: Record<string, un
 export type CombinedRetirePreview = { rule_id: string; commands: CombinedRuleCommand[]; impact: CombinedRuleImpact }
 export const retireCombinedPreview = (ruleId: string, generation: string, reason: string) =>
   api<CombinedRetirePreview>(`rules/${encodeURIComponent(ruleId)}/retire-combined/preview`, { generation, reason })
+
+/** One observed merchant identity, aggregated across all-time ledger history
+ * (PLAN-categorization-workflow.md Step 4) -- the row shape shared by search
+ * results and similarity suggestions. */
+export type MerchantRow = {
+  merchant_key: string
+  display_name: string | null
+  variants: string[]
+  transaction_count: number
+  last_seen: string | null
+  has_rules: boolean
+}
+export type MerchantSearchPage = { generation: string; merchants: MerchantRow[] }
+export const searchMerchants = (generation: string, query: string, limit = 20) =>
+  api<MerchantSearchPage>(`merchants?generation=${encodeURIComponent(generation)}&q=${encodeURIComponent(query)}&limit=${limit}`)
+
+export type MerchantSimilarPage = { generation: string; merchant_key: string; suggestions: MerchantRow[] }
+export const similarMerchants = (generation: string, merchantKey: string) =>
+  api<MerchantSimilarPage>(`merchants/similar?generation=${encodeURIComponent(generation)}&merchant_key=${encodeURIComponent(merchantKey)}`)
+
+/** A merge conflict: two or more sources disagree on the outcome for one
+ * rule kind (category / role / inbound). Resolve by naming the winning
+ * source in `resolutions[kind]` and re-previewing -- neither the new rule
+ * nor the old ones are emitted for that kind until it is resolved. */
+export type MergeConflict = { kind: string; candidates: Array<{ from_merchant: string; value: unknown }> }
+export type MerchantMergePreview = {
+  generation: string; sources: string[]; target: string; patterns: Array<Record<string, string>>
+  commands: Array<{ kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }>
+  conflicts: MergeConflict[]
+  affected_transactions: number
+  dependent_rules: number
+}
+export const merchantMergePreview = (
+  generation: string, sources: string[], target: string, displayName: string | null, reason: string,
+  resolutions: Record<string, string> = {},
+) => api<MerchantMergePreview>('categorization/merchant-merge/preview', {
+  generation, sources, target, display_name: displayName, reason, resolutions,
+})

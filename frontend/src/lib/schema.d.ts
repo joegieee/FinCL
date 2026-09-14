@@ -593,6 +593,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/merchants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Merchants Search */
+        get: operations["merchants_search_api_v1_merchants_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/merchants/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Merchants Similar Route */
+        get: operations["merchants_similar_route_api_v1_merchants_similar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/categorization/merchant-rename/preview": {
         parameters: {
             query?: never;
@@ -2722,6 +2756,10 @@ export interface components {
             display_name?: string | null;
             /** Reason */
             reason: string;
+            /** Resolutions */
+            resolutions?: {
+                [key: string]: string;
+            };
         };
         /** MerchantRank */
         MerchantRank: {
@@ -4478,6 +4516,71 @@ export interface operations {
                 "application/json": components["schemas"]["MerchantMergeDraft"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merchants_search_api_v1_merchants_get: {
+        parameters: {
+            query: {
+                generation: string;
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merchants_similar_route_api_v1_merchants_similar_get: {
+        parameters: {
+            query: {
+                generation: string;
+                merchant_key: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

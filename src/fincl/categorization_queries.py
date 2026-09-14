@@ -25,15 +25,41 @@ CANDIDATE_GROUPING_VERSION = "categorization-candidates-2026-v2"
 FOCUS_KINDS = ("category", "spending_details", "incoming", "conflicts")
 
 
+_MERGE_RULE_TABLES = (
+    ("category_rules", "CATEGORY_RULE_SET", "CATEGORY_RULE_RETIRE", "category"),
+    ("role_rules", "ROLE_RULE_SET", "ROLE_RULE_RETIRE", "role"),
+    ("inbound_rules", "INBOUND_RULE_SET", "INBOUND_RULE_RETIRE", "inbound"),
+)
+
+
+def _merge_rule_value(table: str, row: Any) -> Any:
+    if table == "category_rules":
+        return f"{row['group_name']} / {row['category']}"
+    if table == "role_rules":
+        return {"cost_behavior": row["cost_behavior"], "need": row["need"]}
+    return row["classification"]
+
+
 def merchant_merge_preview(database: Path, *, generation: str, sources: list[str], target: str,
-                           display_name: str | None, reason: str) -> dict[str, Any]:
+                           display_name: str | None, reason: str,
+                           resolutions: dict[str, str] | None = None) -> dict[str, Any]:
     """Return the frozen journal children for a deliberate merchant merge.
 
     This is deliberately a read-only compiler: the caller previews these exact
     set-new/retire-old children and submits them as one existing idempotent
     batch. No projection table is edited directly.
+
+    Category, role and inbound rules pointing at any source all collapse onto
+    the same new ``rule_id`` (one match, the target). When sources disagree on
+    the outcome for one of those three kinds (e.g. one source's category rule
+    says "Food", another says "Transport"), neither the new rule nor the old
+    rules for that kind are emitted -- an unresolved conflict must not
+    silently pick a winner or drop a source's categorization. The caller
+    resolves it by naming which source's value to keep in ``resolutions``
+    (keyed by "category" / "role" / "inbound") and re-previewing.
     """
     from .categorization import canonical_match, rule_id_for, validate_alias_patterns
+    resolutions = resolutions or {}
     if not sources or len(set(sources)) != len(sources) or target in sources:
         raise FinCLError("Choose distinct source merchant identities and a different target")
     if not target.strip() or not reason.strip():
@@ -47,43 +73,156 @@ def merchant_merge_preview(database: Path, *, generation: str, sources: list[str
         for canonical in [*sources, target]:
             if canonical in aliases:
                 patterns.extend(json.loads(aliases[canonical]["patterns_json"]))
-        # Source identities without an alias are still observable statement
-        # names, so preserve them as exact patterns in the new canonical.
-        marks = ",".join("?" for _ in sources)
+        # Source identities without an alias, and a target without one, are
+        # still observable statement names -- preserve them as exact patterns
+        # in the new canonical so nothing that used to resolve here stops
+        # matching once this alias becomes authoritative.
+        normalized_sources = list(sources) if target in aliases else [*sources, target]
+        marks = ",".join("?" for _ in normalized_sources)
         for row in connection.execute(
-            f"SELECT DISTINCT merchant_normalized FROM merchant_observations WHERE merchant_canonical IN ({marks})", sources,
+            f"SELECT DISTINCT merchant_normalized FROM merchant_observations WHERE merchant_canonical IN ({marks})",
+            normalized_sources,
         ):
             if row["merchant_normalized"]:
                 patterns.append({"exact": row["merchant_normalized"]})
         patterns = validate_alias_patterns(list({canonical_json(p): p for p in patterns}.values()))
+        resolved_display_name = display_name or aliases.get(target, {}).get("display_name")
+        if not resolved_display_name:
+            resolved_display_name = next(
+                (aliases[source]["display_name"] for source in sources
+                 if source in aliases and aliases[source].get("display_name")),
+                None,
+            )
         commands: list[dict[str, Any]] = [{
             "kind": "MERCHANT_ALIAS_SET", "anchors": {"canonical": target},
             "payload": {"patterns": patterns, "replace_patterns": True,
-                        "display_name": display_name or aliases.get(target, {}).get("display_name"), "reason": reason},
+                        "display_name": resolved_display_name, "reason": reason},
         }]
-        for table, set_kind, retire_kind, fields in (
-            ("category_rules", "CATEGORY_RULE_SET", "CATEGORY_RULE_RETIRE", ("category",)),
-            ("role_rules", "ROLE_RULE_SET", "ROLE_RULE_RETIRE", ("cost_behavior", "need")),
-        ):
-            for row in connection.execute(f"SELECT * FROM {table}").fetchall():
-                match = json.loads(row["match_json"])
-                if match.get("merchant_canonical") not in sources:
+        conflicts: list[dict[str, Any]] = []
+        new_match = canonical_match({"merchant_canonical": target})
+        new_rule_id = rule_id_for(new_match)
+        for table, set_kind, retire_kind, kind_label in _MERGE_RULE_TABLES:
+            matched_rows = [
+                row for row in connection.execute(f"SELECT * FROM {table}").fetchall()
+                if json.loads(row["match_json"]).get("merchant_canonical") in sources
+            ]
+            if not matched_rows:
+                continue
+            groups: dict[str, list[tuple[str, Any, Any]]] = {}
+            for row in matched_rows:
+                from_merchant = json.loads(row["match_json"])["merchant_canonical"]
+                value = _merge_rule_value(table, row)
+                value_key = value if isinstance(value, str) else canonical_json(value)
+                groups.setdefault(value_key, []).append((from_merchant, value, row))
+            if len(groups) > 1:
+                chosen_from = resolutions.get(kind_label)
+                winner = next((g for g in groups.values() if g[0][0] == chosen_from), None) if chosen_from else None
+                if winner is None:
+                    conflicts.append({
+                        "kind": kind_label,
+                        "candidates": [{"from_merchant": g[0][0], "value": g[0][1]} for g in groups.values()],
+                    })
                     continue
-                new_match = canonical_match({"merchant_canonical": target})
-                payload: dict[str, Any] = {"match": new_match, "reason": reason}
-                if set_kind == "CATEGORY_RULE_SET":
-                    payload["category"] = f"{row['group_name']} / {row['category']}"
-                else:
-                    payload.update({field: row[field] for field in fields})
-                commands.append({"kind": set_kind, "anchors": {"rule_id": rule_id_for(new_match)}, "payload": payload})
+                value = winner[0][1]
+            else:
+                value = next(iter(groups.values()))[0][1]
+            payload: dict[str, Any] = {"match": new_match, "reason": reason}
+            if table == "category_rules":
+                payload["category"] = value
+            elif table == "role_rules":
+                payload.update(value)
+            else:
+                payload["classification"] = value
+            commands.append({"kind": set_kind, "anchors": {"rule_id": new_rule_id}, "payload": payload})
+            for row in matched_rows:
                 commands.append({"kind": retire_kind, "anchors": {"rule_id": row["rule_id"]}, "payload": {"reason": reason}})
         for source in sources:
             if source in aliases:
                 commands.append({"kind": "MERCHANT_ALIAS_RETIRE", "anchors": {"canonical": source}, "payload": {"reason": reason}})
+        affected_transactions = connection.execute(
+            f"SELECT COUNT(*) AS n FROM merchant_observations WHERE merchant_canonical IN ({','.join('?' for _ in [*sources, target])})",
+            [*sources, target],
+        ).fetchone()["n"]
         return {"generation": generation, "sources": sources, "target": target, "patterns": patterns,
-                "commands": commands, "dependent_rules": sum(1 for item in commands if item["kind"] in {"CATEGORY_RULE_RETIRE", "ROLE_RULE_RETIRE"})}
+                "commands": commands, "conflicts": conflicts, "affected_transactions": affected_transactions,
+                "dependent_rules": sum(1 for item in commands if item["kind"].endswith("_RETIRE") and item["kind"] != "MERCHANT_ALIAS_RETIRE")}
     finally:
         connection.close()
+
+
+def merchant_search(database: Path, *, generation: str, query: str, limit: int) -> dict[str, Any]:
+    """Case-insensitive substring search over merchant key, display name and
+    observed statement-name variants (Plan Step 4). Read-only."""
+    connection = _pinned_connection(database, generation)
+    try:
+        merchants = _merchant_index(connection)
+    finally:
+        connection.close()
+    needle = query.strip().casefold()
+    if needle:
+        merchants = [
+            item for item in merchants
+            if needle in item["merchant_key"].casefold()
+            or needle in (item["display_name"] or "").casefold()
+            or any(needle in variant.casefold() for variant in item["variants"])
+        ]
+    return {"generation": generation, "merchants": merchants[:limit]}
+
+
+def merchant_similar(database: Path, *, generation: str, merchant_key: str) -> dict[str, Any]:
+    """Suggestion-only near-duplicate merchants for ``merchant_key`` (Plan Step 4)."""
+    from .merchant_similarity import merchants_similar
+    connection = _pinned_connection(database, generation)
+    try:
+        merchants = _merchant_index(connection)
+    finally:
+        connection.close()
+    if not any(item["merchant_key"] == merchant_key for item in merchants):
+        raise FinCLError("Unknown merchant identity")
+    suggestions = sorted(
+        (item for item in merchants if item["merchant_key"] != merchant_key and merchants_similar(merchant_key, item["merchant_key"])),
+        key=lambda item: (-item["transaction_count"], item["merchant_key"]),
+    )
+    return {"generation": generation, "merchant_key": merchant_key, "suggestions": suggestions[:20]}
+
+
+def _merchant_index(connection: Any) -> list[dict[str, Any]]:
+    """Every observed merchant identity, aggregated across ledger history.
+
+    Not focus/date/currency scoped -- a merge or its suggestions must consider
+    every statement variant ever seen, the same all-time posture as the rest
+    of the categorization inbox (§0, F1).
+    """
+    rows = connection.execute(
+        """SELECT o.merchant_canonical AS key, o.merchant_normalized AS variant, e.effective_at
+           FROM merchant_observations o JOIN ledger_entries e ON e.id = o.entry_id
+           WHERE o.merchant_canonical IS NOT NULL"""
+    ).fetchall()
+    aliases = {row["canonical"]: row["display_name"] for row in connection.execute(
+        "SELECT canonical, display_name FROM merchant_aliases"
+    )}
+    rule_keys: set[str] = set()
+    for table, *_rest in _MERGE_RULE_TABLES:
+        for row in connection.execute(f"SELECT match_json FROM {table}"):
+            match = json.loads(row["match_json"])
+            if "merchant_canonical" in match:
+                rule_keys.add(match["merchant_canonical"])
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        item = grouped.setdefault(row["key"], {"variants": set(), "transaction_count": 0, "last_seen": None})
+        if row["variant"]:
+            item["variants"].add(row["variant"])
+        item["transaction_count"] += 1
+        if item["last_seen"] is None or row["effective_at"] > item["last_seen"]:
+            item["last_seen"] = row["effective_at"]
+    return [
+        {
+            "merchant_key": key, "display_name": aliases.get(key),
+            "variants": sorted(item["variants"]), "transaction_count": item["transaction_count"],
+            "last_seen": item["last_seen"], "has_rules": key in rule_keys,
+        }
+        for key, item in sorted(grouped.items(), key=lambda kv: (-kv[1]["transaction_count"], kv[0]))
+    ]
 
 
 def merchant_rename_preview(database: Path, *, generation: str, merchant_key: str, display_name: str,
