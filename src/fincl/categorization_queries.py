@@ -6,6 +6,7 @@ import binascii
 import hashlib
 import json
 from collections import Counter, defaultdict
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from .common import canonical_json
 from .db import connect_readonly
 from .errors import FinCLError
 from .generation import current_generation
+from .money import format_decimal
 
 CANDIDATE_GROUPING_VERSION = "categorization-candidates-2026-v2"
 
@@ -464,6 +466,75 @@ def categorization_candidate_detail(
         connection.close()
 
 
+_BAND_MIN_TRANSACTIONS = 4
+_BAND_MIN_SIDE = 2
+_BAND_MIN_GAP_RATIO = Decimal("0.2")
+
+
+_AmountPart = dict[str, int]  # {"coefficient": int, "scale": int}
+_BandBound = dict[str, _AmountPart]  # {"min": <part>, "max": <part>}
+
+
+def _decimal_value(coefficient: int, scale: int) -> Decimal:
+    return Decimal(coefficient).scaleb(-scale)
+
+
+def _amount_band_split(
+    magnitudes: list[_AmountPart],
+) -> tuple[_BandBound, _BandBound] | None:
+    """Split observed amounts into two bands at their widest relative gap.
+
+    Returns the (lower, upper) cluster bounds as ``{coefficient, scale}``
+    amount parts taken straight from the observed rows, or ``None`` when the
+    amounts do not separate into two clusters with a clearly wider gap
+    between them than within them.
+    """
+    if len(magnitudes) < _BAND_MIN_TRANSACTIONS:
+        return None
+    ordered = sorted(magnitudes, key=lambda part: _decimal_value(part["coefficient"], part["scale"]))
+    values = [_decimal_value(part["coefficient"], part["scale"]) for part in ordered]
+    span = values[-1] - values[0]
+    if span <= 0:
+        return None
+    gap, split_at = max((values[i + 1] - values[i], i) for i in range(len(values) - 1))
+    if gap / span < _BAND_MIN_GAP_RATIO:
+        return None
+    lower, upper = ordered[: split_at + 1], ordered[split_at + 1 :]
+    if len(lower) < _BAND_MIN_SIDE or len(upper) < _BAND_MIN_SIDE:
+        return None
+    return ({"min": lower[0], "max": lower[-1]}, {"min": upper[0], "max": upper[-1]})
+
+
+def _amount_band_options(connection: Any, *, base_match: dict[str, str], where: str, params: tuple) -> list[dict[str, Any]]:
+    """Offer an ``amount_band`` refinement of ``base_match`` when its observed amounts cluster."""
+    rows = connection.execute(
+        f"""
+        SELECT abs(e.amount_coefficient) AS coefficient, e.amount_scale AS scale, e.currency_pocket AS currency
+        FROM ledger_entries e
+        JOIN extraction_runs x ON x.id = e.extraction_run_id
+        JOIN merchant_observations o ON o.entry_id = e.id
+        WHERE x.selection_state='SELECTED' AND {where}
+        """,
+        params,
+    ).fetchall()
+    currencies = {row["currency"] for row in rows}
+    if len(currencies) != 1:
+        return []
+    split = _amount_band_split([{"coefficient": row["coefficient"], "scale": row["scale"]} for row in rows])
+    if split is None:
+        return []
+    currency = next(iter(currencies))
+    options = []
+    for bound in split:
+        low = format_decimal(bound["min"]["coefficient"], bound["min"]["scale"])
+        high = format_decimal(bound["max"]["coefficient"], bound["max"]["scale"])
+        options.append({
+            "label": f"Only amounts between {currency} {low} and {currency} {high}",
+            "match": {**base_match, "amount_band": {"currency": currency, **bound}},
+        })
+    return options
+
+
 def derive_rule_options(database: Path, *, generation: str, anchors: list[str]) -> dict[str, Any]:
     """Derive only closed predicates supported by the categorization engine."""
     if not anchors or len(set(anchors)) != len(anchors):
@@ -485,7 +556,12 @@ def derive_rule_options(database: Path, *, generation: str, anchors: list[str]) 
         options: list[dict[str, Any]] = []
         merchants = {row["merchant_canonical"] or row["merchant_normalized"] for row in rows}
         if len(merchants) == 1 and None not in merchants:
-            options.append({"label": "All transactions from this merchant", "match": {"merchant_canonical": next(iter(merchants))}})
+            merchant_key = next(iter(merchants))
+            options.append({"label": "All transactions from this merchant", "match": {"merchant_canonical": merchant_key}})
+            options.extend(_amount_band_options(
+                connection, base_match={"merchant_canonical": merchant_key},
+                where="COALESCE(o.merchant_canonical, o.merchant_normalized)=?", params=(merchant_key,),
+            ))
         payees = {row["paynow_to"] for row in rows}
         if len(payees) == 1 and None not in payees:
             options.append({"label": "All transactions to this PayNow recipient", "match": {"paynow_to": next(iter(payees))}})
