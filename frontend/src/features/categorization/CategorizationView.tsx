@@ -21,7 +21,7 @@ type Summary = {
 }
 type Candidate = { candidate_id: string; kind: string; label: string; transaction_count: number; active_count: number; date_range: { first: string; last: string }; accounts: string[]; directions: Record<string, number>; examples: string[] }
 type CandidatesPage = { candidates: Candidate[]; next_cursor: string | null; total: number }
-type CandidateRecord = { anchor: string; description: string | null; account: string; currency: string; amount: string; date: string; direction: string; active: boolean; merchant_raw?: string | null; merchant_normalized?: string | null; detail_bucket?: string; applicable_fields?: Applicability; effective?: Record<string, string | null> }
+type CandidateRecord = { anchor: string; description: string | null; account: string; currency: string; amount: string; date: string; direction: string; active: boolean; merchant_raw?: string | null; merchant_normalized?: string | null; detail_bucket?: string; applicable_fields?: Applicability; effective?: Record<string, string | null>; conflicts?: { ambiguous: boolean; direction: boolean } }
 type Detail = { candidate: Candidate; records: CandidateRecord[]; next_cursor?: string | null }
 type RuleOption = { label: string; match: Record<string, unknown> }
 
@@ -360,7 +360,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     {notAllLoaded && <p className="candidate-records-note">Showing {records.length} of {detail.candidate.transaction_count} loaded so far. Selected counts below cover only loaded records, not the full group.</p>}
     <div className="candidate-records">
       <label key="all"><input type="checkbox" checked={anchors.size === records.length && records.length > 0} onChange={() => setAnchors(current => current.size === records.length ? new Set() : new Set(records.map(r => r.anchor)))}/><span>{anchors.size === records.length ? `Deselect all ${records.length} loaded` : `Select all ${records.length} loaded`}</span><strong/></label>
-      {records.map(row => <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}</small></label>)}
+      {records.map(row => <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}</small></label>)}
     </div>
     {nextCursor && <Button variant="outline" size="sm" disabled={detailLoading} onClick={() => void loadMoreRecords()}>{detailLoading ? 'Loading records…' : 'Load more records'}</Button>}
     <fieldset disabled={disabled || command.attempted || batching || batch.busy}><legend>Choose scope</legend>

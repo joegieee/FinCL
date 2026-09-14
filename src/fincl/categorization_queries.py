@@ -267,6 +267,10 @@ def categorization_candidate_detail(
                         "need": shaped["need"], "need_basis": shaped["need_basis"],
                         "incoming_type": raw.get("classification"),
                     },
+                    "conflicts": {
+                        "ambiguous": bool(raw.get("ambiguous")),
+                        "direction": bool(raw.get("direction_conflict")),
+                    },
                 })
             return {"generation": generation, "candidate_version": CANDIDATE_GROUPING_VERSION,
                     "candidate": card, "records": records, "focus": focus,
