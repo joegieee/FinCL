@@ -894,6 +894,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/rules/grouped": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rules Grouped
+         * @description One row per ``rule_id``, joining category/role/inbound rules that
+         *     share a match predicate — the read side of the combined rule form.
+         */
+        get: operations["rules_grouped_api_v1_rules_grouped_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rules/compile-combined": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rules Compile Combined
+         * @description Preview 1-3 rule commands (category/role/inbound) that share one
+         *     rule_id, reusing each kind's own compiler and precedence evaluator so
+         *     the combined form never reimplements precedence.
+         */
+        post: operations["rules_compile_combined_api_v1_rules_compile_combined_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rules/{rule_id}/retire-combined/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rules Retire Combined Preview
+         * @description Every ``*_RULE_RETIRE`` for the kinds a combined rule row carries.
+         */
+        post: operations["rules_retire_combined_preview_api_v1_rules__rule_id__retire_combined_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analysis": {
         parameters: {
             query?: never;
@@ -2130,6 +2193,32 @@ export interface components {
             amount: components["schemas"]["ConsolidatedValuationDTO"];
             /** Month */
             month: string | null;
+        };
+        /** CombinedRetireDraft */
+        CombinedRetireDraft: {
+            /** Generation */
+            generation: string;
+            /** Reason */
+            reason: string;
+        };
+        /** CombinedRuleDraft */
+        CombinedRuleDraft: {
+            /** Generation */
+            generation: string;
+            /** Match */
+            match: {
+                [key: string]: unknown;
+            };
+            /** Category */
+            category?: string | null;
+            /** Cost Behavior */
+            cost_behavior?: string | null;
+            /** Need */
+            need?: string | null;
+            /** Incoming Type */
+            incoming_type?: string | null;
+            /** Reason */
+            reason: string;
         };
         /** Command */
         Command: {
@@ -4905,6 +4994,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    rules_grouped_api_v1_rules_grouped_get: {
+        parameters: {
+            query: {
+                generation: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rules_compile_combined_api_v1_rules_compile_combined_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CombinedRuleDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rules_retire_combined_preview_api_v1_rules__rule_id__retire_combined_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CombinedRetireDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -4,16 +4,16 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { api, money } from '@/lib/api'
-import { useLedgerCommand, useBatchCommand } from '@/lib/command'
-import { compileRule, type CompiledRule } from '@/features/rules/api'
-import { ImpactDetails, MerchantRenameControl } from '@/features/rules'
+import { useBatchCommand } from '@/lib/command'
+import { compileCombinedRule, type CompiledCombinedRule, type CompiledRule } from '@/features/rules/api'
+import { CombinedImpactSummary, MerchantRenameControl } from '@/features/rules'
 import { rememberCategory as rememberSharedCategory } from '@/features/classification/CategoryPicker'
 import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
 import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
 import { PresetPicker } from '@/features/classification/PresetPicker'
 import { RuleSection } from '@/features/classification/RuleSection'
 import type { PresetFields } from '@/features/classification/presets'
-import { previewClassification, type Applicability, type ClassificationDraftBody, type ClassificationPreview } from '@/features/classification/api'
+import { previewClassification, COST_BEHAVIORS, NEEDS, INCOMING_TYPES, INCOMING_LABELS, label, type Applicability, type ClassificationDraftBody, type ClassificationPreview } from '@/features/classification/api'
 
 type Summary = {
   counts: Record<string, number>; active_categorization_denominator: number; progress_numerator: number
@@ -207,8 +207,8 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const [localCategories, setLocalCategories] = useState(categories)
   const [category, setCategory] = useState('')
   const [reason, setReason] = useState('')
-  const [compiled, setCompiled] = useState<CompiledRule | null>(null)
-  const [combinedImpact, setCombinedImpact] = useState<CompiledRule['impact'] | null>(null)
+  const [compiled, setCompiled] = useState<CompiledCombinedRule | null>(null)
+  const [categoryImpactOverride, setCategoryImpactOverride] = useState<CompiledRule['impact'] | null>(null)
   const [error, setError] = useState('')
   const [batching, setBatching] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -234,7 +234,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   // fixing F2.1/F2.3). Only the *display* name is user-editable here.
   const merchantKey = detail.candidate.merchant_key ?? variants[0] ?? detail.candidate.label
   const [aliasDisplayName, setAliasDisplayName] = useState(detail.candidate.label)
-  const command = useLedgerCommand(generation, onSaved) // "rule" scope only
+  const ruleBatch = useBatchCommand(generation, onSaved) // "rule" scope only
   const batch = useBatchCommand(generation, onSaved) // "one"/"selected" scopes only
   const categoryFieldId = useRef(`category-${detail.candidate.candidate_id}`).current
   const currentPresetFields: PresetFields = {
@@ -257,11 +257,11 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     const field = document.getElementById(categoryFieldId)
     field?.focus()
   }, [categoryFieldId])
-  useEffect(() => { if (command.previewed && category) rememberCategory(category) }, [command.previewed])
+  useEffect(() => { if (compiled && category) rememberCategory(category) }, [compiled])
   // A definitive 409/422 clears the frozen batch body; re-preview before
   // "Save changes"/"Save and next" can resubmit against a now-stale preview.
   useEffect(() => { if (batch.error && !batch.submitted) setPreview(null) }, [batch.error, batch.submitted])
-  function resetChecks() { setCompiled(null); command.reset(); setPreview(null); batch.invalidate() }
+  function resetChecks() { setCompiled(null); setCategoryImpactOverride(null); ruleBatch.invalidate(); setPreview(null); batch.invalidate() }
   async function createCategory(name: string) {
     setError('')
     try {
@@ -273,12 +273,14 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       return true
     } catch (e) { setError((e as Error).message); return false }
   }
-  /** Impact check and rule preview are the same click: breadth no longer buys a shortcut past confirmation. */
+  /** Impact check and rule preview are the same click: breadth no longer buys a shortcut past confirmation.
+   * One rule save can carry category, spending pattern/need and incoming type together, compiled server-side
+   * into 1-3 commands sharing one rule_id (Plan Step 3). */
   async function previewRule() {
-    if (!options[option] || !category || !reason.trim()) return
-    setError(''); setCombinedImpact(null); command.reset()
+    if (!options[option] || !hasAnyRuleField || !reason.trim()) return
+    setError(''); setCategoryImpactOverride(null); ruleBatch.invalidate()
     try {
-      if (aliasVariants.size) {
+      if (aliasVariants.size && category) {
         // Preview against the key the alias will actually carry after saving
         // (merchantKey, never a user-retyped value) so the projected match
         // count reflects the rule that is about to be saved, not a
@@ -287,16 +289,18 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
           generation, match: options[option].match, category, reason: reason.trim(),
           alias_canonical: merchantKey, alias_patterns: [...aliasVariants].map(exact => ({ exact })),
         })
-        setCombinedImpact(preview.impact)
+        setCategoryImpactOverride(preview.impact)
       }
-      const compiledRule = await compileRule(options[option].match, category, reason.trim())
-      setCompiled(compiledRule)
-      await command.act(compiledRule.command)
+      setCompiled(await compileCombinedRule(generation, options[option].match, {
+        category: category || null, cost_behavior: costBehavior || null,
+        need: need || null, incoming_type: incomingType || null,
+      }, reason.trim()))
     } catch (e) { setError((e as Error).message) }
   }
   function checkedRecords() { return records.filter(row => anchors.has(row.anchor)) }
   const hasAnyFieldEdit = Boolean(category || costBehavior || need || incomingType || clearCategory || clearRoles)
   const groupReasonRequired = Boolean(costBehavior || need || incomingType || clearCategory || clearRoles)
+  const hasAnyRuleField = Boolean(category || costBehavior || need || incomingType)
   /** The one shared draft/preview/save path for "one" and "selected", applied
    * to exactly one anchor or to the checked set respectively -- the grocery
    * trio (category + pattern + need) together, or incoming type where
@@ -343,10 +347,10 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
         request_id: crypto.randomUUID(), expected_generation: generation, reason: reasonText,
         items: [
           { kind: 'MERCHANT_ALIAS_SET', anchors: { canonical: merchantKey }, payload: { patterns: [...aliasVariants].map(exact => ({ exact })), display_name: aliasDisplayName.trim(), reason: reasonText } },
-          compiled.command,
+          ...compiled.commands,
         ],
       })
-      rememberCategory(category)
+      if (category) rememberCategory(category)
       await onSaved(result.status)
     } catch (e) { setError((e as Error).message) } finally { setBatching(false) }
   }
@@ -379,7 +383,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       {records.map(row => <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}</small></label>)}
     </div>
     {nextCursor && <Button variant="outline" size="sm" disabled={detailLoading} onClick={() => void loadMoreRecords()}>{detailLoading ? 'Loading records…' : 'Load more records'}</Button>}
-    <fieldset disabled={disabled || command.attempted || batching || batch.busy}><legend>Choose scope</legend>
+    <fieldset disabled={disabled || Boolean(ruleBatch.submitted) || batching || batch.busy}><legend>Choose scope</legend>
       <label><input type="radio" checked={scope === 'one'} onChange={() => { setScope('one'); resetChecks() }}/> Only this transaction{onlyTarget ? ` — ${onlyTarget.date} · ${money(onlyTarget.amount, onlyTarget.currency)}${onlyTarget.description ? ` · ${onlyTarget.description}` : ''}` : ' (check exactly one below)'}</label>
       <label><input type="radio" checked={scope === 'selected'} onChange={() => { setScope('selected'); resetChecks() }}/> Selected transactions ({anchors.size} of {records.length} loaded)</label>
       <label><input type="radio" checked={scope === 'rule'} disabled={!options.length} onChange={() => { setScope('rule'); resetChecks() }}/> All matching transactions, now and later</label>
@@ -399,19 +403,53 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     <div className="bulk-field">
       <CategoryCombobox id={categoryFieldId} categories={localCategories} value={clearCategory ? '' : category}
         onChange={c => { setClearCategory(false); setCategory(c); resetChecks() }} onCreate={createCategory}
-        disabled={disabled || command.attempted || batching || batch.busy || clearCategory}/>
+        disabled={disabled || Boolean(ruleBatch.submitted) || batching || batch.busy || clearCategory}/>
       {(scope === 'one' || scope === 'selected') && <label><input type="checkbox" checked={clearCategory} disabled={disabled || batch.busy}
         onChange={e => { setClearCategory(e.target.checked); if (e.target.checked) setCategory(''); resetChecks() }}/>
         {' '}Remove manual category overrides <small>(only affects transactions that have one)</small>
       </label>}
     </div>
+    {/* Same trio/incoming fields as the "one"/"selected" scopes, gated by the
+        same Step 1 applicability, so "all matching, now and later" is not a
+        second, narrower form (Plan Step 3). An empty select here means "no
+        rule for this dimension"; saving clears (retires) a dimension that
+        previously had one. */}
+    {scope === 'rule' && <div className="bulk-form">
+      {applicableFields.cost_behavior && <div className="bulk-field">
+        <label>Spending pattern
+          <select aria-label="Set spending pattern" value={costBehavior} disabled={disabled || batching || ruleBatch.busy}
+            onChange={e => { setCostBehavior(e.target.value); resetChecks() }}>
+            <option value="">{targetRecords[0]?.effective?.cost_behavior ? `No rule (default: ${label('cost_behavior', targetRecords[0].effective.cost_behavior)})` : 'No rule for this field'}</option>
+            {COST_BEHAVIORS.map(v => <option key={v} value={v}>{label('cost_behavior', v)}</option>)}
+          </select>
+        </label>
+      </div>}
+      {applicableFields.need && <div className="bulk-field">
+        <label>Spending need
+          <select aria-label="Set spending need" value={need} disabled={disabled || batching || ruleBatch.busy}
+            onChange={e => { setNeed(e.target.value); resetChecks() }}>
+            <option value="">{targetRecords[0]?.effective?.need ? `No rule (default: ${label('need', targetRecords[0].effective.need)})` : 'No rule for this field'}</option>
+            {NEEDS.map(v => <option key={v} value={v}>{label('need', v)}</option>)}
+          </select>
+        </label>
+      </div>}
+      {applicableFields.incoming_type && <div className="bulk-field">
+        <label>Incoming type
+          <select aria-label="Set incoming type" value={incomingType} disabled={disabled || batching || ruleBatch.busy}
+            onChange={e => { setIncomingType(e.target.value); resetChecks() }}>
+            <option value="">No rule for this field</option>
+            {INCOMING_TYPES.map(v => <option key={v} value={v}>{INCOMING_LABELS[v]}</option>)}
+          </select>
+        </label>
+      </div>}
+    </div>}
     {scope === 'rule' && <label>Reason<input value={reason} onChange={e => { setReason(e.target.value); resetChecks() }} /></label>}
     {scope === 'selected' && mixedDirections && <p className="muted-note">{outgoingCount} outgoing · {incomingCount} incoming
       <Button type="button" variant="ghost" size="sm" onClick={() => selectDirectionOnly('OUT')}>Select outgoing only</Button>
       <Button type="button" variant="ghost" size="sm" onClick={() => selectDirectionOnly('IN')}>Select incoming only</Button>
     </p>}
     {(scope === 'one' || scope === 'selected') && <PresetPicker applicable={applicableFields} categories={localCategories}
-      current={currentPresetFields} onApply={applyPreset} disabled={disabled || command.attempted || batching || batch.busy}/>}
+      current={currentPresetFields} onApply={applyPreset} disabled={disabled || Boolean(ruleBatch.submitted) || batching || batch.busy}/>}
     {(scope === 'one' || scope === 'selected') && <ClassificationFieldsFieldset
       hideCategory
       categoryId={categoryFieldId} categories={localCategories} disabled={disabled} busy={batch.busy}
@@ -429,8 +467,8 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     {(scope === 'one' || scope === 'selected') && ruleAnchors.length > 0 && <RuleSection generation={generation} anchors={ruleAnchors}
       category={clearCategory ? '' : category} costBehavior={clearRoles ? '' : costBehavior} need={clearRoles ? '' : need}
       reason={reason} disabled={disabled} onSaved={onSaved}/>}
-    {error && <p className="form-error">{error}</p>}{command.error && <p className="form-error">{command.error}</p>}{batch.error && <p className="form-error">{batch.error}</p>}
-    {scope === 'rule' && compiled && command.previewed && !command.attempted && <ImpactDetails impact={combinedImpact ?? compiled.impact}/>}
+    {error && <p className="form-error">{error}</p>}{ruleBatch.error && <p className="form-error">{ruleBatch.error}</p>}{batch.error && <p className="form-error">{batch.error}</p>}
+    {scope === 'rule' && compiled && !ruleBatch.submitted && <CombinedImpactSummary impact={compiled.impact} categoryOverride={categoryImpactOverride}/>}
     {(scope === 'one' || scope === 'selected') && preview && <ClassificationPreviewSummary preview={preview}/>}
     {batch.submitted && batch.error && <p className="muted-note">The outcome may be unknown. Retry sends the same request safely; do not create a second decision.</p>}
     <p className="keyboard-hint"><kbd>Esc</kbd> to close without saving.</p>
@@ -447,8 +485,8 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
           onClick={() => { if (preview) void saveGroupChanges(); else void reviewGroupChanges() }}>
           {previewing ? 'Checking…' : batch.busy ? (batch.submitted && batch.error ? 'Retrying…' : 'Saving…') : preview ? (hasNext ? 'Save and next' : `Save ${anchors.size} selected transactions`) : `Review ${anchors.size} selected transaction${anchors.size === 1 ? '' : 's'}`}
         </Button>
-      : aliasVariants.size ? <Button disabled={disabled || !command.previewed || !aliasDisplayName.trim() || batching} onClick={() => void saveRuleWithAlias()}>{batching ? 'Saving alias and rule…' : 'Save alias and rule together'}</Button>
-      : <Button disabled={disabled || !category || !reason.trim() || command.busy} onClick={() => { if (command.previewed) void command.act(compiled!.command); else void previewRule() }}>{command.previewed ? (hasNext ? 'Save and next' : 'Save rule') : 'Preview rule'}</Button>}
+      : aliasVariants.size ? <Button disabled={disabled || !compiled || !aliasDisplayName.trim() || batching} onClick={() => void saveRuleWithAlias()}>{batching ? 'Saving alias and rule…' : 'Save alias and rule together'}</Button>
+      : <Button disabled={disabled || !hasAnyRuleField || !reason.trim() || ruleBatch.busy} onClick={() => { if (compiled) void ruleBatch.submit(compiled.commands, reason.trim()); else void previewRule() }}>{ruleBatch.busy ? (ruleBatch.submitted && ruleBatch.error ? 'Retrying…' : 'Saving…') : compiled ? (hasNext ? 'Save and next' : 'Save rule') : 'Preview rule'}</Button>}
     </div>
     </DialogContent>
   </Dialog>

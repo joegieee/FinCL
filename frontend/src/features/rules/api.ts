@@ -48,17 +48,6 @@ export const PREDICATES = [
   { key: 'paynow_to', label: 'PayNow recipient' },
 ] as const
 
-export type RoleRuleRow = {
-  rule_id: string
-  match: Record<string, unknown>
-  cost_behavior: string | null
-  need: string | null
-  reason: string
-  journal_seq: number
-}
-export type RoleRulesPage = { generation: string | null; rules: RoleRuleRow[] }
-export const loadRoleRules = () => api<RoleRulesPage>('financial-roles/rules')
-
 export const loadRules = () => api<RulesPage>('rules')
 export const compileRule = (match: Record<string, unknown>, category: string, reason: string) =>
   api<CompiledRule>('rules/compile', { match, category, reason })
@@ -96,3 +85,44 @@ export const merchantRenamePreview = (generation: string, merchantKey: string, d
   api<MerchantRenamePreview>('categorization/merchant-rename/preview', {
     generation, merchant_key: merchantKey, display_name: displayName, reason,
   })
+
+/** One row per `rule_id`, joining whichever of category/role/inbound rules
+ * share a match predicate (PLAN-categorization-workflow.md Step 3, §0.1) --
+ * the grouped read model behind the combined rule form and the Rules page. */
+export type GroupedRuleRow = {
+  rule_id: string
+  match: Record<string, unknown>
+  match_label: string
+  category: string | null
+  cost_behavior: string | null
+  need: string | null
+  incoming_type: string | null
+  kinds: Array<'category' | 'role' | 'inbound'>
+  matches: number
+  last_changed: string | null
+  reason: string | null
+}
+export type GroupedRulesPage = { generation: string; grouped: GroupedRuleRow[] }
+export const loadGroupedRules = (generation: string) => api<GroupedRulesPage>(`rules/grouped?generation=${encodeURIComponent(generation)}`)
+
+export type CombinedRuleImpact = {
+  category?: CompiledRule['impact']
+  role?: RoleRuleImpact
+  incoming_type?: { inbound_matches: number; still_unresolved: number }
+}
+export type CombinedRuleCommand = { kind: string; anchors: { rule_id: string }; payload: Record<string, unknown> }
+export type CompiledCombinedRule = { rule_id: string; commands: CombinedRuleCommand[]; impact: CombinedRuleImpact }
+export type CombinedRuleFields = { category?: string | null; cost_behavior?: string | null; need?: string | null; incoming_type?: string | null }
+/** Preview 1-3 rule commands (category/role/inbound) that all share one
+ * rule_id -- the server owns precedence and rule_id derivation, so this is a
+ * pure pass-through to `/rules/compile-combined`. Leaving a field `null`
+ * (rather than omitting it) retires that kind when it was already active. */
+export const compileCombinedRule = (generation: string, match: Record<string, unknown>, fields: CombinedRuleFields, reason: string) =>
+  api<CompiledCombinedRule>('rules/compile-combined', {
+    generation, match,
+    category: fields.category ?? null, cost_behavior: fields.cost_behavior ?? null,
+    need: fields.need ?? null, incoming_type: fields.incoming_type ?? null, reason,
+  })
+export type CombinedRetirePreview = { rule_id: string; commands: CombinedRuleCommand[]; impact: CombinedRuleImpact }
+export const retireCombinedPreview = (ruleId: string, generation: string, reason: string) =>
+  api<CombinedRetirePreview>(`rules/${encodeURIComponent(ruleId)}/retire-combined/preview`, { generation, reason })

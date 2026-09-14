@@ -39,6 +39,19 @@ def _absolute_money(value: str) -> ExactMoney:
     return ExactMoney(abs(int((whole or '0') + fraction)), len(fraction), '')
 
 
+def _generic_entries(connection: Any) -> list[dict[str, Any]]:
+    """Raw entry-view rows reshaped for the generic ``financial_roles._matches``
+    predicate, shared by the category/role/inbound rule compilers so a combined
+    rule's per-kind impact reuses one match evaluation."""
+    from .queries import _ENTRY_VIEW
+    rows = []
+    for row in connection.execute(f'SELECT * FROM ({_ENTRY_VIEW})').fetchall():
+        raw = dict(row)
+        rows.append({**raw, 'account_id': raw['role_account_id'], 'description_text': raw['role_description_text'],
+                     'paynow_to': raw['role_paynow_to'], 'merchant_match': raw['role_merchant_match']})
+    return rows
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
@@ -248,6 +261,21 @@ class InboundRuleDraft(StrictModel):
     generation: str = Field(min_length=1, max_length=100)
     match: dict[str, Any]
     classification: str = Field(min_length=1, max_length=40)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class CombinedRuleDraft(StrictModel):
+    generation: str = Field(min_length=1, max_length=100)
+    match: dict[str, Any]
+    category: str | None = Field(default=None, max_length=200)
+    cost_behavior: str | None = None
+    need: str | None = None
+    incoming_type: str | None = None
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class CombinedRetireDraft(StrictModel):
+    generation: str = Field(min_length=1, max_length=100)
     reason: str = Field(min_length=1, max_length=2000)
 
 
@@ -1428,6 +1456,136 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 'generation': generation['generation_token'] if generation else None,
                 'rules': [{**dict(row), 'match': json.loads(row['match_json'])} for row in rows],
             }
+        finally:
+            connection.close()
+
+    @app.get('/api/v1/rules/grouped')
+    def rules_grouped(generation: str) -> Any:
+        """One row per ``rule_id``, joining category/role/inbound rules that
+        share a match predicate — the read side of the combined rule form."""
+        from .v05 import grouped_rules_page
+        page = grouped_rules_page(database)
+        if page['generation'] != generation:
+            raise HTTPException(409, 'STALE_GENERATION: reload and preview again.')
+        return page
+
+    @app.post('/api/v1/rules/compile-combined')
+    def rules_compile_combined(draft: CombinedRuleDraft) -> Any:
+        """Preview 1-3 rule commands (category/role/inbound) that share one
+        rule_id, reusing each kind's own compiler and precedence evaluator so
+        the combined form never reimplements precedence."""
+        from .categorization import canonical_match, rule_id_for
+        from .engine import preview_rule_impact
+        from .financial_roles import _matches, validate_financial_role
+        from .inbound_rules import validate_inbound_rule
+        from .queries import _ENTRY_VIEW, _shape
+        if draft.category is None and draft.cost_behavior is None and draft.need is None and draft.incoming_type is None:
+            raise FinCLError('Choose at least one field to set')
+        with ledger_writer(database):
+            connection = connect_readonly(database)
+            try:
+                generation = current_generation(connection)
+                if generation is None or generation['generation_token'] != draft.generation:
+                    raise HTTPException(409, 'STALE_GENERATION: reload and preview again. Your draft is preserved.')
+                canonical = canonical_match(draft.match)
+                rule_id = rule_id_for(canonical)
+                existing_category = connection.execute('SELECT 1 FROM category_rules WHERE rule_id=?', (rule_id,)).fetchone() is not None
+                existing_role = connection.execute('SELECT 1 FROM role_rules WHERE rule_id=?', (rule_id,)).fetchone() is not None
+                existing_inbound = connection.execute('SELECT 1 FROM inbound_rules WHERE rule_id=?', (rule_id,)).fetchone() is not None
+
+                commands: list[dict[str, Any]] = []
+                impact: dict[str, Any] = {}
+
+                if draft.category is not None:
+                    resolve_category(draft.category, custom_categories(database))
+                    group_name, category = draft.category.split(' / ', 1)
+                    impact['category'] = preview_rule_impact(
+                        connection, rule_id=rule_id, match=canonical, group_name=group_name, category=category,
+                    )
+                    commands.append({'kind': 'CATEGORY_RULE_SET', 'anchors': {'rule_id': rule_id},
+                                      'payload': {'match': canonical, 'category': draft.category, 'reason': draft.reason}})
+                elif existing_category:
+                    commands.append({'kind': 'CATEGORY_RULE_RETIRE', 'anchors': {'rule_id': rule_id}, 'payload': {'reason': draft.reason}})
+
+                if draft.cost_behavior is not None or draft.need is not None:
+                    payload = {'match': canonical, 'cost_behavior': draft.cost_behavior, 'need': draft.need, 'reason': draft.reason}
+                    validate_financial_role('ROLE_RULE_SET', {'rule_id': rule_id}, payload)
+                    role_rules = [dict(rule) for rule in connection.execute('SELECT * FROM role_rules')]
+                    matched = []
+                    for row in connection.execute(f'SELECT * FROM ({_ENTRY_VIEW})').fetchall():
+                        raw = dict(row)
+                        entry = _shape(row, role_rules)
+                        raw_match = {**raw, 'account_id': raw['role_account_id'], 'description_text': raw['role_description_text'],
+                                     'paynow_to': raw['role_paynow_to'], 'merchant_match': raw['role_merchant_match']}
+                        if entry['bucket'] == 'spending' and _matches(raw_match, canonical):
+                            matched.append(entry)
+                    protected = sum(1 for entry in matched if entry['cost_behavior_basis'] == 'manual' or entry['need_basis'] == 'manual')
+                    changed = sum(
+                        1 for entry in matched
+                        if not ((draft.cost_behavior is None or entry['cost_behavior'] == draft.cost_behavior)
+                                and (draft.need is None or entry['need'] == draft.need))
+                    )
+                    commands.append({'kind': 'ROLE_RULE_SET', 'anchors': {'rule_id': rule_id}, 'payload': payload})
+                    impact['role'] = {'matches': len(matched), 'will_change': changed - protected, 'protected_overrides': protected}
+                elif existing_role:
+                    commands.append({'kind': 'ROLE_RULE_RETIRE', 'anchors': {'rule_id': rule_id}, 'payload': {'reason': draft.reason}})
+
+                if draft.incoming_type is not None:
+                    payload = {'match': canonical, 'classification': draft.incoming_type, 'reason': draft.reason}
+                    validate_inbound_rule('INBOUND_RULE_SET', {'rule_id': rule_id}, payload)
+                    inbound_matches = still_unresolved = 0
+                    for entry in _generic_entries(connection):
+                        if entry['economic_direction'] != 'IN':
+                            continue
+                        if _matches(entry, canonical):
+                            inbound_matches += 1
+                            if entry['bucket'] == 'pending_review':
+                                still_unresolved += 1
+                    commands.append({'kind': 'INBOUND_RULE_SET', 'anchors': {'rule_id': rule_id}, 'payload': payload})
+                    impact['incoming_type'] = {'inbound_matches': inbound_matches, 'still_unresolved': still_unresolved}
+                elif existing_inbound:
+                    commands.append({'kind': 'INBOUND_RULE_RETIRE', 'anchors': {'rule_id': rule_id}, 'payload': {'reason': draft.reason}})
+
+                if not commands:
+                    raise FinCLError('Choose at least one field to change')
+                return {'rule_id': rule_id, 'commands': commands, 'impact': impact}
+            finally:
+                connection.close()
+
+    @app.post('/api/v1/rules/{rule_id}/retire-combined/preview')
+    def rules_retire_combined_preview(rule_id: str, draft: CombinedRetireDraft) -> Any:
+        """Every ``*_RULE_RETIRE`` for the kinds a combined rule row carries."""
+        from .engine import preview_rule_retirement_impact
+        connection = connect_readonly(database)
+        try:
+            current = current_generation(connection)
+            if current is None or current['generation_token'] != draft.generation:
+                raise HTTPException(409, 'STALE_GENERATION: reload and preview again.')
+            existing_category = connection.execute('SELECT 1 FROM category_rules WHERE rule_id=?', (rule_id,)).fetchone() is not None
+            existing_role_row = connection.execute('SELECT match_json FROM role_rules WHERE rule_id=?', (rule_id,)).fetchone()
+            existing_inbound_row = connection.execute('SELECT match_json FROM inbound_rules WHERE rule_id=?', (rule_id,)).fetchone()
+            if not (existing_category or existing_role_row or existing_inbound_row):
+                raise HTTPException(404, 'Rule not found')
+            from .financial_roles import _matches
+
+            commands: list[dict[str, Any]] = []
+            impact: dict[str, Any] = {}
+            if existing_category:
+                commands.append({'kind': 'CATEGORY_RULE_RETIRE', 'anchors': {'rule_id': rule_id}, 'payload': {'reason': draft.reason}})
+                impact['category'] = preview_rule_retirement_impact(connection, rule_id=rule_id)
+            if existing_role_row is not None:
+                match = json.loads(existing_role_row['match_json'])
+                entries = _generic_entries(connection)
+                matched = sum(1 for entry in entries if entry['bucket'] == 'spending' and _matches(entry, match))
+                commands.append({'kind': 'ROLE_RULE_RETIRE', 'anchors': {'rule_id': rule_id}, 'payload': {'reason': draft.reason}})
+                impact['role'] = {'matches': matched}
+            if existing_inbound_row is not None:
+                match = json.loads(existing_inbound_row['match_json'])
+                entries = _generic_entries(connection)
+                matched = sum(1 for entry in entries if entry['economic_direction'] == 'IN' and _matches(entry, match))
+                commands.append({'kind': 'INBOUND_RULE_RETIRE', 'anchors': {'rule_id': rule_id}, 'payload': {'reason': draft.reason}})
+                impact['incoming_type'] = {'inbound_matches': matched}
+            return {'rule_id': rule_id, 'commands': commands, 'impact': impact}
         finally:
             connection.close()
 

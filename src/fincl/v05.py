@@ -423,6 +423,70 @@ def rules_page(database: Path) -> dict[str, Any]:
         connection.close()
 
 
+def _match_label(match: dict[str, Any]) -> str:
+    if "merchant_canonical" in match:
+        return f"Merchant: {match['merchant_canonical']}"
+    if "paynow_to" in match:
+        return f"Recipient: {match['paynow_to']}"
+    if "description_prefix" in match:
+        return f"Description starts with: {match['description_prefix']}"
+    label = f"Description contains: {match['description_contains']}"
+    if "account" in match:
+        label += f" (account {match['account']})"
+    return label
+
+
+def grouped_rules_page(database: Path) -> dict[str, Any]:
+    """One row per ``rule_id``, joining category/role/inbound rules that share
+    a match predicate (§0.1) — the Rules page's grouped read model."""
+    from .financial_roles import _matches
+    from .queries import _ENTRY_VIEW
+
+    connection = connect_readonly(database)
+    try:
+        category_rows = {row["rule_id"]: dict(row) for row in connection.execute(
+            "SELECT rule_id, match_json, group_name, category, reason, journal_seq FROM category_rules"
+        )}
+        role_rows = {row["rule_id"]: dict(row) for row in connection.execute(
+            "SELECT rule_id, match_json, cost_behavior, need, reason, journal_seq FROM role_rules"
+        )}
+        inbound_rows = {row["rule_id"]: dict(row) for row in connection.execute(
+            "SELECT rule_id, match_json, classification, reason, journal_seq FROM inbound_rules"
+        )}
+        rule_ids = set(category_rows) | set(role_rows) | set(inbound_rows)
+        entries = []
+        for row in connection.execute(f"SELECT * FROM ({_ENTRY_VIEW})").fetchall():
+            raw = dict(row)
+            entries.append({**raw, "account_id": raw["role_account_id"], "description_text": raw["role_description_text"],
+                             "paynow_to": raw["role_paynow_to"], "merchant_match": raw["role_merchant_match"]})
+    finally:
+        connection.close()
+    seq_time = {record.seq: record.decided_at for record in read_records(default_journal_path(database))}
+    grouped: list[dict[str, Any]] = []
+    for rule_id in rule_ids:
+        cat, role, inbound = category_rows.get(rule_id), role_rows.get(rule_id), inbound_rows.get(rule_id)
+        source = cat or role or inbound
+        assert source is not None
+        match = json.loads(source["match_json"])
+        kinds = [name for name, row in (("category", cat), ("role", role), ("inbound", inbound)) if row is not None]
+        last_seq = max(row["journal_seq"] for row in (cat, role, inbound) if row is not None)
+        grouped.append({
+            "rule_id": rule_id,
+            "match": match,
+            "match_label": _match_label(match),
+            "category": f"{cat['group_name']} / {cat['category']}" if cat else None,
+            "cost_behavior": role["cost_behavior"] if role else None,
+            "need": role["need"] if role else None,
+            "incoming_type": inbound["classification"] if inbound else None,
+            "kinds": kinds,
+            "matches": sum(1 for entry in entries if _matches(entry, match)),
+            "last_changed": seq_time.get(last_seq),
+            "reason": source["reason"],
+        })
+    grouped.sort(key=lambda item: (item["last_changed"] or "", item["rule_id"]), reverse=True)
+    return {"generation": generation_of(database), "grouped": grouped}
+
+
 def rule_history(database: Path, rule_id: str) -> dict[str, Any]:
     """Journal-backed history, including rule changes authored in a batch."""
     rows: list[dict[str, Any]] = []
