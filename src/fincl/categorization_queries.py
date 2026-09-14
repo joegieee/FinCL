@@ -187,7 +187,12 @@ def categorization_candidates(
         )
         cards = [_candidate_card(group_kind, key, members, focus=focus) for (group_kind, key), members in groups.items()
                  if not kind or group_kind == kind]
-        cards.sort(key=lambda card: (-card["transaction_count"], card["label"], card["candidate_id"]))
+        # Stable passes make the requested priority explicit: actionable rows,
+        # then total matching rows, then the newest occurrence and stable id.
+        cards.sort(key=lambda card: card["candidate_id"])
+        cards.sort(key=lambda card: card["date_range"]["last"], reverse=True)
+        cards.sort(key=lambda card: card["transaction_count"], reverse=True)
+        cards.sort(key=lambda card: card["active_count"], reverse=True)
         offset = _decode_cursor(cursor)
         page = cards[offset:offset + limit]
         next_cursor = _encode_cursor(offset + limit) if offset + limit < len(cards) else None
@@ -302,7 +307,7 @@ def derive_rule_options(database: Path, *, generation: str, anchors: list[str]) 
             match: dict[str, str] = {"description_contains": next(iter(descriptions))}
             if len(accounts) == 1:
                 match["account"] = next(iter(accounts))
-            options.append({"label": "Transactions with this exact description", "match": match})
+            options.append({"label": "Transactions whose description contains this text", "match": match})
         return {"generation": generation, "anchors": sorted(anchors), "options": options,
                 "unavailable_reason": "The selected transactions do not share a safe reusable predicate" if not options else None}
     finally:

@@ -138,6 +138,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
       detail={selected} generation={generation} categories={categories} disabled={disabled}
       hasNext={selectedIndex !== null && selectedIndex + 1 < queue.length}
       onClose={() => { setSelected(null); setSelectedIndex(null) }}
+      onNavigate={async delta => { if (selectedIndex !== null && queue[selectedIndex + delta]) await open(queue[selectedIndex + delta], selectedIndex + delta) }}
       onSaved={afterSave}
     />}
   </div>
@@ -194,8 +195,8 @@ function CategoryCombobox({ id, categories, value, onChange, onCreate, disabled 
   </div>
 }
 
-function CandidateReview({ detail, generation, categories, disabled, hasNext, onClose, onSaved }: {
-  detail: Detail; generation: string; categories: string[]; disabled: boolean; hasNext: boolean; onClose: () => void; onSaved: (status: string) => void | Promise<void>
+function CandidateReview({ detail, generation, categories, disabled, hasNext, onClose, onNavigate, onSaved }: {
+  detail: Detail; generation: string; categories: string[]; disabled: boolean; hasNext: boolean; onClose: () => void; onNavigate: (delta: number) => Promise<void>; onSaved: (status: string) => void | Promise<void>
 }) {
   const [scope, setScope] = useState<'one'|'selected'|'rule'>('rule')
   const [anchors, setAnchors] = useState(() => new Set(detail.records.map(row => row.anchor)))
@@ -409,6 +410,8 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     {batch.submitted && batch.error && <p className="muted-note">The outcome may be unknown. Retry sends the same request safely; do not create a second decision.</p>}
     <p className="keyboard-hint"><kbd>Esc</kbd> to close without saving.</p>
     <div className="dialog-actions">
+      <Button type="button" variant="outline" onClick={() => void onNavigate(-1)}>Previous</Button>
+      <Button type="button" variant="outline" onClick={() => hasNext ? void onNavigate(1) : onClose()}>Skip</Button>
       {scope === 'one' ? <Button
           disabled={disabled || previewing || batch.busy || !onlyTarget || (!preview && (!hasAnyFieldEdit || (groupReasonRequired && !reason.trim())))}
           onClick={() => { if (preview) void saveGroupChanges(); else void reviewGroupChanges() }}>
