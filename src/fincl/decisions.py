@@ -676,6 +676,17 @@ def _apply_inbound(connection: sqlite3.Connection, record: JournalRecord, overri
 
 def _apply_alias_set(connection: sqlite3.Connection, record: JournalRecord) -> None:
     patterns = validate_alias_patterns(record.payload["patterns"])
+    # Alias editing is additive by default: a caller that only selected a new
+    # statement variant must not silently erase established matching evidence.
+    # A full-state editor can deliberately remove visible patterns by setting
+    # replace_patterns, which keeps replay deterministic and journal-owned.
+    if not record.payload.get("replace_patterns", False):
+        existing = connection.execute(
+            "SELECT patterns_json FROM merchant_aliases WHERE canonical = ?", (record.anchors["canonical"],),
+        ).fetchone()
+        if existing is not None:
+            merged = [*json.loads(existing["patterns_json"]), *patterns]
+            patterns = validate_alias_patterns(list({canonical_json(pattern): pattern for pattern in merged}.values()))
     connection.execute(
         """INSERT INTO merchant_aliases
                (canonical, patterns_json, display_name, reason, journal_seq, record_hash)

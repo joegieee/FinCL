@@ -191,6 +191,7 @@ def validate_payload(decision_kind: str, anchors: dict[str, str], payload: dict[
     if decision_kind == MERCHANT_ALIAS_SET:
         _nonblank_str(anchors.get("canonical"), "anchors.canonical")
         validate_alias_patterns(payload.get("patterns"))
+        _require(isinstance(payload.get("replace_patterns", False), bool), "replace_patterns must be a boolean")
         _nonblank_str(payload.get("reason"), "reason")
         if payload.get("display_name") is not None:
             _nonblank_str(payload["display_name"], "display_name")

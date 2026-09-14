@@ -261,11 +261,12 @@ def _candidate_groups(
     rows = connection.execute(
         f"""
         SELECT e.natural_anchor,e.account_id,e.currency_pocket,e.effective_at,e.economic_direction,
-               e.amount_text,e.analytics_eligible,e.lifecycle_state,o.merchant_canonical,
+               e.amount_text,e.analytics_eligible,e.lifecycle_state,o.merchant_canonical,ma.display_name,
                o.merchant_raw,o.merchant_normalized,o.paynow_to,o.description_text
         FROM entry_categories ec JOIN ledger_entries e ON e.id=ec.entry_id
         JOIN extraction_runs x ON x.id=e.extraction_run_id AND x.selection_state='SELECTED'
         JOIN merchant_observations o ON o.entry_id=e.id
+        LEFT JOIN merchant_aliases ma ON ma.canonical=o.merchant_canonical
         WHERE {' AND '.join(clauses)}
         """, params,
     ).fetchall()
@@ -344,7 +345,7 @@ def _derived_focus_groups(
             "economic_direction": raw["economic_direction"], "amount_text": raw["amount_text"],
             "analytics_eligible": raw["analytics_eligible"], "lifecycle_state": raw["lifecycle_state"],
             "merchant_canonical": raw["role_merchant_match"], "merchant_raw": raw["role_merchant_match"],
-            "merchant_normalized": raw["role_merchant_match"], "paynow_to": raw["role_paynow_to"],
+            "merchant_normalized": raw["role_merchant_match"], "display_name": None, "paynow_to": raw["role_paynow_to"],
             "description_text": raw["role_description_text"],
         }
         kind, key, label = _candidate_key(adapted)
@@ -363,7 +364,7 @@ def _validated_date(value: str) -> None:
 def _candidate_key(row: Any) -> tuple[str, str, str]:
     merchant = row["merchant_canonical"] or row["merchant_normalized"]
     if merchant:
-        return "merchant", str(merchant), str(merchant)
+        return "merchant", str(merchant), str(row["display_name"] or merchant)
     if row["paynow_to"]:
         return "paynow_recipient", str(row["paynow_to"]), str(row["paynow_to"])
     description = (row["description_text"] or "").strip()
