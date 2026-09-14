@@ -75,6 +75,27 @@ class FocusDiscoveryTests(ClassificationTestBase):
         )
         self.assertEqual({record["merchant_normalized"] for record in detail["records"]}, {"CORNER SHOP", "BISTRO"})
 
+    def test_derived_focus_groups_show_the_display_name_not_the_raw_key(self) -> None:
+        """F2.5 regression: `_derived_focus_groups` hardcoded `display_name:
+        None`, so the spending-details/incoming/conflicts queues showed a raw
+        merchant key even when an alias display name existed."""
+        self._decide(
+            kind="MERCHANT_ALIAS_SET", anchors={"canonical": "CORNER SHOP"},
+            payload={"patterns": [{"exact": "CORNER SHOP"}], "display_name": "The Corner Shop", "reason": "rename"},
+        )
+        anchor = self._anchor("Corner Shop", nth=0)
+        result = self._evaluate(ClassificationDraft(
+            anchors=(anchor,), category=FieldEdit("set", "Cash / Cash Withdrawal — Purpose Unknown"),
+            reason="categorize only",
+        ))
+        self._commit(result["commands"])
+        refresh_ledger(self.database)
+        generation = self._generation()
+        details_page = categorization_candidates(self.database, generation=generation, focus="spending_details")
+        labels = {card["label"] for card in details_page["candidates"]}
+        self.assertIn("The Corner Shop", labels)
+        self.assertNotIn("CORNER SHOP", labels)
+
     def test_spending_details_focus_finds_a_categorized_but_unresolved_row_across_the_full_result_set(self) -> None:
         # Give one Corner Shop entry a category outside the built-in
         # cost/need default map (so it drops out of the "category" focus,

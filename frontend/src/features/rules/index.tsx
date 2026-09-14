@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, RefreshCw, SlidersHorizontal, Tag } from 'lucide-react'
+import { Check, Pencil, RefreshCw, SlidersHorizontal, Tag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { AsyncView } from '@/components/AsyncView'
-import { useLedgerCommand } from '@/lib/command'
+import { useLedgerCommand, useBatchCommand } from '@/lib/command'
 import { api } from '@/lib/api'
-import { compileRule, loadRoleRules, loadRules, PREDICATES, type CompiledRule, type RoleRuleRow, type RulesPage } from './api'
+import { compileRule, loadRoleRules, loadRules, merchantRenamePreview, PREDICATES, type CompiledRule, type MerchantRenamePreview, type RoleRuleRow, type RulesPage } from './api'
 
 /**
  * v0.5 slice 3 — merchant aliases and category rules. Predicates are the
@@ -252,6 +252,67 @@ function RuleBuilder({ generation, categories, disabled, onSaved }: {
   )
 }
 
+/**
+ * Renaming changes only what a merchant is displayed as -- never the
+ * canonical it matches against, so a rule saved against it keeps matching
+ * (Plan Step 2, F2.1-F2.4). Shared by the categorization inbox header and
+ * the Rules page's alias rows so there is exactly one rename implementation.
+ * `merchantKey` is the raw canonical/normalized identity (never the current
+ * display label, which editing in place would otherwise turn into a second
+ * canonical -- F2.3).
+ */
+export function MerchantRenameControl({ generation, merchantKey, currentLabel, disabled, onSaved }: {
+  generation: string; merchantKey: string; currentLabel: string; disabled?: boolean
+  onSaved: (status: string) => void | Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(currentLabel)
+  const [reason, setReason] = useState('')
+  const [reasonEdited, setReasonEdited] = useState(false)
+  const [preview, setPreview] = useState<MerchantRenamePreview | null>(null)
+  const [error, setError] = useState('')
+  const [previewing, setPreviewing] = useState(false)
+  const batch = useBatchCommand(generation, async status => { setEditing(false); setPreview(null); await onSaved(status) })
+
+  function start() {
+    setEditing(true); setName(currentLabel); setReason(`Renamed merchant to ${currentLabel}`)
+    setReasonEdited(false); setPreview(null); setError(''); batch.invalidate()
+  }
+  function cancel() { setEditing(false); setPreview(null); setError('') }
+  function onName(value: string) {
+    setName(value); setPreview(null); batch.invalidate()
+    if (!reasonEdited) setReason(`Renamed merchant to ${value}`)
+  }
+  const trimmedName = name.trim()
+  const canPreview = Boolean(trimmedName) && trimmedName !== currentLabel && Boolean(reason.trim())
+  async function previewRename() {
+    if (!canPreview || previewing) return
+    setPreviewing(true); setError('')
+    try { setPreview(await merchantRenamePreview(generation, merchantKey, trimmedName, reason.trim())) }
+    catch (e) { setError((e as Error).message) } finally { setPreviewing(false) }
+  }
+  async function confirm() {
+    if (!preview) return
+    await batch.submit(preview.commands, reason.trim())
+  }
+
+  if (!editing) return <Button type="button" variant="ghost" size="sm" aria-label={`Rename ${currentLabel}`} disabled={disabled} onClick={start}><Pencil size={12} /></Button>
+
+  return <span className="merchant-rename">
+    <label>New name<Input aria-label="New display name" value={name} maxLength={80} disabled={disabled || previewing || batch.busy}
+      onChange={e => onName(e.target.value)} /></label>
+    <label>Reason<Input aria-label="Rename reason" value={reason} maxLength={2000} disabled={disabled || previewing || batch.busy}
+      onChange={e => { setReason(e.target.value); setReasonEdited(true); setPreview(null); batch.invalidate() }} /></label>
+    {(error || batch.error) && <p className="form-error" role="alert">{error || batch.error}</p>}
+    {preview && <p className="muted-note">Rename “{currentLabel}” → “{preview.display_name}” for {preview.affected_transactions} transaction{preview.affected_transactions === 1 ? '' : 's'}.</p>}
+    <Button type="button" size="sm" disabled={disabled || previewing || batch.busy || (!preview && !canPreview)}
+      onClick={() => { if (preview) void confirm(); else void previewRename() }}>
+      {previewing ? 'Checking…' : batch.busy ? 'Saving…' : preview ? 'Confirm rename' : 'Preview rename'}
+    </Button>
+    <Button type="button" variant="ghost" size="sm" disabled={previewing || batch.busy} onClick={cancel}>Cancel</Button>
+  </span>
+}
+
 export function ImpactDetails({ impact }: { impact: CompiledRule['impact'] }) {
   const changed = impact.newly_categorized + impact.recategorized
   const currencies = impact.breakdowns?.matched.by_currency ?? {}
@@ -341,6 +402,8 @@ function AliasBuilder({ page, disabled, onSaved }: {
           {page.aliases.map(alias => (
             <li key={alias.canonical}>
               <Tag size={13} /> <strong>{alias.canonical}</strong>{alias.display_name ? ` (${alias.display_name})` : ''}
+              <MerchantRenameControl generation={page.generation} merchantKey={alias.canonical}
+                currentLabel={alias.display_name || alias.canonical} disabled={disabled} onSaved={onSaved} />
               <p>{alias.metrics.observed_matches} observed match{alias.metrics.observed_matches === 1 ? '' : 'es'} · {alias.metrics.effective_assignments} effective assignment{alias.metrics.effective_assignments === 1 ? '' : 's'}</p>
               <small>{alias.patterns.map(p => Object.entries(p).map(([k, v]) => `${k}: ${v}`).join('')).join(', ')}{alias.metrics.first_match ? ` · ${alias.metrics.first_match} to ${alias.metrics.last_match}` : ''}</small>
               <Button variant="ghost" size="sm" disabled={disabled || retire.busy}
@@ -358,6 +421,7 @@ function AliasBuilder({ page, disabled, onSaved }: {
         void cmd.act({ kind: 'MERCHANT_ALIAS_SET', anchors: { canonical: canonical.trim() },
           payload: display.trim() ? { patterns: patterns(), display_name: display.trim(), reason } : { patterns: patterns(), reason } })
       }}>
+        <p className="eyebrow">Advanced: alias patterns <small>(use the pencil above to rename — this form edits match patterns and can create a new canonical)</small></p>
         <div className="form-row-3">
           <label>Canonical name<Input required value={canonical} disabled={cmd.attempted} onChange={e => setCanonical(e.target.value)} placeholder="CAFE SOCIAL" /></label>
           <label>Patterns<Input required value={spec} disabled={cmd.attempted} onChange={e => setSpec(e.target.value)} placeholder="exact:CAFE SOCIAL, prefix:CAFE" /><small>Comma-separated <code>exact:</code> / <code>prefix:</code> / <code>regex:</code>.</small></label>

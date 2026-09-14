@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { api, money } from '@/lib/api'
 import { useLedgerCommand, useBatchCommand } from '@/lib/command'
 import { compileRule, type CompiledRule } from '@/features/rules/api'
-import { ImpactDetails } from '@/features/rules'
+import { ImpactDetails, MerchantRenameControl } from '@/features/rules'
 import { rememberCategory as rememberSharedCategory } from '@/features/classification/CategoryPicker'
 import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
 import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
@@ -19,7 +19,7 @@ type Summary = {
   counts: Record<string, number>; active_categorization_denominator: number; progress_numerator: number
   needs_attention: number; combined_completeness?: { numerator: number; denominator: number }
 }
-type Candidate = { candidate_id: string; kind: string; label: string; transaction_count: number; active_count: number; date_range: { first: string; last: string }; accounts: string[]; directions: Record<string, number>; examples: string[] }
+type Candidate = { candidate_id: string; kind: string; label: string; merchant_key?: string; transaction_count: number; active_count: number; date_range: { first: string; last: string }; accounts: string[]; directions: Record<string, number>; examples: string[] }
 type CandidatesPage = { candidates: Candidate[]; next_cursor: string | null; total: number }
 type CandidateRecord = { anchor: string; description: string | null; account: string; currency: string; amount: string; date: string; direction: string; active: boolean; merchant_raw?: string | null; merchant_normalized?: string | null; detail_bucket?: string; applicable_fields?: Applicability; effective?: Record<string, string | null>; conflicts?: { ambiguous: boolean; direction: boolean } }
 type Detail = { candidate: Candidate; records: CandidateRecord[]; next_cursor?: string | null }
@@ -228,7 +228,12 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const [previewing, setPreviewing] = useState(false)
   const variants = [...new Set(detail.records.map(row => row.merchant_normalized).filter((value): value is string => Boolean(value)))]
   const [aliasVariants, setAliasVariants] = useState<Set<string>>(() => new Set())
-  const [aliasCanonical, setAliasCanonical] = useState(detail.candidate.label)
+  // The alias's canonical is always the group's own key -- never a value the
+  // user can retype -- so a rule compiled against that key (below) can never
+  // drift from what the alias actually resolves to after saving (Plan Step 2,
+  // fixing F2.1/F2.3). Only the *display* name is user-editable here.
+  const merchantKey = detail.candidate.merchant_key ?? variants[0] ?? detail.candidate.label
+  const [aliasDisplayName, setAliasDisplayName] = useState(detail.candidate.label)
   const command = useLedgerCommand(generation, onSaved) // "rule" scope only
   const batch = useBatchCommand(generation, onSaved) // "one"/"selected" scopes only
   const categoryFieldId = useRef(`category-${detail.candidate.candidate_id}`).current
@@ -274,9 +279,13 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     setError(''); setCombinedImpact(null); command.reset()
     try {
       if (aliasVariants.size) {
+        // Preview against the key the alias will actually carry after saving
+        // (merchantKey, never a user-retyped value) so the projected match
+        // count reflects the rule that is about to be saved, not a
+        // hypothetical different canonical (Plan Step 2, F2.1).
         const preview = await api<{ impact: CompiledRule['impact'] }>('categorization/impact', {
           generation, match: options[option].match, category, reason: reason.trim(),
-          alias_canonical: aliasCanonical.trim(), alias_patterns: [...aliasVariants].map(exact => ({ exact })),
+          alias_canonical: merchantKey, alias_patterns: [...aliasVariants].map(exact => ({ exact })),
         })
         setCombinedImpact(preview.impact)
       }
@@ -333,7 +342,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       const result = await api<{ status: string }>('batch', {
         request_id: crypto.randomUUID(), expected_generation: generation, reason: reasonText,
         items: [
-          { kind: 'MERCHANT_ALIAS_SET', anchors: { canonical: aliasCanonical.trim() }, payload: { patterns: [...aliasVariants].map(exact => ({ exact })), reason: reasonText } },
+          { kind: 'MERCHANT_ALIAS_SET', anchors: { canonical: merchantKey }, payload: { patterns: [...aliasVariants].map(exact => ({ exact })), display_name: aliasDisplayName.trim(), reason: reasonText } },
           compiled.command,
         ],
       })
@@ -363,7 +372,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const ruleAnchors = scope === 'one' ? (onlyTarget ? [onlyTarget.anchor] : []) : [...anchors]
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
     <DialogContent className="candidate-review candidate-review-dialog" showCloseButton={false} aria-label={`Review ${detail.candidate.label}`} onKeyDown={e => { if (e.key === 'Escape') onClose() }}>
-    <DialogHeader className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><DialogTitle>{detail.candidate.label}</DialogTitle><DialogDescription>{detail.candidate.transaction_count} similar transactions. Choose exactly what should change before saving.</DialogDescription></div><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></div></DialogHeader>
+    <DialogHeader className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><DialogTitle>{detail.candidate.label}{detail.candidate.kind === 'merchant' && detail.candidate.merchant_key && <MerchantRenameControl generation={generation} merchantKey={detail.candidate.merchant_key} currentLabel={detail.candidate.label} disabled={disabled} onSaved={onSaved} />}</DialogTitle><DialogDescription>{detail.candidate.transaction_count} similar transactions. Choose exactly what should change before saving.</DialogDescription></div><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></div></DialogHeader>
     {notAllLoaded && <p className="candidate-records-note">Showing {records.length} of {detail.candidate.transaction_count} loaded so far. Selected counts below cover only loaded records, not the full group.</p>}
     <div className="candidate-records">
       <label key="all"><input type="checkbox" checked={anchors.size === records.length && records.length > 0} onChange={() => setAnchors(current => current.size === records.length ? new Set() : new Set(records.map(r => r.anchor)))}/><span>{anchors.size === records.length ? `Deselect all ${records.length} loaded` : `Select all ${records.length} loaded`}</span><strong/></label>
@@ -377,7 +386,12 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     </fieldset>
     {scope === 'one' && !onlyTarget && <p className="form-error">Check exactly one transaction above to act on it.</p>}
     {scope === 'rule' && options.length > 1 && <label>Match scope<select value={option} onChange={e => { setOption(Number(e.target.value)); resetChecks() }}>{options.map((item, index) => <option key={item.label} value={index}>{item.label}</option>)}</select></label>}
-    {scope === 'rule' && variants.length > 0 && <fieldset className="alias-step"><legend>Normalize statement-name variants <small>(optional)</small></legend><label>Canonical merchant name<input value={aliasCanonical} onChange={e => setAliasCanonical(e.target.value)} /></label>{variants.map(variant => <label key={variant}><input type="checkbox" checked={aliasVariants.has(variant)} onChange={() => { setAliasVariants(current => { const next = new Set(current); next.has(variant) ? next.delete(variant) : next.add(variant); return next }); resetChecks() }}/>{variant}</label>)}</fieldset>}
+    {/* TODO(step-4): replace with merge */}
+    {scope === 'rule' && variants.length > 0 && <fieldset className="alias-step"><legend>Normalize statement-name variants <small>(optional)</small></legend>
+      <label>Display name<input value={aliasDisplayName} onChange={e => setAliasDisplayName(e.target.value)} /></label>
+      <label>Merchant key <small>(what rules match against — never changes here)</small><input value={merchantKey} readOnly disabled /></label>
+      {variants.map(variant => <label key={variant}><input type="checkbox" checked={aliasVariants.has(variant)} onChange={() => { setAliasVariants(current => { const next = new Set(current); next.has(variant) ? next.delete(variant) : next.add(variant); return next }); resetChecks() }}/>{variant}</label>)}
+    </fieldset>}
     {/* One category field, always mounted at the same position regardless of
         scope, so an in-flight derive-rule fetch flipping the default scope
         from "rule" to "one" (empty options) can never remount it mid-input
@@ -433,7 +447,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
           onClick={() => { if (preview) void saveGroupChanges(); else void reviewGroupChanges() }}>
           {previewing ? 'Checking…' : batch.busy ? (batch.submitted && batch.error ? 'Retrying…' : 'Saving…') : preview ? (hasNext ? 'Save and next' : `Save ${anchors.size} selected transactions`) : `Review ${anchors.size} selected transaction${anchors.size === 1 ? '' : 's'}`}
         </Button>
-      : aliasVariants.size ? <Button disabled={disabled || !command.previewed || !aliasCanonical.trim() || batching} onClick={() => void saveRuleWithAlias()}>{batching ? 'Saving alias and rule…' : 'Save alias and rule together'}</Button>
+      : aliasVariants.size ? <Button disabled={disabled || !command.previewed || !aliasDisplayName.trim() || batching} onClick={() => void saveRuleWithAlias()}>{batching ? 'Saving alias and rule…' : 'Save alias and rule together'}</Button>
       : <Button disabled={disabled || !category || !reason.trim() || command.busy} onClick={() => { if (command.previewed) void command.act(compiled!.command); else void previewRule() }}>{command.previewed ? (hasNext ? 'Save and next' : 'Save rule') : 'Preview rule'}</Button>}
     </div>
     </DialogContent>

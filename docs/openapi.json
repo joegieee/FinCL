@@ -1378,6 +1378,44 @@
         }
       }
     },
+    "/api/v1/categorization/merchant-rename/preview": {
+      "post": {
+        "summary": "Categorization Merchant Rename Preview",
+        "operationId": "categorization_merchant_rename_preview_api_v1_categorization_merchant_rename_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MerchantRenameDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Categorization Merchant Rename Preview Api V1 Categorization Merchant Rename Preview Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/categorization/impact": {
       "post": {
         "summary": "Categorization Impact",
@@ -8181,6 +8219,43 @@
           "handle"
         ],
         "title": "MerchantRank"
+      },
+      "MerchantRenameDraft": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Generation"
+          },
+          "merchant_key": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Merchant Key"
+          },
+          "display_name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "merchant_key",
+          "display_name",
+          "reason"
+        ],
+        "title": "MerchantRenameDraft"
       },
       "MissingIntervalOut": {
         "properties": {

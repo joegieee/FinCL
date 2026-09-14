@@ -82,3 +82,17 @@ export type RuleOption = { label: string; match: Record<string, unknown> }
 export type RuleOptionsPage = { generation: string; anchors: string[]; options: RuleOption[]; unavailable_reason: string | null }
 export const deriveRuleOptions = (generation: string, anchors: string[]) =>
   api<RuleOptionsPage>('categorization/derive-rule', { generation, anchors })
+
+/** A rename changes only the display name a merchant is shown under; the
+ * canonical it matches against never changes, so every rule keeps matching
+ * (PLAN-categorization-workflow.md Step 2, fixing F2.1-F2.4). Read-only: the
+ * caller submits the returned `commands` through the existing `/batch`. */
+export type MerchantRenamePreview = {
+  generation: string; merchant_key: string; display_name: string
+  commands: { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }[]
+  affected_transactions: number
+}
+export const merchantRenamePreview = (generation: string, merchantKey: string, displayName: string, reason: string) =>
+  api<MerchantRenamePreview>('categorization/merchant-rename/preview', {
+    generation, merchant_key: merchantKey, display_name: displayName, reason,
+  })

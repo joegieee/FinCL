@@ -86,6 +86,51 @@ def merchant_merge_preview(database: Path, *, generation: str, sources: list[str
         connection.close()
 
 
+def merchant_rename_preview(database: Path, *, generation: str, merchant_key: str, display_name: str,
+                            reason: str) -> dict[str, Any]:
+    """Return the one `MERCHANT_ALIAS_SET` that changes only the *display*
+    name for `merchant_key`, never the canonical it matches against.
+
+    The canonical always stays `merchant_key`: when no alias exists yet, the
+    new alias's canonical equals the un-aliased `merchant_normalized` value,
+    so every existing tier-3 rule keeps matching (now through tier 4 —
+    `engine.py:506-514` resolves the same match value at whichever tier is
+    active). This is deliberately read-only; the caller submits the returned
+    command through the existing `/batch` endpoint.
+    """
+    from .categorization import validate_alias_patterns
+    display_name = display_name.strip()
+    if not display_name:
+        raise FinCLError("A display name is required")
+    if len(display_name) > 80:
+        raise FinCLError("Display name must be 80 characters or fewer")
+    if not merchant_key.strip() or not reason.strip():
+        raise FinCLError("A merchant key and reason are required")
+    connection = _pinned_connection(database, generation)
+    try:
+        existing = connection.execute(
+            "SELECT patterns_json, display_name FROM merchant_aliases WHERE canonical = ?", (merchant_key,),
+        ).fetchone()
+        current_value = (existing["display_name"] if existing else None) or merchant_key
+        if display_name == current_value:
+            raise FinCLError("The new display name must differ from the current value")
+        patterns = json.loads(existing["patterns_json"]) if existing is not None else [{"exact": merchant_key}]
+        patterns = validate_alias_patterns(patterns)
+        command = {
+            "kind": "MERCHANT_ALIAS_SET", "anchors": {"canonical": merchant_key},
+            "payload": {"patterns": patterns, "replace_patterns": False, "display_name": display_name, "reason": reason},
+        }
+        affected_transactions = connection.execute(
+            "SELECT COUNT(*) AS n FROM merchant_observations WHERE merchant_canonical = ?", (merchant_key,),
+        ).fetchone()["n"]
+        return {
+            "generation": generation, "merchant_key": merchant_key, "display_name": display_name,
+            "commands": [command], "affected_transactions": affected_transactions,
+        }
+    finally:
+        connection.close()
+
+
 def categorization_summary(database: Path, *, generation: str) -> dict[str, Any]:
     """Return disjoint effective-category buckets plus the attention overlay."""
     connection = _pinned_connection(database, generation)
@@ -393,6 +438,15 @@ def _derived_focus_groups(
     role_rules, inbound_rules = _rule_tables(connection)
     current = current_generation(connection)
     outliers = outlier_anchor_set(connection, current["generation_token"]) if current else set()
+    # Looked up once, not per row: focus queues (unlike the category inbox's
+    # own dedicated query) don't already join `merchant_aliases`, so without
+    # this every merchant here shows its raw key instead of its display name
+    # (Plan §Step 2 F2.5).
+    display_names = {
+        row["canonical"]: row["display_name"]
+        for row in connection.execute("SELECT canonical, display_name FROM merchant_aliases")
+        if row["display_name"]
+    }
     groups: dict[tuple[str, str], list[Any]] = defaultdict(list)
     for row in rows:
         raw = dict(row)
@@ -415,7 +469,8 @@ def _derived_focus_groups(
             "economic_direction": raw["economic_direction"], "amount_text": raw["amount_text"],
             "analytics_eligible": raw["analytics_eligible"], "lifecycle_state": raw["lifecycle_state"],
             "merchant_canonical": raw["role_merchant_match"], "merchant_raw": raw["role_merchant_match"],
-            "merchant_normalized": raw["role_merchant_match"], "display_name": None, "paynow_to": raw["role_paynow_to"],
+            "merchant_normalized": raw["role_merchant_match"],
+            "display_name": display_names.get(raw["role_merchant_match"]), "paynow_to": raw["role_paynow_to"],
             "description_text": raw["role_description_text"],
         }
         kind, key, label = _candidate_key(adapted)
@@ -454,13 +509,20 @@ def _candidate_card(kind: str, key: str, members: list[tuple[Any, str]], *, focu
     directions = Counter(row["economic_direction"] for row in rows)
     active_count = sum(bool(row["analytics_eligible"]) and row["lifecycle_state"] == "COMPLETED" for row in rows)
     examples = list(dict.fromkeys((row["description_text"] or "").strip() for row in rows if row["description_text"]))[:3]
-    return {
+    card = {
         "candidate_id": candidate_id, "kind": kind, "label": label,
         "transaction_count": len(rows), "active_count": active_count,
         "date_range": {"first": min(row["effective_at"][:10] for row in rows), "last": max(row["effective_at"][:10] for row in rows)},
         "currencies": dict(sorted(currencies.items())), "directions": dict(sorted(directions.items())),
         "accounts": sorted({str(row["account_id"]) for row in rows}), "examples": examples,
     }
+    # `candidate_id` already hashes `key`; `merchant_key` exposes the raw
+    # canonical/normalized value itself so a rename action has something to
+    # preview and submit against without re-deriving it from the label (which
+    # is the *display* name once one exists — Plan §Step 2 F2.3).
+    if kind == "merchant":
+        card["merchant_key"] = key
+    return card
 
 
 def _pinned_connection(database: Path, generation: str) -> Any:

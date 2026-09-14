@@ -680,13 +680,23 @@ def _apply_alias_set(connection: sqlite3.Connection, record: JournalRecord) -> N
     # statement variant must not silently erase established matching evidence.
     # A full-state editor can deliberately remove visible patterns by setting
     # replace_patterns, which keeps replay deterministic and journal-owned.
-    if not record.payload.get("replace_patterns", False):
-        existing = connection.execute(
-            "SELECT patterns_json FROM merchant_aliases WHERE canonical = ?", (record.anchors["canonical"],),
-        ).fetchone()
-        if existing is not None:
-            merged = [*json.loads(existing["patterns_json"]), *patterns]
-            patterns = validate_alias_patterns(list({canonical_json(pattern): pattern for pattern in merged}.values()))
+    replace_patterns = record.payload.get("replace_patterns", False)
+    existing = connection.execute(
+        "SELECT patterns_json, display_name FROM merchant_aliases WHERE canonical = ?", (record.anchors["canonical"],),
+    ).fetchone()
+    if not replace_patterns and existing is not None:
+        merged = [*json.loads(existing["patterns_json"]), *patterns]
+        patterns = validate_alias_patterns(list({canonical_json(pattern): pattern for pattern in merged}.values()))
+    # An additive update (no `replace_patterns`) that omits `display_name`
+    # entirely must keep the existing display name rather than wiping it —
+    # the common case is an inbox save that only adds a statement variant, not
+    # a rename. An explicit `display_name: null` still clears it.
+    if "display_name" in record.payload:
+        display_name = record.payload["display_name"]
+    elif not replace_patterns and existing is not None:
+        display_name = existing["display_name"]
+    else:
+        display_name = None
     connection.execute(
         """INSERT INTO merchant_aliases
                (canonical, patterns_json, display_name, reason, journal_seq, record_hash)
@@ -698,7 +708,7 @@ def _apply_alias_set(connection: sqlite3.Connection, record: JournalRecord) -> N
         (
             record.anchors["canonical"],
             canonical_json(patterns),
-            record.payload.get("display_name"),
+            display_name,
             record.payload["reason"],
             record.seq,
             record.record_hash,

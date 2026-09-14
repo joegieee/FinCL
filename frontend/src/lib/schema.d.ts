@@ -593,6 +593,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/categorization/merchant-rename/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Categorization Merchant Rename Preview */
+        post: operations["categorization_merchant_rename_preview_api_v1_categorization_merchant_rename_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/categorization/impact": {
         parameters: {
             query?: never;
@@ -2627,6 +2644,17 @@ export interface components {
             /** Handle */
             handle: string | null;
         };
+        /** MerchantRenameDraft */
+        MerchantRenameDraft: {
+            /** Generation */
+            generation: string;
+            /** Merchant Key */
+            merchant_key: string;
+            /** Display Name */
+            display_name: string;
+            /** Reason */
+            reason: string;
+        };
         /** MissingIntervalOut */
         MissingIntervalOut: {
             /** Account Id */
@@ -4359,6 +4387,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["MerchantMergeDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    categorization_merchant_rename_preview_api_v1_categorization_merchant_rename_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MerchantRenameDraft"];
             };
         };
         responses: {
