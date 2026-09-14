@@ -289,6 +289,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const [reasonEdited, setReasonEdited] = useState(false)
   const [compiled, setCompiled] = useState<CompiledCombinedRule | null>(null)
   const [compiling, setCompiling] = useState(false)
+  const [overlapAcknowledged, setOverlapAcknowledged] = useState(false)
   const [error, setError] = useState('')
   const [detailLoading, setDetailLoading] = useState(false)
   const [merging, setMerging] = useState(false)
@@ -386,7 +387,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   // A definitive 409/422 clears the frozen batch body; re-preview before
   // "Save"/"Save & next" can resubmit against a now-stale preview.
   useEffect(() => { if (batch.error && !batch.submitted) setPreview(null) }, [batch.error, batch.submitted])
-  function resetChecks() { setCompiled(null); ruleBatch.invalidate(); setPreview(null); batch.invalidate() }
+  function resetChecks() { setCompiled(null); setOverlapAcknowledged(false); ruleBatch.invalidate(); setPreview(null); batch.invalidate() }
   async function createCategory(name: string) {
     setError('')
     try {
@@ -404,7 +405,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
    * a click for. */
   async function previewRule() {
     if (!options[option] || !hasAnyRuleField || !reason.trim()) return
-    setError(''); ruleBatch.invalidate(); setCompiling(true)
+    setError(''); ruleBatch.invalidate(); setCompiling(true); setOverlapAcknowledged(false)
     try {
       setCompiled(await compileCombinedRule(generation, options[option].match, {
         category: category || null, cost_behavior: costBehavior || null,
@@ -413,6 +414,14 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     } catch (e) { setError((e as Error).message) } finally { setCompiling(false) }
   }
   function checkedRecords() { return records.filter(row => anchors.has(row.anchor)) }
+  /** Step 6d: a new rule that would leave rows ambiguous or in direction
+   * conflict, or that overlaps an existing rule, must be acknowledged before
+   * it can be saved -- the numbers are already computed by the same
+   * evaluator `/rules/compile` uses (engine.py `preview_rule_impact`). */
+  const categoryImpact = compiled?.impact.category
+  const hasOverlapWarning = Boolean(
+    categoryImpact && ((categoryImpact.ambiguous ?? 0) > 0 || categoryImpact.direction_conflict > 0 || (categoryImpact.overlaps?.length ?? 0) > 0),
+  )
   const hasAnyFieldEdit = Boolean(category || costBehavior || need || incomingType || clearCategory || clearRoles)
   const groupReasonRequired = Boolean(costBehavior || need || incomingType || clearCategory || clearRoles)
   const hasAnyRuleField = Boolean(category || costBehavior || need || incomingType)
@@ -443,7 +452,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     await batch.submit(preview.commands, reason.trim())
   }
   function saveAndNext() {
-    if (scope === 'rule') { if (compiled && !ruleBatch.busy) void ruleBatch.submit(compiled.commands, reason.trim()) }
+    if (scope === 'rule') { if (compiled && !ruleBatch.busy && !(hasOverlapWarning && !overlapAcknowledged)) void ruleBatch.submit(compiled.commands, reason.trim()) }
     else if (preview && !batch.busy) void saveGroupChanges()
   }
   async function loadMoreRecords() {
@@ -649,6 +658,10 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       reason={reason} disabled={disabled} onSaved={onSaved}/>}
     {error && <p className="form-error">{error}</p>}{ruleBatch.error && <p className="form-error">{ruleBatch.error}</p>}{batch.error && <p className="form-error">{batch.error}</p>}
     {scope === 'rule' && compiled && !ruleBatch.submitted && <CombinedImpactSummary impact={compiled.impact}/>}
+    {scope === 'rule' && hasOverlapWarning && !ruleBatch.submitted && <label className="form-error">
+      <input type="checkbox" checked={overlapAcknowledged} onChange={e => setOverlapAcknowledged(e.target.checked)}/>
+      {' '}I understand this rule leaves some transactions ambiguous, in direction conflict, or overlapping another rule.
+    </label>}
     {(scope === 'one' || scope === 'selected') && preview && <ClassificationPreviewSummary preview={preview}/>}
     {batch.submitted && batch.error && <p className="muted-note">The outcome may be unknown. Retry sends the same request safely; do not create a second decision.</p>}
     <p className="keyboard-hint"><kbd>Esc</kbd> close · <kbd>Enter</kbd> save &amp; next · <kbd>?</kbd> all shortcuts.</p>
@@ -656,7 +669,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       <Button type="button" variant="outline" onClick={() => void onNavigate(-1)}>Previous</Button>
       <Button type="button" variant="outline" onClick={() => hasNext ? void onNavigate(1) : onClose()}>Skip</Button>
       {scope === 'rule'
-        ? <Button disabled={disabled || !compiled || ruleBatch.busy} onClick={saveAndNext}>
+        ? <Button disabled={disabled || !compiled || ruleBatch.busy || (hasOverlapWarning && !overlapAcknowledged)} onClick={saveAndNext}>
             {ruleBatch.busy ? (ruleBatch.submitted && ruleBatch.error ? 'Retrying…' : 'Saving…') : compiled ? (hasNext ? 'Save & next' : 'Save') : (compiling ? 'Checking…' : 'Waiting for preview…')}
           </Button>
         : <Button disabled={disabled || !preview || batch.busy} onClick={saveAndNext}>
