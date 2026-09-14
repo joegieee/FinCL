@@ -437,6 +437,33 @@ def categorization_candidates(
         connection.close()
 
 
+def _merchant_usual_categories(connection: Any, merchant_keys: set[str]) -> dict[str, str]:
+    """Each merchant's most-observed effective category, for read-only refund
+    context (Step 6e) -- never used to set a category, bucket or incoming type."""
+    if not merchant_keys:
+        return {}
+    placeholders = ",".join("?" for _ in merchant_keys)
+    rows = connection.execute(
+        f"""
+        SELECT COALESCE(o.merchant_canonical, o.merchant_normalized) AS merchant_key,
+               ec.group_name, ec.category, count(*) AS occurrences
+        FROM entry_categories ec
+        JOIN ledger_entries e ON e.id = ec.entry_id
+        JOIN merchant_observations o ON o.entry_id = e.id
+        WHERE COALESCE(o.merchant_canonical, o.merchant_normalized) IN ({placeholders})
+          AND ec.group_name != 'Unclassified'
+        GROUP BY merchant_key, ec.group_name, ec.category
+        """,
+        list(merchant_keys),
+    ).fetchall()
+    best: dict[str, tuple[int, str]] = {}
+    for row in rows:
+        category = f'{row["group_name"]} / {row["category"]}'
+        if row["merchant_key"] not in best or row["occurrences"] > best[row["merchant_key"]][0]:
+            best[row["merchant_key"]] = (row["occurrences"], category)
+    return {key: category for key, (_occurrences, category) in best.items()}
+
+
 def categorization_candidate_detail(
     database: Path, *, generation: str, candidate_id: str, cursor: str | None = None, limit: int = 50,
     account: str = "", currency: str = "", direction: str = "", lifecycle: str = "", kind: str = "",
@@ -475,18 +502,27 @@ def categorization_candidate_detail(
             role_rules, inbound_rules = _rule_tables(connection)
             current = current_generation(connection)
             outliers = outlier_anchor_set(connection, current["generation_token"]) if current else set()
-            records = []
+            shaped_members = []
             for row, _label in page_members:
                 effective = effective_by_anchor[row["natural_anchor"]]
                 raw = dict(effective)
                 bucket = _detail_bucket(raw)
                 shaped = _shape(effective, role_rules, inbound_rules, outliers)
-                records.append({
+                merchant_key = row["merchant_canonical"] or row["merchant_normalized"]
+                shaped_members.append((row, raw, bucket, shaped, merchant_key))
+            refund_merchants = {
+                merchant_key for _row, _raw, bucket, _shaped, merchant_key in shaped_members
+                if bucket == "refunds" and merchant_key
+            }
+            usual_categories = _merchant_usual_categories(connection, refund_merchants)
+            records = []
+            for row, raw, bucket, shaped, merchant_key in shaped_members:
+                record = {
                     "anchor": row["natural_anchor"], "account": row["account_id"],
                     "currency": row["currency_pocket"], "amount": row["amount_text"],
                     "date": row["effective_at"][:10], "direction": row["economic_direction"],
                     "lifecycle": row["lifecycle_state"], "active": bool(row["analytics_eligible"]) and row["lifecycle_state"] == "COMPLETED",
-                    "description": row["description_text"], "merchant": row["merchant_canonical"] or row["merchant_normalized"],
+                    "description": row["description_text"], "merchant": merchant_key,
                     "merchant_raw": row["merchant_raw"], "merchant_normalized": row["merchant_normalized"],
                     "paynow_to": row["paynow_to"],
                     "detail_bucket": bucket, "applicable_fields": _applicability(bucket),
@@ -500,7 +536,12 @@ def categorization_candidate_detail(
                         "ambiguous": bool(raw.get("ambiguous")),
                         "direction": bool(raw.get("direction_conflict")),
                     },
-                })
+                }
+                # Step 6e: read-only context only -- never changes category,
+                # bucket or incoming type for a refund (user decision).
+                if bucket == "refunds" and merchant_key and merchant_key in usual_categories:
+                    record["refund_context"] = f"Refund from {row['display_name'] or merchant_key} (usually {usual_categories[merchant_key]})"
+                records.append(record)
             return {"generation": generation, "candidate_version": CANDIDATE_GROUPING_VERSION,
                     "candidate": card, "records": records, "focus": focus,
                     "next_cursor": _encode_cursor(offset + limit) if offset + limit < len(ordered) else None}
