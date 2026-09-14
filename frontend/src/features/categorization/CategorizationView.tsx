@@ -126,10 +126,10 @@ export function CategorizationView({ generation, freshness, categories, accounts
     <div className="scope-caption"><span>Group similar unclassified transactions, then make a deliberate one-off or reusable decision. <kbd>j</kbd>/<kbd>k</kbd> to move, <kbd>Enter</kbd> to open.</span><span className="categorization-filters"><select aria-label="Filter categorization focus" value={focus} onChange={e => setFocus(e.target.value)}>{FOCUSES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select><select aria-label="Filter categorization candidate kind" value={kind} onChange={e => setKind(e.target.value)}><option value="">All group types</option><option value="merchant">Merchant</option><option value="paynow_recipient">PayNow recipient</option><option value="description">Description</option><option value="missing_merchant">Missing merchant</option></select><select aria-label="Filter categorization direction" value={direction} onChange={e => setDirection(e.target.value)}><option value="">All directions</option><option value="OUT">Outgoing</option><option value="IN">Incoming</option></select><select aria-label="Filter categorization lifecycle" value={lifecycle} onChange={e => setLifecycle(e.target.value)}><option value="">All lifecycle states</option><option value="COMPLETED">Active only</option><option value="PENDING">Pending</option><option value="REVERTED">Reverted</option></select><select aria-label="Filter categorization account" value={account} onChange={e => setAccount(e.target.value)}><option value="">All accounts</option>{accounts.map(a => <option key={a}>{a}</option>)}</select><select aria-label="Filter categorization currency" value={currency} onChange={e => setCurrency(e.target.value)}><option value="">All currencies</option>{currencies.map(c => <option key={c}>{c}</option>)}</select><Button variant="ghost" size="sm" onClick={() => void load()}><RefreshCw size={14}/>Refresh</Button></span></div>
     {summary && <CoverageSummary summary={summary}/>}
     <Card className="candidate-list" onKeyDown={onListKeyDown}>
-      <div className="panel-title"><div><p className="eyebrow"><span>CATEGORIZATION INBOX</span> · ALL SELECTED HISTORY</p><h2>{page ? (focus === 'category' ? `${page.total} groups need review` : `${page.total} groups match ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow"><span>CATEGORIZATION INBOX</span> · ALL SELECTED HISTORY</p><h2>{page ? (focus === 'category' ? `${page.total} groups need review` : `${page.total} groups match ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2><p className="muted-note">Covers every imported statement, all dates and currencies. Rules also apply to future imports. Pending, reverted and superseded rows are shown but not counted as active.</p></div></div>
       {!page?.candidates.length && <p className="empty-line">{focus === 'category' ? 'Everything active is categorized, or no groups match the current ledger generation.' : 'Nothing active matches this focus, or no groups match the current ledger generation.'}</p>}
       {page?.candidates.map((candidate, index) => <button className={`candidate-card${index === activeIndex ? ' is-active' : ''}`} key={candidate.candidate_id} tabIndex={index === activeIndex ? 0 : -1} onFocus={() => setActiveIndex(index)} onClick={() => void open(candidate, index)}>
-        <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small></span><ChevronRight size={16}/>
+        <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small>{candidate.directions.IN > 0 && candidate.directions.OUT > 0 && <small className="tag">includes {candidate.directions.IN} incoming</small>}</span><ChevronRight size={16}/>
       </button>)}
       {page?.next_cursor && <div className="dialog-actions"><Button variant="outline" onClick={() => void loadMoreCandidates()}>Load more groups</Button></div>}
     </Card>
@@ -345,13 +345,20 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const onlyTarget = onlyChecked.length === 1 ? onlyChecked[0] : null
   const targetRecords = scope === 'one' ? (onlyTarget ? [onlyTarget] : []) : onlyChecked
   const applicableCounts = (['category', 'cost_behavior', 'need', 'incoming_type'] as const).reduce((counts, field) => {
-    counts[field] = targetRecords.filter(row => row.applicable_fields?.[field] ?? true).length
+    counts[field] = targetRecords.filter(row => row.applicable_fields?.[field] ?? false).length
     return counts
   }, {} as Record<keyof Applicability, number>)
   const applicableFields = (['category', 'cost_behavior', 'need', 'incoming_type'] as const).reduce((fields, field) => {
     fields[field] = applicableCounts[field] > 0
     return fields
   }, {} as Applicability)
+  const outgoingCount = targetRecords.filter(row => row.direction === 'OUT').length
+  const incomingCount = targetRecords.filter(row => row.direction === 'IN').length
+  const mixedDirections = outgoingCount > 0 && incomingCount > 0
+  function selectDirectionOnly(dir: 'IN' | 'OUT') {
+    setAnchors(new Set(records.filter(row => row.direction === dir).map(row => row.anchor)))
+    resetChecks()
+  }
   const notAllLoaded = records.length < detail.candidate.transaction_count
   const ruleAnchors = scope === 'one' ? (onlyTarget ? [onlyTarget.anchor] : []) : [...anchors]
   return <Dialog open onOpenChange={open => { if (!open) onClose() }}>
@@ -385,6 +392,10 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       </label>}
     </div>
     {scope === 'rule' && <label>Reason<input value={reason} onChange={e => { setReason(e.target.value); resetChecks() }} /></label>}
+    {scope === 'selected' && mixedDirections && <p className="muted-note">{outgoingCount} outgoing · {incomingCount} incoming
+      <Button type="button" variant="ghost" size="sm" onClick={() => selectDirectionOnly('OUT')}>Select outgoing only</Button>
+      <Button type="button" variant="ghost" size="sm" onClick={() => selectDirectionOnly('IN')}>Select incoming only</Button>
+    </p>}
     {(scope === 'one' || scope === 'selected') && <PresetPicker applicable={applicableFields} categories={localCategories}
       current={currentPresetFields} onApply={applyPreset} disabled={disabled || command.attempted || batching || batch.busy}/>}
     {(scope === 'one' || scope === 'selected') && <ClassificationFieldsFieldset
