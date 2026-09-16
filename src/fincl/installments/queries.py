@@ -8,7 +8,11 @@ allocation" are explicit alternative lenses, never blended into one number.
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 from datetime import date
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -321,4 +325,181 @@ def installment_detail(
         connection.close()
 
 
-__all__ = ["installments_page", "installment_detail"]
+def _decode_entry_cursor(cursor: str | None) -> tuple[str, str] | None:
+    if not cursor:
+        return None
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+        if {"at", "anchor"} <= set(payload) and all(
+            isinstance(payload[key], str) for key in ("at", "anchor")
+        ):
+            return payload["at"], payload["anchor"]
+    except (binascii.Error, ValueError, TypeError):
+        pass
+    raise FinCLError("The page cursor is not valid; reload the list")
+
+
+def _encode_entry_cursor(effective_at: str, entry_anchor: str) -> str:
+    payload = {"at": effective_at, "anchor": entry_anchor}
+    return base64.urlsafe_b64encode(
+        json.dumps(payload, separators=(",", ":")).encode()
+    ).decode()
+
+
+def _open_decimal(remaining: Fraction, scale: int) -> str:
+    scaled = remaining * (10**scale)
+    return format_decimal(int(scaled), scale) if scaled.denominator == 1 else str(remaining)
+
+
+def entry_candidates(
+    database: Path,
+    *,
+    plan_id: str,
+    purpose: str = "purchase",
+    search: str | None = None,
+    cursor: str | None = None,
+    limit: int = 50,
+    expected: str | None = None,
+) -> dict[str, Any]:
+    """Selected entries that could back a purchase attribution or a settlement.
+
+    Both purposes want an outflow in the plan's currency that some other domain
+    has not already claimed, so they share one query and differ only in scope.
+
+    ``purchase`` is the original charge the plan splits, which by definition sat
+    on the plan's own card, so it is scoped to that account. ``settlement`` is
+    whatever paid the plan off, which is commonly a transfer from a bank account
+    rather than a charge on the card, so it is not account-scoped -- narrowing it
+    to the card would hide the usual case.
+
+    Each row carries the amount still unclaimed for both components, from the
+    same ``analysis.allocations`` registry every other domain answers to, so a
+    source already spent elsewhere cannot be offered here as if it were free.
+
+    Instalment lines are withheld from both purposes: those already bound as an
+    occurrence of a plan, and those the statement itself prints as an instalment
+    ("Split Payment 7/12 Instalment") whose chain nobody has confirmed yet. An
+    instalment repays a purchase; it is never the purchase, and never an early
+    settlement of one. The claim registry does not track occurrences, so such a
+    line still reads as fully unclaimed, and the write path does not refuse it --
+    without this the same statement line could be counted once as an instalment
+    and again as the cost it repays. The printed block is the same evidence
+    `installments.candidates` trusts to propose a chain, applied consistently.
+    """
+    from ..analysis.allocations import open_residual
+
+    if purpose not in {"purchase", "settlement"}:
+        raise FinCLError("purpose must be 'purchase' or 'settlement'")
+    limit = max(1, min(int(limit), 200))
+    connection = connect_readonly(database)
+    try:
+        connection.execute("BEGIN")
+        token = _generation(connection, expected)
+        plan = connection.execute(
+            "SELECT card_account_id, currency, opened_on FROM installment_plans "
+            "WHERE plan_id = ?",
+            (plan_id,),
+        ).fetchone()
+        if plan is None:
+            raise FinCLError("that installment plan does not exist")
+
+        params: list[Any] = [str(plan["currency"])]
+        clauses = ""
+        if purpose == "purchase" and plan["card_account_id"]:
+            clauses += " AND e.account_id = ?"
+            params.append(str(plan["card_account_id"]))
+        if search:
+            clauses += (
+                " AND instr(lower(COALESCE(r.description_raw, d.description_raw, '')),"
+                " lower(?)) > 0"
+            )
+            params.append(search)
+        keyset = _decode_entry_cursor(cursor)
+        if keyset is not None:
+            clauses += " AND (e.effective_at < ? OR (e.effective_at = ? AND e.natural_anchor > ?))"
+            params.extend([keyset[0], keyset[0], keyset[1]])
+
+        rows = connection.execute(
+            f"""
+            SELECT e.natural_anchor, e.effective_at, e.account_id, e.economic_direction,
+                   e.amount_coefficient, e.amount_scale, e.currency_pocket,
+                   COALESCE(r.description_raw, d.description_raw) AS description_raw
+            FROM ledger_entries e
+            JOIN extraction_runs x
+              ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+            LEFT JOIN raw_records r ON r.id = e.raw_record_id
+            LEFT JOIN document_records d ON d.id = e.document_record_id
+            LEFT JOIN entry_categories c ON c.entry_id = e.id
+            WHERE e.currency_pocket = ? AND e.economic_direction = 'OUT'
+              AND (c.group_name IS NULL OR c.group_name != 'Internal'){clauses}
+            ORDER BY e.effective_at DESC, e.natural_anchor ASC
+            LIMIT ?
+            """,
+            (*params, limit + 1),
+        ).fetchall()
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        next_cursor = (
+            _encode_entry_cursor(
+                str(rows[-1]["effective_at"]), str(rows[-1]["natural_anchor"])
+            )
+            if has_more and rows
+            else None
+        )
+
+        occurrence_anchors = {
+            str(row["entry_anchor"])
+            for row in connection.execute(
+                "SELECT entry_anchor FROM installment_occurrences"
+            ).fetchall()
+        }
+        occurrence_anchors.update(
+            str(row["natural_anchor"])
+            for row in connection.execute(
+                """
+                SELECT e.natural_anchor
+                FROM ledger_entries e
+                JOIN document_records r ON r.id = e.document_record_id
+                JOIN extraction_runs x
+                  ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+                WHERE r.raw_fields_json LIKE '%"installment"%'
+                """
+            ).fetchall()
+        )
+
+        candidates = []
+        for row in rows:
+            scale = int(row["amount_scale"])
+            anchor = str(row["natural_anchor"])
+            if anchor in occurrence_anchors:
+                continue
+            open_amount = open_residual(connection, anchor, role="amount")
+            open_fee = open_residual(connection, anchor, role="fee")
+            if open_amount <= 0 and open_fee <= 0:
+                continue  # every component already claimed; not a usable source
+            candidates.append(
+                {
+                    "entry_anchor": anchor,
+                    "effective_at": str(row["effective_at"]),
+                    "account_id": str(row["account_id"]),
+                    "currency": str(row["currency_pocket"]),
+                    "amount": format_decimal(abs(int(row["amount_coefficient"])), scale),
+                    "open_amount": _open_decimal(open_amount, scale),
+                    "open_fee": _open_decimal(open_fee, scale),
+                    "description": row["description_raw"],
+                }
+            )
+        return {
+            "generation": token,
+            "plan_id": plan_id,
+            "purpose": purpose,
+            "currency": str(plan["currency"]),
+            "card_account_id": plan["card_account_id"],
+            "candidates": candidates,
+            "next_cursor": next_cursor,
+        }
+    finally:
+        connection.close()
+
+
+__all__ = ["installments_page", "installment_detail", "entry_candidates"]

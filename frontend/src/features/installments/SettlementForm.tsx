@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api'
-import { settlePlan, type InstallmentDetail } from './api'
+import { EntryPicker } from './EntryPicker'
+import { settlePlan, type EntryCandidate, type InstallmentDetail } from './api'
 
 /**
  * Record paying a plan off early (INSTALLMENT_SETTLEMENT_SET).
@@ -24,7 +25,7 @@ export function SettlementForm({
 }) {
   const plan = detail.plan
   const [settledOn, setSettledOn] = useState(plan.opened_on)
-  const [sourceEntryAnchor, setSourceEntryAnchor] = useState('')
+  const [source, setSource] = useState<EntryCandidate | null>(null)
   const [principal, setPrincipal] = useState('')
   const [fee, setFee] = useState('')
   const [waiver, setWaiver] = useState('')
@@ -33,10 +34,24 @@ export function SettlementForm({
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
 
+  /**
+   * Seed the date and principal from the transaction just chosen.
+   *
+   * The date is the transaction's own, and the principal defaults to what is
+   * still unclaimed on it — the common case, where the whole payment retires
+   * principal. Both stay editable: a settlement that carries a fee or a waiver
+   * splits that same total differently, and only the operator knows how.
+   */
+  function pick(candidate: EntryCandidate) {
+    setSource(candidate)
+    setSettledOn(candidate.effective_at.slice(0, 10))
+    if (!principal.trim()) setPrincipal(candidate.open_amount)
+  }
+
   async function submit() {
     if (inFlight.current) return
-    if (!sourceEntryAnchor.trim() || !reason.trim()) {
-      setError('The settling transaction and a reason are both required.')
+    if (!source || !reason.trim()) {
+      setError('Choose the settling transaction and give a reason.')
       return
     }
     const components = [principal, fee, waiver].map((v) => Number(v || '0'))
@@ -56,7 +71,7 @@ export function SettlementForm({
         planId: plan.plan_id,
         generation,
         settledOn,
-        sourceEntryAnchor: sourceEntryAnchor.trim(),
+        sourceEntryAnchor: source.entry_anchor,
         principal: (principal.trim() || '0'),
         fee: (fee.trim() || '0'),
         waiver: (waiver.trim() || '0'),
@@ -78,6 +93,15 @@ export function SettlementForm({
         Splits the settling payment into principal, fee and waived amount. Each is recorded
         separately so the plan's real cost stays visible.
       </p>
+      <EntryPicker
+        planId={plan.plan_id}
+        purpose="settlement"
+        generation={generation}
+        currency={plan.currency}
+        selected={source?.entry_anchor ?? null}
+        onPick={pick}
+      />
+
       <div className="debt-event-grid">
         <label>
           Settled on
@@ -86,15 +110,6 @@ export function SettlementForm({
             type="date"
             value={settledOn}
             onChange={(e) => setSettledOn(e.target.value)}
-            disabled={busy}
-          />
-        </label>
-        <label>
-          Settling transaction anchor
-          <input
-            aria-label="Source entry anchor"
-            value={sourceEntryAnchor}
-            onChange={(e) => setSourceEntryAnchor(e.target.value)}
             disabled={busy}
           />
         </label>

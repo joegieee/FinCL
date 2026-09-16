@@ -125,6 +125,31 @@ def register_card_reads(app: FastAPI, database: Path) -> None:
             except FinCLError as exc:
                 raise _map_error(exc) from exc
 
+    @app.get("/api/v1/installments/entry-candidates")
+    def installment_entry_candidates_route(
+        plan: str,
+        purpose: str = "purchase",
+        search: str | None = None,
+        cursor: str | None = None,
+        limit: int = 50,
+        generation: str | None = None,
+    ) -> Any:
+        from .installments.queries import entry_candidates
+
+        with ledger_writer(database):
+            try:
+                return entry_candidates(
+                    database,
+                    plan_id=plan,
+                    purpose=purpose,
+                    search=search,
+                    cursor=cursor,
+                    limit=limit,
+                    expected=generation,
+                )
+            except FinCLError as exc:
+                raise _map_error(exc) from exc
+
     @app.get("/api/v1/installments/{plan_id}")
     def installment_detail_route(
         plan_id: str,

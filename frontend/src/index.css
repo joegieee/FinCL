@@ -103,6 +103,12 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
    itself clickable and does not take the button reset or hover of .debt-row. */
 .candidate-row{cursor:default}
 .candidate-row:hover{background:none}
+.entry-picker{margin:10px 0}
+.entry-picker-search{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;margin-bottom:6px;color:var(--muted)}
+.entry-picker-search input{flex:1;border:0;outline:none;background:none;font-size:13px;color:var(--foreground)}
+.entry-picker-table{max-height:260px}
+.entry-picker-table tr.is-selected{background:var(--secondary)}
+.entry-picker-table small{color:var(--muted);font-size:10px}
 .debt-detail{padding:18px;display:flex;flex-direction:column;gap:12px}
 .debt-detail-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .debt-detail-head h2{margin:0;font-size:17px}

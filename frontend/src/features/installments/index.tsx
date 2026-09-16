@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { AsyncView } from '@/components/AsyncView'
 import { ApiError, money } from '@/lib/api'
 import { ConfirmPlanForm } from './ConfirmPlanForm'
+import { PurchaseAttributionForm } from './PurchaseAttributionForm'
 import { SettlementForm } from './SettlementForm'
 import {
   loadCandidates,
@@ -84,7 +85,7 @@ function DetailView({
 }) {
   const { plan, views } = detail
   const currency = plan.currency
-  const [mode, setMode] = useState<'view' | 'settle'>('view')
+  const [mode, setMode] = useState<'view' | 'settle' | 'attribute'>('view')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -109,6 +110,19 @@ function DetailView({
     return (
       <Card className="debt-detail">
         <SettlementForm
+          detail={detail}
+          generation={generation}
+          onSaved={onSaved}
+          onCancel={() => setMode('view')}
+        />
+      </Card>
+    )
+  }
+
+  if (mode === 'attribute') {
+    return (
+      <Card className="debt-detail">
+        <PurchaseAttributionForm
           detail={detail}
           generation={generation}
           onSaved={onSaved}
@@ -145,6 +159,9 @@ function DetailView({
       </div>
 
       <div className="debt-event-actions">
+        <Button size="sm" variant="outline" onClick={() => setMode('attribute')} disabled={busy}>
+          {detail.purchase_allocations.length ? 'Reattribute purchase' : 'Attribute purchase'}
+        </Button>
         <Button size="sm" variant="outline" onClick={() => setMode('settle')} disabled={busy}>
           Settle early
         </Button>
@@ -188,6 +205,16 @@ function DetailView({
               ))}
             </tbody>
           </table>
+        </>
+      )}
+
+      {detail.purchase_allocations.length === 0 && (
+        <>
+          <h3>Original purchase attribution</h3>
+          <p className="muted-note">
+            No purchase is linked to this plan yet, so its recognized cost is unknown.
+            Use “Attribute purchase” to point at the charge it splits.
+          </p>
         </>
       )}
 

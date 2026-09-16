@@ -165,6 +165,48 @@ export function loadCandidates(opts: { card?: string; generation: string }): Pro
   return api<CandidatesPage>('installments/candidates?' + q)
 }
 
+// --- source transactions for attribution and settlement ----------------------
+
+export type EntryCandidate = {
+  entry_anchor: string
+  effective_at: string
+  account_id: string
+  currency: string
+  /** The entry's full magnitude, for context. */
+  amount: string
+  /** What is still unclaimed by any domain — the ceiling for a new allocation. */
+  open_amount: string
+  open_fee: string
+  description: string | null
+}
+
+export type EntryCandidatesPage = {
+  generation: string
+  plan_id: string
+  purpose: 'purchase' | 'settlement'
+  currency: string
+  card_account_id: string | null
+  candidates: EntryCandidate[]
+  next_cursor: string | null
+}
+
+export function loadEntryCandidates(opts: {
+  planId: string
+  purpose: 'purchase' | 'settlement'
+  generation: string
+  search?: string
+  limit?: number
+}): Promise<EntryCandidatesPage> {
+  const q = new URLSearchParams({
+    plan: opts.planId,
+    purpose: opts.purpose,
+    generation: opts.generation,
+    limit: String(opts.limit ?? 50),
+  })
+  if (opts.search) q.set('search', opts.search)
+  return api<EntryCandidatesPage>('installments/entry-candidates?' + q)
+}
+
 // --- writes ------------------------------------------------------------------
 
 export type InstallmentCommandBody = {
