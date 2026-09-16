@@ -110,6 +110,21 @@ def register_card_reads(app: FastAPI, database: Path) -> None:
             except FinCLError as exc:
                 raise _map_error(exc) from exc
 
+    # Registered before `/installments/{plan_id}`: FastAPI matches in definition
+    # order, so the literal path has to win before "candidates" is read as an id.
+    @app.get("/api/v1/installments/candidates")
+    def installment_candidates_route(
+        card: str | None = None,
+        generation: str | None = None,
+    ) -> Any:
+        from .installments.candidates import installment_candidates
+
+        with ledger_writer(database):
+            try:
+                return installment_candidates(database, card=card, expected=generation)
+            except FinCLError as exc:
+                raise _map_error(exc) from exc
+
     @app.get("/api/v1/installments/{plan_id}")
     def installment_detail_route(
         plan_id: str,

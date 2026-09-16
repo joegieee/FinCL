@@ -3872,6 +3872,68 @@
         }
       }
     },
+    "/api/v1/installments/candidates": {
+      "get": {
+        "summary": "Installment Candidates Route",
+        "operationId": "installment_candidates_route_api_v1_installments_candidates_get",
+        "parameters": [
+          {
+            "name": "card",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Card"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Installment Candidates Route Api V1 Installments Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/installments/{plan_id}": {
       "get": {
         "summary": "Installment Detail Route",

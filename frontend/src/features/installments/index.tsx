@@ -1,13 +1,20 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft, ChevronRight } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { AlertTriangle, ArrowLeft, ChevronRight, Plus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { AsyncView } from '@/components/AsyncView'
 import { ApiError, money } from '@/lib/api'
+import { ConfirmPlanForm } from './ConfirmPlanForm'
+import { SettlementForm } from './SettlementForm'
 import {
+  loadCandidates,
   loadInstallmentDetail,
   loadInstallments,
+  retirePlan,
+  type CandidatesPage,
   type InstallmentDetail,
   type InstallmentsPage,
+  type PlanCandidate,
   type PlanShape,
 } from './api'
 
@@ -35,9 +42,82 @@ function PlanRow({ plan, onOpen }: { plan: PlanShape; onOpen: (id: string) => vo
   )
 }
 
-function DetailView({ detail, onBack }: { detail: InstallmentDetail; onBack: () => void }) {
+function CandidateRow({
+  candidate,
+  onConfirm,
+}: {
+  candidate: PlanCandidate
+  onConfirm: (candidate: PlanCandidate) => void
+}) {
+  return (
+    <div className="debt-row candidate-row">
+      <span className="debt-row-main">
+        <strong>{candidate.merchant_label}</strong>
+        <small>
+          {candidate.family} · {candidate.observed_count} of {candidate.term_months} instalments
+          {' · '}
+          from {candidate.opened_on}
+          {' · '}
+          {candidate.complete ? 'fully paid' : `${candidate.term_months - candidate.observed_count} still to come`}
+        </small>
+      </span>
+      <span className="debt-row-amount">
+        {money(candidate.observed_total.value, candidate.currency)}
+      </span>
+      <Button size="sm" onClick={() => onConfirm(candidate)}>
+        <Plus size={13} /> Confirm
+      </Button>
+    </div>
+  )
+}
+
+function DetailView({
+  detail,
+  generation,
+  onBack,
+  onSaved,
+}: {
+  detail: InstallmentDetail
+  generation: string
+  onBack: () => void
+  onSaved: (status: string) => void | Promise<void>
+}) {
   const { plan, views } = detail
   const currency = plan.currency
+  const [mode, setMode] = useState<'view' | 'settle'>('view')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function retire() {
+    const reason = window.prompt(
+      'Retiring removes this plan and its allocations and settlement. Why?',
+    )
+    if (!reason?.trim()) return
+    setBusy(true)
+    setError('')
+    try {
+      const result = await retirePlan({ planId: plan.plan_id, generation, reason: reason.trim() })
+      await onSaved(result.status)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not retire this plan.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (mode === 'settle') {
+    return (
+      <Card className="debt-detail">
+        <SettlementForm
+          detail={detail}
+          generation={generation}
+          onSaved={onSaved}
+          onCancel={() => setMode('view')}
+        />
+      </Card>
+    )
+  }
+
   return (
     <Card className="debt-detail">
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={14} /> All plans</Button>
@@ -63,6 +143,16 @@ function DetailView({ detail, onBack }: { detail: InstallmentDetail; onBack: () 
           </small>
         </div>
       </div>
+
+      <div className="debt-event-actions">
+        <Button size="sm" variant="outline" onClick={() => setMode('settle')} disabled={busy}>
+          Settle early
+        </Button>
+        <Button size="sm" variant="ghost" onClick={retire} disabled={busy}>
+          {busy ? 'Working…' : 'Retire plan'}
+        </Button>
+      </div>
+      {error ? <p className="debt-event-error">{error}</p> : null}
 
       <h3>Source occurrences</h3>
       <p className="muted-note">Occurrence identity is an evidence anchor, not list position.</p>
@@ -162,19 +252,38 @@ function DetailView({ detail, onBack }: { detail: InstallmentDetail; onBack: () 
   )
 }
 
-export function InstallmentsView({ generation }: { generation: string }) {
+export function InstallmentsView({
+  generation,
+  onSaved,
+}: {
+  generation: string
+  onSaved?: (status: string) => void | Promise<void>
+}) {
   const [page, setPage] = useState<InstallmentsPage | null>(null)
+  const [candidates, setCandidates] = useState<CandidatesPage | null>(null)
   const [detail, setDetail] = useState<InstallmentDetail | null>(null)
+  const [confirming, setConfirming] = useState<PlanCandidate | null>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    let live = true
+  const load = useCallback(async () => {
+    setLoading(true)
     setError('')
-    loadInstallments({ generation })
-      .then((p) => { if (live) setPage(p) })
-      .catch((e) => { if (live) setError(e instanceof ApiError ? e.message : 'Could not load installments.') })
-    return () => { live = false }
+    try {
+      const [plans, proposed] = await Promise.all([
+        loadInstallments({ generation }),
+        loadCandidates({ generation }),
+      ])
+      setPage(plans)
+      setCandidates(proposed)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not load installments.')
+    } finally {
+      setLoading(false)
+    }
   }, [generation])
+
+  useEffect(() => { void load() }, [load])
 
   function openDetail(id: string) {
     setError('')
@@ -183,23 +292,105 @@ export function InstallmentsView({ generation }: { generation: string }) {
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Could not load that plan.'))
   }
 
-  if (error) return <Card className="debt-list"><p className="debt-empty">{error}</p></Card>
-  if (detail) return <DetailView detail={detail} onBack={() => setDetail(null)} />
-  if (!page) return <Card className="debt-list"><p className="debt-empty">Loading installments…</p></Card>
+  // A write advances the generation, so the parent reloads the dashboard and
+  // this view re-runs against the new token rather than showing stale rows.
+  async function saved(status: string) {
+    setConfirming(null)
+    setDetail(null)
+    await onSaved?.(status)
+    await load()
+  }
+
+  if (confirming) {
+    return (
+      <Card className="debt-detail">
+        <ConfirmPlanForm
+          candidate={confirming}
+          generation={generation}
+          onSaved={saved}
+          onCancel={() => setConfirming(null)}
+        />
+      </Card>
+    )
+  }
+
+  if (detail) {
+    return (
+      <DetailView
+        detail={detail}
+        generation={generation}
+        onBack={() => setDetail(null)}
+        onSaved={saved}
+      />
+    )
+  }
 
   return (
-    <div className="debts-view">
-      <Card className="debt-list">
-        <header>
-          <h3>Installment plans</h3>
-          <p>Confirmed source-proven chains. Similar monthly amounts alone are not a plan.</p>
-        </header>
-        {page.plans.length === 0 ? (
-          <p className="debt-empty">No installment plans confirmed yet.</p>
-        ) : (
-          page.plans.map((p) => <PlanRow key={p.plan_id} plan={p} onOpen={openDetail} />)
-        )}
-      </Card>
-    </div>
+    <AsyncView
+      loading={loading}
+      error={error}
+      data={page}
+      onRetry={() => { void load() }}
+      errorTitle="We couldn’t load your installment plans."
+      loadingLabel="Loading installments…"
+    >
+      {(plans) => (
+        <div className="debts-view">
+          {candidates && candidates.candidates.length > 0 && (
+            <Card className="debt-list">
+              <header>
+                <h3>Split payments to confirm</h3>
+                <p>
+                  Instalment chains your card statements already print. Confirming one records it
+                  as a plan; nothing is counted twice, because each statement line is claimed once.
+                </p>
+              </header>
+              {candidates.candidates.map((c) => (
+                <CandidateRow key={c.candidate_key} candidate={c} onConfirm={setConfirming} />
+              ))}
+            </Card>
+          )}
+
+          {candidates?.ambiguous_groups.map((g, i) => (
+            <Card className="debt-list" key={i}>
+              <header>
+                <h3><AlertTriangle size={15} /> {g.family} · {g.term_months} months</h3>
+                <p>{g.reason}</p>
+              </header>
+              <table className="debt-history">
+                <thead><tr><th>n / of</th><th>Date</th><th>Amount</th><th>Statement line</th></tr></thead>
+                <tbody>
+                  {g.occurrences.map((o) => (
+                    <tr key={o.entry_anchor}>
+                      <td>{o.occurrence_index} / {o.occurrence_count}</td>
+                      <td>{o.effective_on}</td>
+                      <td>{money(o.amount, g.currency)}</td>
+                      <td>{o.description ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          ))}
+
+          <Card className="debt-list">
+            <header>
+              <h3>Installment plans</h3>
+              <p>Confirmed source-proven chains. Similar monthly amounts alone are not a plan.</p>
+            </header>
+            {plans.plans.length === 0 ? (
+              <p className="debt-empty">
+                No installment plans confirmed yet.
+                {candidates && candidates.candidates.length > 0
+                  ? ' Confirm one of the split payments above to start.'
+                  : ''}
+              </p>
+            ) : (
+              plans.plans.map((p) => <PlanRow key={p.plan_id} plan={p} onOpen={openDetail} />)
+            )}
+          </Card>
+        </div>
+      )}
+    </AsyncView>
   )
 }
