@@ -25,6 +25,7 @@ dev = [
     "httpx2>=2,<3",
     "mypy>=1.11",
     "pytest>=8,<9",
+    "pytest-xdist>=3,<4",
     "reportlab>=4,<5",
     "ruff>=0.6",
 ]
@@ -64,6 +65,12 @@ disallow_untyped_defs = false
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
+# The suite is CPU-bound and process-parallel-safe: every test builds its ledger
+# under its own temporary directory (directly, or via a shared base such as
+# tests.test_api.ApiTestBase), so no writer flock is ever shared across workers.
+# Serial wall time was the cost paid on every commit under the full-CI
+# rule. Default to one worker per core; `-n0` turns that off to debug one test.
+addopts = ["-n", "auto"]
 # A leaked SQLite connection under the ledger writer lock is a correctness bug,
 # not a warning (PLAN-mvp.md §4); fail on it. The starlette/httpx TestClient
 # deprecation noise is third-party and not ours to fix here.
