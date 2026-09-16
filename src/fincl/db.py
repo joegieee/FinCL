@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -429,6 +429,34 @@ CREATE TABLE IF NOT EXISTS reporting_policy (
     policy_version TEXT NOT NULL
 ) STRICT;
 """
+
+
+# Schema 24 (cash-flow coverage, Feature 1). ``movement_coverage_certifications``
+# records an operator attestation that one ``(account_id, currency_pocket)`` had
+# complete movement evidence across a closed date range — typically "the app
+# showed no transactions between these two statements". It is *evidence about
+# completeness*, never an amount: it can unblock a cash bridge across a quiet
+# interval but can never invent a balance. The read path in
+# ``position.queries._certified_periods`` treats a non-retired row exactly like a
+# passing statement period, so a certification and a statement are interchangeable
+# proof of a covered day and nothing else.
+SCHEMA_24_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS movement_coverage_certifications (
+    certification TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    currency_pocket TEXT NOT NULL,
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    basis TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    retired INTEGER NOT NULL DEFAULT 0 CHECK (retired IN (0, 1)),
+    CHECK (period_start <= period_end)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS movement_coverage_certifications_scope
+    ON movement_coverage_certifications(account_id, currency_pocket, period_start);
+"""
+
 
 
 # Schema 12 (v0.5 bulk actions). The schema 8 categorization projection tables
@@ -1037,6 +1065,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_21_TABLES_SQL
         + SCHEMA_22_TABLES_SQL
         + SCHEMA_23_TABLES_SQL
+        + SCHEMA_24_TABLES_SQL
     )
 
 

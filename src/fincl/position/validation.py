@@ -1,8 +1,11 @@
-"""Structural validation of the ``BALANCE_OBSERVATION_*`` kinds.
+"""Structural validation of the ``BALANCE_OBSERVATION_*`` and
+``MOVEMENT_COVERAGE_*`` kinds.
 
 Pure shape and value checks only — no database. An observation is an absolute
 as-of balance for one ``(account_id, currency_pocket)``, never a delta, and its
-``observed_on`` may not be in the future.
+``observed_on`` may not be in the future. A certification is a closed date range
+for one pocket plus the named basis the operator inspected; it carries no amount
+at all, so no amount check exists here to relax later.
 """
 
 from __future__ import annotations
@@ -13,7 +16,13 @@ from typing import Any
 
 from ..errors import FinCLError
 from ..money import ExactMoney
-from .models import BALANCE_OBSERVATION_RETIRE, BALANCE_OBSERVATION_SET
+from .models import (
+    BALANCE_OBSERVATION_RETIRE,
+    BALANCE_OBSERVATION_SET,
+    MOVEMENT_COVERAGE_BASES,
+    MOVEMENT_COVERAGE_CERTIFY,
+    MOVEMENT_COVERAGE_RETIRE,
+)
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -90,6 +99,44 @@ def _validate_retire(anchors: dict[str, str], payload: dict[str, Any]) -> None:
     _reason(payload)
 
 
+def _validate_certify(
+    anchors: dict[str, str], payload: dict[str, Any], *, today: date
+) -> None:
+    if set(anchors) != {"certification"}:
+        raise FinCLError("MOVEMENT_COVERAGE_CERTIFY needs a single certification anchor")
+    _uuid(anchors["certification"], "the certification id")
+    expected = {
+        "account_id", "currency_pocket", "period_start", "period_end", "basis", "reason",
+    }
+    if set(payload) != expected:
+        raise FinCLError(
+            f"MOVEMENT_COVERAGE_CERTIFY payload is exactly {sorted(expected)}"
+        )
+    _identifier(payload["account_id"], "account_id")
+    _currency(payload["currency_pocket"])
+    start = _calendar_date(payload["period_start"], "period_start")
+    end = _calendar_date(payload["period_end"], "period_end")
+    if start > end:
+        raise FinCLError("period_start may not be after period_end")
+    if end > today:
+        # Completeness can only be attested for days that have happened.
+        raise FinCLError("period_end may not be in the future")
+    if payload["basis"] not in MOVEMENT_COVERAGE_BASES:
+        raise FinCLError(
+            "basis must be one of " + ", ".join(MOVEMENT_COVERAGE_BASES)
+        )
+    _reason(payload)
+
+
+def _validate_certify_retire(anchors: dict[str, str], payload: dict[str, Any]) -> None:
+    if set(anchors) != {"certification"}:
+        raise FinCLError("MOVEMENT_COVERAGE_RETIRE needs a single certification anchor")
+    _uuid(anchors["certification"], "the certification id")
+    if set(payload) != {"reason"}:
+        raise FinCLError("MOVEMENT_COVERAGE_RETIRE payload is exactly {reason}")
+    _reason(payload)
+
+
 def validate_position_payload(
     kind: str,
     anchors: dict[str, str],
@@ -102,5 +149,9 @@ def validate_position_payload(
         _validate_set(anchors, payload, today=today)
     elif kind == BALANCE_OBSERVATION_RETIRE:
         _validate_retire(anchors, payload)
+    elif kind == MOVEMENT_COVERAGE_CERTIFY:
+        _validate_certify(anchors, payload, today=today)
+    elif kind == MOVEMENT_COVERAGE_RETIRE:
+        _validate_certify_retire(anchors, payload)
     else:  # pragma: no cover - guarded by the dispatcher
-        raise FinCLError(f"{kind} is not a balance-observation decision")
+        raise FinCLError(f"{kind} is not a position decision")

@@ -6,6 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { ApiError, money } from '@/lib/api'
 import { ConsolidatedMoney, Money } from '@/components/Money'
 import { BalanceObservationForm } from './BalanceObservationForm'
+import { CertifyCoverageForm, type CertifyTarget } from './CertifyCoverageForm'
+import { CoveragePanel } from './CoveragePanel'
+import {
+  type CoverageReport, type MovementCertification,
+  loadCertifications, loadCoverageReport, retireCoverage,
+} from './api'
 import {
   type CashFilters, type CashPageOut, type CashPocketOut, type ReportingPolicySummary,
   emptyCashFilters, loadReportedCash, loadReportingPolicy, cashScopeKey,
@@ -45,11 +51,22 @@ export function CashView({
   const [staleBanner, setStaleBanner] = useState<StaleBanner>('none')
   const [policy, setPolicy] = useState<ReportingPolicySummary | null>(null)
   const [observing, setObserving] = useState<CashPocketOut | null>(null)
+  const [certifying, setCertifying] = useState<CertifyTarget | null>(null)
+  const [coverage, setCoverage] = useState<CoverageReport | null>(null)
+  const [certifications, setCertifications] = useState<MovementCertification[]>([])
   const lastGood = useRef<LastGood | null>(null)
   const seq = useRef(0)
 
   const refreshPolicy = useCallback(() => { loadReportingPolicy().then(setPolicy).catch(() => {}) }, [])
   useEffect(() => { refreshPolicy() }, [refreshPolicy])
+
+  // Coverage and certifications are native reads on their own routes, so a
+  // failure there degrades the panel rather than the whole position.
+  const refreshCoverage = useCallback(() => {
+    loadCoverageReport().then(setCoverage).catch(() => setCoverage(null))
+    loadCertifications().then(r => setCertifications(r.certifications)).catch(() => setCertifications([]))
+  }, [])
+  useEffect(() => { refreshCoverage() }, [refreshCoverage])
 
   const load = useCallback(() => {
     const id = ++seq.current
@@ -131,7 +148,28 @@ export function CashView({
         </div>
       )}
 
-      {page && <CashPage page={page} filters={filters} onFiltersChange={setFilters} generation={generation} onObserve={setObserving} />}
+      {page && (
+        <CashPage
+          page={page} filters={filters} onFiltersChange={setFilters} generation={generation}
+          onObserve={setObserving} coverage={coverage} certifications={certifications}
+          onCertify={setCertifying}
+          onObserveScope={(accountId, pocketCurrency) => {
+            const match = page.pockets.find(
+              p => p.account_id === accountId && p.currency_pocket === pocketCurrency,
+            )
+            if (match) setObserving(match)
+          }}
+          onRetireCertification={async (certification) => {
+            try {
+              const result = await retireCoverage(
+                generation, certification.certification, 'no longer certain this range was quiet',
+              )
+              load(); refreshCoverage()
+              await onSaved?.(result.status)
+            } catch { /* the banner from the next load reports it */ }
+          }}
+        />
+      )}
 
       {observing && (
         <BalanceObservationForm
@@ -140,7 +178,20 @@ export function CashView({
           onCancel={() => setObserving(null)}
           onSaved={async (status) => {
             setObserving(null)
-            load()
+            load(); refreshCoverage()
+            await onSaved?.(status)
+          }}
+        />
+      )}
+
+      {certifying && (
+        <CertifyCoverageForm
+          target={certifying}
+          generation={generation}
+          onCancel={() => setCertifying(null)}
+          onSaved={async (status) => {
+            setCertifying(null)
+            load(); refreshCoverage()
             await onSaved?.(status)
           }}
         />
@@ -150,13 +201,19 @@ export function CashView({
 }
 
 function CashPage({
-  page, filters, onFiltersChange, generation, onObserve,
+  page, filters, onFiltersChange, onObserve,
+  coverage, certifications, onCertify, onObserveScope, onRetireCertification,
 }: {
   page: CashPageOut
   filters: CashFilters
   onFiltersChange: (f: CashFilters) => void
   generation: string
   onObserve: (pocket: CashPocketOut) => void
+  coverage: CoverageReport | null
+  certifications: MovementCertification[]
+  onCertify: (target: CertifyTarget) => void
+  onObserveScope: (accountId: string, currencyPocket: string) => void
+  onRetireCertification: (certification: MovementCertification) => void
 }) {
   const currency = page.reporting_currency
   const observedToday = page.current_position_supported
@@ -223,6 +280,13 @@ function CashPage({
             </>
           )}
       </Card>
+
+      <CoveragePanel
+        page={page} report={coverage} certifications={certifications}
+        onCertify={onCertify} onObserve={onObserveScope}
+        onImport={() => { window.location.hash = '#/Setup' }}
+        onRetireCertification={onRetireCertification}
+      />
 
       {withheld.length > 0 && (
         <Card className="cash-withheld-card">

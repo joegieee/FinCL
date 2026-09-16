@@ -199,6 +199,22 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .file-chips small{color:var(--muted)}
 .upload-result{margin-top:16px;border-top:1px solid var(--border);padding-top:14px;font-size:12px}
 .upload-result>p:first-child{display:flex;align-items:center;gap:7px;font-weight:500}
+/* Evidence coverage (cash-flow Feature 1): the proven share of liquid pockets,
+   the most current partial figure, and one action per remaining gap. */
+.cash-coverage-card{display:flex;flex-direction:column;gap:2px}
+.coverage-meter{height:6px;border-radius:999px;background:var(--secondary);overflow:hidden;margin:4px 0 10px}
+.coverage-meter-fill{height:100%;border-radius:999px;background:var(--primary);transition:width .25s}
+.coverage-meter-fill.is-partial{background:var(--chart-4)}
+.coverage-meter-fill.is-unavailable{background:var(--border)}
+.coverage-partial{border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin:12px 0;font-size:12px;display:flex;flex-direction:column;gap:6px}
+.coverage-partial .issue-list{margin:4px 0 0}
+.coverage-remedies,.coverage-certifications{margin-top:14px}
+.remedy-list{list-style:none;display:flex;flex-direction:column;gap:9px;margin:10px 0 0;padding:0}
+.remedy-list li,.coverage-certifications .issue-list li{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-size:12px}
+.remedy-body{min-width:0;display:flex;flex-direction:column;gap:4px}
+.remedy-body p:first-child{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.remedy-list li>button,.coverage-certifications .issue-list li>button{flex-shrink:0}
+@media(max-width:700px){.remedy-list li,.coverage-certifications .issue-list li{flex-direction:column;align-items:stretch}}
 .issue-list{list-style:none;display:flex;flex-direction:column;gap:9px;margin:12px 0;padding:0}
 .issue-list li{border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-size:12px}
 .issue-list li p{color:var(--muted);margin-top:4px}

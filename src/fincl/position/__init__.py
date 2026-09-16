@@ -14,17 +14,33 @@ operator observation, and each carries its basis, as-of date and staleness.
 from .models import (
     BALANCE_OBSERVATION_RETIRE,
     BALANCE_OBSERVATION_SET,
+    MOVEMENT_COVERAGE_BASES,
+    MOVEMENT_COVERAGE_CERTIFY,
+    MOVEMENT_COVERAGE_RETIRE,
     POSITION_DECISION_KINDS,
 )
 from .projection import apply_balance_observation
 from .queries import position_page
+from .remedies import (
+    coverage_remedies,
+    coverage_remedies_from,
+    movement_certifications,
+    movement_certifications_from,
+)
 from .validation import validate_position_payload
 
 __all__ = [
     "BALANCE_OBSERVATION_SET",
     "BALANCE_OBSERVATION_RETIRE",
+    "MOVEMENT_COVERAGE_BASES",
+    "MOVEMENT_COVERAGE_CERTIFY",
+    "MOVEMENT_COVERAGE_RETIRE",
     "POSITION_DECISION_KINDS",
     "apply_balance_observation",
+    "coverage_remedies",
+    "coverage_remedies_from",
+    "movement_certifications",
+    "movement_certifications_from",
     "position_page",
     "validate_position_payload",
 ]

@@ -1,13 +1,26 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const loadReportedCash = vi.fn()
 const loadReportingPolicy = vi.fn()
 const recordBalanceObservation = vi.fn()
 const retireBalanceObservation = vi.fn()
+const loadCoverageReport = vi.fn()
+const loadCertifications = vi.fn()
+const certifyCoverage = vi.fn()
+const retireCoverage = vi.fn()
 vi.mock('./api', () => ({
   recordBalanceObservation: (...a: unknown[]) => recordBalanceObservation(...a),
   retireBalanceObservation: (...a: unknown[]) => retireBalanceObservation(...a),
+  loadCoverageReport: (...a: unknown[]) => loadCoverageReport(...a),
+  loadCertifications: (...a: unknown[]) => loadCertifications(...a),
+  certifyCoverage: (...a: unknown[]) => certifyCoverage(...a),
+  retireCoverage: (...a: unknown[]) => retireCoverage(...a),
+  certificationBases: [
+    { value: 'account-app-transaction-list', label: "I checked the account's own transaction list" },
+    { value: 'statement-inspected-no-activity', label: 'I inspected a statement showing no activity' },
+    { value: 'account-closed-or-dormant', label: 'The account was closed or dormant' },
+  ],
 }))
 vi.mock('./reportedApi', () => ({
   emptyCashFilters: { pocketCurrency: '' },
@@ -68,12 +81,39 @@ function page(over: Record<string, unknown> = {}) {
       balance_as_of: '2026-03-05', valuation_as_of: '2026-03-05',
     },
     pockets: [pocket()],
+    partial_position: {
+      as_of: '2026-03-05', by_currency: { SGD: '360.00' },
+      contributing_pockets: [{ account_id: 'acc-1', currency_pocket: 'SGD', display_name: 'Revolut Current', balance: '360.00', basis: 'actual-movement-bridge' }],
+      short_pockets: [], is_complete: true, reason: null,
+    },
+    coverage_summary: {
+      included_pockets: 1, covered_pockets: 1, short_pockets: 0, ratio: 1,
+      basis: 'share of included liquid pockets with a coverage-backed balance', status: 'complete',
+    },
     stale: false, missing_intervals: [],
     cash_bridge: { pockets: [bridge()], combined_by_currency: { SGD: { opening: '900.00', external_inflows: '0', external_outflows: '540.00', closing: '360.00', reconciled: true, owned_transfer_pairs_cancelled: 0 } }, owned_transfer_pairs_cancelled: 0, policy: 'p' },
     ...over,
   }
 }
 
+function coverageReport(over: Record<string, unknown> = {}) {
+  return {
+    generated_for: '2026-05-01',
+    coverage: {
+      included_pockets: 1, covered_pockets: 1, short_pockets: 0, ratio: 1,
+      basis: 'share of included liquid pockets with a coverage-backed balance', status: 'complete',
+    },
+    supported_cutoff: '2026-03-05', current_position_supported: true, remedies: [],
+    ...over,
+  }
+}
+
+function coverageDefaults() {
+  loadCoverageReport.mockResolvedValue(coverageReport())
+  loadCertifications.mockResolvedValue({ certifications: [] })
+}
+
+beforeEach(() => { coverageDefaults() })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('CashView', () => {
@@ -174,5 +214,120 @@ describe('CashView', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Refresh' })[0])
     expect(await screen.findByText('Showing the last loaded values for this exact scope.')).toBeInTheDocument()
     expect(screen.getByText('Not observed as of today')).toBeInTheDocument()
+  })
+})
+
+describe('CashView coverage panel', () => {
+  it('reports the proven share of liquid pockets', async () => {
+    loadReportedCash.mockResolvedValue(page({
+      coverage_summary: {
+        included_pockets: 2, covered_pockets: 1, short_pockets: 1, ratio: 0.5,
+        basis: 'share of included liquid pockets with a coverage-backed balance', status: 'partial',
+      },
+    }))
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+
+    render(<CashView generation="gen-1" />)
+
+    expect(await screen.findByText('1 of 2 liquid pockets proven')).toBeInTheDocument()
+    expect(screen.getByText('50% covered')).toBeInTheDocument()
+  })
+
+  it('shows the most current partial figure and names what it left out', async () => {
+    loadReportedCash.mockResolvedValue(page({
+      coverage_summary: {
+        included_pockets: 2, covered_pockets: 1, short_pockets: 1, ratio: 0.5,
+        basis: 'share of included liquid pockets with a coverage-backed balance', status: 'partial',
+      },
+      partial_position: {
+        as_of: '2026-05-01', by_currency: { SGD: '900.00' },
+        contributing_pockets: [{ account_id: 'acc-1', currency_pocket: 'SGD', display_name: 'Revolut Current', balance: '900.00', basis: 'actual-movement-bridge' }],
+        short_pockets: [{
+          account_id: 'acc-2', currency_pocket: 'USD', display_name: 'Revolut USD',
+          reason: 'complete actual-movement coverage is not established through this date',
+          best_supported_cutoff: '2026-03-05',
+        }],
+        is_complete: false,
+        reason: '1 of 2 liquid pockets have no coverage-backed balance at 2026-05-01',
+      },
+    }))
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+
+    render(<CashView generation="gen-1" />)
+
+    expect(await screen.findByText(/Most current figure available/)).toBeInTheDocument()
+    expect(screen.getAllByText(/SGD 900.00/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/proven only through 2026-03-05/)).toBeInTheDocument()
+    // It must never be presented as the whole position.
+    expect(screen.getByText(/This is not your total cash/)).toBeInTheDocument()
+  })
+
+  it('offers the certification dialog with the exact range the gap names', async () => {
+    loadReportedCash.mockResolvedValue(page())
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+    loadCoverageReport.mockResolvedValue(coverageReport({
+      current_position_supported: false,
+      coverage: {
+        included_pockets: 1, covered_pockets: 0, short_pockets: 1, ratio: 0,
+        basis: 'share of included liquid pockets with a coverage-backed balance', status: 'unavailable',
+      },
+      remedies: [{
+        action: 'certify-quiet-interval', decision_kind: 'MOVEMENT_COVERAGE_CERTIFY',
+        account_id: 'acc-1', currency_pocket: 'SGD', display_name: 'Revolut Current',
+        institution: 'Revolut', unlocks: 'unblocks-shared-cutoff', rank: 0,
+        detail: 'Check the account transaction list from 2026-03-05 to 2026-05-01.',
+        parameters: { period_start: '2026-03-05', period_end: '2026-05-01' },
+      }],
+    }))
+    certifyCoverage.mockResolvedValue({ status: 'committed' })
+
+    render(<CashView generation="gen-1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Certify range/ }))
+    const from = await screen.findByLabelText('No movement from')
+    expect(from).toHaveValue('2026-03-05')
+    expect(screen.getByLabelText('Through')).toHaveValue('2026-05-01')
+
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'app shows no activity' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Certify this range' }))
+
+    await waitFor(() => expect(certifyCoverage).toHaveBeenCalledWith('gen-1', {
+      account_id: 'acc-1', currency_pocket: 'SGD',
+      period_start: '2026-03-05', period_end: '2026-05-01',
+      basis: 'account-app-transaction-list', reason: 'app shows no activity',
+    }))
+  })
+
+  it('lists an active certification and can retire it', async () => {
+    loadReportedCash.mockResolvedValue(page())
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+    loadCertifications.mockResolvedValue({
+      certifications: [{
+        certification: 'cert-1', account_id: 'acc-1', currency_pocket: 'SGD',
+        display_name: 'Revolut Current', institution: 'Revolut',
+        period_start: '2026-03-06', period_end: '2026-05-01',
+        basis: 'account-app-transaction-list',
+      }],
+    })
+    retireCoverage.mockResolvedValue({ status: 'committed' })
+
+    render(<CashView generation="gen-1" />)
+
+    expect(await screen.findByText(/2026-03-06 → 2026-05-01/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Retire the certification/ }))
+
+    await waitFor(() => expect(retireCoverage).toHaveBeenCalledWith(
+      'gen-1', 'cert-1', 'no longer certain this range was quiet',
+    ))
+  })
+
+  it('says nothing is outstanding when every pocket is proven', async () => {
+    loadReportedCash.mockResolvedValue(page())
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+
+    render(<CashView generation="gen-1" />)
+
+    expect(await screen.findByText('Every liquid pocket is proven')).toBeInTheDocument()
+    expect(screen.getByText(/Nothing is outstanding/)).toBeInTheDocument()
   })
 })

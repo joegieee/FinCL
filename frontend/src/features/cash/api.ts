@@ -140,3 +140,102 @@ export function retireBalanceObservation(
     payload: { reason },
   })
 }
+
+export type CoverageRemedy = {
+  action: 'record-balance-observation' | 'certify-quiet-interval' | 'import-statement'
+  decision_kind: string | null
+  account_id: string
+  currency_pocket: string
+  display_name: string | null
+  institution: string | null
+  unlocks: 'unblocks-shared-cutoff' | 'adds-a-pocket' | 'brings-forward'
+  rank: number
+  detail: string
+  parameters: { period_start?: string; period_end?: string; suggested_observed_on?: string }
+}
+
+export type CoverageReport = {
+  generated_for: string
+  coverage: {
+    included_pockets: number
+    covered_pockets: number
+    short_pockets: number
+    ratio: number
+    basis: string
+    status: 'complete' | 'partial' | 'unavailable'
+  }
+  supported_cutoff: string | null
+  current_position_supported: boolean
+  remedies: CoverageRemedy[]
+}
+
+export const loadCoverageReport = () => api<CoverageReport>('position/coverage')
+
+export type MovementCertification = {
+  certification: string
+  account_id: string
+  currency_pocket: string
+  display_name: string | null
+  institution: string | null
+  period_start: string
+  period_end: string
+  basis: string
+}
+
+export const loadCertifications = () =>
+  api<{ certifications: MovementCertification[] }>('position/certifications')
+
+/**
+ * The three inspections that can back a coverage certification. The operator
+ * picks the one they actually performed; it is recorded and shown back, so a
+ * certification can be weighed later rather than taken on trust.
+ */
+export const certificationBases = [
+  { value: 'account-app-transaction-list', label: "I checked the account's own transaction list" },
+  { value: 'statement-inspected-no-activity', label: 'I inspected a statement showing no activity' },
+  { value: 'account-closed-or-dormant', label: 'The account was closed or dormant' },
+] as const
+
+export type CertifyCoverageInput = {
+  account_id: string
+  currency_pocket: string
+  period_start: string
+  period_end: string
+  basis: string
+  reason: string
+}
+
+/**
+ * Attest that a date range holds no movement for one pocket.
+ *
+ * This supplies *completeness*, never an amount: it lets an existing observed
+ * balance carry forward across a quiet range, and can never introduce a balance
+ * the ledger never saw.
+ */
+export function certifyCoverage(
+  generation: string,
+  input: CertifyCoverageInput,
+): Promise<CommandResult> {
+  return previewThenCommit({
+    request_id: crypto.randomUUID(),
+    expected_generation: generation,
+    kind: 'MOVEMENT_COVERAGE_CERTIFY',
+    anchors: { certification: crypto.randomUUID() },
+    payload: { ...input },
+  })
+}
+
+/** Withdraw a certification; the days it covered become unproven again. */
+export function retireCoverage(
+  generation: string,
+  certification: string,
+  reason: string,
+): Promise<CommandResult> {
+  return previewThenCommit({
+    request_id: crypto.randomUUID(),
+    expected_generation: generation,
+    kind: 'MOVEMENT_COVERAGE_RETIRE',
+    anchors: { certification },
+    payload: { reason },
+  })
+}

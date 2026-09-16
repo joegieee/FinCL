@@ -45,6 +45,7 @@ from .db import (
     SCHEMA_21_TABLES_SQL,
     SCHEMA_22_TABLES_SQL,
     SCHEMA_23_TABLES_SQL,
+    SCHEMA_24_TABLES_SQL,
     SCHEMA_VERSION,
     connect_sqlite,
 )
@@ -216,6 +217,16 @@ def _migrate_22_to_23(connection: sqlite3.Connection) -> None:
     _apply_table_ddl(connection, SCHEMA_23_TABLES_SQL)
 
 
+def _migrate_23_to_24(connection: sqlite3.Connection) -> None:
+    """Add the schema-24 ``movement_coverage_certifications`` table; no data rewrite.
+
+    A ledger that has never certified an interval reads back exactly as before:
+    the coverage reader unions zero certification rows with the same statement
+    periods it always used.
+    """
+    _apply_table_ddl(connection, SCHEMA_24_TABLES_SQL)
+
+
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
 # edit to that DDL is a new migration rather than a silent change under one id.
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
@@ -263,6 +274,9 @@ MIGRATION_21_TO_22_CHECKSUM = "sha256:" + hashlib.sha256(
 MIGRATION_22_TO_23_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_23_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_23_TO_24_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_24_TABLES_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
@@ -281,6 +295,7 @@ MIGRATIONS: dict[int, Migration] = {
     20: Migration(20, 21, MIGRATION_20_TO_21_CHECKSUM, _migrate_20_to_21),
     21: Migration(21, 22, MIGRATION_21_TO_22_CHECKSUM, _migrate_21_to_22),
     22: Migration(22, 23, MIGRATION_22_TO_23_CHECKSUM, _migrate_22_to_23),
+    23: Migration(23, 24, MIGRATION_23_TO_24_CHECKSUM, _migrate_23_to_24),
 }
 
 

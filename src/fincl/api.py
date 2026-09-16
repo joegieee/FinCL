@@ -85,6 +85,8 @@ _SINGLE_KINDS = Literal[
     'RECURRING_OCCURRENCE_SET','RECURRING_OCCURRENCE_RETIRE',
     # Stage 2A liquid-position observations
     'BALANCE_OBSERVATION_SET','BALANCE_OBSERVATION_RETIRE',
+    # Cash-flow coverage: operator attestation that a quiet range is complete
+    'MOVEMENT_COVERAGE_CERTIFY','MOVEMENT_COVERAGE_RETIRE',
     'ENTRY_ROLE_SET','ENTRY_ROLE_RETIRE','ROLE_RULE_SET','ROLE_RULE_RETIRE',
     # M5 reusable inbound-classification rules
     'INBOUND_RULE_SET','INBOUND_RULE_RETIRE',
@@ -665,12 +667,18 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         elif command.kind in POSITION_DECISION_KINDS:
             from .position import validate_position_payload
             validate_position_payload(command.kind, command.anchors, command.payload)
-            if command.kind == 'BALANCE_OBSERVATION_SET':
+            if command.kind in {'BALANCE_OBSERVATION_SET','MOVEMENT_COVERAGE_CERTIFY'}:
                 account_id = str(command.payload['account_id'])
                 if not connection.execute(
                     'SELECT 1 FROM accounts WHERE id=?', (account_id,)
                 ).fetchone():
                     raise FinCLError('The selected account no longer exists')
+            elif command.kind == 'MOVEMENT_COVERAGE_RETIRE':
+                if not connection.execute(
+                    'SELECT 1 FROM movement_coverage_certifications WHERE certification=? AND retired=0',
+                    (command.anchors['certification'],),
+                ).fetchone():
+                    raise FinCLError('The coverage certification is not active')
             elif not connection.execute(
                 'SELECT 1 FROM balance_observations WHERE observation=? AND retired=0',
                 (command.anchors['observation'],),
@@ -1018,6 +1026,18 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     def position_read() -> Any:
         from .position import position_page
         return position_page(database, today=date.today())
+
+    @app.get('/api/v1/position/coverage')
+    def position_coverage_read() -> Any:
+        """Coverage gaps and the exact evidence actions that would close them."""
+        from .position import coverage_remedies
+        return coverage_remedies(database, today=date.today())
+
+    @app.get('/api/v1/position/certifications')
+    def position_certifications_read() -> Any:
+        """Active operator attestations that a quiet range has complete evidence."""
+        from .position import movement_certifications
+        return movement_certifications(database)
 
     @app.get('/api/v1/net-worth')
     def net_worth_read(as_of: str | None = None, prior_as_of: str | None = None) -> Any:

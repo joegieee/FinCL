@@ -623,6 +623,14 @@ class CashPocketOut(_StrictModel):
     derived_as_of: str | None
     derived_basis: str | None
     coverage_status: str
+    # This pocket's own furthest coverage-backed date, independent of what the
+    # other pockets can prove. ``derived_*`` above is the *shared* cutoff, so a
+    # pocket that is fine through today still reads ``None`` there whenever a
+    # sibling pocket is short; these three say what this pocket alone supports.
+    best_supported_cutoff: str | None
+    best_supported_balance: str | None
+    best_supported_basis: str | None
+    blocking_reason: str | None
     # §3.3: each pocket's own native balance/derived-balance, valued at its
     # own as-of date -- ``None`` means no native amount to value (missing
     # balance evidence), never a fabricated zero. A present-but-unavailable
@@ -630,6 +638,42 @@ class CashPocketOut(_StrictModel):
     # (missing FX) -- the two must render as different explanations.
     reported_balance: ValuedMoneyDTO | None
     reported_derived_balance: ValuedMoneyDTO | None
+
+
+class PartialPocketOut(_StrictModel):
+    account_id: str
+    currency_pocket: str
+    display_name: str | None
+    balance: str | None = None
+    basis: str | None = None
+    reason: str | None = None
+    best_supported_cutoff: str | None = None
+
+
+class PartialPositionOut(_StrictModel):
+    """The most current cash figure the evidence supports, however partial.
+
+    Complementary to ``combined_liquid_position``, never a replacement for it:
+    that total is complete but can only be dated to the latest day every pocket
+    proves, while this one is dated as late as any pocket proves and names the
+    pockets it had to leave out. ``is_complete`` is true only when they coincide.
+    """
+
+    as_of: str | None
+    by_currency: dict[str, str]
+    contributing_pockets: list[PartialPocketOut]
+    short_pockets: list[PartialPocketOut]
+    is_complete: bool
+    reason: str | None
+
+
+class CoverageSummaryOut(_StrictModel):
+    included_pockets: int
+    covered_pockets: int
+    short_pockets: int
+    ratio: float
+    basis: str
+    status: str
 
 
 class CashPageOut(_StrictModel):
@@ -648,6 +692,8 @@ class CashPageOut(_StrictModel):
     combined_liquid_position: dict[str, str]
     liquid_total: dict[str, str]
     liquid_total_withheld: dict[str, str]
+    partial_position: PartialPositionOut
+    coverage_summary: CoverageSummaryOut
     combined: CashAtCutoffOut
     pockets: list[CashPocketOut]
     stale: bool
@@ -678,6 +724,10 @@ def _cash_pocket_out(pocket: Any) -> CashPocketOut:
         manual_observation=_boundary_detail_out(native["manual_observation"]),
         derived_balance=native["derived_balance"], derived_as_of=native["derived_as_of"],
         derived_basis=native["derived_basis"], coverage_status=native["coverage_status"],
+        best_supported_cutoff=native.get("best_supported_cutoff"),
+        best_supported_balance=native.get("best_supported_balance"),
+        best_supported_basis=native.get("best_supported_basis"),
+        blocking_reason=native.get("blocking_reason"),
         reported_balance=(
             to_dto(pocket.reported_balance, currency_registry=CURRENCY_REGISTRY)
             if pocket.reported_balance is not None else None
@@ -705,6 +755,21 @@ def _cash_page_out(page: ReportedCashPage) -> CashPageOut:
         combined_liquid_position=dict(position["combined_liquid_position"]),
         liquid_total=dict(position["liquid_total"]),
         liquid_total_withheld=dict(position["liquid_total_withheld"]),
+        partial_position=PartialPositionOut(
+            as_of=position["partial_position"]["as_of"],
+            by_currency=dict(position["partial_position"]["by_currency"]),
+            contributing_pockets=[
+                PartialPocketOut(**entry)
+                for entry in position["partial_position"]["contributing_pockets"]
+            ],
+            short_pockets=[
+                PartialPocketOut(**entry)
+                for entry in position["partial_position"]["short_pockets"]
+            ],
+            is_complete=position["partial_position"]["is_complete"],
+            reason=position["partial_position"]["reason"],
+        ),
+        coverage_summary=CoverageSummaryOut(**position["coverage_summary"]),
         combined=CashAtCutoffOut(
             amount=to_consolidated_dto(page.combined.result, currency_registry=CURRENCY_REGISTRY),
             balance_as_of=page.combined.balance_as_of,

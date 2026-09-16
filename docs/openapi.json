@@ -776,6 +776,44 @@
         }
       }
     },
+    "/api/v1/position/coverage": {
+      "get": {
+        "summary": "Position Coverage Read",
+        "description": "Coverage gaps and the exact evidence actions that would close them.",
+        "operationId": "position_coverage_read_api_v1_position_coverage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Position Coverage Read Api V1 Position Coverage Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/position/certifications": {
+      "get": {
+        "summary": "Position Certifications Read",
+        "description": "Active operator attestations that a quiet range has complete evidence.",
+        "operationId": "position_certifications_read_api_v1_position_certifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Position Certifications Read Api V1 Position Certifications Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/net-worth": {
       "get": {
         "summary": "Net Worth Read",
@@ -6368,6 +6406,12 @@
             "type": "object",
             "title": "Liquid Total Withheld"
           },
+          "partial_position": {
+            "$ref": "#/components/schemas/PartialPositionOut"
+          },
+          "coverage_summary": {
+            "$ref": "#/components/schemas/CoverageSummaryOut"
+          },
           "combined": {
             "$ref": "#/components/schemas/CashAtCutoffOut"
           },
@@ -6409,6 +6453,8 @@
           "combined_liquid_position",
           "liquid_total",
           "liquid_total_withheld",
+          "partial_position",
+          "coverage_summary",
           "combined",
           "pockets",
           "stale",
@@ -6595,6 +6641,50 @@
             "type": "string",
             "title": "Coverage Status"
           },
+          "best_supported_cutoff": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Supported Cutoff"
+          },
+          "best_supported_balance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Supported Balance"
+          },
+          "best_supported_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Supported Basis"
+          },
+          "blocking_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocking Reason"
+          },
           "reported_balance": {
             "anyOf": [
               {
@@ -6639,6 +6729,10 @@
           "derived_as_of",
           "derived_basis",
           "coverage_status",
+          "best_supported_cutoff",
+          "best_supported_balance",
+          "best_supported_basis",
+          "blocking_reason",
           "reported_balance",
           "reported_derived_balance"
         ],
@@ -7131,6 +7225,8 @@
               "RECURRING_OCCURRENCE_RETIRE",
               "BALANCE_OBSERVATION_SET",
               "BALANCE_OBSERVATION_RETIRE",
+              "MOVEMENT_COVERAGE_CERTIFY",
+              "MOVEMENT_COVERAGE_RETIRE",
               "ENTRY_ROLE_SET",
               "ENTRY_ROLE_RETIRE",
               "ROLE_RULE_SET",
@@ -7690,6 +7786,45 @@
           "parent"
         ],
         "title": "ContributorsPageOut"
+      },
+      "CoverageSummaryOut": {
+        "properties": {
+          "included_pockets": {
+            "type": "integer",
+            "title": "Included Pockets"
+          },
+          "covered_pockets": {
+            "type": "integer",
+            "title": "Covered Pockets"
+          },
+          "short_pockets": {
+            "type": "integer",
+            "title": "Short Pockets"
+          },
+          "ratio": {
+            "type": "number",
+            "title": "Ratio"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "included_pockets",
+          "covered_pockets",
+          "short_pockets",
+          "ratio",
+          "basis",
+          "status"
+        ],
+        "title": "CoverageSummaryOut"
       },
       "Dashboard": {
         "properties": {
@@ -9533,6 +9668,144 @@
           "id"
         ],
         "title": "OwningSourceOut"
+      },
+      "PartialPocketOut": {
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "title": "Account Id"
+          },
+          "currency_pocket": {
+            "type": "string",
+            "title": "Currency Pocket"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "best_supported_cutoff": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Supported Cutoff"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "account_id",
+          "currency_pocket",
+          "display_name"
+        ],
+        "title": "PartialPocketOut"
+      },
+      "PartialPositionOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "by_currency": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "By Currency"
+          },
+          "contributing_pockets": {
+            "items": {
+              "$ref": "#/components/schemas/PartialPocketOut"
+            },
+            "type": "array",
+            "title": "Contributing Pockets"
+          },
+          "short_pockets": {
+            "items": {
+              "$ref": "#/components/schemas/PartialPocketOut"
+            },
+            "type": "array",
+            "title": "Short Pockets"
+          },
+          "is_complete": {
+            "type": "boolean",
+            "title": "Is Complete"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "as_of",
+          "by_currency",
+          "contributing_pockets",
+          "short_pockets",
+          "is_complete",
+          "reason"
+        ],
+        "title": "PartialPositionOut",
+        "description": "The most current cash figure the evidence supports, however partial.\n\nComplementary to ``combined_liquid_position``, never a replacement for it:\nthat total is complete but can only be dated to the latest day every pocket\nproves, while this one is dated as late as any pocket proves and names the\npockets it had to leave out. ``is_complete`` is true only when they coincide."
       },
       "Plan": {
         "properties": {

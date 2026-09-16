@@ -161,12 +161,20 @@ def _paired_liquid_entries(
 def _certified_periods(
     connection: sqlite3.Connection, key: tuple[str, str], *, through: str,
 ) -> list[tuple[str, str]]:
-    """Selected statement periods that prove a pocket's movement coverage.
+    """Periods that prove a pocket's movement coverage.
 
     A transaction CSV can reconcile its running balances but its first and last
     rows do not prove that no rows were omitted.  It therefore cannot certify a
     silent day for a cash bridge.  A selected, accepted statement with passing
     blocking checks can: its stated period is the coverage evidence.
+
+    A non-retired ``movement_coverage_certifications`` row (schema 24) is the
+    second accepted proof: an operator who inspected the account's own
+    transaction list for a range is attesting that the ledger's silence there is
+    real.  It proves completeness only — it carries no amount — so it can bridge
+    a quiet interval without ever supplying a balance.  Both kinds are returned
+    in one sorted list because ``_interval_covered`` asks only "was this day
+    proven", and the two answers are interchangeable for that question.
     """
     rows = connection.execute(
         """
@@ -191,6 +199,25 @@ def _certified_periods(
         ORDER BY s.period_start, s.period_end
         """,
         (key[0], through, key[1], key[1]),
+    ).fetchall()
+    periods = [(str(row["start"][:10]), str(row["end"][:10])) for row in rows]
+    periods.extend(_certification_periods(connection, key, through=through))
+    periods.sort()
+    return periods
+
+
+def _certification_periods(
+    connection: sqlite3.Connection, key: tuple[str, str], *, through: str,
+) -> list[tuple[str, str]]:
+    """Non-retired operator attestations of complete movement evidence."""
+    rows = connection.execute(
+        """
+        SELECT period_start AS start, period_end AS end
+        FROM movement_coverage_certifications
+        WHERE account_id=? AND currency_pocket=? AND retired=0 AND period_start<=?
+        ORDER BY period_start, period_end
+        """,
+        (key[0], key[1], through),
     ).fetchall()
     return [(str(row["start"][:10]), str(row["end"][:10])) for row in rows]
 
@@ -360,6 +387,113 @@ def _bridge(
     }
 
 
+def _partial_position(
+    included: list[dict[str, Any]],
+    attempts: dict[str, dict[tuple[str, str], dict[str, Any]]],
+    *,
+    strict_cutoff: str | None,
+) -> dict[str, Any]:
+    """The most current cash figure the evidence supports, however partial.
+
+    ``combined_liquid_position`` answers "what is the complete total", and to
+    stay complete it falls back to the latest date *every* pocket can prove —
+    which can be months old, or nothing at all. Withholding on that basis leaves
+    the operator with no current figure, while silently reducing the total would
+    be a lie. This is the third option, and it is deliberately the complementary
+    read: the **latest** date at which any pocket is proven, totalled over
+    exactly the pockets proven there, with the missing ones named beside it.
+
+    So the two reads answer different questions — complete but older, versus
+    current but partial — and coincide exactly when every pocket is proven
+    today. This is never presented as the position; ``is_complete`` is true only
+    when the strict cutoff exists and nothing is short.
+    """
+    if not included:
+        return {
+            "as_of": None, "by_currency": {}, "contributing_pockets": [],
+            "short_pockets": [], "is_complete": False,
+            "reason": "no supported liquid account pockets were found",
+        }
+    keys = [(pocket["account_id"], pocket["currency_pocket"]) for pocket in included]
+    best_date: str | None = None
+    best_count = 0
+    for candidate in sorted(attempts, reverse=True):
+        count = sum(1 for key in keys if attempts[candidate][key]["supported"])
+        if count:
+            best_date, best_count = candidate, count
+            break
+    if best_date is None or best_count == 0:
+        return {
+            "as_of": None, "by_currency": {}, "contributing_pockets": [],
+            "short_pockets": [
+                {"account_id": key[0], "currency_pocket": key[1]} for key in keys
+            ],
+            "is_complete": False,
+            "reason": "no liquid pocket has a coverage-backed balance on any candidate date",
+        }
+    attempt = attempts[best_date]
+    totals: dict[str, list[ExactMoney]] = defaultdict(list)
+    contributing: list[dict[str, Any]] = []
+    short: list[dict[str, Any]] = []
+    for pocket, key in zip(included, keys, strict=True):
+        result = attempt[key]
+        if result["supported"]:
+            totals[key[1]].append(_money(result["coefficient"], result["scale"]))
+            contributing.append({
+                "account_id": key[0], "currency_pocket": key[1],
+                "display_name": pocket["display_name"], "balance": result["balance"],
+                "basis": result["basis"],
+            })
+        else:
+            short.append({
+                "account_id": key[0], "currency_pocket": key[1],
+                "display_name": pocket["display_name"],
+                "reason": str(result["reason"]),
+                "best_supported_cutoff": pocket.get("best_supported_cutoff"),
+            })
+    return {
+        "as_of": best_date,
+        "by_currency": {
+            currency: format_decimal(*_sum(values))
+            for currency, values in sorted(totals.items())
+        },
+        "contributing_pockets": contributing,
+        "short_pockets": short,
+        "is_complete": bool(strict_cutoff) and not short,
+        "reason": None if not short else (
+            f"{len(short)} of {len(keys)} liquid pockets have no coverage-backed "
+            f"balance at {best_date}"
+        ),
+    }
+
+
+def _coverage_summary(
+    included: list[dict[str, Any]],
+    partial: dict[str, Any],
+    *,
+    strict_cutoff: str | None,
+) -> dict[str, Any]:
+    """One compact answer to "how much of my cash can this figure see?".
+
+    ``covered_pockets / included_pockets`` is a count, not a weight: a ratio by
+    balance would need the very balances the short pockets cannot supply.
+    """
+    total = len(included)
+    covered = len(partial["contributing_pockets"])
+    return {
+        "included_pockets": total,
+        "covered_pockets": covered,
+        "short_pockets": total - covered,
+        "ratio": (covered / total) if total else 0.0,
+        "basis": "share of included liquid pockets with a coverage-backed balance",
+        "status": (
+            "complete" if strict_cutoff and covered == total
+            else "partial" if covered
+            else "unavailable"
+        ),
+    }
+
+
 def position_page(database: Path, *, today: date) -> dict[str, Any]:
     connection = connect_readonly(database)
     try:
@@ -443,6 +577,13 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
         candidate_dates.update(end for _start, end in periods_by_key[key] if end <= today.isoformat())
     cutoff: str | None = None
     derived: dict[tuple[str, str], dict[str, Any]] = {}
+    # Every candidate is evaluated, not just those up to the first full hit:
+    # the strict cutoff still stops at the latest date all pockets support, but
+    # the partial read below needs the whole table to find the best-supported
+    # date and each pocket's own furthest supported date. Candidate dates are
+    # bounded by the pockets' own boundaries and statement ends, so this stays
+    # the same order of work the strict search already did.
+    attempts: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
     for candidate in sorted(candidate_dates, reverse=True):
         attempt = {
             (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
@@ -452,9 +593,9 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
             )
             for pocket in included
         }
-        if included and all(result["supported"] for result in attempt.values()):
+        attempts[candidate] = attempt
+        if cutoff is None and included and all(result["supported"] for result in attempt.values()):
             cutoff, derived = candidate, attempt
-            break
     today_attempt = {
         (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
             (pocket["account_id"], pocket["currency_pocket"]), today.isoformat(),
@@ -482,6 +623,23 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
             pocket["derived_as_of"] = None
             pocket["derived_basis"] = None
             pocket["coverage_status"] = "unsupported"
+        # This pocket's own furthest supported date, independent of what the
+        # others can prove. A pocket that is fine through July is described as
+        # such instead of disappearing because a sibling pocket is short.
+        own = next(
+            (
+                date_
+                for date_ in sorted(attempts, reverse=True)
+                if attempts[date_][key]["supported"]
+            ),
+            None,
+        )
+        pocket["best_supported_cutoff"] = own
+        pocket["best_supported_balance"] = attempts[own][key]["balance"] if own else None
+        pocket["best_supported_basis"] = attempts[own][key]["basis"] if own else None
+        pocket["blocking_reason"] = (
+            None if own == today.isoformat() else str(today_attempt[key].get("reason") or "")
+        ) or None
     totals: dict[str, list[ExactMoney]] = defaultdict(list)
     if cutoff:
         for pocket in included:
@@ -489,6 +647,7 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
             totals[pocket["currency_pocket"]].append(_money(result["coefficient"], result["scale"]))
     combined = {currency: format_decimal(*_sum(values))
                 for currency, values in sorted(totals.items())}
+    partial = _partial_position(included, attempts, strict_cutoff=cutoff)
     reasons: list[str] = []
     if not included:
         reasons.append("no supported liquid account pockets were found")
@@ -518,6 +677,8 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
         "current_position_reasons": list(dict.fromkeys(reasons)),
         "included_pockets": included, "pockets": pockets,
         "combined_liquid_position": combined, "liquid_total": combined,
+        "partial_position": partial,
+        "coverage_summary": _coverage_summary(included, partial, strict_cutoff=cutoff),
         "liquid_total_withheld": {} if cutoff else dict.fromkeys(sorted({p["currency_pocket"] for p in included}), "withheld: no common supported cutoff"),
         "stale": any(p["stale"] for p in included), "missing_intervals": missing,
         "cash_bridge": {"pockets": bridges, "combined": {

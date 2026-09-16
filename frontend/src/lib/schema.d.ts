@@ -406,6 +406,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/position/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Position Coverage Read
+         * @description Coverage gaps and the exact evidence actions that would close them.
+         */
+        get: operations["position_coverage_read_api_v1_position_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/position/certifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Position Certifications Read
+         * @description Active operator attestations that a quiet range has complete evidence.
+         */
+        get: operations["position_certifications_read_api_v1_position_certifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/net-worth": {
         parameters: {
             query?: never;
@@ -2128,6 +2168,8 @@ export interface components {
             liquid_total_withheld: {
                 [key: string]: string;
             };
+            partial_position: components["schemas"]["PartialPositionOut"];
+            coverage_summary: components["schemas"]["CoverageSummaryOut"];
             combined: components["schemas"]["CashAtCutoffOut"];
             /** Pockets */
             pockets: components["schemas"]["CashPocketOut"][];
@@ -2177,6 +2219,14 @@ export interface components {
             derived_basis: string | null;
             /** Coverage Status */
             coverage_status: string;
+            /** Best Supported Cutoff */
+            best_supported_cutoff: string | null;
+            /** Best Supported Balance */
+            best_supported_balance: string | null;
+            /** Best Supported Basis */
+            best_supported_basis: string | null;
+            /** Blocking Reason */
+            blocking_reason: string | null;
             reported_balance: components["schemas"]["ValuedMoneyDTO"] | null;
             reported_derived_balance: components["schemas"]["ValuedMoneyDTO"] | null;
         };
@@ -2318,7 +2368,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT" | "CATEGORY_DETAILS_SET" | "CATEGORY_ARCHIVE_SET" | "ACCOUNT_SCOPE_SET" | "ACCOUNT_DETAILS_SET" | "ACCOUNT_ALIAS_SET" | "ACCOUNT_ALIAS_RETIRE" | "REVIEW_DEFER_SET" | "REVIEW_DEFER_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_DETAILS_SET" | "PERSONAL_DEBT_EVENT_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_SET" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "CARD_FACILITY_SET" | "CARD_FACILITY_RETIRE" | "CARD_LIMIT_OBSERVATION_SET" | "CARD_LIMIT_OBSERVATION_RETIRE" | "CARD_PAYMENT_ALLOCATION_SET" | "CARD_PAYMENT_ALLOCATION_RETIRE" | "INSTALLMENT_PLAN_SET" | "INSTALLMENT_PLAN_RETIRE" | "INSTALLMENT_ALLOCATION_SET" | "INSTALLMENT_ALLOCATION_RETIRE" | "INSTALLMENT_SETTLEMENT_SET" | "INSTALLMENT_SETTLEMENT_RETIRE" | "BUDGET_REVISION_SET" | "BUDGET_ARCHIVE_SET" | "GOAL_DETAILS_SET" | "GOAL_OBSERVATION_SET" | "GOAL_OBSERVATION_RETIRE" | "GOAL_ARCHIVE_SET" | "RECURRING_COMMITMENT_SET" | "RECURRING_CANDIDATE_DISMISS" | "RECURRING_OCCURRENCE_SET" | "RECURRING_OCCURRENCE_RETIRE" | "BALANCE_OBSERVATION_SET" | "BALANCE_OBSERVATION_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE" | "REPORTING_CURRENCY_SET";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT" | "CATEGORY_DETAILS_SET" | "CATEGORY_ARCHIVE_SET" | "ACCOUNT_SCOPE_SET" | "ACCOUNT_DETAILS_SET" | "ACCOUNT_ALIAS_SET" | "ACCOUNT_ALIAS_RETIRE" | "REVIEW_DEFER_SET" | "REVIEW_DEFER_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_DETAILS_SET" | "PERSONAL_DEBT_EVENT_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_SET" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "CARD_FACILITY_SET" | "CARD_FACILITY_RETIRE" | "CARD_LIMIT_OBSERVATION_SET" | "CARD_LIMIT_OBSERVATION_RETIRE" | "CARD_PAYMENT_ALLOCATION_SET" | "CARD_PAYMENT_ALLOCATION_RETIRE" | "INSTALLMENT_PLAN_SET" | "INSTALLMENT_PLAN_RETIRE" | "INSTALLMENT_ALLOCATION_SET" | "INSTALLMENT_ALLOCATION_RETIRE" | "INSTALLMENT_SETTLEMENT_SET" | "INSTALLMENT_SETTLEMENT_RETIRE" | "BUDGET_REVISION_SET" | "BUDGET_ARCHIVE_SET" | "GOAL_DETAILS_SET" | "GOAL_OBSERVATION_SET" | "GOAL_OBSERVATION_RETIRE" | "GOAL_ARCHIVE_SET" | "RECURRING_COMMITMENT_SET" | "RECURRING_CANDIDATE_DISMISS" | "RECURRING_OCCURRENCE_SET" | "RECURRING_OCCURRENCE_RETIRE" | "BALANCE_OBSERVATION_SET" | "BALANCE_OBSERVATION_RETIRE" | "MOVEMENT_COVERAGE_CERTIFY" | "MOVEMENT_COVERAGE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE" | "REPORTING_CURRENCY_SET";
             /** Anchors */
             anchors: {
                 [key: string]: string;
@@ -2482,6 +2532,21 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
             parent: components["schemas"]["ConsolidatedValuationDTO"];
+        };
+        /** CoverageSummaryOut */
+        CoverageSummaryOut: {
+            /** Included Pockets */
+            included_pockets: number;
+            /** Covered Pockets */
+            covered_pockets: number;
+            /** Short Pockets */
+            short_pockets: number;
+            /** Ratio */
+            ratio: number;
+            /** Basis */
+            basis: string;
+            /** Status */
+            status: string;
         };
         /** Dashboard */
         Dashboard: {
@@ -3051,6 +3116,48 @@ export interface components {
             kind: string;
             /** Id */
             id: string;
+        };
+        /** PartialPocketOut */
+        PartialPocketOut: {
+            /** Account Id */
+            account_id: string;
+            /** Currency Pocket */
+            currency_pocket: string;
+            /** Display Name */
+            display_name: string | null;
+            /** Balance */
+            balance?: string | null;
+            /** Basis */
+            basis?: string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Best Supported Cutoff */
+            best_supported_cutoff?: string | null;
+        };
+        /**
+         * PartialPositionOut
+         * @description The most current cash figure the evidence supports, however partial.
+         *
+         *     Complementary to ``combined_liquid_position``, never a replacement for it:
+         *     that total is complete but can only be dated to the latest day every pocket
+         *     proves, while this one is dated as late as any pocket proves and names the
+         *     pockets it had to leave out. ``is_complete`` is true only when they coincide.
+         */
+        PartialPositionOut: {
+            /** As Of */
+            as_of: string | null;
+            /** By Currency */
+            by_currency: {
+                [key: string]: string;
+            };
+            /** Contributing Pockets */
+            contributing_pockets: components["schemas"]["PartialPocketOut"][];
+            /** Short Pockets */
+            short_pockets: components["schemas"]["PartialPocketOut"][];
+            /** Is Complete */
+            is_complete: boolean;
+            /** Reason */
+            reason: string | null;
         };
         /** Plan */
         Plan: {
@@ -4225,6 +4332,46 @@ export interface operations {
         };
     };
     position_read_api_v1_position_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    position_coverage_read_api_v1_position_coverage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    position_certifications_read_api_v1_position_certifications_get: {
         parameters: {
             query?: never;
             header?: never;
