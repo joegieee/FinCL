@@ -8,6 +8,21 @@ import {
 export type TabScope = 'range' | 'month' | 'currency' | 'none'
 export type RailSectionName = 'Overview' | 'Money in & out' | 'Commitments' | 'Planning' | 'Position & forecast' | 'Setup & data'
 
+// What each section is called, and which of its destinations opens when the
+// group itself is clicked. Twenty-eight flat rows made the rail a list to scan
+// rather than a place to navigate; grouping them puts six things on screen and
+// keeps the twenty-eight one click further in, none of them hidden. The lead
+// tab is the one that answers the group's own question, so clicking a group is
+// always useful rather than merely expanding it.
+export const sectionChrome: Record<RailSectionName, { label: string; lead: string }> = {
+  'Overview': { label: 'Overview', lead: 'Overview' },
+  'Money in & out': { label: 'Money', lead: 'Transactions' },
+  'Commitments': { label: 'Commitments', lead: 'Obligations' },
+  'Planning': { label: 'Plan ahead', lead: 'Planning' },
+  'Position & forecast': { label: 'Position', lead: 'Will I have enough' },
+  'Setup & data': { label: 'Setup', lead: 'Setup' },
+}
+
 export type TabMeta = {
   scope: TabScope
   eyebrow?: string
@@ -68,7 +83,14 @@ export function tabLabel(tab: string): string { return tabMeta[tab]?.label ?? ta
 // Alias -> primary tab it resolves to, for the command palette and deep links.
 export const tabAliases: Record<string, string> = { 'Cash Flow': 'Analysis', 'Money Owed': 'Obligations' }
 
-export type RailSection = { name: RailSectionName; tabs: string[] }
+export type RailSection = {
+  name: RailSectionName
+  /** Short label shown on the group row. */
+  label: string
+  /** The destination the group row opens, always one of `tabs`. */
+  lead: string
+  tabs: string[]
+}
 
 // Grouped in the same order as declared above, derived once at module load.
 export const railSections: RailSection[] = (() => {
@@ -76,11 +98,20 @@ export const railSections: RailSection[] = (() => {
   for (const [key, meta] of Object.entries(tabMeta)) {
     if (!meta.section) continue
     let bucket = sections.find(s => s.name === meta.section)
-    if (!bucket) { bucket = { name: meta.section, tabs: [] }; sections.push(bucket) }
+    if (!bucket) {
+      const chrome = sectionChrome[meta.section]
+      bucket = { name: meta.section, label: chrome.label, lead: chrome.lead, tabs: [] }
+      sections.push(bucket)
+    }
     bucket.tabs.push(key)
   }
   return sections
 })()
+
+/** The section a destination belongs to, for expanding the right group. */
+export const sectionOfTab: Record<string, RailSectionName> = Object.fromEntries(
+  railSections.flatMap(section => section.tabs.map(tab => [tab, section.name])),
+)
 
 export const railTabs: string[] = railSections.flatMap(s => s.tabs)
 

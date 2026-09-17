@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { commandDestinations, railSections, railTabs, tabAliases, tabMeta } from './tabs'
+import { commandDestinations, railSections, railTabs, sectionChrome, sectionOfTab, tabAliases, tabMeta } from './tabs'
 
 describe('rail metadata', () => {
   it('lists every section-bearing tab in the rail exactly once', () => {
@@ -22,5 +22,27 @@ describe('rail metadata', () => {
       expect(commandDestinations).toContain(alias)
       expect(railTabs).toContain(tabAliases[alias])
     }
+  })
+
+  it('gives every group a lead destination that is one of its own tabs', () => {
+    for (const section of railSections) {
+      expect(section.tabs).toContain(section.lead)
+    }
+  })
+
+  it('names a group for every section, so no group renders unlabelled', () => {
+    for (const section of railSections) {
+      expect(sectionChrome[section.name].label).toBe(section.label)
+      expect(section.label.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('maps every rail destination back to exactly the section that holds it', () => {
+    for (const section of railSections) {
+      for (const tab of section.tabs) {
+        expect(sectionOfTab[tab]).toBe(section.name)
+      }
+    }
+    expect(Object.keys(sectionOfTab).sort()).toEqual([...railTabs].sort())
   })
 })
