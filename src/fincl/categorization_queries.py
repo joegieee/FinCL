@@ -195,6 +195,13 @@ _RULE_SUGGESTION_MIN_OVERRIDES = 3
 def rule_suggestions(database: Path, *, generation: str) -> dict[str, Any]:
     """Merchants with >= 3 manual overrides that agree on one category and
     have no category rule yet (Step 6c) -- a prompt, never an automatic rule.
+
+    Agreement is the whole point: a merchant whose manual overrides disagree
+    (some "Food & Dining / Dining Out", some "Groceries / Supermarket") has no
+    single answer to offer, so it produces no suggestion at all rather than one
+    per category. Offering both would contradict the user's own history, and
+    the inbox keys its banners by merchant -- two banners for one merchant
+    share a key, so dismissing one dismisses both.
     """
     from .categorization import rule_id_for
 
@@ -209,21 +216,34 @@ def rule_suggestions(database: Path, *, generation: str) -> dict[str, Any]:
             JOIN merchant_observations o ON o.entry_id = e.id
             WHERE co.bound = 1 AND COALESCE(o.merchant_canonical, o.merchant_normalized) IS NOT NULL
             GROUP BY merchant_key, co.group_name, co.category
-            HAVING count(*) >= ?
             """,
-            (_RULE_SUGGESTION_MIN_OVERRIDES,),
         ).fetchall()
-        suggestions = []
+        display_names = {row["canonical"]: row["display_name"] for row in connection.execute(
+            "SELECT canonical, display_name FROM merchant_aliases"
+        )}
+        by_merchant: dict[str, list[Any]] = defaultdict(list)
         for row in rows:
-            match = {"merchant_canonical": row["merchant_key"]}
+            by_merchant[row["merchant_key"]].append(row)
+        suggestions = []
+        for merchant_key, merchant_rows in by_merchant.items():
+            if len(merchant_rows) != 1:
+                continue
+            row = merchant_rows[0]
+            if row["occurrences"] < _RULE_SUGGESTION_MIN_OVERRIDES:
+                continue
+            match = {"merchant_canonical": merchant_key}
             rule_id = rule_id_for(match)
             if connection.execute("SELECT 1 FROM category_rules WHERE rule_id=?", (rule_id,)).fetchone():
                 continue
             category = f'{row["group_name"]} / {row["category"]}'
+            # The banner names the merchant the way the rest of the inbox does
+            # -- its display name once an alias gives it one, not the raw
+            # statement key the rule is keyed on.
+            display_label = display_names.get(merchant_key) or merchant_key
             suggestions.append({
-                "merchant_key": row["merchant_key"], "category": category, "occurrences": row["occurrences"],
-                "match": match,
-                "label": f'You categorized {row["merchant_key"]} as {category} {row["occurrences"]} times. Make it a rule?',
+                "merchant_key": merchant_key, "display_label": display_label,
+                "category": category, "occurrences": row["occurrences"], "match": match,
+                "label": f'You categorized {display_label} as {category} {row["occurrences"]} times. Make it a rule?',
             })
         suggestions.sort(key=lambda item: (-item["occurrences"], item["merchant_key"]))
         return {"generation": generation, "suggestions": suggestions}

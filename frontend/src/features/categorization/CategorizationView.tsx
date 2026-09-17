@@ -6,7 +6,7 @@ import { api, money } from '@/lib/api'
 import { useBatchCommand } from '@/lib/command'
 import { compileCombinedRule, type CompiledCombinedRule } from '@/features/rules/api'
 import { CombinedImpactSummary, MergeMerchantsDialog, MerchantRenameControl } from '@/features/rules'
-import { loadRecentCategories, rememberCategory } from '@/features/classification/CategoryPicker'
+import { CategoryPicker, loadRecentCategories, rememberCategory } from '@/features/classification/CategoryPicker'
 import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
 import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
 import { PresetPicker } from '@/features/classification/PresetPicker'
@@ -157,7 +157,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
     try {
       const fresh = await api<{ generation: string }>('overview')
       setGenerationOverride(fresh.generation)
-      const freshQuery = new URLSearchParams({ generation: fresh.generation, direction, lifecycle, kind, account, currency, focus }).toString()
+      const freshQuery = new URLSearchParams({ generation: fresh.generation, direction, lifecycle, kind, account, currency, focus, sort }).toString()
       const freshPage = await api<CandidatesPage>(`categorization/candidates?${freshQuery}`)
       setPage(freshPage)
       const index = reopenCandidateId ? freshPage.candidates.findIndex(c => c.candidate_id === reopenCandidateId) : -1
@@ -294,50 +294,6 @@ function CoverageSummary({ summary }: { summary: Summary }) {
       </div>
     </details>
   </Card>
-}
-
-function CategoryCombobox({ id, categories, value, onChange, onCreate, disabled }: {
-  id: string; categories: string[]; value: string; onChange: (category: string) => void; onCreate: (name: string) => Promise<boolean>; disabled?: boolean
-}) {
-  const options = categories.filter(c => !c.startsWith('Internal /'))
-  const recent = loadRecentCategories().filter(c => options.includes(c))
-  const ordered = [...new Set([...recent, ...options])]
-  const [query, setQuery] = useState(value)
-  const [open, setOpen] = useState(false)
-  const [highlight, setHighlight] = useState(0)
-  const [creating, setCreating] = useState(false)
-  useEffect(() => { setQuery(value) }, [value])
-  const filtered = query.trim() ? ordered.filter(c => c.toLowerCase().includes(query.trim().toLowerCase())) : ordered
-  function choose(category: string) { onChange(category); setQuery(category); setOpen(false) }
-  async function createFromQuery() {
-    if (creating) return
-    setCreating(true)
-    try { if (await onCreate(query.trim())) choose(query.trim()) }
-    finally { setCreating(false) }
-  }
-  return <div className="category-combobox">
-    <label htmlFor={id}>Category</label>
-    <input id={id} role="combobox" aria-expanded={open} aria-autocomplete="list" aria-controls={`${id}-list`} autoComplete="off"
-      disabled={disabled} value={query} placeholder="Search or create a category…"
-      onChange={e => { setQuery(e.target.value); setOpen(true); setHighlight(0) }}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setTimeout(() => setOpen(false), 150)}
-      onKeyDown={e => {
-        if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setHighlight(h => Math.min(h + 1, Math.max(filtered.length - 1, 0))) }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => Math.max(h - 1, 0)) }
-        else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); if (filtered[highlight]) choose(filtered[highlight]); else if (query.trim()) void createFromQuery() }
-        else if (e.key === 'Escape') { setOpen(false) }
-      }}
-    />
-    {open && <ul className="category-combobox-list" id={`${id}-list`} role="listbox">
-      {filtered.map((category, i) => <li key={category} role="option" aria-selected={category === value}><button type="button" className={i === highlight ? 'is-active' : ''} onMouseDown={e => e.preventDefault()} onClick={() => choose(category)}>
-        <span>{category}</span>{recent.includes(category) && category !== value && <span className="tag">Recent</span>}
-      </button></li>)}
-      {!filtered.length && <li className="category-combobox-empty">No category matches "{query}".</li>}
-      {query.trim() && !options.includes(query.trim()) && query.trim().includes(' / ') && <li><button type="button" onMouseDown={e => e.preventDefault()} onClick={() => void createFromQuery()} disabled={creating}>{creating ? 'Creating…' : `Create "${query.trim()}"`}</button></li>}
-    </ul>}
-    {query.trim() && !options.includes(query.trim()) && !query.trim().includes(' / ') && <small>Type "Group / Name" to create a new category inline.</small>}
-  </div>
 }
 
 const FIELD_NAMES: FieldName[] = ['category', 'cost_behavior', 'need', 'incoming_type']
@@ -567,6 +523,12 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   function chooseScope(next: 'one' | 'selected' | 'rule') {
     setScope(next)
     if (next === 'one') setAnchors(records.length === 1 ? new Set([records[0].anchor]) : new Set())
+    // "All matching, now and later" is not scoped to a checkbox selection, so
+    // it restores the whole loaded group. Leaving a narrowed selection in
+    // place decided which fields the rule form offered (applicability is
+    // computed from the targeted records) from rows the rule does not
+    // actually describe.
+    if (next === 'rule') setAnchors(new Set(records.map(row => row.anchor)))
     resetChecks()
   }
   const notAllLoaded = records.length < detail.candidate.transaction_count
@@ -604,28 +566,36 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   }, [scope, option, category, costBehavior, need, incomingType, clearCategory, clearRoles, policy, reason, anchors])
   /** Keyboard shortcuts (Step 5.5). Ignored while the target is a form
    * control so typing in the category/reason fields is never hijacked. */
+  function handleKey(e: KeyboardEvent) {
+    const target = e.target as HTMLElement | null
+    const typing = Boolean(target) && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target!.tagName) || target!.isContentEditable)
+    if (typing) return
+    if (e.key >= '1' && e.key <= '6') {
+      const recent = loadRecentCategories()[Number(e.key) - 1]
+      if (recent) { e.preventDefault(); setClearCategory(false); setCategory(recent); resetChecks() }
+    } else if (e.key === 'c') { e.preventDefault(); document.getElementById(categoryFieldId)?.focus() }
+    else if (e.key === 'b') { e.preventDefault(); setClearRoles(false); setCostBehavior(v => cycle(COST_BEHAVIORS, v)); resetChecks() }
+    else if (e.key === 'n') { e.preventDefault(); setClearRoles(false); setNeed(v => cycle(NEEDS, v)); resetChecks() }
+    else if (e.key === 'Enter') { e.preventDefault(); saveAndNext() }
+    else if (e.key === 'x') { e.preventDefault(); if (hasNext) void onNavigate(1); else onClose() }
+    else if (e.key === 'r') { e.preventDefault(); Array.from(panelRef.current?.querySelectorAll('button') ?? []).find(b => b.textContent?.startsWith('Rename '))?.click() }
+    else if (e.key === 'm') { e.preventDefault(); if (detail.candidate.kind === 'merchant') setMerging(true) }
+    else if (e.key === '?') { e.preventDefault(); setShowShortcuts(s => !s) }
+    else if (e.key === 'Escape') { e.preventDefault(); onClose() }
+  }
+  /** The listener is registered once and dispatches through a ref, so every
+   * shortcut reads the current render's state. Re-registering it on a subset
+   * of its dependencies instead (the previous shape) froze the rest: ticking
+   * the overlap acknowledgement left <kbd>Enter</kbd> refusing to save a rule
+   * the Save button would take, and an edited reason could be journalled as it
+   * stood one render earlier. */
+  const handleKeyRef = useRef(handleKey)
+  handleKeyRef.current = handleKey
   useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null
-      const typing = Boolean(target) && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target!.tagName) || target!.isContentEditable)
-      if (typing) return
-      if (e.key >= '1' && e.key <= '6') {
-        const recent = loadRecentCategories()[Number(e.key) - 1]
-        if (recent) { e.preventDefault(); setClearCategory(false); setCategory(recent) }
-      } else if (e.key === 'c') { e.preventDefault(); document.getElementById(categoryFieldId)?.focus() }
-      else if (e.key === 'b') { e.preventDefault(); setClearRoles(false); setCostBehavior(v => cycle(COST_BEHAVIORS, v)) }
-      else if (e.key === 'n') { e.preventDefault(); setClearRoles(false); setNeed(v => cycle(NEEDS, v)) }
-      else if (e.key === 'Enter') { e.preventDefault(); saveAndNext() }
-      else if (e.key === 'x') { e.preventDefault(); if (hasNext) void onNavigate(1); else onClose() }
-      else if (e.key === 'r') { e.preventDefault(); Array.from(panelRef.current?.querySelectorAll('button') ?? []).find(b => b.textContent?.startsWith('Rename '))?.click() }
-      else if (e.key === 'm') { e.preventDefault(); if (detail.candidate.kind === 'merchant') setMerging(true) }
-      else if (e.key === '?') { e.preventDefault(); setShowShortcuts(s => !s) }
-      else if (e.key === 'Escape') { e.preventDefault(); onClose() }
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasNext, detail.candidate.kind, scope, compiled, preview])
+    const listener = (e: KeyboardEvent) => handleKeyRef.current(e)
+    document.addEventListener('keydown', listener)
+    return () => document.removeEventListener('keydown', listener)
+  }, [])
   const visibleRecords = showAllRecords ? records : records.slice(0, 5)
   return <div className="categorization-panel candidate-review" role="region" aria-label={`Review ${detail.candidate.label}`} ref={panelRef}>
     <div className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><h2>{detail.candidate.label}{detail.candidate.kind === 'merchant' && detail.candidate.merchant_key && <>
@@ -670,7 +640,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
         from "rule" to "selected" (empty options) can never remount it
         mid-input and silently drop a value the user already typed. */}
     <div className="bulk-field">
-      <CategoryCombobox id={categoryFieldId} categories={localCategories} value={clearCategory ? '' : category}
+      <CategoryPicker id={categoryFieldId} categories={localCategories} value={clearCategory ? '' : category}
         onChange={c => { setClearCategory(false); setCategory(c); resetChecks() }} onCreate={createCategory}
         disabled={disabled || Boolean(ruleBatch.submitted) || batch.busy || clearCategory}/>
       {(scope === 'one' || scope === 'selected') && <label><input type="checkbox" checked={clearCategory} disabled={disabled || batch.busy}
