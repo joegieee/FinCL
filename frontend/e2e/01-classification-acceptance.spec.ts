@@ -1,15 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
+import { openTab } from './rail'
 
 test.describe.configure({ mode: 'serial' })
-
-async function openTab(page: Page, name: string) {
-  const rail = page.getByRole('navigation', { name: 'Main navigation' })
-  if (await rail.isVisible()) await rail.getByRole('button', { name, exact: true }).click()
-  else {
-    await page.getByRole('button', { name: 'Open navigation' }).click()
-    await page.getByRole('dialog', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click()
-  }
-}
 
 async function upload(page: Page, ...names: string[]) {
   await openTab(page, 'Setup')

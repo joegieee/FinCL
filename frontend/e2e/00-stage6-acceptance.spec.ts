@@ -1,10 +1,7 @@
 import { expect, test } from '@playwright/test'
+import { openTab } from './rail'
 
 test.describe.configure({ mode: 'serial' })
-
-async function openTab(page: import('@playwright/test').Page, name: string) {
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name, exact: true }).click()
-}
 
 async function upload(page: import('@playwright/test').Page, fixture: string) {
   await openTab(page, 'Setup')

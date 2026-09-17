@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { openTab } from './rail'
 
 // The session cookie is provisioned once by auth.setup.ts and reused here.
 test.beforeEach(async ({ page }) => {
@@ -7,17 +8,13 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'A clearer picture.' })).toBeVisible()
 })
 
-async function openTab(page: import('@playwright/test').Page, name: RegExp) {
-  await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name }).click()
-}
-
 test('overview shows an exact, currency-qualified spending total', async ({ page }) => {
   const spending = page.getByText('Average monthly spending + fees').locator('..')
   await expect(spending).toContainText(/SGD [\d,]+\.\d{2}/)
 })
 
 test('a category edit survives preview, save and a full page reload', async ({ page }) => {
-  await openTab(page, /Transactions/)
+  await openTab(page, 'Transactions')
   const firstChip = page.locator('.transactions-table .category-chip').first()
   const original = (await firstChip.textContent())?.trim()
   await firstChip.click()
@@ -36,14 +33,14 @@ test('a category edit survives preview, save and a full page reload', async ({ p
   await expect(page.getByText(/Saved to your ledger|recorded.*refresh pending/i)).toBeVisible()
 
   await page.reload()
-  await openTab(page, /Transactions/)
+  await openTab(page, 'Transactions')
   await expect(page.locator('.transactions-table .category-chip').first())
     .toHaveText(target.split(' / ').at(-1)!.trim())
 })
 
 test('the transactions list is served and paged by the backend', async ({ page }) => {
   const request = page.waitForRequest((r) => r.url().includes('/api/v1/reporting/transactions'))
-  await openTab(page, /Transactions/)
+  await openTab(page, 'Transactions')
   const url = new URL((await request).url())
   expect(url.searchParams.get('generation')).toBeTruthy()
   expect(url.searchParams.get('limit')).toBe('50')
@@ -58,6 +55,6 @@ test('the transactions list is served and paged by the backend', async ({ page }
 })
 
 test('the review tab reflects the ledger state', async ({ page }) => {
-  await openTab(page, /^Review/)
+  await openTab(page, 'Review')
   await expect(page.getByRole('heading', { name: /awaiting a decision/ })).toBeVisible()
 })
