@@ -204,31 +204,15 @@ test('desktop: isolated income, recurring payer suggestion, grouped save-next an
   await payer.getByRole('button', { name: /Save 3 receipts \+ rule/ }).click()
 
   await openTab(page, 'Categorization')
-  // The inbox's old single "focus" selector is gone; its filters are now
-  // kind/direction/lifecycle/account/currency. Direction is what this test
-  // actually needed: it asserts a spending pattern and an essential need, which
-  // only an outgoing group has. Without narrowing, the queue can hand back an
-  // inflow group whose panel offers an incoming type instead.
-  await page.getByRole('button', { name: /^Filters/ }).click()
-  // The queue refetches behind the filter, and the chip appears as soon as the
-  // control changes -- before the new list arrives. Reading the first card in
-  // that gap captures a row that is about to be replaced, and the panel it
-  // names is then never opened. Wait for the refetch itself.
-  const refiltered = page.waitForResponse(response =>
-    response.url().includes('/api/v1/categorization/candidates?')
-    && new URL(response.url()).searchParams.get('direction') === 'OUT')
-  await page.getByLabel('Filter categorization direction').selectOption('OUT')
-  await refiltered
-  // The response landing is not the list re-rendering, and a locator resolves
-  // afresh on every use: reading the first card's name from the old list and
-  // then clicking a card from the new one opens a panel the name does not
-  // match. Waiting for the inflow payer to leave the queue -- the one thing
-  // this filter exists to do -- closes that gap.
-  await expect(page.locator('.candidate-card', { hasText: 'FREELANCE PAYER' })).toHaveCount(0)
-  const group = page.locator('.candidate-card').filter({ hasNotText: 'RULE SHOP COMMON' }).first()
-  await expect(group).toBeVisible()
-  const groupName = (await group.locator('strong').innerText()).trim()
-  await group.click()
+  // Name the group instead of taking whichever the queue lists first. The
+  // positional pick had to be narrowed to outgoing groups (this block asserts a
+  // spending pattern and need, which an inflow panel does not offer) and then
+  // raced the refetch behind that filter: the name was read from one list and
+  // the click landed on another. USD SYNTHETIC PURCHASE is an outgoing group no
+  // other test classifies, so it is in the queue here and the whole race goes
+  // away with the filter.
+  const groupName = 'USD SYNTHETIC PURCHASE'
+  await page.locator('.candidate-card').filter({ hasText: groupName }).first().click()
   // The group review surface is an inline region, not a modal dialog, and it
   // previews continuously instead of behind an explicit review step.
   const review = page.getByRole('region', { name: `Review ${groupName}` })
@@ -280,20 +264,32 @@ test('desktop: isolated income, recurring payer suggestion, grouped save-next an
   await expect(futureRow).toContainText('Needs review')
 })
 
+/**
+ * Change both spending-role selects to something they are not already set to.
+ *
+ * The editor enables its submit only on a real change, so a test that hardcodes
+ * values can quietly become a no-op once an earlier test in this serial file --
+ * or the fixture seeding -- leaves the transaction in that exact state. Reading
+ * the current value and moving away from it keeps the edit real regardless of
+ * what came before, which is what these tests actually need: they are about
+ * preview failure and save retries, not about which category was chosen.
+ */
+async function editRolesAwayFromCurrent(scope: ReturnType<Page['getByRole']>) {
+  const pattern = scope.getByLabel('Spending pattern')
+  const need = scope.getByLabel('Spending need')
+  const currentPattern = await pattern.inputValue()
+  const currentNeed = await need.inputValue()
+  await pattern.selectOption(currentPattern === 'irregular' ? 'variable_routine' : 'irregular')
+  await need.selectOption(currentNeed === 'discretionary' ? 'essential' : 'discretionary')
+}
+
 test('desktop: failed preview, uncertain retry and refresh-pending acknowledgement', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop')
   test.setTimeout(90_000)
   await openTransactions(page, 'BULK GROCERY 53')
   await page.getByRole('button', { name: /Details for BULK GROCERY 53/ }).click()
   let dialog = page.getByRole('dialog')
-  // This test is about a failed preview and an idempotent retry; the values are
-  // incidental, but they must actually differ from what earlier tests in this
-  // file left on this transaction. Re-selecting identical values is not an edit
-  // and the editor correctly keeps the submit disabled, so a no-op edit would
-  // stall here rather than exercise the retry.
-  await chooseCategory(dialog, 'Food & Dining / Groceries')
-  await dialog.getByLabel('Spending pattern').selectOption('irregular')
-  await dialog.getByLabel('Spending need').selectOption('discretionary')
+  await editRolesAwayFromCurrent(dialog)
   await dialog.getByLabel(/Reason/).fill('Synthetic uncertain retry acceptance')
 
   let previewFailed = false
@@ -328,9 +324,7 @@ test('desktop: failed preview, uncertain retry and refresh-pending acknowledgeme
   await openTransactions(page, 'BULK GROCERY 54')
   await page.getByRole('button', { name: /Details for BULK GROCERY 54/ }).click()
   dialog = page.getByRole('dialog')
-  await chooseCategory(dialog, 'Food & Dining / Groceries')
-  await dialog.getByLabel('Spending pattern').selectOption('variable_routine')
-  await dialog.getByLabel('Spending need').selectOption('essential')
+  await editRolesAwayFromCurrent(dialog)
   await dialog.getByLabel(/Reason/).fill('Synthetic refresh pending acceptance')
   await dialog.getByRole('button', { name: 'Review changes' }).click()
   let pendingSaves = 0
