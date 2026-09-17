@@ -52,6 +52,7 @@ from .models import (
     FLOW_CLASSES,
     MANUAL_MATCH_RULE,
     MATCH_FULL,
+    MATCH_PARTIAL,
     NEVER_ZERO_RULE,
     PERIOD_SCORED,
     PERIOD_UNRESOLVED_COVERAGE,
@@ -501,6 +502,87 @@ def _likely_income(events: list[dict[str, Any]], scale: int) -> dict[str, Any]:
     return summary
 
 
+def _match_suggestions(
+    events: list[dict[str, Any]],
+    unmatched: list[dict[str, Any]],
+    *,
+    scale: int,
+    limit: int = 3,
+) -> list[dict[str, Any]]:
+    """Candidate movements for each event still awaiting an answer.
+
+    A suggestion is a shortlist, never a decision. Nothing here writes a match,
+    changes a status or affects a figure: the operator still binds each one
+    explicitly, because only they know whether that transfer really was the
+    salary. Its whole job is to remove the work of scanning a long movement list
+    for the one row that plausibly answers an event.
+
+    Ranking is deliberately dumb and inspectable — direction must agree, then
+    closest amount, then closest date to the issued window — so a reviewer can
+    see why a row was offered and disagree with it. ``amount_difference`` and
+    ``days_from_window`` are published for exactly that reason. A movement
+    already bound to something is not offered, and a candidate on the far side
+    of the window is still offered with its distance stated rather than hidden,
+    since a late salary is precisely the case worth surfacing.
+    """
+    open_statuses = {EVENT_MISSING, EVENT_AWAITED, EVENT_UNRESOLVED, EVENT_PARTIALLY_MATCHED}
+    suggestions: list[dict[str, Any]] = []
+    for event in events:
+        if event["status"] not in open_statuses:
+            continue
+        outstanding = event["expected_minor"] - (event["actual_minor"] or 0)
+        if outstanding <= 0:
+            continue
+        earliest, latest = event["window"]["earliest"], event["window"]["latest"]
+        scored: list[tuple[int, int, dict[str, Any]]] = []
+        for movement in unmatched:
+            if movement["direction"] != event["direction"]:
+                continue
+            amount = _minor(str(movement["amount"]), scale)
+            difference = abs(amount - outstanding)
+            day = str(movement["on"])
+            if day < earliest:
+                distance = (date.fromisoformat(earliest) - date.fromisoformat(day)).days
+            elif day > latest:
+                distance = (date.fromisoformat(day) - date.fromisoformat(latest)).days
+            else:
+                distance = 0
+            scored.append((
+                difference,
+                distance,
+                {
+                    "movement_id": movement["movement_id"],
+                    "on": day,
+                    "amount": movement["amount"],
+                    "label": movement["label"],
+                    "account": movement["account"],
+                    "amount_difference": format_decimal(difference, scale),
+                    "exact_amount": difference == 0,
+                    "days_from_window": distance,
+                    "match_kind": MATCH_FULL if amount >= outstanding else MATCH_PARTIAL,
+                    "suggested_amount": format_decimal(min(amount, outstanding), scale),
+                },
+            ))
+        scored.sort(key=lambda item: (item[0], item[1], item[2]["movement_id"]))
+        if not scored:
+            continue
+        suggestions.append({
+            "event_id": event["event_id"],
+            "label": event["label"],
+            "direction": event["direction"],
+            "status": event["status"],
+            "outstanding": format_decimal(outstanding, scale),
+            "window": dict(event["window"]),
+            "candidates": [item[2] for item in scored[:limit]],
+            "rule": (
+                "candidates are ranked by amount difference then distance from the "
+                "issued window; a suggestion binds nothing until the operator "
+                "confirms it"
+            ),
+        })
+    return suggestions
+
+
 def forecast_variance(
     connection: sqlite3.Connection, *, snapshot: str, as_of: str
 ) -> dict[str, Any]:
@@ -621,6 +703,7 @@ def forecast_variance(
         "months": months,
         "events": events,
         "unmatched_movements": unmatched,
+        "match_suggestions": _match_suggestions(events, unmatched, scale=scale),
         "excluded_card_channel": movements_page["excluded_card_channel"],
         "undated_movements": movements_page["undated"],
         "unresolved_matches": unresolved_matches,

@@ -92,6 +92,8 @@ _SINGLE_KINDS = Literal[
     'INBOUND_RULE_SET','INBOUND_RULE_RETIRE',
     # Reporting-currency plan M1
     'REPORTING_CURRENCY_SET',
+    # Stage 5A forecast-actual matching: binding real cash to an issued event
+    'FORECAST_MATCH_SET','FORECAST_MATCH_RETIRE',
 ]
 
 _DEBT_KINDS = frozenset({
@@ -689,6 +691,19 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
             validate_financial_role(command.kind, dict(command.anchors), dict(command.payload))
             if 'entry' in command.anchors and not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?', (command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
+        elif command.kind in {'FORECAST_MATCH_SET','FORECAST_MATCH_RETIRE'}:
+            from .variance import validate_variance_payload
+            validate_variance_payload(command.kind, dict(command.anchors), dict(command.payload))
+            if not connection.execute(
+                'SELECT 1 FROM forecast_snapshots WHERE snapshot=?',
+                (command.anchors['snapshot'],),
+            ).fetchone():
+                raise FinCLError('The forecast snapshot no longer exists')
+            if command.kind == 'FORECAST_MATCH_RETIRE' and not connection.execute(
+                'SELECT 1 FROM forecast_actual_matches WHERE snapshot=? AND match=? AND retired=0',
+                (command.anchors['snapshot'], command.anchors['match']),
+            ).fetchone():
+                raise FinCLError('The match is not active')
         elif command.kind in {'INBOUND_RULE_SET','INBOUND_RULE_RETIRE'}:
             from .inbound_rules import validate_inbound_rule
             validate_inbound_rule(command.kind, dict(command.anchors), dict(command.payload))

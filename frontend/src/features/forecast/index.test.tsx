@@ -178,3 +178,37 @@ describe('ForecastView', () => {
     await waitFor(() => expect(screen.getByText('Six-month closing and worst point')).toBeInTheDocument())
   })
 })
+
+describe('ForecastView observed range', () => {
+  it('shows the band under a base closing balance and never calls it a confidence interval', async () => {
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+    loadReportedForecast.mockResolvedValue(page({
+      currencies: [{
+        currency: 'SGD', starting_balance: valuedMoney('100.00', '100.00'),
+        base: reportedScenario({
+          months: [reportedMonth({
+            closing_low: valuedMoney('90.00', '90.00'),
+            closing_high: valuedMoney('210.00', '210.00'),
+          })],
+        }),
+        conservative: reportedScenario(),
+      }],
+    }))
+
+    render(<ForecastView />)
+
+    expect((await screen.findAllByText(/range/)).length).toBeGreaterThan(0)
+    expect(screen.getByText(/observed dispersion/)).toBeInTheDocument()
+    expect(screen.getByText(/not a confidence interval/)).toBeInTheDocument()
+  })
+
+  it('omits the explanation entirely when no month has a band', async () => {
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+    loadReportedForecast.mockResolvedValue(page())
+
+    render(<ForecastView />)
+
+    await screen.findByText('Six-month closing and worst point')
+    expect(screen.queryByText(/observed dispersion/)).toBeNull()
+  })
+})

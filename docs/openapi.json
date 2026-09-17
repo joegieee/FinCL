@@ -7233,7 +7233,9 @@
               "ROLE_RULE_RETIRE",
               "INBOUND_RULE_SET",
               "INBOUND_RULE_RETIRE",
-              "REPORTING_CURRENCY_SET"
+              "REPORTING_CURRENCY_SET",
+              "FORECAST_MATCH_SET",
+              "FORECAST_MATCH_RETIRE"
             ],
             "title": "Kind"
           },
@@ -10500,6 +10502,26 @@
           },
           "lowest_balance": {
             "$ref": "#/components/schemas/ValuedMoneyDTO"
+          },
+          "closing_low": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "closing_high": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ValuedMoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,

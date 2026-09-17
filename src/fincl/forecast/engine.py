@@ -270,6 +270,12 @@ class ResidualCategory:
     highest_observed_monthly: str
     label: str
     column: str = COLUMN_LIFESTYLE
+    # The lowest comparable month actually observed for this category. It drives
+    # the *downward* half of the reported dispersion band and nothing else: no
+    # scenario spends at this level, because a forecast built on the cheapest
+    # month anyone ever had would be a wish. ``None`` means the category has no
+    # observed low (a single-figure allowance), and its band is one-sided.
+    lowest_observed_monthly: str | None = None
     provenance: dict[str, Any] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
@@ -279,6 +285,10 @@ class ResidualCategory:
         high = ExactMoney.parse(self.highest_observed_monthly)
         if mean.coefficient < 0 or high.coefficient < 0:
             raise ValueError("residual spending assumptions must not be negative")
+        if self.lowest_observed_monthly is not None:
+            low = ExactMoney.parse(self.lowest_observed_monthly)
+            if low.coefficient < 0:
+                raise ValueError("residual spending assumptions must not be negative")
         if self.column not in EXPENSE_COLUMNS:
             raise ValueError("a residual category must use an expense column")
 
@@ -415,6 +425,7 @@ def run_timeline(
     end: str,
     events: Iterable[TimelineEvent],
     reserve_minor: int | None = None,
+    dispersion: dict[str, dict[str, int]] | None = None,
 ) -> dict[str, Any]:
     """Walk the days from ``start`` (exclusive) to ``end`` (inclusive).
 
@@ -558,7 +569,9 @@ def run_timeline(
             seen_inferred = True
         balance = close
 
-    months = _month_rows(day_rows, days, opening_minor, scale, reserve_minor, by_day)
+    months = _month_rows(
+        day_rows, days, opening_minor, scale, reserve_minor, by_day, dispersion or {},
+    )
 
     if lowest_day is None:
         lowest = {
@@ -736,8 +749,17 @@ def _month_rows(
     scale: int,
     reserve_minor: int | None,
     by_day: dict[str, list[TimelineEvent]],
+    dispersion: dict[str, dict[str, int]],
 ) -> list[dict[str, Any]]:
-    """Group the daily walk into month rows with opening/closing continuity."""
+    """Group the daily walk into month rows with opening/closing continuity.
+
+    Each row also carries the observed-dispersion band around its expense and
+    closing figures. The closing band accumulates: a month that could run light
+    leaves that difference in the balance for every later month, so the band
+    widens across the horizon exactly as the uncertainty does. Spending low
+    raises the closing balance and spending high lowers it, which is why the
+    swings cross over between the two bands.
+    """
     rows: list[dict[str, Any]] = []
     order: list[str] = []
     grouped: dict[str, list[dict[str, Any]]] = {}
@@ -749,6 +771,8 @@ def _month_rows(
         grouped[month].append(row)
 
     running = opening_minor
+    swing_down_to_date = 0
+    swing_up_to_date = 0
     for month in order:
         member_rows = grouped[month]
         covered = len(member_rows)
@@ -764,6 +788,35 @@ def _month_rows(
             None
             if reserve_minor is None
             else format_decimal(max(reserve_minor - low_minor, 0), scale)
+        )
+        swing = dispersion.get(month, {})
+        swing_down_to_date += swing.get("down", 0)
+        swing_up_to_date += swing.get("up", 0)
+        expense_minor = sum(column_totals[column] for column in EXPENSE_COLUMNS)
+        band = (
+            None
+            if not swing.get("down") and not swing.get("up")
+            else {
+                "expense": {
+                    "low": format_decimal(max(expense_minor - swing.get("down", 0), 0), scale),
+                    "high": format_decimal(expense_minor + swing.get("up", 0), scale),
+                },
+                "closing": {
+                    "low": format_decimal(closing - swing_up_to_date, scale),
+                    "high": format_decimal(closing + swing_down_to_date, scale),
+                },
+                "basis": (
+                    "every unscheduled category repeating its own cheapest or "
+                    "dearest observed month across the baseline window"
+                ),
+                "cumulative": True,
+                "not_a_confidence_interval": True,
+                "note": (
+                    "observed dispersion, not a calibrated interval: a month "
+                    "outside this band is possible, it simply has no precedent "
+                    "in the observed window"
+                ),
+            }
         )
         rows.append(
             {
@@ -805,6 +858,7 @@ def _month_rows(
                     closing > 0 and low_minor <= 0
                 ),
                 "reserve_gap": gap,
+                "observed_range": band,
             }
         )
         running = closing
@@ -1039,6 +1093,70 @@ def _residual_events(
     return result, allocations, limitations
 
 
+def _residual_dispersion(
+    *,
+    categories: Sequence[ResidualCategory],
+    allocations: Sequence[dict[str, Any]],
+    currency: str,
+    scale: int,
+) -> dict[str, dict[str, int]]:
+    """Per month, how far residual spending could swing on observed evidence.
+
+    The forecast's month figure uses each category's *mean* observed month. This
+    says how much lighter or heavier that month would be if every category had
+    instead repeated its own cheapest or dearest observed month — which is the
+    honest width of the estimate, and much more useful than a single number that
+    hides it.
+
+    It is observed dispersion, not a confidence interval. Nothing here models a
+    distribution or attaches a probability; a month outside the band is entirely
+    possible, it just has no precedent in the baseline window. Dated obligations
+    are deliberately excluded: a rent payment already sourced from evidence does
+    not become uncertain because routine spending is, so the swing is computed on
+    the same prorated residual the allocation used, after the same removals.
+    """
+    by_id = {category.category_id: category for category in categories}
+    swings: dict[str, dict[str, int]] = {}
+    for allocation in allocations:
+        if allocation["currency"] != currency:
+            continue
+        category = by_id.get(str(allocation["category_id"]))
+        if category is None:
+            continue
+        month = str(allocation["month"])
+        covered = int(allocation["covered_days"])
+        base = _minor(str(allocation["monthly_assumption"]), scale)
+        removed = sum(
+            _minor(str(item["amount"]), scale)
+            for item in allocation["dated_costs_removed"]
+        )
+        allocated = _minor(str(allocation["allocated_residual"]), scale)
+
+        def leg(
+            monthly: str | None,
+            *,
+            month: str = month,
+            covered: int = covered,
+            removed: int = removed,
+            allocated: int = allocated,
+        ) -> int:
+            if monthly is None:
+                return allocated
+            prorated = remaining_day_amount(_minor(monthly, scale), covered, month)
+            return max(prorated - removed, 0)
+
+        low = leg(category.lowest_observed_monthly)
+        high = leg(category.highest_observed_monthly)
+        # A category whose assumption already *is* the high (the conservative
+        # case) has no upward room left; clamping at zero keeps the band from
+        # inverting rather than reporting a negative width.
+        cell = swings.setdefault(month, {"down": 0, "up": 0, "base": 0})
+        cell["down"] += max(allocated - low, 0)
+        cell["up"] += max(high - allocated, 0)
+        cell["base"] += base
+    return swings
+
+
 def _scenario(
     *,
     name: str,
@@ -1113,6 +1231,10 @@ def _scenario(
         end=end,
         events=[*placed, *residual],
         reserve_minor=reserve_minor,
+        dispersion=_residual_dispersion(
+            categories=residual_categories, allocations=allocations,
+            currency=currency, scale=scale,
+        ),
     )
     result["case"] = name
     result["available"] = not limitations and result["settlement"]["settled_exactly_once"]
@@ -1182,6 +1304,13 @@ def _manifest_categories(
                     currency=currency,
                     mean_monthly=str(cell["variable_residual_monthly"]),
                     highest_observed_monthly=str(cell["variable_residual_max"]),
+                    # Absent from an estimate produced before the observed low
+                    # was published: the band is then one-sided rather than
+                    # fabricated from the mean.
+                    lowest_observed_monthly=(
+                        str(cell["variable_residual_min"])
+                        if "variable_residual_min" in cell else None
+                    ),
                     label="Observed routine residual spending",
                     provenance={
                         "source": "fincl.baseline.estimators.baseline_estimate",

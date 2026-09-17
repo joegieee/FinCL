@@ -984,6 +984,87 @@ class MatchProjectionTests(unittest.TestCase):
 # --- migration --------------------------------------------------------------
 
 
+class MatchSuggestionTests(unittest.TestCase):
+    """The shortlist that makes the matching workflow usable.
+
+    Nothing here binds anything: a suggestion is a ranked shortlist of movements
+    that could answer an open event, and the operator still confirms each one.
+    The ranking is published alongside so it can be disagreed with.
+    """
+
+    AS_OF = "2026-04-15"
+
+    def setUp(self) -> None:
+        self.database = _ledger([_CONTIGUOUS])
+        _issue(self.database)
+        _replay(self.database)
+        self.page = forecast_variance_page(
+            self.database, snapshot="snap-1", as_of=self.AS_OF
+        )
+        self.suggestions = {
+            item["event_id"]: item for item in self.page["match_suggestions"]
+        }
+
+    def test_an_open_event_is_offered_candidates_of_its_own_direction(self) -> None:
+        offered = self.suggestions["salary:2026-02"]
+
+        self.assertTrue(offered["candidates"])
+        for candidate in offered["candidates"]:
+            with self.subTest(movement=candidate["movement_id"]):
+                self.assertIn("amount_difference", candidate)
+                self.assertIn("days_from_window", candidate)
+
+    def test_the_exact_amount_inside_the_window_ranks_first(self) -> None:
+        best = self.suggestions["salary:2026-02"]["candidates"][0]
+
+        self.assertTrue(best["exact_amount"])
+        self.assertEqual(best["days_from_window"], 0)
+        self.assertEqual(best["match_kind"], "full")
+
+    def test_a_late_movement_is_still_offered_with_its_distance_stated(self) -> None:
+        """A late salary is exactly the case worth surfacing, not hiding."""
+        offered = self.suggestions["salary:2026-03"]
+        late = [c for c in offered["candidates"] if c["on"].startswith("2026-04")]
+
+        self.assertTrue(late)
+        self.assertGreater(late[0]["days_from_window"], 0)
+
+    def test_a_suggestion_changes_no_status_and_no_figure(self) -> None:
+        for event in self.page["events"]:
+            with self.subTest(event=event["event_id"]):
+                self.assertEqual(event["matches"], [])
+                self.assertIsNone(event["actual"])
+
+    def test_an_already_matched_event_is_not_offered_candidates(self) -> None:
+        ids = _movement_ids(self.database, "2026-01-01", "2026-04-30")
+        _match(self.database, match="m-feb-salary", event_id="salary:2026-02",
+               movement=ids["2026-02-01|ACME PAYROLL"], on="2026-02-01",
+               amount="3000.00")
+        _replay(self.database)
+
+        page = forecast_variance_page(self.database, snapshot="snap-1", as_of=self.AS_OF)
+
+        self.assertNotIn(
+            "salary:2026-02", {item["event_id"] for item in page["match_suggestions"]}
+        )
+
+    def test_a_bound_movement_is_never_offered_to_another_event(self) -> None:
+        ids = _movement_ids(self.database, "2026-01-01", "2026-04-30")
+        bound = ids["2026-02-01|ACME PAYROLL"]
+        _match(self.database, match="m-feb-salary", event_id="salary:2026-02",
+               movement=bound, on="2026-02-01", amount="3000.00")
+        _replay(self.database)
+
+        page = forecast_variance_page(self.database, snapshot="snap-1", as_of=self.AS_OF)
+
+        offered = {
+            candidate["movement_id"]
+            for item in page["match_suggestions"]
+            for candidate in item["candidates"]
+        }
+        self.assertNotIn(bound, offered)
+
+
 class Schema22MigrationTests(unittest.TestCase):
     """Fresh init, upgrade and replay, each checked on its own.
 

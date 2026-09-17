@@ -962,6 +962,12 @@ class ReportedMonthRowOut(_StrictModel):
     income: ValuedMoneyDTO
     expense: ValuedMoneyDTO
     lowest_balance: ValuedMoneyDTO
+    # Observed dispersion around the closing balance: every unscheduled category
+    # repeating its own cheapest or dearest observed month, accumulated across
+    # the horizon. It is a range with precedent, not a confidence interval, and
+    # both ends are absent together when the month has no observed spread.
+    closing_low: ValuedMoneyDTO | None = None
+    closing_high: ValuedMoneyDTO | None = None
 
 
 class ReportedForecastEventOut(_StrictModel):
@@ -1028,6 +1034,8 @@ def _reported_month_row_out(row: Any) -> ReportedMonthRowOut:
         month=row.month, opening=_reported_money_out(row.opening), closing=_reported_money_out(row.closing),
         income=_reported_money_out(row.income), expense=_reported_money_out(row.expense),
         lowest_balance=_reported_money_out(row.lowest_balance),
+        closing_low=_reported_money_out(row.closing_low) if row.closing_low else None,
+        closing_high=_reported_money_out(row.closing_high) if row.closing_high else None,
     )
 
 

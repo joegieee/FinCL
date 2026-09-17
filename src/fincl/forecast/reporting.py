@@ -255,6 +255,13 @@ class ReportedMonthRow:
     income: ExactValuation
     expense: ExactValuation
     lowest_balance: ExactValuation
+    # The observed-dispersion band around this month's closing balance, repriced
+    # at the same basis as the balance itself so the three figures are directly
+    # comparable. ``None`` when the native row has no band -- a month whose
+    # unscheduled categories have no observed spread, or a scenario already
+    # running at its own observed high.
+    closing_low: ExactValuation | None = None
+    closing_high: ExactValuation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,6 +301,14 @@ def _reported_scenario_cell(cell: Mapping[str, Any], *, basis: ExactValuation) -
             income=_reprice(basis, amount=row["income"]),
             expense=_reprice(basis, amount=row["expense"]),
             lowest_balance=_reprice(basis, amount=row["lowest_balance"]["amount"]),
+            closing_low=(
+                _reprice(basis, amount=row["observed_range"]["closing"]["low"])
+                if row.get("observed_range") else None
+            ),
+            closing_high=(
+                _reprice(basis, amount=row["observed_range"]["closing"]["high"])
+                if row.get("observed_range") else None
+            ),
         )
         for row in cell["months"]
     )

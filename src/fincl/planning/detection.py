@@ -33,6 +33,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from ..queries import _ENTRY_VIEW
+from .schedules import CADENCE_SCHEDULES
 
 DETECTOR_VERSION = "detv1"
 
@@ -54,16 +55,72 @@ def _money(value: Decimal) -> str:
     return str(value.quantize(_CENT, rounding=ROUND_HALF_UP))
 
 
+# Each cadence is an inclusive day-gap band around its nominal period, wide
+# enough for weekend shifts and month lengths but narrow enough not to overlap a
+# neighbour. Ordered shortest first so the first band a gap falls in is the
+# tightest one that fits.
+_CADENCE_BANDS: tuple[tuple[str, int, int], ...] = (
+    ("weekly", 6, 8),
+    ("fortnightly", 13, 16),
+    ("four-weekly", 27, 29),
+    ("monthly", 30, 35),
+    ("quarterly", 85, 95),
+    ("semiannual", 178, 190),
+    ("annual", 355, 380),
+)
+
+# How many observed gaps may disagree with the winning cadence before the group
+# has no cadence at all. One tolerated outlier is what keeps a single late or
+# early payment — a bill that slipped over a public holiday, a salary paid early
+# before a break — from erasing an otherwise obvious schedule. Two disagreements
+# are not a schedule with a hiccup; they are the absence of one.
+_CADENCE_OUTLIER_ALLOWANCE = 1
+
+# Gaps considered when classifying. A longer memory than the old three lets an
+# annual or quarterly bill be recognised at all, while the outlier allowance
+# keeps a long history from being derailed by one odd interval.
+_CADENCE_WINDOW = 6
+
+
+def _band_of(gap: int) -> str | None:
+    for name, low, high in _CADENCE_BANDS:
+        if low <= gap <= high:
+            return name
+    return None
+
+
 def _cadence(gaps: list[int]) -> str | None:
-    """The cadence the last three observed gaps agree on, or None."""
-    recent = gaps[-3:]
+    """The cadence the recent observed gaps agree on, or None.
+
+    "Agree" means: most recent gaps fall in one band, and at most
+    ``_CADENCE_OUTLIER_ALLOWANCE`` of them do not. The winner is the band with
+    the most gaps; a tie is no cadence, because two equally-supported readings
+    of the same history is exactly the case where picking one would be a guess.
+
+    Note that four-weekly (27-29 days) and monthly (30-35) are deliberately
+    disjoint bands rather than one wide one. They drift apart by nearly two
+    weeks over a year, so a forecast that models a four-weekly subscription as
+    monthly loses a payment; keeping them apart costs only that a group split
+    across the 29/30 boundary reads as having no cadence, which is the honest
+    answer for a group that genuinely does both.
+    """
+    recent = gaps[-_CADENCE_WINDOW:]
     if not recent:
         return None
-    if all(25 <= gap <= 35 for gap in recent):
-        return "monthly"
-    if all(6 <= gap <= 8 for gap in recent):
-        return "weekly"
-    return None
+    counts: dict[str, int] = {}
+    for gap in recent:
+        band = _band_of(gap)
+        if band is not None:
+            counts[band] = counts.get(band, 0) + 1
+    if not counts:
+        return None
+    best = max(counts.values())
+    winners = [name for name, count in counts.items() if count == best]
+    if len(winners) != 1:
+        return None
+    if len(recent) - best > _CADENCE_OUTLIER_ALLOWANCE:
+        return None
+    return winners[0]
 
 
 def _identity(kind: str, merchant: str, currency: str, accounts: list[str], cadence: str) -> str:
@@ -114,15 +171,84 @@ def _variation(amounts: list[Decimal]) -> dict[str, Any]:
     }
 
 
+def _drift(amounts: list[Decimal]) -> dict[str, Any]:
+    """Whether a variable amount is trending, and by how much per occurrence.
+
+    A utility bill that has climbed every quarter is not the same forecasting
+    problem as one that bounces around a stable mean, and the latest receipt
+    alone cannot tell them apart. The slope here is deliberately the simplest
+    thing that can be checked by hand — total change divided by the number of
+    intervals — and it is reported as an observation, not applied: the expected
+    amount stays the latest observed receipt, and a caller that wants to project
+    the trend has to opt into doing so with the figure in view.
+
+    ``direction`` is ``flat`` unless the total change exceeds a tenth of the
+    mean, so ordinary noise is not dressed up as a trend.
+    """
+    if len(amounts) < 3:
+        return {"available": False, "reason": "a trend needs at least three observations"}
+    change = amounts[-1] - amounts[0]
+    intervals = len(amounts) - 1
+    mean = sum(amounts, Decimal(0)) / Decimal(len(amounts))
+    threshold = mean / Decimal(10)
+    if abs(change) <= threshold:
+        direction = "flat"
+    else:
+        direction = "rising" if change > 0 else "falling"
+    return {
+        "available": True,
+        "direction": direction,
+        "total_change": _money(change),
+        "per_occurrence": _money(change / Decimal(intervals)),
+        "observations": len(amounts),
+        "basis": "first to latest observed amount, divided by the intervals between them",
+        "applied": False,
+        "note": (
+            "the expected amount remains the latest observed receipt; this trend "
+            "is reported for review and is never projected automatically"
+        ),
+    }
+
+
+def _suggested_schedule(cadence: str, days: list[date]) -> dict[str, Any] | None:
+    """The schedule payload that would reproduce this observed cadence.
+
+    Anchored on the latest observed occurrence, so the phase of the cycle comes
+    from the evidence rather than from a default. Returned as a suggestion only:
+    confirming a commitment is still an explicit decision.
+    """
+    mapping = CADENCE_SCHEDULES.get(cadence)
+    if mapping is None:
+        return None
+    kind, interval = mapping
+    last = days[-1]
+    if kind == "weekly":
+        return {"kind": "weekly", "weekday": last.weekday(), "anchor_on": last.isoformat()}
+    if kind == "monthly":
+        return {"kind": "monthly", "day": last.day, "anchor_on": last.isoformat()}
+    if kind == "interval_weeks":
+        return {"kind": "interval_weeks", "weeks": interval, "anchor_on": last.isoformat()}
+    return {
+        "kind": "interval_months", "months": interval,
+        "day": last.day, "anchor_on": last.isoformat(),
+    }
+
+
 def _timing_window(days: list[date], gaps: list[int], cadence: str) -> dict[str, Any]:
     last = days[-1]
-    low, high = min(gaps), max(gaps)
+    # Only the gaps that agree with the winning cadence shape the expectation.
+    # A tolerated outlier is evidence that one payment slipped, not evidence
+    # that the next one could land anywhere in a five-month window.
+    agreeing = [gap for gap in gaps if _band_of(gap) == cadence] or gaps
+    low, high = min(agreeing), max(agreeing)
     window: dict[str, Any] = {
         "cadence": cadence,
         "first_observed_on": days[0].isoformat(),
         "last_observed_on": last.isoformat(),
         "min_gap_days": low,
         "max_gap_days": high,
+        "observed_gap_days": gaps,
+        "outlier_gap_days": [gap for gap in gaps if _band_of(gap) != cadence],
         "next_expected_between": [
             (last + timedelta(days=low)).isoformat(),
             (last + timedelta(days=high)).isoformat(),
@@ -182,6 +308,7 @@ def candidates(
         if key in dismissed:
             continue
         variation = _variation(amounts)
+        variation["drift"] = _drift(amounts)
         timing = _timing_window(days, gaps, cadence)
         # A variable bill still needs an amount to schedule against.  The latest
         # receipt is the observation, and the observed spread is the tolerance —
@@ -204,6 +331,7 @@ def candidates(
                 "first_observed_on": timing["first_observed_on"],
                 "amount_variation": variation,
                 "timing_window": timing,
+                "suggested_schedule": _suggested_schedule(cadence, days),
                 "expected_amount": expected,
                 "suggested_expected_amount": expected,
                 "suggested_tolerance": tolerance,
