@@ -10,7 +10,12 @@ test.beforeEach(async ({ page }) => {
 
 test('overview shows an exact, currency-qualified spending total', async ({ page }) => {
   const spending = page.getByText('Average monthly spending + fees').locator('..')
-  await expect(spending).toContainText(/SGD [\d,]+\.\d{2}/)
+  // Reported surfaces print the amount before its currency ("2,000.00 SGD");
+  // the legacy native `money()` helper prints it the other way round. This card
+  // migrated to the reported component, so it is the first form here. What the
+  // test is asserting either way is that the figure is exact and carries its
+  // currency -- never a bare, unqualified number.
+  await expect(spending).toContainText(/[\d,]+\.\d{2} SGD/)
 })
 
 test('a category edit survives preview, save and a full page reload', async ({ page }) => {
@@ -21,10 +26,12 @@ test('a category edit survives preview, save and a full page reload', async ({ p
 
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  const select = dialog.getByLabel('Category')
-  const options = await select.locator('option').allTextContents()
-  const target = options.find((o) => o.trim() && o.trim() !== 'Choose a category' && o.trim() !== original) as string
-  await select.selectOption({ label: target })
+  // Category is a searchable combobox now, not a <select>, so there are no
+  // options to enumerate: the category is typed and committed.
+  const target = original === 'Rent' ? 'Food & Dining / Dining Out' : 'Housing / Rent'
+  const category = dialog.getByLabel('Category')
+  await category.fill(target)
+  await category.press('Enter')
   await dialog.locator('label', { hasText: 'Reason' }).locator('input').fill('End-to-end reclassification check')
 
   await dialog.getByRole('button', { name: 'Review changes' }).click()

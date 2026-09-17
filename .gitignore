@@ -15,3 +15,6 @@ node_modules/
 frontend/test-results/
 frontend/playwright-report/
 src/fincl/static/
+
+# Playwright failure artefacts
+frontend/test-results/

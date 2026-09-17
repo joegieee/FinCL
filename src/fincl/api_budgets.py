@@ -7,12 +7,12 @@ its own module so ``create_app`` grows by a single call.
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 
+from . import clock
 from .errors import FinCLError
 from .planning.queries import (
     budget_backdate_preview,
@@ -30,7 +30,7 @@ from .planning.queries import (
 def register_planning_routes(app: FastAPI, database: Path) -> None:
     @app.get("/api/v1/budgets")
     def budgets(month: str | None = None, currency: str = "SGD") -> Any:
-        return budgets_page(database, month=month or date.today().strftime("%Y-%m"), currency=currency)
+        return budgets_page(database, month=month or clock.today().strftime("%Y-%m"), currency=currency)
 
     @app.get("/api/v1/budgets/{plan}/history")
     def budgets_history(plan: str) -> Any:

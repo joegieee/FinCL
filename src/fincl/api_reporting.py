@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict
 
+from . import clock
 from .analysis.reporting import (
     ContributorsPageResult,
     ReportedAnalysisResult,
@@ -109,7 +110,7 @@ def _dated_coverage_out(
     # The route is the outer edge that resolves "today" (matching every other
     # ``today: date`` route in api.py); ``dated_reporting_coverage`` itself
     # never consults the wall clock (§2 invariant 7).
-    resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+    resolved_as_of = date.fromisoformat(as_of) if as_of else clock.today()
     dated = dated_reporting_coverage(
         connection,
         as_of=resolved_as_of,
@@ -1232,7 +1233,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         """
         connection = connect_readonly(database)
         try:
-            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            resolved_as_of = date.fromisoformat(as_of) if as_of else clock.today()
             result = reported_analysis_page_from(
                 connection, as_of=resolved_as_of, history_start=history_start, history_end=history_end,
                 pocket_currency=pocket_currency, accounts=accounts or (), category_keys=category_keys or (),
@@ -1258,7 +1259,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         """
         connection = connect_readonly(database)
         try:
-            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            resolved_as_of = date.fromisoformat(as_of) if as_of else clock.today()
             result = money_flow_page_from(
                 connection, today=resolved_as_of, history_start=history_start, history_end=history_end,
                 pocket_currency=pocket_currency,
@@ -1283,7 +1284,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         """
         connection = connect_readonly(database)
         try:
-            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            resolved_as_of = date.fromisoformat(as_of) if as_of else clock.today()
             page = reported_cash_page_from(
                 connection, today=resolved_as_of, pocket_currency=pocket_currency,
             )
@@ -1312,7 +1313,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
             # the requested ``as_of`` valuation date, exactly like the native
             # ``/api/v1/net-worth`` route this one is additive to.
             page = reported_net_worth_page_from(
-                connection, as_of=as_of, prior_as_of=prior_as_of, today=date.today(),
+                connection, as_of=as_of, prior_as_of=prior_as_of, today=clock.today(),
             )
             return _net_worth_page_out(page)
         except FinCLError as exc:
@@ -1333,7 +1334,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         """
         connection = connect_readonly(database)
         try:
-            page = reported_forecast_page_from(connection, today=date.today())
+            page = reported_forecast_page_from(connection, today=clock.today())
             return _forecast_page_out(page)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
@@ -1354,7 +1355,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         """
         connection = connect_readonly(database)
         try:
-            page = reported_income_candidates_page_from(connection, today=date.today())
+            page = reported_income_candidates_page_from(connection, today=clock.today())
             return _income_candidates_page_out(page)
         except FinCLError as exc:
             if str(exc).startswith('STALE_GENERATION'):
@@ -1407,7 +1408,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         """
         connection = connect_readonly(database)
         try:
-            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            resolved_as_of = date.fromisoformat(as_of) if as_of else clock.today()
             page = reported_transactions_page_from(
                 connection, as_of=resolved_as_of, history_start=history_start, history_end=history_end,
                 pocket_currency=pocket_currency, account=account, category=category, search=search,
@@ -1449,7 +1450,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         selection. Additive to the legacy ``/api/v1/transaction-anchors``."""
         connection = connect_readonly(database)
         try:
-            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            resolved_as_of = date.fromisoformat(as_of) if as_of else clock.today()
             result = reported_transaction_anchors_from(
                 connection, as_of=resolved_as_of, history_start=history_start, history_end=history_end,
                 pocket_currency=pocket_currency, account=account, category=category, search=search,
@@ -1476,7 +1477,7 @@ def register_reporting_routes(app: FastAPI, database: Path) -> None:
         candidate view as the list -- no other narrowing applies."""
         connection = connect_readonly(database)
         try:
-            resolved_as_of = date.fromisoformat(as_of) if as_of else date.today()
+            resolved_as_of = date.fromisoformat(as_of) if as_of else clock.today()
             row = reported_transaction_detail_from(
                 connection, as_of=resolved_as_of, anchor=decode_anchor(anchor), generation=generation,
             )

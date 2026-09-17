@@ -6,8 +6,11 @@ test.describe.configure({ mode: 'serial' })
 async function upload(page: Page, ...names: string[]) {
   await openTab(page, 'Setup')
   await page.getByLabel('Statement files').setInputFiles(names.map(name => `/tmp/fincl-e2e-fixtures/${name}.pdf`))
-  await page.getByRole('button', { name: 'Upload', exact: true }).click()
-  await expect(page.locator('.upload-result')).toContainText(`${names.length} of ${names.length} files accepted`)
+  await page.getByRole('button', { name: 'Upload statements', exact: true }).click()
+  // The result line singularises: "1 of 1 file accepted", "2 of 2 files accepted".
+  await expect(page.locator('.upload-result')).toContainText(
+    new RegExp(`${names.length} of ${names.length} files? accepted`),
+  )
   const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh'))
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Refresh', exact: true }).click()
   expect((await refreshed).status()).toBe(200)
@@ -196,25 +199,36 @@ test('desktop: isolated income, recurring payer suggestion, grouped save-next an
   await payer.getByRole('button', { name: /Save 3 receipts \+ rule/ }).click()
 
   await openTab(page, 'Categorization')
-  await page.getByLabel('Filter categorization focus').selectOption('category')
+  // The inbox's old single "focus" selector is gone; its filters are now
+  // kind/direction/lifecycle/account/currency. Direction is what this test
+  // actually needed: it asserts a spending pattern and an essential need, which
+  // only an outgoing group has. Without narrowing, the queue can hand back an
+  // inflow group whose panel offers an incoming type instead.
+  await page.getByRole('button', { name: /^Filters/ }).click()
+  await page.getByLabel('Filter categorization direction').selectOption('OUT')
+  // The queue refetches behind the filter, so the first card must not be read
+  // until the inflow groups have actually gone -- otherwise the stale first row
+  // is captured and the panel it names is no longer there to open.
+  await expect(page.locator('.candidate-card', { hasText: 'ACME PAYROLL' })).toHaveCount(0)
   const group = page.locator('.candidate-card').filter({ hasNotText: 'RULE SHOP COMMON' }).first()
   await expect(group).toBeVisible()
   const groupName = (await group.locator('strong').innerText()).trim()
   await group.click()
-  dialog = page.getByRole('dialog')
-  await expect(dialog.getByRole('heading', { name: groupName })).toBeVisible()
-  await dialog.getByRole('radio', { name: /Selected transactions/ }).check()
-  await chooseCategory(dialog, 'Food & Dining / Groceries')
-  await dialog.getByLabel('Set spending pattern').selectOption('variable_routine')
-  await dialog.getByLabel('Set spending need').selectOption('essential')
-  await dialog.getByLabel(/Reason/).fill('Synthetic grouped queue acceptance')
-  await dialog.getByRole('button', { name: /Review \d+ selected transactions/ }).click()
-  const saveNext = dialog.getByRole('button', { name: /Save and next|Save changes/ })
+  // The group review surface is an inline region, not a modal dialog, and it
+  // previews continuously instead of behind an explicit review step.
+  const review = page.getByRole('region', { name: `Review ${groupName}` })
+  await expect(review).toBeVisible()
+  await review.getByRole('radio', { name: /^Selected/ }).check()
+  await chooseCategory(review, 'Food & Dining / Groceries')
+  await review.getByLabel('Set spending pattern').selectOption('variable_routine')
+  await review.getByLabel('Set spending need').selectOption('essential')
+  await review.getByLabel(/Reason/).fill('Synthetic grouped queue acceptance')
+  // Only the last group in the queue offers a bare "Save"; earlier ones advance.
+  const saveNext = review.getByRole('button', { name: /^Save( & next)?$/ })
   const advances = (await saveNext.textContent())?.includes('next') ?? false
   await saveNext.click()
   if (advances) {
-    await expect(page.getByRole('dialog')).toBeVisible()
-    await expect(page.getByRole('dialog').getByRole('heading', { name: groupName })).toHaveCount(0)
+    await expect(review).toHaveCount(0)
   }
 
   await openTransactions(page, 'RULE SHOP COMMON')
@@ -239,7 +253,9 @@ test('desktop: isolated income, recurring payer suggestion, grouped save-next an
   await dialog.getByRole('button', { name: 'Preview rule' }).click()
   await expect(dialog.getByText('Category rule impact')).toBeVisible()
   await expect(dialog.getByText('Spending-role rule impact')).toBeVisible()
-  await expect(dialog.getByText(/manual override.*protected/)).toBeVisible()
+  // The panel states the protection in both its predicate summary and its
+  // impact line now, so either one satisfies this.
+  await expect(dialog.getByText(/manual override.*protected/).first()).toBeVisible()
   await dialog.getByRole('button', { name: 'Save rule' }).click()
 
   await upload(page, 'classification-future')

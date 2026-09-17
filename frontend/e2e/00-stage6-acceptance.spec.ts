@@ -6,7 +6,7 @@ test.describe.configure({ mode: 'serial' })
 async function upload(page: import('@playwright/test').Page, fixture: string) {
   await openTab(page, 'Setup')
   await page.getByLabel('Statement files').setInputFiles(`/tmp/fincl-e2e-fixtures/${fixture.replace(/\.csv$/, '.pdf')}`)
-  await page.getByRole('button', { name: 'Upload', exact: true }).click()
+  await page.getByRole('button', { name: 'Upload statements', exact: true }).click()
   await expect(page.locator('.upload-result')).toContainText('1 of 1 file accepted')
   const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh'))
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Refresh', exact: true }).click()
@@ -17,13 +17,20 @@ async function classifyGroup(page: import('@playwright/test').Page, label: strin
   const group = page.locator('.candidate-card', { hasText: label })
   await expect(group).toBeVisible()
   await group.click()
-  const dialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: label }) })
+  // The group review surface is an inline region on the Categorization page,
+  // not a modal dialog, and its own heading composes the group name with the
+  // rename and merge buttons beside it. The region's accessible name is the
+  // stable handle.
+  const dialog = page.getByRole('region', { name: `Review ${label}` })
   await dialog.getByLabel('Category').fill(category)
   await dialog.getByLabel('Category').press('Enter')
   await dialog.getByLabel(/Reason/).fill('Reviewed against the synthetic statement evidence')
-  await dialog.getByRole('button', { name: 'Check exact impact' }).click()
-  await dialog.getByRole('button', { name: 'Preview rule' }).click()
-  await dialog.getByRole('button', { name: 'Save rule' }).click()
+  // The panel previews the impact automatically as the form changes, so there
+  // is no longer an explicit impact or preview step to click through; the
+  // review is committed in one action.
+  // The last group in the queue offers "Save"; earlier ones offer "Save & next",
+  // since only they have a next.
+  await dialog.getByRole('button', { name: /^Save( & next)?$/ }).click()
   await expect(dialog).not.toBeVisible()
 }
 
@@ -61,7 +68,10 @@ test('whole-framework journey derives amounts from evidence and survives backup 
   await expect(page.getByText('WHAT YOUR NORMAL LIFE COSTS · SGD')).toBeVisible()
   await expect(page.getByText('LIKELY INCOME STREAMS')).toBeVisible()
   await expect(page.getByText('ACME PAYROLL')).toBeVisible()
-  await expect(page.getByText(/default three months of mean essential owner cost/i)).toBeVisible()
+  // The reserve basis now names the month count from the chosen policy, and
+  // says whether it is the default or a deliberate choice. Reviewing the
+  // default is not choosing one, so the two must read differently.
+  await expect(page.getByText(/default 3 months of mean essential owner cost/i)).toBeVisible()
 
   await openTab(page, 'Cash')
   await expect(page.getByText(/Last supported combined balance/)).toBeVisible()

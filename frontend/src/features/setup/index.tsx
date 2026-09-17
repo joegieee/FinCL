@@ -194,7 +194,7 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
           </div>
         )}
         <div className="dialog-actions">
-          <Button type="submit" disabled={!canSubmit}>{busy ? <>Uploading… <RefreshCw size={15} className="spin" /></> : <>Upload <Upload size={15} /></>}</Button>
+          <Button type="submit" disabled={!canSubmit}>{busy ? <>Uploading… <RefreshCw size={15} className="spin" /></> : <>Upload statements <Upload size={15} /></>}</Button>
         </div>
       </form>
       {result && (
@@ -287,7 +287,7 @@ function FxRatesWizard() {
           </div>
         )}
         <div className="dialog-actions">
-          <Button type="submit" disabled={!canSubmit}>{busy ? <>Uploading… <RefreshCw size={15} className="spin" /></> : <>Upload <Upload size={15} /></>}</Button>
+          <Button type="submit" disabled={!canSubmit}>{busy ? <>Uploading… <RefreshCw size={15} className="spin" /></> : <>Upload rates <Upload size={15} /></>}</Button>
         </div>
       </form>
       {result && (

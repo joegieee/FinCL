@@ -11,6 +11,7 @@ import csv
 import sys
 import tempfile
 import uuid
+from datetime import date
 from pathlib import Path
 
 import uvicorn
@@ -181,8 +182,21 @@ append_decision(
     policy_version="e2e-fixture-v1", snapshot="Annual invoice amount",
 )
 refresh_ledger(database)
+# The fixtures carry fixed dates -- history runs 2026-03-01 to 2026-08-20 and the
+# later actuals to 2026-09-20 -- and the specs assert against them literally. A
+# suite that read the real clock therefore agreed with its own fixtures only for
+# a few weeks: once the wall clock moved past them, the covered-complete-month
+# windows and the specs' date ranges stopped lining up and the suite failed for
+# reasons that had nothing to do with the code under test.
+#
+# Pinning the app's notion of today fixes that permanently, and keeps both the
+# fixtures and the assertions readable as literal dates. The date sits just past
+# the last fixture movement, which is where the journey's own "actuals through
+# 2026-09-30" already assumes it is. Move fixture dates and this moves with them.
+FIXTURE_TODAY = date(2026, 9, 30)
+
 app = create_app(
     database, port=8799, bootstrap_secret="e2e-secret",
-    evidence_dir=workdir / "evidence", demo=True,
+    evidence_dir=workdir / "evidence", demo=True, today=FIXTURE_TODAY,
 )
 uvicorn.run(app, host="127.0.0.1", port=8799, log_level="warning")

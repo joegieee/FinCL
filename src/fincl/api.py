@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
+from . import clock
 from .application import record_batch, record_decision
 from .common import canonical_json, resolve_category
 from .custom_categories import custom_categories, validate_creation
@@ -758,7 +759,13 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         connection.close()
 
 
-def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.1', bootstrap_secret: str | None = None, assets: Path | None = None, evidence_dir: Path | None = None, demo: bool = False) -> FastAPI:
+def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.1', bootstrap_secret: str | None = None, assets: Path | None = None, evidence_dir: Path | None = None, demo: bool = False, today: date | None = None) -> FastAPI:
+    # `today` pins this process's notion of the current date (see `fincl.clock`).
+    # It exists for the synthetic browser fixtures, whose dates are fixed: a
+    # suite that read the real clock would stop agreeing with them as time
+    # passed. It is a constructor argument on purpose -- no request and no
+    # environment variable can reach it.
+    clock.pin(today)
     database = database.resolve()
     app = FastAPI(docs_url=None,redoc_url=None,openapi_url=None)
     app.state.bootstrap_secret = bootstrap_secret or secrets.token_urlsafe(32)
@@ -906,38 +913,38 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.get('/api/v1/baseline/readiness')
     def baseline_readiness_read() -> Any:
         from .baseline import baseline_readiness
-        return baseline_readiness(database, today=date.today())
+        return baseline_readiness(database, today=clock.today())
 
     @app.get('/api/v1/baseline/cost-income')
     def baseline_cost_income_read() -> Any:
         from .baseline import cost_income_table
-        return cost_income_table(database, today=date.today())
+        return cost_income_table(database, today=clock.today())
 
     @app.get('/api/v1/baseline/roles')
     def baseline_roles_read() -> Any:
         from .baseline import baseline_roles
-        return baseline_roles(database, today=date.today())
+        return baseline_roles(database, today=clock.today())
 
     @app.get('/api/v1/baseline/estimate')
     def baseline_estimate_read() -> Any:
         from .baseline import baseline_estimate
-        return baseline_estimate(database, today=date.today())
+        return baseline_estimate(database, today=clock.today())
 
     @app.get('/api/v1/obligations')
     def obligations_read(as_of: str | None = None) -> Any:
         from .obligations import obligations_page
-        return obligations_page(database, as_of=as_of, today=date.today())
+        return obligations_page(database, as_of=as_of, today=clock.today())
 
     @app.get('/api/v1/forecast/manifest')
     def forecast_manifest_read(as_of: str | None = None) -> Any:
         from .forecast import forecast_input_manifest
-        return forecast_input_manifest(database, today=date.today(), as_of=as_of)
+        return forecast_input_manifest(database, today=clock.today(), as_of=as_of)
 
     @app.get('/api/v1/forecast')
     def forecast_read() -> Any:
         """Read the Stage 3B timeline without changing its construction or arithmetic."""
         from .forecast import cash_timeline
-        return cash_timeline(database, today=date.today())
+        return cash_timeline(database, today=clock.today())
 
     @app.get('/api/v1/funds')
     def funds_read(as_of: str | None = None) -> Any:
@@ -966,13 +973,13 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             if not proposal['complete']:
                 raise HTTPException(422, 'Missing evidence must be resolved before this fund can be confirmed.')
             due_on = str(proposal['observed_date']['value'])
-            cursor = date.today().replace(day=1)
+            cursor = clock.today().replace(day=1)
             due = date.fromisoformat(due_on)
             contribution_dates: list[str] = []
             while cursor <= due:
                 day = min(due.day, monthrange(cursor.year, cursor.month)[1])
                 candidate = cursor.replace(day=day)
-                if candidate >= date.today() and candidate <= due:
+                if candidate >= clock.today() and candidate <= due:
                     contribution_dates.append(candidate.isoformat())
                 cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
             fund_id = f"fund-{hashlib.sha256(body.proposal_id.encode()).hexdigest()[:20]}"
@@ -999,7 +1006,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     def planning_sufficiency_read() -> Any:
         """Will there be enough money, when it runs short, and what drove it."""
         from .planning.sufficiency import sufficiency_page
-        return sufficiency_page(database, today=date.today())
+        return sufficiency_page(database, today=clock.today())
 
     @app.get('/api/v1/reserve/policy')
     def reserve_policy_read() -> Any:
@@ -1063,7 +1070,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         month: str | None = None, currency: str = Query('SGD', pattern=r'^[A-Z]{3}$')
     ) -> Any:
         from .controls import spending_controls_page
-        return spending_controls_page(database, month=month, currency=currency, today=date.today())
+        return spending_controls_page(database, month=month, currency=currency, today=clock.today())
 
     @app.post('/api/v1/spending-controls/what-if')
     def spending_controls_scenario(body: SpendingWhatIfDraft) -> Any:
@@ -1075,19 +1082,19 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             category_cuts=[item.model_dump() for item in body.category_cuts],
             date_changes=[item.model_dump() for item in body.date_changes],
             hypothetical_income=[item.model_dump() for item in body.hypothetical_income],
-            today=date.today(),
+            today=clock.today(),
         )
 
     @app.get('/api/v1/position')
     def position_read() -> Any:
         from .position import position_page
-        return position_page(database, today=date.today())
+        return position_page(database, today=clock.today())
 
     @app.get('/api/v1/position/coverage')
     def position_coverage_read() -> Any:
         """Coverage gaps and the exact evidence actions that would close them."""
         from .position import coverage_remedies
-        return coverage_remedies(database, today=date.today())
+        return coverage_remedies(database, today=clock.today())
 
     @app.get('/api/v1/position/certifications')
     def position_certifications_read() -> Any:
@@ -1098,7 +1105,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.get('/api/v1/net-worth')
     def net_worth_read(as_of: str | None = None, prior_as_of: str | None = None) -> Any:
         from .networth import net_worth_page
-        return net_worth_page(database, as_of=as_of, prior_as_of=prior_as_of, today=date.today())
+        return net_worth_page(database, as_of=as_of, prior_as_of=prior_as_of, today=clock.today())
 
     @app.get('/api/v1/categories')
     def categories_read() -> Any:
