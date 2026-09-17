@@ -54,13 +54,14 @@ from typing import Any
 from ..baseline.estimators import baseline_estimate_from
 from ..baseline.queries import cost_income_table_from
 from ..baseline.readiness import baseline_readiness_from
-from ..baseline.roles import RESERVE_MONTHS, ROLE_RULE_VERSION, baseline_roles_from
+from ..baseline.roles import ROLE_RULE_VERSION, baseline_roles_from
 from ..db import connect_readonly
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..money import ExactMoney, exact_sum, format_decimal
 from ..obligations.queries import obligations_page_from
 from ..position.queries import position_page_from
+from ..reserve import reserve_policy
 
 # --- the per-output readiness axis (see the module docstring) ----------------
 READINESS_ESTABLISHED = "established-input estimate"
@@ -185,6 +186,7 @@ def forecast_input_manifest_from(
     generation = current_generation(connection)
     if generation is None:
         raise FinCLError("The ledger has no completed generation; refresh it first")
+    policy = reserve_policy(connection)
     resolved = str(generation["generation_token"])
 
     readiness = baseline_readiness_from(connection, today=today)
@@ -591,8 +593,13 @@ def forecast_input_manifest_from(
             "residual_method": (estimate.get("sample") or {}).get("residual_method"),
             "outlier_method": (estimate.get("sample") or {}).get("outlier_method"),
             "role_rule_version": ROLE_RULE_VERSION,
-            "reserve_months": str(RESERVE_MONTHS),
-            "reserve_basis": "default three months of mean essential owner cost",
+            "reserve_months": str(policy.months),
+            "reserve_basis": (
+                f"default {policy.months} months of mean essential owner cost"
+                if policy.is_default
+                else f"chosen policy of {policy.months} months of mean essential owner cost"
+            ),
+            "reserve_policy_is_default": policy.is_default,
             "window_quality": window.get("quality"),
             "window_basis": window.get("basis"),
         },

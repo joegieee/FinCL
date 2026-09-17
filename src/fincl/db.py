@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 25
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -455,6 +455,26 @@ CREATE TABLE IF NOT EXISTS movement_coverage_certifications (
 
 CREATE INDEX IF NOT EXISTS movement_coverage_certifications_scope
     ON movement_coverage_certifications(account_id, currency_pocket, period_start);
+"""
+
+
+
+# Schema 25 (cash-flow Feature 3). ``reserve_policy`` is a singleton projection
+# of the latest ``RESERVE_POLICY_SET`` decision: how many months of evidence-
+# derived essential spending the operator wants held back. The number of months
+# is a policy the operator chooses; the monthly amount it multiplies is always
+# calculated from evidence and can never be typed in, which is why this table
+# holds a month count and no amount. An absent row resolves to the three-month
+# default at the read side, so a migrated ledger that has never recorded a
+# decision keeps producing exactly today's output.
+SCHEMA_25_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS reserve_policy (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    months TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    decided_at TEXT NOT NULL,
+    policy_version TEXT NOT NULL
+) STRICT;
 """
 
 
@@ -1066,6 +1086,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_22_TABLES_SQL
         + SCHEMA_23_TABLES_SQL
         + SCHEMA_24_TABLES_SQL
+        + SCHEMA_25_TABLES_SQL
     )
 
 

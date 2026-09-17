@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Banknote, Building2, CalendarRange, CircleHelp, CreditCard, FileBarChart, GitCompare,
-  HandCoins, Layers, LayoutDashboard, PiggyBank, Receipt, Repeat, Scale, SlidersHorizontal,
+  Gauge, HandCoins, Layers, LayoutDashboard, PiggyBank, Receipt, Repeat, Scale, SlidersHorizontal,
   Tag, Target, UploadCloud, Wallet, Wrench, ListChecks,
 } from 'lucide-react'
 
@@ -48,6 +48,7 @@ export const tabMeta: Record<string, TabMeta> = {
 
   Baseline: { scope: 'none', title: 'What your evidence can support.', subtitle: 'Month-by-month evidence readiness before any "what my life costs" figure. The baseline is discovered from imports, never typed in.', section: 'Position & forecast', icon: FileBarChart },
   Cash: { scope: 'none', title: 'What you actually hold.', subtitle: 'Recorded and observed cash balances, kept separate from anything only inferred.', section: 'Position & forecast', icon: Banknote },
+  'Will I have enough': { scope: 'none', title: 'Will you have enough?', subtitle: 'A direct answer per currency: the verdict, the date it turns, how short it gets, and the debt, pay-later, commitment and baseline spending behind it.', section: 'Position & forecast', icon: Gauge },
   Forecast: { scope: 'none', title: 'Your next six months, with the assumptions visible.', subtitle: 'A read-only estimate from the supported cash cutoff. Conditional timing remains conditional, and unavailable inputs stay named gaps.', section: 'Position & forecast', icon: GitCompare },
   'Net worth': { scope: 'none', title: 'A tracked subtotal, not a verdict.', subtitle: 'A per-currency subtotal of the dated cash, debt, receivable and card positions the ledger can already support.', section: 'Position & forecast', icon: Scale },
   Variance: { scope: 'currency', title: 'Where the plan and the ledger disagree.', subtitle: 'Budgets and goals compared against covered ledger totals, and by how much they differ.', section: 'Position & forecast', icon: GitCompare },

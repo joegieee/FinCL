@@ -35,13 +35,14 @@ import { CategorizationView } from '@/features/categorization/CategorizationView
 import { ForecastEstimateSummary, ForecastView } from '@/features/forecast'
 import type { ForecastPage } from '@/features/forecast/api'
 import { ControlsView } from '@/features/controls'
+import { SufficiencyView } from '@/features/sufficiency'
 import { OverviewView } from '@/features/overview'
 import { categoryIconColor } from '@/features/overview/SpendingDonut'
 import { FundsView } from '@/features/funds'
 import { VarianceView } from '@/features/variance'
 import { MaintenanceView } from '@/features/maintenance'
 
-const tabs=['Overview','Baseline','Cash','Forecast','Annual funds','Variance','Controls','Cash Flow','Analysis','Transactions','Income','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
+const tabs=['Overview','Baseline','Cash','Forecast','Will I have enough','Annual funds','Variance','Controls','Cash Flow','Analysis','Transactions','Income','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
 type Tab=typeof tabs[number]
 function initialTab():Tab { const v=new URLSearchParams(location.search).get('view');return tabs.find(t=>t===v)||'Overview' }
 function pct(actual:string|null,target:string) { return actual===null?0:Math.max(0,Math.min(100,Number(actual)/Number(target)*100)) }
@@ -137,6 +138,7 @@ export default function App(){
    {tab==='Cash'&&<CashView generation={data.generation} onSaved={saved}/>}
    {tab==='Forecast'&&<ForecastView/>}
    {tab==='Controls'&&<ControlsView initialMonth={(end || new Date().toISOString().slice(0, 7)).slice(0, 7)} currency={currency}/>}
+   {tab==='Will I have enough'&&<SufficiencyView generation={data.generation} onSaved={saved}/>}
    {tab==='Annual funds'&&<FundsView onSaved={saved}/>}
    {tab==='Variance'&&<VarianceView generation={data.generation} currency={currency} onSaved={saved}/>}
    {tab==='Maintenance'&&<MaintenanceView/>}

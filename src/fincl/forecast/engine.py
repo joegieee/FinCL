@@ -1754,6 +1754,10 @@ def _obligation_events(
                         residual_amount=residual_amount,
                         removes_from_residual=residual_amount is not None,
                         provenance={
+                            # The obligation family this cash belongs to, so a shortfall can be
+                            # attributed to debt repayment, an installment plan or a recurring
+                            # commitment rather than to one undifferentiated "expenses" total.
+                            "origin": origin,
                             "source": obligation["source"],
                             "obligation_id": obligation["obligation_id"],
                             "date_basis": date_basis,
@@ -1786,6 +1790,10 @@ def _obligation_events(
                         on=str(on),
                         confidence=confidence,
                         provenance={
+                            # The obligation family this cash belongs to, so a shortfall can be
+                            # attributed to debt repayment, an installment plan or a recurring
+                            # commitment rather than to one undifferentiated "expenses" total.
+                            "origin": origin,
                             "source": obligation["source"],
                             "obligation_id": obligation["obligation_id"],
                             "date_basis": date_basis,
@@ -1812,6 +1820,10 @@ def _obligation_events(
                 on=str(on),
                 confidence=confidence,
                 provenance={
+                    # The obligation family this cash belongs to, so a shortfall can be
+                    # attributed to debt repayment, an installment plan or a recurring
+                    # commitment rather than to one undifferentiated "expenses" total.
+                    "origin": origin,
                     "source": obligation["source"],
                     "obligation_id": obligation["obligation_id"],
                     "date_basis": date_basis,

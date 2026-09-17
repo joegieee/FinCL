@@ -94,6 +94,10 @@ _SINGLE_KINDS = Literal[
     'REPORTING_CURRENCY_SET',
     # Stage 5A forecast-actual matching: binding real cash to an issued event
     'FORECAST_MATCH_SET','FORECAST_MATCH_RETIRE',
+    # Stage 4A sinking-fund allocation controls
+    'SINKING_FUND_ALLOCATION_SET','SINKING_FUND_ALLOCATION_RETIRE',
+    # The chosen reserve policy (a month count; never an amount)
+    'RESERVE_POLICY_SET',
 ]
 
 _DEBT_KINDS = frozenset({
@@ -691,6 +695,21 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
             validate_financial_role(command.kind, dict(command.anchors), dict(command.payload))
             if 'entry' in command.anchors and not connection.execute('SELECT 1 FROM ledger_entries WHERE natural_anchor=?', (command.anchors['entry'],)).fetchone():
                 raise FinCLError('The transaction no longer resolves')
+        elif command.kind in {'SINKING_FUND_ALLOCATION_SET','SINKING_FUND_ALLOCATION_RETIRE'}:
+            from .funds import validate_fund_payload
+            validate_fund_payload(command.kind, dict(command.anchors), dict(command.payload))
+            if not connection.execute(
+                'SELECT 1 FROM sinking_funds WHERE fund=?', (command.anchors['fund'],)
+            ).fetchone():
+                raise FinCLError('That fund no longer exists')
+            if command.kind == 'SINKING_FUND_ALLOCATION_RETIRE' and not connection.execute(
+                'SELECT 1 FROM sinking_fund_allocations WHERE allocation=? AND retired=0',
+                (command.anchors['allocation'],),
+            ).fetchone():
+                raise FinCLError('That allocation is not active')
+        elif command.kind == 'RESERVE_POLICY_SET':
+            from .reserve import validate_reserve_payload
+            validate_reserve_payload(command.kind, dict(command.anchors), dict(command.payload))
         elif command.kind in {'FORECAST_MATCH_SET','FORECAST_MATCH_RETIRE'}:
             from .variance import validate_variance_payload
             validate_variance_payload(command.kind, dict(command.anchors), dict(command.payload))
@@ -975,6 +994,28 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 writer=writer,
             )
             return {'status': 'recorded_refresh_pending' if receipt.refresh_pending else 'applied', 'fund': fund_id}
+
+    @app.get('/api/v1/planning/sufficiency')
+    def planning_sufficiency_read() -> Any:
+        """Will there be enough money, when it runs short, and what drove it."""
+        from .planning.sufficiency import sufficiency_page
+        return sufficiency_page(database, today=date.today())
+
+    @app.get('/api/v1/reserve/policy')
+    def reserve_policy_read() -> Any:
+        """The chosen reserve policy, or the framework default if none was chosen."""
+        from .db import connect_readonly as _open
+        from .reserve import reserve_policy
+        connection = _open(database)
+        try:
+            policy = reserve_policy(connection)
+        finally:
+            connection.close()
+        return {
+            'months': str(policy.months), 'is_default': policy.is_default,
+            'decided_at': policy.decided_at, 'policy_version': policy.policy_version,
+            'reason': policy.reason,
+        }
 
     @app.get('/api/v1/forecast/snapshots')
     def forecast_snapshots_read() -> Any:

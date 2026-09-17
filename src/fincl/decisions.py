@@ -70,6 +70,9 @@ from .reporting_currency import (
     apply_reporting_currency_decision,
     validate_reporting_currency_payload,
 )
+from .reserve.models import RESERVE_DECISION_KINDS
+from .reserve.projection import apply_reserve_policy_decision
+from .reserve.validation import validate_reserve_payload
 
 # As with `fincl.funds`, only the journal side is imported: `fincl.variance`
 # also exposes the Stage 5A read, which composes the Stage 3 forecast engine and
@@ -126,6 +129,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | FUND_DECISION_KINDS
     | VARIANCE_DECISION_KINDS
     | REPORTING_CURRENCY_DECISION_KINDS
+    | RESERVE_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -591,6 +595,21 @@ def _apply_record(
                 anchors=record.anchors,
                 payload=record.payload,
                 journal_seq=record.seq,
+            )
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
+    elif record.decision_kind in RESERVE_DECISION_KINDS:
+        try:
+            validate_reserve_payload(
+                record.decision_kind, record.anchors, record.payload
+            )
+            apply_reserve_policy_decision(
+                connection,
+                anchors=record.anchors,
+                payload=record.payload,
+                journal_seq=record.seq,
+                decided_at=record.decided_at,
+                policy_version=record.policy_version,
             )
         except FinCLError as exc:
             raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc

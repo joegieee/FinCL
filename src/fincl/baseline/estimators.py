@@ -37,8 +37,9 @@ from typing import Any
 from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
+from ..reserve import reserve_policy
 from .queries import cost_income_table_from
-from .roles import RESERVE_MONTHS, baseline_roles_from
+from .roles import baseline_roles_from
 
 _METHOD_VERSION = "baseline-estimator-v1"
 _OUTLIER_METHOD = "outlier-v1: entry ≥ 3× category median-month and ≥ 150"
@@ -318,6 +319,7 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
             "tasks": table["tasks"],
         }
 
+    policy = reserve_policy(connection)
     window = table["baseline_window"]
     months = [row["month"] for row in table["months"]]
     span_start = month_span(months[0]).start
@@ -402,10 +404,21 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
             )
             reserve = {
                 "available": True,
-                "months": str(RESERVE_MONTHS),
+                "months": str(policy.months),
                 "essential_monthly": essential_monthly,
-                "amount": str((Decimal(essential_monthly) * RESERVE_MONTHS).quantize(Decimal("0.01"))),
-                "basis": "default three months of mean essential owner cost",
+                "amount": str(
+                    (Decimal(essential_monthly) * policy.months).quantize(Decimal("0.01"))
+                ),
+                # The month count is the operator's policy; the monthly amount it
+                # multiplies is always the evidence-derived mean essential owner
+                # cost, never a figure anyone entered.
+                "basis": (
+                    f"default {policy.months} months of mean essential owner cost"
+                    if policy.is_default
+                    else f"chosen policy of {policy.months} months of mean essential owner cost"
+                ),
+                "policy_is_default": policy.is_default,
+                "policy_decided_at": policy.decided_at,
             }
 
         by_currency[currency] = {

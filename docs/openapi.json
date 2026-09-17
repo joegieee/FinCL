@@ -535,6 +535,44 @@
         }
       }
     },
+    "/api/v1/planning/sufficiency": {
+      "get": {
+        "summary": "Planning Sufficiency Read",
+        "description": "Will there be enough money, when it runs short, and what drove it.",
+        "operationId": "planning_sufficiency_read_api_v1_planning_sufficiency_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Planning Sufficiency Read Api V1 Planning Sufficiency Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reserve/policy": {
+      "get": {
+        "summary": "Reserve Policy Read",
+        "description": "The chosen reserve policy, or the framework default if none was chosen.",
+        "operationId": "reserve_policy_read_api_v1_reserve_policy_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Reserve Policy Read Api V1 Reserve Policy Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/forecast/snapshots": {
       "get": {
         "summary": "Forecast Snapshots Read",
@@ -7235,7 +7273,10 @@
               "INBOUND_RULE_RETIRE",
               "REPORTING_CURRENCY_SET",
               "FORECAST_MATCH_SET",
-              "FORECAST_MATCH_RETIRE"
+              "FORECAST_MATCH_RETIRE",
+              "SINKING_FUND_ALLOCATION_SET",
+              "SINKING_FUND_ALLOCATION_RETIRE",
+              "RESERVE_POLICY_SET"
             ],
             "title": "Kind"
           },
