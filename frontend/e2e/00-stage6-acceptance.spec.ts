@@ -74,7 +74,7 @@ test('whole-framework journey derives amounts from evidence and survives backup 
   await expect(page.getByText(/default 3 months of mean essential owner cost/i)).toBeVisible()
 
   await openTab(page, 'Cash')
-  await expect(page.getByText(/Last supported combined balance/)).toBeVisible()
+  await expect(page.getByText(/Last common supported balance/)).toBeVisible()
   await expect(page.getByText(/account bridge/)).toBeVisible()
   await openTab(page, 'Money Owed')
   await expect(page.getByText('Annual insurance invoice')).toBeVisible()

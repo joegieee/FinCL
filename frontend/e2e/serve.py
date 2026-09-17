@@ -115,24 +115,33 @@ service.import_revolut_pdf(generated_fixtures["reconciled-history"])
 service.import_revolut_pdf(generated_fixtures["classification-history"])
 service.import_revolut_pdf(generated_fixtures["classification-usd"])
 anchor_connection = connect_sqlite(anchor_db)
+# The importer writes `document_records`, not the retired CSV path's
+# `raw_records`, so every seeding lookup joins the former. Joining the latter
+# silently matched nothing: the loops below then appended no decisions, the
+# fixtures were never classified, and the specs failed much later with a missing
+# income stream rather than a missing setup step.
 salary_anchors = [
     entry_anchor(anchor_connection, row["id"])
     for row in anchor_connection.execute(
-        "SELECT e.id FROM ledger_entries e JOIN raw_records r ON r.id=e.raw_record_id "
-        "WHERE r.description_raw='ACME PAYROLL' ORDER BY e.effective_at"
+        "SELECT e.id FROM ledger_entries e JOIN document_records d ON d.id=e.document_record_id "
+        "WHERE d.description_raw='ACME PAYROLL' ORDER BY e.effective_at"
     )
 ]
+if not salary_anchors:
+    # A seeding query that matches nothing is a broken fixture, not an empty
+    # one. Fail here, where the cause is visible.
+    raise SystemExit("e2e fixture: no ACME PAYROLL entries found to classify as income")
 seeded_anchors = {
     row["description_raw"]: entry_anchor(anchor_connection, row["id"])
     for row in anchor_connection.execute(
-        "SELECT e.id, r.description_raw FROM ledger_entries e "
-        "JOIN raw_records r ON r.id=e.raw_record_id "
-        "WHERE r.description_raw IN ('FILL COMPLETE', 'FILL MISSING', 'RULE SHOP EXCEPTION')"
+        "SELECT e.id, d.description_raw FROM ledger_entries e "
+        "JOIN document_records d ON d.id=e.document_record_id "
+        "WHERE d.description_raw IN ('FILL COMPLETE', 'FILL MISSING', 'RULE SHOP EXCEPTION')"
     )
 }
 rule_exception_row = anchor_connection.execute(
-    "SELECT e.id FROM ledger_entries e JOIN raw_records r ON r.id=e.raw_record_id "
-    "WHERE r.description_raw='RULE SHOP COMMON' ORDER BY e.effective_at LIMIT 1"
+    "SELECT e.id FROM ledger_entries e JOIN document_records d ON d.id=e.document_record_id "
+    "WHERE d.description_raw='RULE SHOP COMMON' ORDER BY e.effective_at LIMIT 1"
 ).fetchone()
 if rule_exception_row is not None:
     seeded_anchors["RULE SHOP COMMON MANUAL EXCEPTION"] = entry_anchor(

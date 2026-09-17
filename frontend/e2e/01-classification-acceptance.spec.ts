@@ -140,13 +140,18 @@ test('desktop: selection across pages, preset-only draft, independent exception 
   await expect(page.getByRole('dialog').getByRole('combobox', { name: 'Spending need' })).toHaveValue('essential')
   await page.getByRole('dialog').press('Escape')
 
+  // FILL COMPLETE is the control for the bulk count at the end of this test: it
+  // already carries a need, so a bulk need assignment must leave it alone. The
+  // fixture seeds that state, so this asserts the precondition rather than
+  // re-applying it -- re-selecting identical values is not an edit, and the
+  // editor correctly refuses to submit one.
   await openTransactions(page, 'FILL COMPLETE')
   await page.getByRole('button', { name: /Details for FILL COMPLETE/ }).click()
   let fillDialog = page.getByRole('dialog')
-  await chooseCategory(fillDialog, 'Food & Dining / Groceries')
-  await fillDialog.getByLabel('Spending pattern').selectOption('variable_routine')
-  await fillDialog.getByLabel('Spending need').selectOption('essential')
-  await reviewAndSaveSingle(page, 'Synthetic complete fill-missing control')
+  await expect(fillDialog.getByRole('combobox', { name: 'Category' })).toHaveValue('Food & Dining / Groceries')
+  await expect(fillDialog.getByRole('combobox', { name: 'Spending pattern' })).toHaveValue('variable_routine')
+  await expect(fillDialog.getByRole('combobox', { name: 'Spending need' })).toHaveValue('essential')
+  await fillDialog.press('Escape')
 
   await openTab(page, 'Categories')
   await page.getByRole('button', { name: 'New category' }).click()
@@ -205,11 +210,21 @@ test('desktop: isolated income, recurring payer suggestion, grouped save-next an
   // only an outgoing group has. Without narrowing, the queue can hand back an
   // inflow group whose panel offers an incoming type instead.
   await page.getByRole('button', { name: /^Filters/ }).click()
+  // The queue refetches behind the filter, and the chip appears as soon as the
+  // control changes -- before the new list arrives. Reading the first card in
+  // that gap captures a row that is about to be replaced, and the panel it
+  // names is then never opened. Wait for the refetch itself.
+  const refiltered = page.waitForResponse(response =>
+    response.url().includes('/api/v1/categorization/candidates?')
+    && new URL(response.url()).searchParams.get('direction') === 'OUT')
   await page.getByLabel('Filter categorization direction').selectOption('OUT')
-  // The queue refetches behind the filter, so the first card must not be read
-  // until the inflow groups have actually gone -- otherwise the stale first row
-  // is captured and the panel it names is no longer there to open.
-  await expect(page.locator('.candidate-card', { hasText: 'ACME PAYROLL' })).toHaveCount(0)
+  await refiltered
+  // The response landing is not the list re-rendering, and a locator resolves
+  // afresh on every use: reading the first card's name from the old list and
+  // then clicking a card from the new one opens a panel the name does not
+  // match. Waiting for the inflow payer to leave the queue -- the one thing
+  // this filter exists to do -- closes that gap.
+  await expect(page.locator('.candidate-card', { hasText: 'FREELANCE PAYER' })).toHaveCount(0)
   const group = page.locator('.candidate-card').filter({ hasNotText: 'RULE SHOP COMMON' }).first()
   await expect(group).toBeVisible()
   const groupName = (await group.locator('strong').innerText()).trim()
@@ -271,9 +286,14 @@ test('desktop: failed preview, uncertain retry and refresh-pending acknowledgeme
   await openTransactions(page, 'BULK GROCERY 53')
   await page.getByRole('button', { name: /Details for BULK GROCERY 53/ }).click()
   let dialog = page.getByRole('dialog')
+  // This test is about a failed preview and an idempotent retry; the values are
+  // incidental, but they must actually differ from what earlier tests in this
+  // file left on this transaction. Re-selecting identical values is not an edit
+  // and the editor correctly keeps the submit disabled, so a no-op edit would
+  // stall here rather than exercise the retry.
   await chooseCategory(dialog, 'Food & Dining / Groceries')
-  await dialog.getByLabel('Spending pattern').selectOption('variable_routine')
-  await dialog.getByLabel('Spending need').selectOption('essential')
+  await dialog.getByLabel('Spending pattern').selectOption('irregular')
+  await dialog.getByLabel('Spending need').selectOption('discretionary')
   await dialog.getByLabel(/Reason/).fill('Synthetic uncertain retry acceptance')
 
   let previewFailed = false
