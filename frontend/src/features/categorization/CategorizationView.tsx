@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronRight, Filter, HelpCircle, RefreshCw, Tag, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -6,6 +6,7 @@ import { api, money } from '@/lib/api'
 import { useBatchCommand } from '@/lib/command'
 import { compileCombinedRule, type CompiledCombinedRule } from '@/features/rules/api'
 import { CombinedImpactSummary, MergeMerchantsDialog, MerchantRenameControl } from '@/features/rules'
+import { RelationshipReview, type SuggestedDebt } from './RelationshipReview'
 import { CategoryPicker, loadRecentCategories, rememberCategory } from '@/features/classification/CategoryPicker'
 import { ClassificationFieldsFieldset } from '@/features/classification/FieldsFieldset'
 import { ClassificationPreviewSummary } from '@/features/classification/PreviewSummary'
@@ -18,7 +19,9 @@ type Summary = {
   counts: Record<string, number>; active_categorization_denominator: number; progress_numerator: number
   needs_attention: number; combined_completeness?: { numerator: number; denominator: number }
 }
-type Candidate = { candidate_id: string; kind: string; label: string; merchant_key?: string; transaction_count: number; active_count: number; date_range: { first: string; last: string }; accounts: string[]; directions: Record<string, number>; currencies?: Record<string, number>; examples: string[] }
+type Candidate = { candidate_id: string; kind: string; label: string; merchant_key?: string; transaction_count: number; active_count: number; date_range: { first: string; last: string }; accounts: string[]; directions: Record<string, number>; currencies?: Record<string, number>; examples: string[]
+  // Relationship-discovery focuses only: the evidence a proposal rests on.
+  suggested_debts?: SuggestedDebt[]; relationship_basis?: string; installment_candidate_key?: string; installment_ambiguous?: boolean }
 type CandidatesPage = { candidates: Candidate[]; next_cursor: string | null; total: number }
 type CandidateRecord = { anchor: string; description: string | null; account: string; currency: string; amount: string; date: string; direction: string; active: boolean; merchant_raw?: string | null; merchant_normalized?: string | null; detail_bucket?: string; applicable_fields?: Applicability; effective?: Record<string, string | null>; conflicts?: { ambiguous: boolean; direction: boolean }; refund_context?: string }
 type Detail = { candidate: Candidate; records: CandidateRecord[]; next_cursor?: string | null }
@@ -35,7 +38,13 @@ const FOCUSES: { value: string; label: string }[] = [
   { value: 'spending_details', label: 'Missing spending details' },
   { value: 'incoming', label: 'Incoming money to classify' },
   { value: 'conflicts', label: 'Conflicts' },
+  // Relationship discovery: rows a debt or an installment plan probably owns,
+  // proposed from evidence already in the ledger and confirmed through that
+  // workflow's own form (`RelationshipReview`), not a classification field.
+  { value: 'debts', label: 'Looks like a debt movement' },
+  { value: 'installments', label: 'Installment candidates' },
 ]
+const RELATIONSHIP_FOCUSES = new Set(['debts', 'installments'])
 
 function cycle(options: readonly string[], current: string): string {
   const values = ['', ...options]
@@ -72,26 +81,43 @@ export function CategorizationView({ generation, freshness, categories, accounts
    * until the parent's own next render catches up with a matching prop. */
   const [generationOverride, setGenerationOverride] = useState<string | null>(null)
   const effectiveGeneration = generationOverride ?? generation
+  /** What every read below is pinned to. A ref, not just the value, because
+   * `afterSave` runs in a closure from before the save it follows: once the
+   * save moves the ledger on, that closure's reads must see the new token
+   * rather than the one it was created with. */
+  const generationRef = useRef(effectiveGeneration)
+  generationRef.current = effectiveGeneration
   useEffect(() => { setGenerationOverride(null) }, [generation])
   function candidateQuery(cursor = '', focusOverride?: string) {
-    const query = new URLSearchParams({ generation: effectiveGeneration, direction, lifecycle, kind, account, currency, focus: focusOverride ?? focus, sort })
+    const query = new URLSearchParams({ generation: generationRef.current, direction, lifecycle, kind, account, currency, focus: focusOverride ?? focus, sort })
     if (cursor) query.set('cursor', cursor)
     return query.toString()
   }
+  /** The list waits only for its own page and the summary. The other tabs'
+   * counts are a separate full read each (six of them), so they fill in as
+   * they arrive instead of holding the queue back until the slowest returns;
+   * a count that fails simply stays blank. */
+  const loadSeq = useRef(0)
   const load = useCallback(async () => {
     setError('')
+    // Counts from a load that a newer one (another filter, focus or save) has
+    // superseded are dropped rather than written over the current ones.
+    const seq = ++loadSeq.current
     try {
-      const otherFocuses = FOCUSES.filter(f => f.value !== focus)
-      const [s, p, ...others] = await Promise.all([
-        api<Summary>(`categorization/summary?generation=${encodeURIComponent(effectiveGeneration)}`),
+      const [s, p] = await Promise.all([
+        api<Summary>(`categorization/summary?generation=${encodeURIComponent(generationRef.current)}`),
         api<CandidatesPage>(`categorization/candidates?${candidateQuery()}`),
-        ...otherFocuses.map(f => api<CandidatesPage>(`categorization/candidates?${candidateQuery('', f.value)}`)),
       ])
       setSummary(s); setPage(p)
-      api<{ suggestions: RuleSuggestion[] }>(`categorization/rule-suggestions?generation=${encodeURIComponent(effectiveGeneration)}`)
+      setFocusCounts({ [focus]: p.total })
+      api<{ suggestions: RuleSuggestion[] }>(`categorization/rule-suggestions?generation=${encodeURIComponent(generationRef.current)}`)
         .then(result => setSuggestions(result.suggestions))
         .catch(() => {})
-      setFocusCounts({ [focus]: p.total, ...Object.fromEntries(otherFocuses.map((f, i) => [f.value, others[i].total])) })
+      for (const other of FOCUSES.filter(f => f.value !== focus)) {
+        api<CandidatesPage>(`categorization/candidates?${candidateQuery('', other.value)}`)
+          .then(result => { if (seq === loadSeq.current) setFocusCounts(current => ({ ...current, [other.value]: result.total })) })
+          .catch(() => {})
+      }
       return p
     } catch (e) { setError((e as Error).message); return null }
   }, [effectiveGeneration, direction, lifecycle, kind, account, currency, focus, sort])
@@ -126,6 +152,15 @@ export function CategorizationView({ generation, freshness, categories, accounts
    * state once the queue is exhausted. */
   async function afterSave(status: string) {
     await onSaved(status)
+    // The save moved the ledger to a new generation, and the parent's
+    // re-render carrying it may not have landed yet. Ask for it directly (the
+    // one read that is not generation-pinned) instead of reloading on the
+    // token this closure captured, which the server now refuses as stale.
+    try {
+      const fresh = await api<{ generation: string }>('overview')
+      generationRef.current = fresh.generation
+      setGenerationOverride(fresh.generation)
+    } catch { /* keep the current token; a stale read still recovers below */ }
     const wasNextId = selectedIndex !== null ? (queue[selectedIndex + 1]?.candidate_id ?? null) : null
     const oldIndex = selectedIndex
     const freshPage = await load()
@@ -205,16 +240,28 @@ export function CategorizationView({ generation, freshness, categories, accounts
     <div className="categorization-split">
       <Card className="candidate-list" onKeyDown={onListKeyDown}>
         <div className="panel-title"><div><p className="eyebrow"><span>CATEGORIZATION INBOX</span> · ALL SELECTED HISTORY</p><h2>{page ? (focus === 'category' ? `${page.total} groups need review` : `${page.total} groups match ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2><p className="muted-note">Covers every imported statement, all dates and currencies. Rules also apply to future imports. Pending, reverted and superseded rows are shown but not counted as active.</p></div></div>
-        {!page?.candidates.length && <p className="empty-line">
+        {!page?.candidates.length && (focus === 'debts'
+          ? <p className="empty-line">Nothing to propose. A movement shows up here once you have recorded an earlier one with the same payee against an open debt; record the first one from its transaction's "What is this?" choice.</p>
+          : focus === 'installments'
+          ? <p className="empty-line">No unconfirmed installment chains. Proposals come only from instalment numbers printed on card statements (for example "3/12").</p>
+          : <p className="empty-line">
           {focus === 'category' ? 'Everything active is categorized, or no groups match the current ledger generation.' : 'Nothing active matches this focus, or no groups match the current ledger generation.'}
           {' '}Check the <Button variant="link" size="sm" onClick={onOpenRules}>Rules</Button> page for existing rules, or browse <Button variant="link" size="sm" onClick={onOpenTransactions}>Transactions</Button> directly.
-        </p>}
+        </p>)}
         {page?.candidates.map((candidate, index) => <button className={`candidate-card${index === activeIndex ? ' is-active' : ''}`} key={candidate.candidate_id} tabIndex={index === activeIndex ? 0 : -1} onFocus={() => setActiveIndex(index)} onClick={() => void open(candidate, index)}>
-          <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.filter(example => example !== candidate.label).slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small>{candidate.directions.IN > 0 && candidate.directions.OUT > 0 && <small className="tag">includes {candidate.directions.IN} incoming</small>}{candidate.currencies && Object.keys(candidate.currencies).length > 1 && <small className="tag">{Object.keys(candidate.currencies).length} currencies</small>}</span><ChevronRight size={16}/>
+          <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.filter(example => example !== candidate.label).slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small>{candidate.relationship_basis && <small>{candidate.relationship_basis}</small>}{candidate.directions.IN > 0 && candidate.directions.OUT > 0 && <small className="tag">includes {candidate.directions.IN} incoming</small>}{candidate.currencies && Object.keys(candidate.currencies).length > 1 && <small className="tag">{Object.keys(candidate.currencies).length} currencies</small>}</span><ChevronRight size={16}/>
         </button>)}
         {page?.next_cursor && <div className="dialog-actions"><Button variant="outline" onClick={() => void loadMoreCandidates()}>Load more groups</Button></div>}
       </Card>
-      {selected
+      {selected && RELATIONSHIP_FOCUSES.has(focus)
+        ? <RelationshipReview
+            key={selected.candidate.candidate_id}
+            candidate={selected.candidate} records={selected.records} generation={effectiveGeneration} disabled={disabled}
+            onRecorded={afterSave}
+            onRefresh={async status => { await onSaved(status); await load() }}
+            onClose={() => { setSelected(null); setSelectedIndex(null) }}
+          />
+        : selected
         ? <CandidateReview
             key={selected.candidate.candidate_id}
             detail={selected} generation={effectiveGeneration} categories={categories} disabled={disabled}
@@ -591,7 +638,9 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
    * stood one render earlier. */
   const handleKeyRef = useRef(handleKey)
   handleKeyRef.current = handleKey
-  useEffect(() => {
+  // Registered during commit, not after paint: a passive effect left a window
+  // in which the panel was on screen but a shortcut pressed on it was dropped.
+  useLayoutEffect(() => {
     const listener = (e: KeyboardEvent) => handleKeyRef.current(e)
     document.addEventListener('keydown', listener)
     return () => document.removeEventListener('keydown', listener)

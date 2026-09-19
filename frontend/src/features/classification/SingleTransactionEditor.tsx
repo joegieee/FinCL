@@ -9,7 +9,7 @@ import { useBatchCommand } from '@/lib/command'
 import { StatementDetailPanel } from '@/features/transactions'
 import type { TransactionRowOut } from '@/features/transactions/reportedApi'
 import { CategoryPicker, rememberCategory } from './CategoryPicker'
-import { DebtHandoff, InstallmentHandoff, TransferHandoff, movementDirection } from './Handoffs'
+import { DebtHandoff, InstallmentHandoff, TransferHandoff, handoffTarget, movementDirection } from './Handoffs'
 import { PresetPicker } from './PresetPicker'
 import type { PresetFields } from './presets'
 import { RuleSection } from './RuleSection'
@@ -232,7 +232,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
             onFromOwnAccount={applicable.incoming_type ? () => { setIncomingType('self_transfer'); invalidatePreview(); setNature('ordinary'); setNotice('Incoming type set to self-transfer below; review and save it.') } : undefined}/>)}
       {!notEditable && nature === 'debt' && (disabled
         ? <p className="form-error">Refresh the ledger before editing.</p>
-        : <DebtHandoff entry={e} generation={data.generation} onRecorded={status => recorded(status, 'debt')} onRefresh={refreshKeepingOpen}/>)}
+        : <DebtHandoff entry={handoffTarget(e)} generation={data.generation} onRecorded={status => recorded(status, 'debt')} onRefresh={refreshKeepingOpen}/>)}
       {!notEditable && nature === 'ordinary' && <>
       <form onSubmit={event => { event.preventDefault(); if (!preview) void reviewChanges(); else void saveChanges() }} onChange={invalidatePreview}>
             <PresetPicker applicable={applicable} categories={data.categories} current={currentPresetFields}
@@ -295,7 +295,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
           is an extra link alongside the classification above, not an
           alternative to it. */}
       {bucket === 'spending' && !disabled && (installment
-        ? <InstallmentHandoff entry={e} generation={data.generation} onRecorded={status => recorded(status, 'installment')} onCancel={() => setInstallment(false)}/>
+        ? <InstallmentHandoff entry={handoffTarget(e)} generation={data.generation} onRecorded={status => recorded(status, 'installment')} onCancel={() => setInstallment(false)}/>
         : <Button type="button" variant="link" size="sm" onClick={() => setInstallment(true)}>Part of an installment plan?</Button>)}
       <RuleSection generation={data.generation} anchors={[e.anchor]}
         category={categoryChanged ? category : ''} costBehavior={costBehaviorChanged ? costBehavior : ''} need={needChanged ? need : ''}

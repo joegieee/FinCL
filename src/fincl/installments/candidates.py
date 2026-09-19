@@ -224,6 +224,75 @@ def _candidate(chain: list[dict[str, Any]], group: tuple[str, str, str, int]) ->
     }
 
 
+def propose(connection: Any, card: str | None = None) -> dict[str, Any]:
+    """The proposals themselves, read on the caller's connection.
+
+    Split out so a read model that already holds a generation-pinned
+    connection (the categorization inbox's "Installment candidates" focus)
+    proposes from exactly the snapshot it is showing, not a second one.
+    """
+    claimed = {
+        str(row["entry_anchor"])
+        for row in connection.execute(
+            "SELECT entry_anchor FROM installment_occurrences"
+        ).fetchall()
+    }
+    groups: dict[tuple[str, str, str, int], list[dict[str, Any]]] = {}
+    for row in _rows(connection, card):
+        if row["entry_anchor"] in claimed:
+            continue
+        key = (row["account_id"], row["currency"], row["family"], row["term"])
+        groups.setdefault(key, []).append(row)
+
+    candidates: list[dict[str, Any]] = []
+    ambiguous: list[dict[str, Any]] = []
+    for key, rows in sorted(groups.items()):
+        chains: list[list[dict[str, Any]]] = []
+        group_ambiguous = False
+        for row in sorted(rows, key=lambda r: (r["ordinal"], r["effective_on"])):
+            index, tied = _chain_for(chains, row)
+            group_ambiguous = group_ambiguous or tied
+            if index is None:
+                chains.append([row])
+            else:
+                chains[index].append(row)
+        if group_ambiguous:
+            ambiguous.append(
+                {
+                    "card_account_id": key[0],
+                    "currency": key[1],
+                    "family": key[2],
+                    "term_months": key[3],
+                    "reason": (
+                        "Two unconfirmed chains in this family share an instalment "
+                        "amount and run at the same time, so the printed ordinals "
+                        "do not say which chain a line belongs to. Confirm one plan "
+                        "from the transaction list to separate them."
+                    ),
+                    "occurrences": [
+                        {
+                            "entry_anchor": row["entry_anchor"],
+                            "occurrence_index": row["ordinal"],
+                            "occurrence_count": row["term"],
+                            "effective_on": row["effective_on"],
+                            "amount": format_decimal(row["coefficient"], row["scale"]),
+                            "description": row["description"],
+                        }
+                        for row in sorted(rows, key=lambda r: (r["ordinal"], r["effective_on"]))
+                    ],
+                }
+            )
+            continue
+        candidates.extend(_candidate(chain, key) for chain in chains)
+
+    candidates.sort(key=lambda c: (c["opened_on"], c["merchant_label"]))
+    return {
+        "candidates": candidates,
+        "ambiguous_groups": ambiguous,
+        "claimed_occurrence_count": len(claimed),
+    }
+
+
 def installment_candidates(
     database: Path,
     *,
@@ -234,69 +303,9 @@ def installment_candidates(
     connection = connect_readonly(database)
     try:
         token = _generation(connection, expected)
-        claimed = {
-            str(row["entry_anchor"])
-            for row in connection.execute(
-                "SELECT entry_anchor FROM installment_occurrences"
-            ).fetchall()
-        }
-        groups: dict[tuple[str, str, str, int], list[dict[str, Any]]] = {}
-        for row in _rows(connection, card):
-            if row["entry_anchor"] in claimed:
-                continue
-            key = (row["account_id"], row["currency"], row["family"], row["term"])
-            groups.setdefault(key, []).append(row)
-
-        candidates: list[dict[str, Any]] = []
-        ambiguous: list[dict[str, Any]] = []
-        for key, rows in sorted(groups.items()):
-            chains: list[list[dict[str, Any]]] = []
-            group_ambiguous = False
-            for row in sorted(rows, key=lambda r: (r["ordinal"], r["effective_on"])):
-                index, tied = _chain_for(chains, row)
-                group_ambiguous = group_ambiguous or tied
-                if index is None:
-                    chains.append([row])
-                else:
-                    chains[index].append(row)
-            if group_ambiguous:
-                ambiguous.append(
-                    {
-                        "card_account_id": key[0],
-                        "currency": key[1],
-                        "family": key[2],
-                        "term_months": key[3],
-                        "reason": (
-                            "Two unconfirmed chains in this family share an instalment "
-                            "amount and run at the same time, so the printed ordinals "
-                            "do not say which chain a line belongs to. Confirm one plan "
-                            "from the transaction list to separate them."
-                        ),
-                        "occurrences": [
-                            {
-                                "entry_anchor": row["entry_anchor"],
-                                "occurrence_index": row["ordinal"],
-                                "occurrence_count": row["term"],
-                                "effective_on": row["effective_on"],
-                                "amount": format_decimal(row["coefficient"], row["scale"]),
-                                "description": row["description"],
-                            }
-                            for row in sorted(rows, key=lambda r: (r["ordinal"], r["effective_on"]))
-                        ],
-                    }
-                )
-                continue
-            candidates.extend(_candidate(chain, key) for chain in chains)
-
-        candidates.sort(key=lambda c: (c["opened_on"], c["merchant_label"]))
-        return {
-            "generation": token,
-            "candidates": candidates,
-            "ambiguous_groups": ambiguous,
-            "claimed_occurrence_count": len(claimed),
-        }
+        return {"generation": token, **propose(connection, card)}
     finally:
         connection.close()
 
 
-__all__ = ["installment_candidates"]
+__all__ = ["installment_candidates", "propose"]

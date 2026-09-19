@@ -26,7 +26,16 @@ CANDIDATE_GROUPING_VERSION = "categorization-candidates-2026-v2"
 # text, reusing the same bucket/applicability/effective-role evaluator
 # `evaluate_classification_draft` uses, so a group here can never disagree
 # with what the shared classification editor would show for the same anchor.
-FOCUS_KINDS = ("category", "spending_details", "incoming", "conflicts")
+FOCUS_KINDS = ("category", "spending_details", "incoming", "conflicts", "debts", "installments")
+# The last two are relationship discovery rather than a missing field: rows a
+# debt or an installment plan probably owns, each proposed from evidence the
+# ledger already holds (a debt you recorded against the same payee before; an
+# instalment ordinal printed on the statement), never from names or amounts
+# that merely look alike. Their cards carry that evidence as extra keys.
+
+_GroupKey = tuple[str, str]
+_Groups = dict[_GroupKey, list[Any]]
+_Extras = dict[_GroupKey, dict[str, Any]]
 
 
 _MERGE_RULE_TABLES = (
@@ -459,10 +468,11 @@ def categorization_candidates(
     connection = _pinned_connection(database, generation)
     try:
         limit = max(1, min(int(limit), 100))
-        groups = _focus_groups(
+        groups, extras = _focus_groups(
             connection, focus=focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle,
         )
-        cards = [_candidate_card(group_kind, key, members, focus=focus) for (group_kind, key), members in groups.items()
+        cards = [{**_candidate_card(group_kind, key, members, focus=focus), **extras.get((group_kind, key), {})}
+                 for (group_kind, key), members in groups.items()
                  if not kind or group_kind == kind]
         # Stable passes make the requested priority explicit: actionable rows,
         # then total matching rows, then the newest occurrence and stable id
@@ -526,12 +536,13 @@ def categorization_candidate_detail(
     """Return one current candidate and its bounded, inspectable members."""
     connection = _pinned_connection(database, generation)
     try:
-        for (group_kind, key), members in _focus_groups(
+        groups, extras = _focus_groups(
             connection, focus=focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle,
-        ).items():
+        )
+        for (group_kind, key), members in groups.items():
             if kind and group_kind != kind:
                 continue
-            card = _candidate_card(group_kind, key, members, focus=focus)
+            card = {**_candidate_card(group_kind, key, members, focus=focus), **extras.get((group_kind, key), {})}
             if card["candidate_id"] != candidate_id:
                 continue
             limit = max(1, min(int(limit), 100))
@@ -773,16 +784,177 @@ def _candidate_groups(
 def _focus_groups(
     connection: Any, *, focus: str, account: str = "", currency: str = "", direction: str = "",
     lifecycle: str = "",
-) -> dict[tuple[str, str], list[Any]]:
+) -> tuple[_Groups, _Extras]:
+    """Groups for one focus, plus per-group evidence merged into each card."""
+    filters = {"account_id": account, "currency_pocket": currency, "economic_direction": direction, "lifecycle_state": lifecycle}
     if focus == "category":
         return _candidate_groups(
             connection, account=account, currency=currency, direction=direction, lifecycle=lifecycle,
-        )
+        ), {}
     if focus not in FOCUS_KINDS:
         raise FinCLError(f"Unknown categorization focus {focus!r}")
+    if focus == "debts":
+        return _debt_focus_groups(connection, filters)
+    if focus == "installments":
+        return _installment_focus_groups(connection, filters)
     return _derived_focus_groups(
         connection, focus, account=account, currency=currency, direction=direction, lifecycle=lifecycle,
-    )
+    ), {}
+
+
+def _passes(raw: dict[str, Any], filters: dict[str, str]) -> bool:
+    return all(not value or raw[field] == value for field, value in filters.items())
+
+
+def _display_names(connection: Any) -> dict[str, str]:
+    return {
+        row["canonical"]: row["display_name"]
+        for row in connection.execute("SELECT canonical, display_name FROM merchant_aliases")
+        if row["display_name"]
+    }
+
+
+def _adapt_view_row(raw: dict[str, Any], display_names: dict[str, str]) -> dict[str, Any]:
+    """An `_ENTRY_VIEW` row in the column shape `_candidate_key`/`_candidate_card`
+    read, keyed by the identity the role and category evaluators match on."""
+    return {
+        "natural_anchor": raw["natural_anchor"], "account_id": raw["account_id"],
+        "currency_pocket": raw["currency_pocket"], "effective_at": raw["effective_at"],
+        "economic_direction": raw["economic_direction"], "amount_text": raw["amount_text"],
+        "analytics_eligible": raw["analytics_eligible"], "lifecycle_state": raw["lifecycle_state"],
+        "merchant_canonical": raw["role_merchant_match"], "merchant_raw": raw["role_merchant_match"],
+        "merchant_normalized": raw["role_merchant_match"],
+        "display_name": display_names.get(raw["role_merchant_match"]), "paynow_to": raw["role_paynow_to"],
+        "description_text": raw["role_description_text"], "account_display_name": raw["account"],
+    }
+
+
+# Identities that can say two movements involve the same person: a merchant,
+# a PayNow recipient, or an exact description -- the only identity a bank
+# transfer to a person usually has ("ALEX TAN" on a Revolut transfer carries no
+# merchant). "Missing merchant" groups a whole account, which says nothing
+# about who was paid, so it never suggests a debt.
+_PAYEE_KINDS = ("merchant", "paynow_recipient", "description")
+
+
+def _debt_focus_groups(connection: Any, filters: dict[str, str]) -> tuple[_Groups, _Extras]:
+    """Movements to or from a payee you have already recorded against an open
+    debt in the same currency, not yet recorded against any debt themselves.
+
+    The evidence is your own earlier decision, cited on the card -- the same
+    posture as a rule suggestion from repeated manual overrides -- never a
+    name or amount that merely resembles a debt.
+    """
+    from .queries import _ENTRY_VIEW
+
+    rows = [dict(row) for row in connection.execute(
+        f"SELECT * FROM ({_ENTRY_VIEW}) WHERE selection_state='SELECTED'"
+    ).fetchall()]
+    display_names = _display_names(connection)
+    by_anchor = {raw["natural_anchor"]: raw for raw in rows}
+    # payee identity -> open debt id -> the debt, and how many earlier
+    # movements with that payee were recorded against it.
+    evidence: dict[_GroupKey, dict[str, dict[str, Any]]] = defaultdict(dict)
+    for alloc in connection.execute(
+        """
+        SELECT DISTINCT a.entry_anchor, d.debt_id, d.counterparty_label, d.direction, d.currency
+        FROM personal_debt_allocations a JOIN personal_debts d ON d.debt_id = a.debt_id
+        WHERE a.bound = 1 AND d.status = 'OPEN'
+        """
+    ):
+        raw = by_anchor.get(alloc["entry_anchor"])
+        if raw is None:
+            continue
+        group_kind, key, _label = _candidate_key(_adapt_view_row(raw, display_names))
+        if group_kind not in _PAYEE_KINDS:
+            continue
+        debt = evidence[(group_kind, key)].setdefault(alloc["debt_id"], {
+            "debt_id": alloc["debt_id"], "counterparty_label": alloc["counterparty_label"],
+            "direction": alloc["direction"], "currency": alloc["currency"], "earlier": 0,
+        })
+        debt["earlier"] += 1
+
+    groups: _Groups = defaultdict(list)
+    extras: _Extras = {}
+    for raw in rows:
+        if raw["bucket"] in ("excluded", "internal", "debt") or raw["debt_allocation"] is not None:
+            continue
+        if not _passes(raw, filters):
+            continue
+        adapted = _adapt_view_row(raw, display_names)
+        group_kind, key, label = _candidate_key(adapted)
+        debts = [debt for debt in evidence.get((group_kind, key), {}).values() if debt["currency"] == raw["currency_pocket"]]
+        if not debts:
+            continue
+        groups[(group_kind, key)].append((adapted, label))
+        card = extras.setdefault((group_kind, key), {"suggested_debts": []})
+        known = {debt["debt_id"] for debt in card["suggested_debts"]}
+        card["suggested_debts"].extend(dict(debt) for debt in debts if debt["debt_id"] not in known)
+    for card in extras.values():
+        card["suggested_debts"].sort(key=lambda debt: (-debt["earlier"], debt["counterparty_label"], debt["debt_id"]))
+        earlier = sum(debt["earlier"] for debt in card["suggested_debts"])
+        names = ", ".join(debt["counterparty_label"] for debt in card["suggested_debts"])
+        card["relationship_basis"] = (
+            f"You recorded {earlier} earlier transaction{'s' if earlier != 1 else ''} with this payee against {names}."
+        )
+    return groups, extras
+
+
+def _installment_focus_groups(connection: Any, filters: dict[str, str]) -> tuple[_Groups, _Extras]:
+    """Unconfirmed installment chains, proposed only from the instalment
+    ordinals the statement itself prints (`installments.candidates`), read on
+    this same generation-pinned connection."""
+    from .installments.candidates import propose
+    from .queries import _ENTRY_VIEW
+
+    proposals = propose(connection)
+    anchors = sorted({
+        occurrence["entry_anchor"]
+        for group in [*proposals["candidates"], *proposals["ambiguous_groups"]]
+        for occurrence in group["occurrences"]
+    })
+    if not anchors:
+        return {}, {}
+    marks = ",".join("?" for _ in anchors)
+    by_anchor = {
+        row["natural_anchor"]: dict(row)
+        for row in connection.execute(
+            f"SELECT * FROM ({_ENTRY_VIEW}) WHERE selection_state='SELECTED' AND natural_anchor IN ({marks})", anchors,
+        )
+    }
+    display_names = _display_names(connection)
+    groups: _Groups = {}
+    extras: _Extras = {}
+
+    def members(occurrences: list[dict[str, Any]], label: str) -> list[Any]:
+        return [
+            (_adapt_view_row(by_anchor[item["entry_anchor"]], display_names), label)
+            for item in occurrences
+            if item["entry_anchor"] in by_anchor and _passes(by_anchor[item["entry_anchor"]], filters)
+        ]
+
+    for candidate in proposals["candidates"]:
+        group = members(candidate["occurrences"], candidate["merchant_label"])
+        if not group:
+            continue
+        key = ("installment_chain", candidate["candidate_key"])
+        groups[key] = group
+        extras[key] = {
+            "installment_candidate_key": candidate["candidate_key"],
+            "relationship_basis": (
+                f"The statement prints these as instalments {candidate['first_ordinal']}–{candidate['last_ordinal']} "
+                f"of {candidate['term_months']}; {candidate['observed_count']} are on your statements."
+            ),
+        }
+    for ambiguous in proposals["ambiguous_groups"]:
+        label = f"{ambiguous['family']} · {ambiguous['term_months']} instalments"
+        group = members(ambiguous["occurrences"], label)
+        if not group:
+            continue
+        key = ("installment_ambiguous", f"{ambiguous['card_account_id']}:{ambiguous['currency']}:{ambiguous['family']}:{ambiguous['term_months']}")
+        groups[key] = group
+        extras[key] = {"relationship_basis": ambiguous["reason"], "installment_ambiguous": True}
+    return groups, extras
 
 
 def _derived_focus_groups(
@@ -821,11 +993,7 @@ def _derived_focus_groups(
     # own dedicated query) don't already join `merchant_aliases`, so without
     # this every merchant here shows its raw key instead of its display name
     # (Plan §Step 2 F2.5).
-    display_names = {
-        row["canonical"]: row["display_name"]
-        for row in connection.execute("SELECT canonical, display_name FROM merchant_aliases")
-        if row["display_name"]
-    }
+    display_names = _display_names(connection)
     groups: dict[tuple[str, str], list[Any]] = defaultdict(list)
     for row in rows:
         raw = dict(row)
@@ -844,16 +1012,7 @@ def _derived_focus_groups(
             # applies (a debt-owned movement), matching the view's `review`.
             if detail_bucket == "debt" or not (raw["ambiguous"] or raw["direction_conflict"]):
                 continue
-        adapted = {
-            "natural_anchor": raw["natural_anchor"], "account_id": raw["account_id"],
-            "currency_pocket": raw["currency_pocket"], "effective_at": raw["effective_at"],
-            "economic_direction": raw["economic_direction"], "amount_text": raw["amount_text"],
-            "analytics_eligible": raw["analytics_eligible"], "lifecycle_state": raw["lifecycle_state"],
-            "merchant_canonical": raw["role_merchant_match"], "merchant_raw": raw["role_merchant_match"],
-            "merchant_normalized": raw["role_merchant_match"],
-            "display_name": display_names.get(raw["role_merchant_match"]), "paynow_to": raw["role_paynow_to"],
-            "description_text": raw["role_description_text"], "account_display_name": raw["account"],
-        }
+        adapted = _adapt_view_row(raw, display_names)
         kind, key, label = _candidate_key(adapted)
         groups[(kind, key)].append((adapted, label))
     return groups

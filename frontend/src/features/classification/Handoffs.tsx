@@ -30,6 +30,15 @@ export function movementDirection(entry: Entry): 'IN' | 'OUT' {
   return entry.amount.startsWith('-') ? 'OUT' : 'IN'
 }
 
+/** The little a hand-off needs to know about the transaction it points a
+ * relationship form at -- enough to come from the transaction list or from a
+ * categorization inbox record alike. */
+export type HandoffTarget = { anchor: string; currency: string; date: string; direction: 'IN' | 'OUT' }
+
+export function handoffTarget(entry: Entry): HandoffTarget {
+  return { anchor: entry.anchor, currency: entry.currency, date: entry.date, direction: movementDirection(entry) }
+}
+
 /** A generation race while the parent catches up with a write we just made is
  * not worth showing: the effect reruns as soon as the fresh token arrives. */
 function isStale(e: unknown): boolean {
@@ -44,17 +53,20 @@ function message(e: unknown, fallback: string): string {
 // Debt
 // ---------------------------------------------------------------------------
 
-export function DebtHandoff({ entry, generation, onRecorded, onRefresh }: {
-  entry: Entry
+export function DebtHandoff({ entry, generation, onRecorded, onRefresh, preferredDebtId }: {
+  entry: HandoffTarget
   generation: string
+  /** Pre-selects a debt the caller has evidence for (the inbox's "Looks like
+   * a debt movement" focus); still only honoured if this movement can back it. */
+  preferredDebtId?: string
   /** A debt event was recorded against this transaction. */
   onRecorded: (status: string) => Promise<void>
   /** The ledger changed without touching this transaction (a new debt). */
   onRefresh: (status: string) => Promise<void>
 }) {
-  const direction = movementDirection(entry)
+  const direction = entry.direction
   const [debts, setDebts] = useState<DebtCard[] | null>(null)
-  const [picked, setPicked] = useState<string | null>(null)
+  const [picked, setPicked] = useState<string | null>(preferredDebtId ?? null)
   const [detail, setDetail] = useState<DebtDetail | null>(null)
   const [seed, setSeed] = useState<AllocationCandidate | null>(null)
   const [unusable, setUnusable] = useState(false)
@@ -133,7 +145,7 @@ export function DebtHandoff({ entry, generation, onRecorded, onRefresh }: {
 // ---------------------------------------------------------------------------
 
 export function InstallmentHandoff({ entry, generation, onRecorded, onCancel }: {
-  entry: Entry
+  entry: HandoffTarget
   generation: string
   onRecorded: (status: string) => Promise<void>
   onCancel: () => void
