@@ -107,7 +107,7 @@ class SharedBillTests(Slice2Base):
         self.record(
             "ENTRY_RESIDUAL_SET",
             {"entry": anchor},
-            {"expense_amount": "40.00", "expense_category": "Housing",
+            {"expense_amount": "40.00", "expense_category": "Housing / Rent",
              "reason": "My own share of the shared flat"},
         )
         connection = sqlite3.connect(self.database)
@@ -240,11 +240,11 @@ class OffLedgerAndRebuildTests(Slice2Base):
             {"event_kind": "EXPENSE_PAID_FOR_ME", "direction": "PAYABLE",
              "principal_amount": "25.00", "effective_on": "2026-03-06",
              "entry_allocations": [], "opening_balance": False,
-             "expense_category": "Dining", "reason": "Alex covered my dinner"},
+             "expense_category": "Food & Dining / Dining Out", "reason": "Alex covered my dinner"},
         )
         event = self.rows("personal_debt_events")[0]
         self.assertEqual(event["bound"], 1)
-        self.assertEqual(event["expense_category"], "Dining")
+        self.assertEqual(event["expense_category"], "Food & Dining / Dining Out")
         self.assertEqual(self.rows("personal_debt_allocations"), [])
 
     def test_rebuild_from_journal_reproduces_allocations(self) -> None:
@@ -262,7 +262,7 @@ class OffLedgerAndRebuildTests(Slice2Base):
         self.record(
             "ENTRY_RESIDUAL_SET",
             {"entry": anchor},
-            {"expense_amount": "40.00", "expense_category": "Housing", "reason": "My share"},
+            {"expense_amount": "40.00", "expense_category": "Housing / Rent", "reason": "My share"},
         )
         before = [tuple(r) for r in self.rows("personal_debt_allocations")]
         residual_before = [tuple(r) for r in self.rows("entry_residuals")]
@@ -299,7 +299,7 @@ class OffLedgerAndRebuildTests(Slice2Base):
                          "opening_balance": False, "expense_category": None,
                          "reason": "Alex's share"}},
             {"kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": anchor},
-             "payload": {"expense_amount": "40.00", "expense_category": "Housing",
+             "payload": {"expense_amount": "40.00", "expense_category": "Housing / Rent",
                          "reason": "my share"}},
         ]
         before = self._journal_len()
@@ -335,7 +335,7 @@ class OffLedgerAndRebuildTests(Slice2Base):
                          "opening_balance": False, "expense_category": None,
                          "reason": "Alex's share"}},
             {"kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": anchor},
-             "payload": {"expense_amount": "40.00", "expense_category": "Housing",
+             "payload": {"expense_amount": "40.00", "expense_category": "Housing / Rent",
                          "reason": "my share"}},
         ]
         before = self._journal_len()
@@ -353,7 +353,7 @@ class OffLedgerAndRebuildTests(Slice2Base):
         self.record(
             "ENTRY_RESIDUAL_SET",
             {"entry": anchor},
-            {"expense_amount": "40.00", "expense_category": "Housing", "reason": "mine"},
+            {"expense_amount": "40.00", "expense_category": "Housing / Rent", "reason": "mine"},
         )
         self.record("ENTRY_RESIDUAL_RETIRE", {"entry": anchor}, {"reason": "misclassified"})
         self.assertEqual(self.rows("entry_residuals"), [])
@@ -437,6 +437,6 @@ class AnalyticalEffectsTests(Slice2Base):
             {"event_kind": "EXPENSE_PAID_FOR_ME", "direction": "PAYABLE",
              "principal_amount": "25.00", "effective_on": "2026-03-06",
              "entry_allocations": [], "opening_balance": False,
-             "expense_category": "Dining / Restaurants", "reason": "Alex covered dinner"},
+             "expense_category": "Food & Dining / Dining Out", "reason": "Alex covered dinner"},
         )
         self.assertEqual(self._spending(), "295.00")

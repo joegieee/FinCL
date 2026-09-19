@@ -28,6 +28,7 @@ const calls: Array<{ path: string; body?: unknown }> = []
 const apiMock = vi.fn(async (path: string, body?: unknown) => {
   calls.push({ path, body })
   if (path.startsWith('debts/allocation-candidates')) return candidates
+  if (path === 'categories') return { categories: [{ key: 'Social / Retired Club', archived: true }] }
   if (path === 'preview') return { valid: true }
   if (path === 'commands') return { status: 'applied' }
   throw new Error(`unmocked ${path}`)
@@ -39,10 +40,20 @@ vi.mock('@/lib/api', async (importOriginal) => {
 
 afterEach(() => { cleanup(); apiMock.mockClear(); calls.length = 0 })
 
-async function mount(detail = receivableDetail) {
+const payableDetail = {
+  ...receivableDetail,
+  debt: { ...receivableDetail.debt, debt_id: 'd-3', direction: 'PAYABLE', reason: 'I owe Jo' },
+}
+
+const ledgerCategories = [
+  'Food & Dining / Dining Out', 'Housing / Rent', 'Internal / Transfer',
+  'Unclassified / Unclassified', 'Social / Retired Club',
+]
+
+async function mount(detail: typeof receivableDetail = receivableDetail) {
   const { EventForm } = await import('./EventForm')
   return render(
-    <EventForm detail={detail as never} generation="sha256:abc" onSaved={vi.fn()} onCancel={vi.fn()} />,
+    <EventForm detail={detail as never} generation="sha256:abc" categories={ledgerCategories} onSaved={vi.fn()} onCancel={vi.fn()} />,
   )
 }
 
@@ -124,5 +135,32 @@ describe('EventForm', () => {
       { entry_anchor: 'anchor-120', principal_amount: '80.00', interest_amount: '0.00',
         fee_amount: '0.00', separate_fee_amount: '0.00' },
     ])
+  })
+
+  it('chooses an expense paid for me from the shared category list', async () => {
+    await mount(payableDetail)
+    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_ME' } })
+    fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '25.00' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Jo covered dinner' } })
+
+    // Free text that is not a category is not saved as one.
+    const picker = screen.getByRole('combobox', { name: 'Expense category' })
+    fireEvent.change(picker, { target: { value: 'Dining' } })
+    fireEvent.click(screen.getByText('Preview and save'))
+    await screen.findByText(/an expense category from the list/)
+    expect(calls.some((c) => c.path === 'preview')).toBe(false)
+
+    fireEvent.change(picker, { target: { value: '' } })
+    await waitFor(() => expect(screen.queryByRole('option', { name: /Retired Club/ })).not.toBeInTheDocument())
+    const offered = screen.getAllByRole('option').map((o) => o.textContent)
+    expect(offered).toEqual(expect.arrayContaining(['Food & Dining / Dining Out', 'Housing / Rent']))
+    expect(offered.some((o) => /Internal|Unclassified/.test(o ?? ''))).toBe(false)
+
+    fireEvent.change(picker, { target: { value: 'dining' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Food & Dining / Dining Out' }))
+    fireEvent.click(screen.getByText('Preview and save'))
+    await waitFor(() => expect(calls.some((c) => c.path === 'commands')).toBe(true))
+    const commit = calls.find((c) => c.path === 'commands')!.body as { payload: Record<string, unknown> }
+    expect(commit.payload).toMatchObject({ event_kind: 'EXPENSE_PAID_FOR_ME', expense_category: 'Food & Dining / Dining Out', entry_allocations: [] })
   })
 })

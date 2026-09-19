@@ -298,7 +298,7 @@ class DebtEventEffectsTests(Slice2Base):
             {"event_kind": "EXPENSE_PAID_FOR_ME", "direction": "PAYABLE",
              "principal_amount": "25.00", "effective_on": "2026-03-06",
              "entry_allocations": [], "opening_balance": False,
-             "expense_category": "Dining", "reason": "Alex covered my dinner"},
+             "expense_category": "Food & Dining / Dining Out", "reason": "Alex covered my dinner"},
         )
         result = self._page(as_of=date(2026, 3, 12), history_start="2026-03-01", history_end="2026-03-12")
         # Seed spending was 270.00 (see AnalyticalEffectsTests.test_baseline_spending);
@@ -471,7 +471,7 @@ class ContributorParentEqualityTests(unittest.TestCase):
             {"event_kind": "EXPENSE_PAID_FOR_ME", "direction": "PAYABLE",
              "principal_amount": "25.00", "effective_on": "2026-03-06",
              "entry_allocations": [], "opening_balance": False,
-             "expense_category": "Dining", "reason": "Alex covered my dinner"},
+             "expense_category": "Food & Dining / Dining Out", "reason": "Alex covered my dinner"},
         )
         connection = connect_readonly(fixture.database)
         try:

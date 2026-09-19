@@ -34,7 +34,7 @@ export function useAssignableCategories(categories: string[]): string[] {
   return categories.filter(c => !c.startsWith('Internal /') && !archived.has(c))
 }
 
-export function CategoryPicker({ id, categories, value, onChange, onCreate, disabled }: {
+export function CategoryPicker({ id, categories, value, onChange, onCreate, disabled, label = 'Category' }: {
   id: string
   categories: string[]
   value: string
@@ -44,6 +44,7 @@ export function CategoryPicker({ id, categories, value, onChange, onCreate, disa
    * picker only offers what already exists. */
   onCreate?: (name: string) => Promise<boolean>
   disabled?: boolean
+  label?: string
 }) {
   const options = useAssignableCategories(categories)
   const recent = loadRecentCategories().filter(c => options.includes(c))
@@ -68,7 +69,7 @@ export function CategoryPicker({ id, categories, value, onChange, onCreate, disa
     finally { setCreating(false) }
   }
   return <div className="category-combobox">
-    <label htmlFor={id}>Category</label>
+    <label htmlFor={id}>{label}</label>
     <input
       id={id} role="combobox" aria-expanded={open} aria-autocomplete="list" aria-controls={`${id}-list`} autoComplete="off"
       disabled={disabled} value={query} placeholder={onCreate ? 'Search or create a category…' : 'Search a category…'}

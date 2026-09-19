@@ -207,6 +207,7 @@ def record_debt_decision(
                 anchors,
                 payload,
                 resolve_anchor=lambda a: resolve_anchor(connection, a),
+                custom_categories=custom_categories(database_path),
             )
         finally:
             connection.close()

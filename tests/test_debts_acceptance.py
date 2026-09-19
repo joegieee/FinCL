@@ -103,7 +103,7 @@ class MultiDebtOnOneEntryTests(AcceptanceBase):
         self.expense_for_other(b, entry, "30.00", "2026-02-03")
         self.record(
             "ENTRY_RESIDUAL_SET", {"entry": entry},
-            {"expense_amount": "40.00", "expense_category": "Housing", "reason": "my share"},
+            {"expense_amount": "40.00", "expense_category": "Housing / Rent", "reason": "my share"},
         )
         connection = sqlite3.connect(self.database)
         connection.row_factory = sqlite3.Row
@@ -120,7 +120,7 @@ class MultiDebtOnOneEntryTests(AcceptanceBase):
         self.expense_for_other(a, entry, "50.00", "2026-02-03")
         self.record(
             "ENTRY_RESIDUAL_SET", {"entry": entry},
-            {"expense_amount": "40.00", "expense_category": "Housing", "reason": "my share"},
+            {"expense_amount": "40.00", "expense_category": "Housing / Rent", "reason": "my share"},
         )
         # 50 + 40 already claimed; a 40 second debt would total 130 > 120.
         with self.assertRaisesRegex(FinCLError, "exceeds the component magnitude"):

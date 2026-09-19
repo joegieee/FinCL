@@ -13,6 +13,7 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
+from ..common import INTERNAL_GROUP, resolve_category
 from ..errors import FinCLError
 from .models import (
     ENTRY_RESIDUAL_SET,
@@ -36,9 +37,11 @@ def preview_debt(
     payload: dict[str, Any],
     *,
     resolve_anchor: Any,
+    custom_categories: frozenset[str] = frozenset(),
 ) -> None:
     """Raise :class:`FinCLError` if appending this decision would not fully replay."""
     validate_debt_payload(decision_kind, anchors, payload)
+    check_expense_category(decision_kind, payload, custom_categories)
 
     _needs_debt = {
         PERSONAL_DEBT_DETAILS_SET,
@@ -76,3 +79,24 @@ def preview_debt(
     finally:
         connection.execute("ROLLBACK TO debt_preview")
         connection.execute("RELEASE debt_preview")
+
+
+def check_expense_category(
+    decision_kind: str, payload: dict[str, Any], custom_categories: frozenset[str]
+) -> None:
+    """A debt's expense category is a spending category from the shared taxonomy.
+
+    Replay stays shape-only, so journals written while the field was free text
+    still load; only new decisions are held to this. The owner's share of a split
+    and an expense someone paid for me are reported as spending under this key,
+    so it must be one the category views know, and neither ``Internal`` (not
+    spending) nor ``Unclassified`` (says nothing about where the money went).
+    """
+    if decision_kind != ENTRY_RESIDUAL_SET and not (
+        decision_kind == PERSONAL_DEBT_EVENT_SET and payload.get("expense_category") is not None
+    ):
+        return
+    category = str(payload["expense_category"])
+    group, _, _ = resolve_category(category, custom_categories)
+    if group in {INTERNAL_GROUP, "Unclassified"}:
+        raise FinCLError(f"{category!r} is not a spending category; choose where the expense belongs")

@@ -111,10 +111,11 @@ function LifecycleControls({
 }
 
 function DebtDetailView({
-  detail, generation, onBack, onSaved,
+  detail, generation, categories, onBack, onSaved,
 }: {
   detail: DebtDetail
   generation: string
+  categories: string[]
   onBack: () => void
   onSaved: (status: string) => void | Promise<void>
 }) {
@@ -145,6 +146,7 @@ function DebtDetailView({
           <EventForm
             detail={detail}
             generation={generation}
+            categories={categories}
             onCancel={() => setRecording(false)}
             onSaved={async (status) => { setRecording(false); await onSaved(status) }}
           />
@@ -171,7 +173,7 @@ function DebtDetailView({
                 {!e.bound ? <span className="tag warn">unverified</span> : null}
               </td>
               <td>{(e.signed < 0 ? '−' : '+') + money(e.principal.value, debt.currency).replace(/^−/, '')}</td>
-              <td>{e.reason}</td>
+              <td>{e.reason}{e.expense_category ? <span className="tag">{e.expense_category}</span> : null}</td>
             </tr>
           ))}
           {debt.principal_history.length === 0 && (
@@ -188,8 +190,8 @@ function DebtDetailView({
 }
 
 export function DebtsView({
-  generation, onSaved,
-}: { generation: string; onSaved?: (status: string) => void | Promise<void> }) {
+  generation, categories = [], onSaved,
+}: { generation: string; categories?: string[]; onSaved?: (status: string) => void | Promise<void> }) {
   const [page, setPage] = useState<DebtsPage | null>(null)
   const [detail, setDetail] = useState<DebtDetail | null>(null)
   const [creating, setCreating] = useState(false)
@@ -227,6 +229,7 @@ export function DebtsView({
     <DebtDetailView
       detail={detail}
       generation={generation}
+      categories={categories}
       onBack={() => setDetail(null)}
       onSaved={async (status) => {
         setDetail(null)

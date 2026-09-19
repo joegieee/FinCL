@@ -553,7 +553,7 @@ class DebtCliTests(unittest.TestCase):
         self.assertEqual(event.exit_code, 0, event.output)
         residual = self._run(
             "debt", "residual-set", "--entry", anchor, "--expense", "1.00",
-            "--category", "Dining", "--reason", "My own coffee", "--json",
+            "--category", "Food & Dining / Cafes & Drinks", "--reason", "My own coffee", "--json",
         )
         self.assertEqual(residual.exit_code, 0, residual.output)
         shown = json.loads(

@@ -333,6 +333,7 @@ def preview_batch(
     """
     from .categorization import CATEGORIZATION_DECISION_KINDS, validate_payload
     from .common import resolve_category
+    from .debts.preview import check_expense_category
     from .debts.validation import validate_debt_payload
     from .decisions import resolve_anchor
     from .financial_roles import validate_financial_role
@@ -354,6 +355,7 @@ def preview_batch(
                 continue
             if kind in DEBT_DECISION_KINDS:
                 validate_debt_payload(kind, anchors, payload)
+                check_expense_category(kind, payload, custom_categories)
                 debt_items.append((index, kind, anchors, payload))
                 continue
             if kind in FINANCIAL_ROLE_DECISION_KINDS:

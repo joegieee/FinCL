@@ -651,6 +651,7 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                     preview_connection, command.kind, dict(command.anchors),
                     dict(command.payload),
                     resolve_anchor=lambda a: resolve_anchor(preview_connection, a),
+                    custom_categories=custom_categories(database),
                 )
             finally:
                 preview_connection.close()

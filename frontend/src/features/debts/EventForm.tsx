@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api'
+import { CategoryPicker, rememberCategory } from '@/features/classification/CategoryPicker'
 import { AllocationTable, emptyAllocation, principalTotalMinor } from './AllocationTable'
 import {
   EVENT_KINDS,
@@ -16,19 +17,25 @@ import {
  *
  * `seed` is one source transaction handed over from the classification editor:
  * the form then offers only the event kinds that transaction's direction can
- * back, and starts with it allocated in full for its still-unclaimed amount. */
+ * back, and starts with it allocated in full for its still-unclaimed amount.
+ *
+ * An expense someone paid for me is reported as spending under its category, so
+ * it is chosen from the same category list as every other transaction. */
 export function EventForm({
   detail,
   generation,
   onSaved,
   onCancel,
   seed,
+  categories = [],
 }: {
   detail: DebtDetail
   generation: string
   onSaved: (status: string) => void | Promise<void>
   onCancel: () => void
   seed?: AllocationCandidate
+  /** The ledger's categories; `Unclassified` is not offered, since it says nothing about the expense. */
+  categories?: string[]
 }) {
   const debt = detail.debt
   const kinds = seed ? kindsForMovement(debt.direction, seed.economic_direction) : EVENT_KINDS[debt.direction]
@@ -75,8 +82,8 @@ export function EventForm({
 
   async function submit() {
     if (inFlight.current) return
-    if (!reason.trim() || !principal.trim() || (needsCategory && !expenseCategory.trim())) {
-      setError('Principal, a reason' + (needsCategory ? ' and an expense category' : '') + ' are required.')
+    if (!reason.trim() || !principal.trim() || (needsCategory && !expenseCategory)) {
+      setError('Principal, a reason' + (needsCategory ? ' and an expense category from the list' : '') + ' are required.')
       return
     }
     if (!principalBalanced) {
@@ -96,12 +103,13 @@ export function EventForm({
         effective_on: effectiveOn,
         entry_allocations: offLedger ? [] : rows,
         opening_balance: spec.opening && openingBalance,
-        expense_category: needsCategory ? expenseCategory.trim() : null,
+        expense_category: needsCategory ? expenseCategory : null,
         reason: reason.trim(),
       },
     }
     try {
       const result = await previewThenCommit(body)
+      if (needsCategory) rememberCategory(expenseCategory)
       await onSaved(result.status)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not record the event.')
@@ -158,15 +166,14 @@ export function EventForm({
           </label>
         ) : null}
         {needsCategory ? (
-          <label>
-            Expense category
-            <input
-              aria-label="Expense category"
-              value={expenseCategory}
-              onChange={(e) => setExpenseCategory(e.target.value)}
-              disabled={busy}
-            />
-          </label>
+          <CategoryPicker
+            id={`debt-expense-category-${debt.debt_id}`}
+            label="Expense category"
+            categories={categories.filter((c) => !c.startsWith('Unclassified /'))}
+            value={expenseCategory}
+            onChange={setExpenseCategory}
+            disabled={busy}
+          />
         ) : null}
       </div>
 
