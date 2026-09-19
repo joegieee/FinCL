@@ -82,13 +82,6 @@ def _prev_month(year_month: str) -> str:
     return f"{year:04d}-{month:02d}"
 
 
-def _account_scopes(database: Path) -> dict[tuple[str, str], dict[str, str]]:
-    connection = connect_readonly(database)
-    try:
-        return _account_scopes_from(connection)
-    finally:
-        connection.close()
-
 
 def _account_scopes_from(connection: sqlite3.Connection) -> dict[tuple[str, str], dict[str, str]]:
     """Latest ``ACCOUNT_SCOPE_SET`` expected window per ``(account, pocket)``."""

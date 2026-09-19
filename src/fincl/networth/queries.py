@@ -313,15 +313,6 @@ def summarise(components: list[dict[str, Any]], *, as_of: str) -> dict[str, dict
     return result
 
 
-def _debt_flags(
-    database: Path, debt_ids: list[str]
-) -> dict[str, dict[str, bool]]:
-    connection = connect_readonly(database)
-    try:
-        return _debt_flags_from(connection, debt_ids)
-    finally:
-        connection.close()
-
 
 def _debt_flags_from(
     connection: sqlite3.Connection, debt_ids: list[str]

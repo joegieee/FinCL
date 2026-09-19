@@ -82,15 +82,6 @@ def _ratio(numerator: str, denominator: str, *, zero_reason: str) -> dict[str, A
     }
 
 
-def _entry_spending(
-    database: Path, token: str, span_start: str, span_end: str
-) -> list[dict[str, Any]]:
-    connection = connect_readonly(database)
-    try:
-        return _entry_spending_from(connection, token, span_start, span_end)
-    finally:
-        connection.close()
-
 
 def _entry_spending_from(
     connection: sqlite3.Connection, token: str, span_start: str, span_end: str
@@ -117,15 +108,6 @@ def _entry_spending_from(
         for row in rows
     ]
 
-
-def _recurring_matched(
-    database: Path, token: str, span_start: str, span_end: str
-) -> tuple[dict[tuple[str, str], Decimal], set[str]]:
-    connection = connect_readonly(database)
-    try:
-        return _recurring_matched_from(connection, token, span_start, span_end)
-    finally:
-        connection.close()
 
 
 def _recurring_matched_from(
@@ -204,13 +186,6 @@ def _irregular_by_month(
             )
     return irregular, flagged
 
-
-def _confirmed_recurring_flat(database: Path) -> dict[str, Decimal]:
-    connection = connect_readonly(database)
-    try:
-        return _confirmed_recurring_flat_from(connection)
-    finally:
-        connection.close()
 
 
 def _confirmed_recurring_flat_from(connection: sqlite3.Connection) -> dict[str, Decimal]:

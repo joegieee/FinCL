@@ -65,15 +65,6 @@ def _amount(coefficient: Any, scale: Any) -> Decimal:
     return Decimal(int(coefficient)).scaleb(-int(scale))
 
 
-def _baseline_portions(
-    database: Path, token: str, today: date
-) -> dict[str, Any]:
-    connection = connect_readonly(database)
-    try:
-        return _baseline_portions_from(connection, token, today)
-    finally:
-        connection.close()
-
 
 def _baseline_portions_from(
     connection: sqlite3.Connection, token: str, today: date

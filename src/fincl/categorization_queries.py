@@ -1018,13 +1018,6 @@ def _derived_focus_groups(
     return groups
 
 
-def _validated_date(value: str) -> None:
-    from datetime import date
-    try:
-        date.fromisoformat(value)
-    except ValueError as exc:
-        raise FinCLError("Candidate dates must be YYYY-MM-DD") from exc
-
 
 def _candidate_key(row: Any) -> tuple[str, str, str]:
     merchant = row["merchant_canonical"] or row["merchant_normalized"]
