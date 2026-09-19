@@ -228,6 +228,35 @@ def all_entries(connection: Any) -> list[dict[str, Any]]:
     return [_shape(row, role_rules, inbound_rules, outliers) for row in rows]
 
 
+def transaction_entry(database: Path, anchor: str) -> dict[str, Any]:
+    """One selected transaction, shaped exactly as the list shapes it, at the
+    *current* generation.
+
+    Deliberately not generation-pinned: the classification editor calls this
+    right after it records a relationship (a debt event, an installment
+    attribution, a transfer decision) to learn what that decision made of the
+    row -- which is, by construction, a newer generation than the one the
+    editor opened on. The generation it answers for is returned alongside.
+    """
+    connection = connect_readonly(database)
+    try:
+        connection.execute('BEGIN')
+        current = current_generation(connection)
+        if current is None:
+            raise FinCLError('Ledger is not ready. Run fincl refresh first.')
+        row = connection.execute(
+            f"SELECT * FROM ({_ENTRY_VIEW}) WHERE natural_anchor = ? AND selection_state = 'SELECTED' LIMIT 1",
+            (anchor,),
+        ).fetchone()
+        if row is None:
+            raise FinCLError('That transaction is not in the selected ledger')
+        role_rules, inbound_rules = _rule_tables(connection)
+        outliers = outlier_anchor_set(connection, current['generation_token'])
+        return {'generation': current['generation_token'], 'entry': _shape(row, role_rules, inbound_rules, outliers)}
+    finally:
+        connection.close()
+
+
 def _decode_cursor(cursor: str | None) -> dict[str, str] | None:
     if not cursor:
         return None

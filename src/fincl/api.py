@@ -322,6 +322,11 @@ class Entry(StrictModel):
     debt_allocation: str | None
 
 
+class TransactionEntry(StrictModel):
+    generation: str
+    entry: Entry
+
+
 class Total(StrictModel):
     name: str
     value: str
@@ -1358,6 +1363,15 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise
 
+    @app.get('/api/v1/transactions/entry',response_model=TransactionEntry)
+    def transaction_entry_route(anchor: str) -> Any:
+        from .queries import transaction_entry
+        with ledger_writer(database):
+            try:
+                return transaction_entry(database, anchor)
+            except FinCLError as exc:
+                raise HTTPException(404, str(exc)) from exc
+
     @app.get('/api/v1/transactions/anchors')
     def transaction_anchors_route(generation: str, start: str, end: str, currency: str = 'SGD',
                                   search: str = '', category: str = '', account: str = '', kind: str = '',
@@ -1761,12 +1775,12 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.get('/api/v1/debts/allocation-candidates')
     def debt_allocation_candidates(debt: str, event_kind: str | None = None, search: str | None = None,
                                    cursor: str | None = None, limit: int = 50,
-                                   generation: str | None = None) -> Any:
+                                   generation: str | None = None, anchor: str | None = None) -> Any:
         from .debts.queries import allocation_candidates
         with ledger_writer(database):
             try:
                 return allocation_candidates(database, debt_id=debt, event_kind=event_kind, search=search,
-                                             cursor=cursor, limit=limit, expected=generation)
+                                             cursor=cursor, limit=limit, expected=generation, anchor=anchor)
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc

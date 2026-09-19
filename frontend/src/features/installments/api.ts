@@ -195,6 +195,8 @@ export function loadEntryCandidates(opts: {
   purpose: 'purchase' | 'settlement'
   generation: string
   search?: string
+  /** Narrow to exactly one transaction (the classification editor's hand-off). */
+  anchor?: string
   limit?: number
 }): Promise<EntryCandidatesPage> {
   const q = new URLSearchParams({
@@ -204,6 +206,7 @@ export function loadEntryCandidates(opts: {
     limit: String(opts.limit ?? 50),
   })
   if (opts.search) q.set('search', opts.search)
+  if (opts.anchor) q.set('anchor', opts.anchor)
   return api<EntryCandidatesPage>('installments/entry-candidates?' + q)
 }
 

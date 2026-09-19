@@ -4,32 +4,42 @@ import { ApiError } from '@/lib/api'
 import { AllocationTable, emptyAllocation, principalTotalMinor } from './AllocationTable'
 import {
   EVENT_KINDS,
+  kindsForMovement,
   previewThenCommit,
+  type AllocationCandidate,
   type AllocationInput,
   type DebtDetail,
   type EventKindSpec,
 } from './api'
 
-/** Record one PERSONAL_DEBT_EVENT_SET against an open debt. */
+/** Record one PERSONAL_DEBT_EVENT_SET against an open debt.
+ *
+ * `seed` is one source transaction handed over from the classification editor:
+ * the form then offers only the event kinds that transaction's direction can
+ * back, and starts with it allocated in full for its still-unclaimed amount. */
 export function EventForm({
   detail,
   generation,
   onSaved,
   onCancel,
+  seed,
 }: {
   detail: DebtDetail
   generation: string
   onSaved: (status: string) => void | Promise<void>
   onCancel: () => void
+  seed?: AllocationCandidate
 }) {
   const debt = detail.debt
-  const kinds = EVENT_KINDS[debt.direction]
+  const kinds = seed ? kindsForMovement(debt.direction, seed.economic_direction) : EVENT_KINDS[debt.direction]
   const [spec, setSpec] = useState<EventKindSpec>(kinds[0])
-  const [principal, setPrincipal] = useState('')
-  const [effectiveOn, setEffectiveOn] = useState(debt.opened_on)
+  const [principal, setPrincipal] = useState(seed?.open_amount ?? '')
+  const [effectiveOn, setEffectiveOn] = useState(seed ? seed.effective_at.slice(0, 10) : debt.opened_on)
   const [openingBalance, setOpeningBalance] = useState(false)
   const [expenseCategory, setExpenseCategory] = useState('')
-  const [rows, setRows] = useState<AllocationInput[]>([])
+  const [rows, setRows] = useState<AllocationInput[]>(
+    seed ? [{ ...emptyAllocation(seed.entry_anchor), principal_amount: seed.open_amount }] : [],
+  )
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -47,7 +57,9 @@ export function EventForm({
   function pickKind(kind: string) {
     const next = kinds.find((k) => k.kind === kind) ?? kinds[0]
     setSpec(next)
-    setRows([])
+    // A seeded source suits every kind offered (they share its direction), so
+    // it survives a kind change; otherwise the picked sources may not.
+    if (!seed) setRows([])
     if (!next.opening) setOpeningBalance(false)
   }
 
@@ -171,6 +183,7 @@ export function EventForm({
           rows={rows.length ? rows : [emptyAllocation()]}
           onChange={updateRows}
           eventPrincipal={principal || '0'}
+          known={seed ? [seed] : undefined}
         />
       )}
 

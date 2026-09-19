@@ -290,6 +290,7 @@ def allocation_candidates(
     cursor: str | None = None,
     limit: int = 50,
     expected: str | None = None,
+    anchor: str | None = None,
 ) -> dict[str, Any]:
     """Selected entries that could back a source allocation for one debt event.
 
@@ -299,6 +300,11 @@ def allocation_candidates(
     ``(effective_at, natural_anchor)``. ``search`` narrows by a case-insensitive
     substring match against the transaction's description, unbounded by the page
     window (mirrors the transaction list's own search).
+
+    ``anchor`` narrows to one transaction: the classification editor hands a
+    transaction to a debt event this way and needs the same answer the picker
+    would give for it -- whether it can back this kind at all, and how much of
+    it is still unclaimed -- rather than guessing from its face amount.
     """
     from ..analysis.allocations import open_residual
 
@@ -325,6 +331,9 @@ def allocation_candidates(
         if search:
             clauses += " AND instr(lower(COALESCE(r.description_raw, d.description_raw, '')), lower(?)) > 0"
             params.append(search)
+        if anchor:
+            clauses += " AND e.natural_anchor = ?"
+            params.append(anchor)
         keyset = _decode_allocation_cursor(cursor)
         if keyset is not None:
             clauses += " AND (e.effective_at < ? OR (e.effective_at = ? AND e.natural_anchor > ?))"

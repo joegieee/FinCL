@@ -360,6 +360,7 @@ def entry_candidates(
     cursor: str | None = None,
     limit: int = 50,
     expected: str | None = None,
+    anchor: str | None = None,
 ) -> dict[str, Any]:
     """Selected entries that could back a purchase attribution or a settlement.
 
@@ -385,6 +386,10 @@ def entry_candidates(
     without this the same statement line could be counted once as an instalment
     and again as the cost it repays. The printed block is the same evidence
     `installments.candidates` trusts to propose a chain, applied consistently.
+
+    ``anchor`` narrows to one transaction, for the classification editor's
+    hand-off: every rule above still applies, so a transaction this plan could
+    not use is simply absent from the answer.
     """
     from ..analysis.allocations import open_residual
 
@@ -414,6 +419,9 @@ def entry_candidates(
                 " lower(?)) > 0"
             )
             params.append(search)
+        if anchor:
+            clauses += " AND e.natural_anchor = ?"
+            params.append(anchor)
         keyset = _decode_entry_cursor(cursor)
         if keyset is not None:
             clauses += " AND (e.effective_at < ? OR (e.effective_at = ? AND e.natural_anchor > ?))"

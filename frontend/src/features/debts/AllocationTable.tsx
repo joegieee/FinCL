@@ -195,6 +195,7 @@ export function AllocationTable({
   rows,
   onChange,
   eventPrincipal,
+  known = [],
 }: {
   debtId: string
   eventKind: string
@@ -203,15 +204,20 @@ export function AllocationTable({
   rows: AllocationInput[]
   onChange: (rows: AllocationInput[]) => void
   eventPrincipal: string
+  /** Sources already resolved by the caller (a seeded transaction), offered
+   * ahead of the newest-first page so a pre-picked row shows its label from
+   * the first render instead of reading as an unknown anchor. */
+  known?: AllocationCandidate[]
 }) {
-  const [candidates, setCandidates] = useState<AllocationCandidate[]>([])
+  const [loaded, setLoaded] = useState<AllocationCandidate[]>([])
+  const candidates = [...known, ...loaded.filter((c) => !known.some((k) => k.entry_anchor === c.entry_anchor))]
   const [note, setNote] = useState('')
 
   useEffect(() => {
     let live = true
     setNote('')
     loadAllocationCandidates({ debtId, eventKind, generation })
-      .then((p) => { if (live) setCandidates(p.candidates) })
+      .then((p) => { if (live) setLoaded(p.candidates) })
       .catch((e) => {
         if (live) setNote(e instanceof ApiError ? e.message : 'Could not load source transactions.')
       })

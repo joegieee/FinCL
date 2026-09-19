@@ -25,14 +25,20 @@ export function PurchaseAttributionForm({
   generation,
   onSaved,
   onCancel,
+  seed,
 }: {
   detail: InstallmentDetail
   generation: string
   onSaved: (status: string) => void | Promise<void>
   onCancel: () => void
+  /** One purchase handed over from the classification editor, started as a
+   * whole-remainder principal line like any other picked source. */
+  seed?: EntryCandidate
 }) {
   const plan = detail.plan
-  const [lines, setLines] = useState<Line[]>([])
+  const [lines, setLines] = useState<Line[]>(
+    seed ? [{ entry: seed, componentRole: 'principal', amount: seed.open_amount }] : [],
+  )
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)

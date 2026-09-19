@@ -147,7 +147,7 @@ export default function App(){
    </div>
    <footer><span><ShieldCheck size={13}/> On your device. Backed by your records.</span><span>Refreshed {new Date(data.updated_at).toLocaleString('en-SG',{dateStyle:'medium',timeStyle:'short'})}</span></footer>
    {historyRows&&<Dialog open onOpenChange={open=>{if(!open)setHistoryRows(null)}}><DialogContent><DialogHeader><DialogTitle>Recent decisions</DialogTitle><DialogDescription>The latest 50 durable changes in your ledger, including category changes and plans.</DialogDescription></DialogHeader><div className="history-list">{historyRows.map(r=><article key={r.sequence}><span className="eyebrow">#{r.sequence} · {new Date(r.date).toLocaleString('en-SG')}</span><h3>{r.kind.toLowerCase().replaceAll('_',' ')}</h3>{r.category&&<p>{r.category}</p>}<small>{r.reason}</small></article>)}{!historyRows.length&&<p>No decisions recorded yet.</p>}</div></DialogContent></Dialog>}
-   {entry&&<EntryDialog key={entry.anchor} entry={entry} data={data} onClose={()=>{setEntry(null);setReportedRow(null)}} onSaved={saved} statementDetail={reportedRow??undefined}/>}
+   {entry&&<EntryDialog key={entry.anchor} entry={entry} data={data} onClose={()=>{setEntry(null);setReportedRow(null)}} onSaved={saved} onRelationshipSaved={async s=>{setNotice(s==='recorded_refresh_pending'?'Saved; totals awaiting refresh. Use Refresh to retry.':'Saved to your ledger.');await load()}} statementDetail={reportedRow??undefined}/>}
    {dialog&&<CreateDialog type={dialog} plan={editingPlan} data={data} onClose={()=>{setDialog(null);setEditingPlan(null)}} onSaved={saved}/>}
    </>}
   </main>

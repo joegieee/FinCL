@@ -133,6 +133,7 @@ def register_card_reads(app: FastAPI, database: Path) -> None:
         cursor: str | None = None,
         limit: int = 50,
         generation: str | None = None,
+        anchor: str | None = None,
     ) -> Any:
         from .installments.queries import entry_candidates
 
@@ -146,6 +147,7 @@ def register_card_reads(app: FastAPI, database: Path) -> None:
                     cursor=cursor,
                     limit=limit,
                     expected=generation,
+                    anchor=anchor,
                 )
             except FinCLError as exc:
                 raise _map_error(exc) from exc

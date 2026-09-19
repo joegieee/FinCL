@@ -80,6 +80,19 @@ export const EVENT_KINDS = {
 
 export type EventKindSpec = (typeof EVENT_KINDS)[keyof typeof EVENT_KINDS][number]
 
+/** The bank direction a source allocation for this event must carry, mirroring
+ * `fincl.debts.projection.expected_bank_direction`: taking on a payable or
+ * getting a receivable back is money in; everything else is money out. */
+export function bankDirection(debtDirection: 'PAYABLE' | 'RECEIVABLE', spec: EventKindSpec): 'IN' | 'OUT' {
+  return (debtDirection === 'PAYABLE' && spec.sign > 0) || (debtDirection === 'RECEIVABLE' && spec.sign < 0) ? 'IN' : 'OUT'
+}
+
+/** Event kinds on a debt of this direction that one bank movement in
+ * `direction` can back (off-ledger kinds carry no source transaction). */
+export function kindsForMovement(debtDirection: 'PAYABLE' | 'RECEIVABLE', direction: string): EventKindSpec[] {
+  return EVENT_KINDS[debtDirection].filter(spec => !spec.offLedger && bankDirection(debtDirection, spec) === direction)
+}
+
 export type AllocationCandidate = {
   entry_anchor: string
   effective_at: string
@@ -105,11 +118,14 @@ export function loadAllocationCandidates(opts: {
   eventKind?: string
   generation: string
   search?: string
+  /** Narrow to exactly one transaction (the classification editor's hand-off). */
+  anchor?: string
   limit?: number
 }): Promise<AllocationCandidatesPage> {
   const q = new URLSearchParams({ debt: opts.debtId, generation: opts.generation, limit: String(opts.limit ?? 50) })
   if (opts.eventKind) q.set('event_kind', opts.eventKind)
   if (opts.search) q.set('search', opts.search)
+  if (opts.anchor) q.set('anchor', opts.anchor)
   return api<AllocationCandidatesPage>('debts/allocation-candidates?' + q)
 }
 

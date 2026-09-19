@@ -14,15 +14,21 @@ export function NewDebtForm({
   generation,
   onSaved,
   onCancel,
+  initial,
 }: {
   generation: string
-  onSaved: (status: string) => void | Promise<void>
+  /** `debtId` is the new debt's id, so a caller can go straight on to record
+   * an event against it. */
+  onSaved: (status: string, debtId: string) => void | Promise<void>
   onCancel: () => void
+  /** Starting values, e.g. from a transaction handed over by the classification
+   * editor: its currency, and a direction that transaction can back. */
+  initial?: { direction?: 'PAYABLE' | 'RECEIVABLE'; currency?: string; openedOn?: string }
 }) {
-  const [direction, setDirection] = useState<'PAYABLE' | 'RECEIVABLE'>('PAYABLE')
+  const [direction, setDirection] = useState<'PAYABLE' | 'RECEIVABLE'>(initial?.direction ?? 'PAYABLE')
   const [counterpartyLabel, setCounterpartyLabel] = useState('')
-  const [currency, setCurrency] = useState('SGD')
-  const [openedOn, setOpenedOn] = useState(today())
+  const [currency, setCurrency] = useState(initial?.currency ?? 'SGD')
+  const [openedOn, setOpenedOn] = useState(initial?.openedOn ?? today())
   const [dueOn, setDueOn] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
@@ -46,12 +52,13 @@ export function NewDebtForm({
       return
     }
     inFlight.current = true; setBusy(true); setError('')
+    const debtId = crypto.randomUUID()
     try {
       const result = await previewThenCommit({
         request_id: crypto.randomUUID(),
         expected_generation: generation,
         kind: 'PERSONAL_DEBT_OPEN',
-        anchors: { debt: crypto.randomUUID() },
+        anchors: { debt: debtId },
         payload: {
           direction,
           currency: code,
@@ -61,7 +68,7 @@ export function NewDebtForm({
           reason: reason.trim(),
         },
       })
-      await onSaved(result.status)
+      await onSaved(result.status, debtId)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not open the debt.')
     } finally {

@@ -863,6 +863,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/transactions/entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Transaction Entry Route */
+        get: operations["transaction_entry_route_api_v1_transactions_entry_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/transactions/anchors": {
         parameters: {
             query?: never;
@@ -3606,6 +3623,12 @@ export interface components {
             /** Cap */
             cap: number;
         };
+        /** TransactionEntry */
+        TransactionEntry: {
+            /** Generation */
+            generation: string;
+            entry: components["schemas"]["Entry"];
+        };
         /** TransactionRowOut */
         TransactionRowOut: {
             entry: components["schemas"]["Entry"];
@@ -5179,6 +5202,37 @@ export interface operations {
             };
         };
     };
+    transaction_entry_route_api_v1_transactions_entry_get: {
+        parameters: {
+            query: {
+                anchor: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TransactionEntry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     transaction_anchors_route_api_v1_transactions_anchors_get: {
         parameters: {
             query: {
@@ -5632,6 +5686,7 @@ export interface operations {
                 cursor?: string | null;
                 limit?: number;
                 generation?: string | null;
+                anchor?: string | null;
             };
             header?: never;
             path?: never;
@@ -6217,6 +6272,7 @@ export interface operations {
                 cursor?: string | null;
                 limit?: number;
                 generation?: string | null;
+                anchor?: string | null;
             };
             header?: never;
             path?: never;

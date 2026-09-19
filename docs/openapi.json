@@ -2097,6 +2097,45 @@
         }
       }
     },
+    "/api/v1/transactions/entry": {
+      "get": {
+        "summary": "Transaction Entry Route",
+        "operationId": "transaction_entry_route_api_v1_transactions_entry_get",
+        "parameters": [
+          {
+            "name": "anchor",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Anchor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionEntry"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/transactions/anchors": {
       "get": {
         "summary": "Transaction Anchors Route",
@@ -3031,6 +3070,22 @@
                 }
               ],
               "title": "Generation"
+            }
+          },
+          {
+            "name": "anchor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Anchor"
             }
           }
         ],
@@ -4090,6 +4145,22 @@
                 }
               ],
               "title": "Generation"
+            }
+          },
+          {
+            "name": "anchor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Anchor"
             }
           }
         ],
@@ -11238,6 +11309,24 @@
           "cap"
         ],
         "title": "TransactionAnchorsOut"
+      },
+      "TransactionEntry": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "entry": {
+            "$ref": "#/components/schemas/Entry"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "entry"
+        ],
+        "title": "TransactionEntry"
       },
       "TransactionRowOut": {
         "properties": {

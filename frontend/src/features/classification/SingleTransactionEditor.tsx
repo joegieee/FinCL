@@ -3,12 +3,13 @@ import { ArrowDownLeft, ArrowRight, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { money, shortCategory, type Dashboard, type Entry } from '@/lib/api'
+import { api, money, shortCategory, type Dashboard, type Entry } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
 import { useBatchCommand } from '@/lib/command'
 import { StatementDetailPanel } from '@/features/transactions'
 import type { TransactionRowOut } from '@/features/transactions/reportedApi'
 import { CategoryPicker, rememberCategory } from './CategoryPicker'
+import { DebtHandoff, InstallmentHandoff, TransferHandoff, movementDirection } from './Handoffs'
 import { PresetPicker } from './PresetPicker'
 import type { PresetFields } from './presets'
 import { RuleSection } from './RuleSection'
@@ -19,6 +20,26 @@ import {
 
 const UNCLASSIFIED = 'Unclassified / Unclassified'
 
+/** What the movement *is*, asked before any classification field: ordinary
+ * spending or money in is classified here; a transfer or a debt movement is
+ * owned by a relationship decision instead, recorded through that workflow's
+ * own form. */
+type Nature = 'ordinary' | 'transfer' | 'debt'
+
+const NATURES: Nature[] = ['ordinary', 'transfer', 'debt']
+
+function natureLabel(nature: Nature, direction: 'IN' | 'OUT'): string {
+  if (nature === 'ordinary') return direction === 'OUT' ? 'Spending' : 'Money in'
+  if (nature === 'transfer') return 'Transfer between my accounts'
+  return direction === 'OUT' ? 'Lending or repaying a debt' : 'Borrowing, or a debt repaid to me'
+}
+
+function natureOf(bucket: string): Nature {
+  if (bucket === 'debt') return 'debt'
+  if (bucket === 'internal_linked') return 'transfer'
+  return 'ordinary'
+}
+
 /**
  * The unified single-transaction editor (PLAN-unified-transaction-
  * classification.md Step 2). Category, spending pattern, spending need and
@@ -26,19 +47,30 @@ const UNCLASSIFIED = 'Unclassified / Unclassified'
  * reviewed batch through the Step 1 combined preview and retry-safe
  * lifecycle, replacing the old category/roles/inflow mode switch.
  */
-export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail }: {
+export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved, statementDetail }: {
   entry: Entry
   data: Dashboard
   onClose: () => void
   onSaved: (status: string) => Promise<void>
+  /** Refreshes the ledger after a relationship hand-off *without* closing this
+   * dialog, so the editor can show what the decision made of the row. Falls
+   * back to `onSaved` (which closes it) when not supplied. */
+  onRelationshipSaved?: (status: string) => Promise<void>
   statementDetail?: TransactionRowOut
 }) {
+  // Held locally so a relationship decision recorded from inside the dialog
+  // can replace it with the re-read row.
+  const [e, setE] = useState(entry)
   const returnFocus = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null)
   useEffect(() => () => returnFocus.current?.focus(), [])
   // A statement-detail panel is only ever shown for the exact entry it was fetched for.
   const detail = statementDetail && statementDetail.entry.anchor === e.anchor ? statementDetail : undefined
   const bucket = detailBucket(e)
   const applicable = applicability(bucket)
+  const direction = movementDirection(e)
+  const [nature, setNature] = useState<Nature>(natureOf(bucket))
+  const [installment, setInstallment] = useState(false)
+  const [notice, setNotice] = useState('')
 
   const initialCategory = e.category === UNCLASSIFIED ? '' : e.category
   const initialCostBehavior = applicable.cost_behavior && e.cost_behavior !== 'N/A' ? e.cost_behavior : ''
@@ -89,6 +121,33 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
     if (fields.need !== undefined) { setClearRoles(false); setNeed(fields.need) }
     if (fields.incoming_type !== undefined) setIncomingType(fields.incoming_type)
     invalidatePreview()
+  }
+
+  const refreshKeepingOpen = onRelationshipSaved ?? onSaved
+
+  /** After a hand-off records a decision: refresh, then re-read this row at
+   * the new generation and say plainly what the decision made of it. */
+  async function recorded(status: string, what: 'debt' | 'transfer' | 'installment') {
+    await refreshKeepingOpen(status)
+    try {
+      const fresh = await api<{ generation: string; entry: Entry }>(`transactions/entry?anchor=${encodeURIComponent(e.anchor)}`)
+      setE(fresh.entry)
+      invalidatePreview()
+      setInstallment(false)
+      const freshBucket = detailBucket(fresh.entry)
+      // A fully owned row gets the standing explanation below the notice, so
+      // the notice only confirms the save rather than repeating it.
+      if (freshBucket === 'debt') setNotice('Recorded against the debt.')
+      else if (freshBucket === 'internal_linked') setNotice('Recorded as a transfer.')
+      else if (what === 'debt') setNotice(fresh.entry.debt_allocation === 'partial'
+        ? 'Recorded. Part of this amount now repays a personal debt; classify the rest below.'
+        : 'Recorded.')
+      else if (what === 'installment') setNotice('Linked to the installment plan. It still counts as spending, so keep its category below.')
+      else setNotice('Recorded: these stay two ordinary transactions.')
+      setNature(natureOf(freshBucket))
+    } catch {
+      setNotice('Recorded. Reopen this transaction to see its updated treatment.')
+    }
   }
 
   function close() {
@@ -149,17 +208,33 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
       </div>
       {detail && <StatementDetailPanel row={detail}/>}
 
+      <h3>Update this transaction</h3>
+      {notice && <p className="muted-note" role="status">{notice}</p>}
+      {notEditable
+        ? <p className="muted-note">
+            {bucket === 'excluded'
+              ? 'This transaction is not active in the current selection scope and cannot be classified.'
+              : bucket === 'debt'
+                ? 'This movement is fully allocated to a personal debt, so it is neither spending nor income. Change the debt event on the Debts page instead of classifying it here.'
+                : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
+          </p>
+        : <div className="nature-choice" role="radiogroup" aria-label="What is this?">
+            <span className="eyebrow">WHAT IS THIS?</span>
+            {NATURES.map(option => <button key={option} type="button" role="radio" aria-checked={nature === option}
+              className={nature === option ? 'is-active' : ''} disabled={batch.busy}
+              onClick={() => { setNature(option); setInstallment(false); setNotice('') }}>
+              {natureLabel(option, direction)}
+            </button>)}
+          </div>}
+      {!notEditable && nature === 'transfer' && (disabled
+        ? <p className="form-error">Refresh the ledger before editing.</p>
+        : <TransferHandoff entry={e} data={data} onRecorded={status => recorded(status, 'transfer')}
+            onFromOwnAccount={applicable.incoming_type ? () => { setIncomingType('self_transfer'); invalidatePreview(); setNature('ordinary'); setNotice('Incoming type set to self-transfer below; review and save it.') } : undefined}/>)}
+      {!notEditable && nature === 'debt' && (disabled
+        ? <p className="form-error">Refresh the ledger before editing.</p>
+        : <DebtHandoff entry={e} generation={data.generation} onRecorded={status => recorded(status, 'debt')} onRefresh={refreshKeepingOpen}/>)}
+      {!notEditable && nature === 'ordinary' && <>
       <form onSubmit={event => { event.preventDefault(); if (!preview) void reviewChanges(); else void saveChanges() }} onChange={invalidatePreview}>
-        <h3>Update this transaction</h3>
-        {notEditable
-          ? <p className="muted-note">
-              {bucket === 'excluded'
-                ? 'This transaction is not active in the current selection scope and cannot be classified.'
-                : bucket === 'debt'
-                  ? 'This movement is fully allocated to a personal debt, so it is neither spending nor income. Change the debt event on the Debts page instead of classifying it here.'
-                  : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
-            </p>
-          : <>
             <PresetPicker applicable={applicable} categories={data.categories} current={currentPresetFields}
               onApply={applyPreset} disabled={disabled || batch.busy}/>
             {applicable.category && <>
@@ -204,22 +279,28 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
                 placeholder={reasonRequired ? 'Why is this the right classification?' : 'Optional note for your history'}
                 value={reason} onChange={event => setReason(event.target.value)}/>
             </label>
-          </>}
         {previewError && <p className="form-error" role="alert">{previewError}</p>}
         {batch.error && <p className="form-error" role="alert">{batch.error}</p>}
         {preview && <PreviewSummary preview={preview} entryAnchor={e.anchor}/>}
         {retrying && <p className="muted-note">The outcome may be unknown. Retry sends the same request safely; do not create a second decision.</p>}
         {disabled && <p className="form-error">Refresh the ledger before editing.</p>}
-        {!notEditable && <div className="dialog-actions">
+        <div className="dialog-actions">
           <Button type="submit" disabled={disabled || batch.busy || previewing || (!preview && (!hasEdit || (reasonRequired && !reason.trim())))}>
             {previewing ? 'Checking…' : batch.busy ? 'Working…' : preview ? (retrying ? 'Retry same save' : 'Save changes') : 'Review changes'}
             {!previewing && !batch.busy && <ArrowRight size={15}/>}
           </Button>
-        </div>}
+        </div>
       </form>
-      {!notEditable && <RuleSection generation={data.generation} anchors={[e.anchor]}
+      {/* An installment plan splits a purchase that is still spending, so this
+          is an extra link alongside the classification above, not an
+          alternative to it. */}
+      {bucket === 'spending' && !disabled && (installment
+        ? <InstallmentHandoff entry={e} generation={data.generation} onRecorded={status => recorded(status, 'installment')} onCancel={() => setInstallment(false)}/>
+        : <Button type="button" variant="link" size="sm" onClick={() => setInstallment(true)}>Part of an installment plan?</Button>)}
+      <RuleSection generation={data.generation} anchors={[e.anchor]}
         category={categoryChanged ? category : ''} costBehavior={costBehaviorChanged ? costBehavior : ''} need={needChanged ? need : ''}
-        reason={reason} disabled={disabled || batch.busy} onSaved={onSaved}/>}
+        reason={reason} disabled={disabled || batch.busy} onSaved={onSaved}/>
+      </>}
     </DialogContent>
   </Dialog>
 }

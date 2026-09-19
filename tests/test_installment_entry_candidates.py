@@ -137,6 +137,16 @@ class EntryCandidateTests(unittest.TestCase):
         self.assertEqual(row["open_amount"], "8.00")
         self.assertEqual(row["amount"], "20.00")
 
+    def test_anchor_narrows_to_one_transaction_and_keeps_every_other_rule(self) -> None:
+        """The classification editor's hand-off asks about exactly one row."""
+        result = entry_candidates(self.database, plan_id=self.plan_id, purpose="purchase",
+                                  anchor=self.purchase_anchor)
+        self.assertEqual([c["entry_anchor"] for c in result["candidates"]], [self.purchase_anchor])
+        # An instalment line is never a purchase, however it is asked for.
+        withheld = entry_candidates(self.database, plan_id=self.plan_id, purpose="purchase",
+                                    anchor=self.installment_anchor)
+        self.assertEqual(withheld["candidates"], [])
+
     def test_settlement_offers_other_accounts_but_purchase_does_not(self) -> None:
         # A card plan is usually settled by a transfer from a bank account, so
         # scoping settlement to the card would hide the ordinary case. The
@@ -208,6 +218,17 @@ class EntryCandidateTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200, response.text)
         self.assertIn("candidates", response.json())
+
+    def test_the_single_transaction_read_serves_the_list_shape(self) -> None:
+        from urllib.parse import quote
+        client = self._client()
+        response = client.get(f"/api/v1/transactions/entry?anchor={quote(self.purchase_anchor)}")
+        self.assertEqual(response.status_code, 200, response.text)
+        body = response.json()
+        self.assertEqual(body["entry"]["anchor"], self.purchase_anchor)
+        self.assertIn("debt_allocation", body["entry"])
+        missing = client.get("/api/v1/transactions/entry?anchor=no-such-anchor")
+        self.assertEqual(missing.status_code, 404, missing.text)
 
     def test_the_route_refuses_a_stale_generation(self) -> None:
         response = self._client().get(
