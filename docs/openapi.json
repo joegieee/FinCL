@@ -3113,6 +3113,94 @@
         }
       }
     },
+    "/api/v1/debts/split-candidates": {
+      "get": {
+        "summary": "Debt Split Candidates",
+        "operationId": "debt_split_candidates_api_v1_debts_split_candidates_get",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Debt Split Candidates Api V1 Debts Split Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/debts/{debt_id}": {
       "get": {
         "summary": "Debt",
@@ -6111,7 +6199,10 @@
               "ROLE_RULE_SET",
               "ROLE_RULE_RETIRE",
               "INBOUND_RULE_SET",
-              "INBOUND_RULE_RETIRE"
+              "INBOUND_RULE_RETIRE",
+              "PERSONAL_DEBT_OPEN",
+              "PERSONAL_DEBT_EVENT_SET",
+              "ENTRY_RESIDUAL_SET"
             ],
             "title": "Kind"
           },

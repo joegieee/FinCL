@@ -172,3 +172,70 @@ export const RECONCILIATION_LABEL: Record<string, string> = {
   unverified: 'Unverified — a source no longer resolves',
   reconciled: 'Reconciled against source transactions',
 }
+
+// --- splitting a bill ------------------------------------------------------------
+
+export type SplitCandidatesPage = { generation: string; candidates: AllocationCandidate[]; next_cursor: string | null }
+
+/** Outgoing bills that can still be split: an unclaimed amount and no owner share recorded yet. */
+export function loadSplitCandidates(opts: { generation: string; search?: string; limit?: number }): Promise<SplitCandidatesPage> {
+  const q = new URLSearchParams({ generation: opts.generation, limit: String(opts.limit ?? 30) })
+  if (opts.search) q.set('search', opts.search)
+  return api<SplitCandidatesPage>('debts/split-candidates?' + q)
+}
+
+/** The number of decimals an amount string carries ("51.25" -> 2). */
+export function scaleOf(amount: string): number {
+  const dot = amount.indexOf('.')
+  return dot < 0 ? 0 : amount.length - dot - 1
+}
+
+/** Exact integer minor units at `scale`, or null for anything that is not a
+ * plain non-negative amount with at most `scale` decimals. */
+export function toMinor(text: string, scale: number): number | null {
+  const match = /^(\d+)(?:\.(\d*))?$/.exec(text.trim())
+  if (!match || (match[2] ?? '').length > scale) return null
+  return Number(match[1] + (match[2] ?? '').padEnd(scale, '0'))
+}
+
+export function fromMinor(minor: number, scale: number): string {
+  const digits = String(minor).padStart(scale + 1, '0')
+  return scale ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}` : digits
+}
+
+/** One other person's share: an existing receivable, or someone new (`debtId`
+ * null) whose receivable is opened in the same batch. */
+export type SplitShare = { debtId: string | null; name: string; amount: string }
+
+/** The one atomic batch for a split: a receivable for each new person, an
+ * EXPENSE_PAID_FOR_OTHER per share backed by the bill, and the owner's own
+ * share as the bill's residual (omitted when the owner kept none of it). */
+export function splitItems(
+  bill: AllocationCandidate,
+  shares: SplitShare[],
+  mine: { amount: string; category: string } | null,
+  reason: string,
+): { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }[] {
+  const day = bill.effective_at.slice(0, 10)
+  const items: { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }[] = []
+  for (const share of shares) {
+    let debtId = share.debtId
+    if (debtId === null) {
+      debtId = crypto.randomUUID()
+      items.push({
+        kind: 'PERSONAL_DEBT_OPEN', anchors: { debt: debtId },
+        payload: { direction: 'RECEIVABLE', currency: bill.currency, counterparty_label: share.name.trim(), opened_on: day, due_on: null, reason },
+      })
+    }
+    items.push({
+      kind: 'PERSONAL_DEBT_EVENT_SET', anchors: { debt: debtId, event: crypto.randomUUID() },
+      payload: {
+        event_kind: 'EXPENSE_PAID_FOR_OTHER', direction: 'RECEIVABLE', principal_amount: share.amount.trim(), effective_on: day,
+        entry_allocations: [{ entry_anchor: bill.entry_anchor, principal_amount: share.amount.trim(), interest_amount: '0', fee_amount: '0', separate_fee_amount: '0' }],
+        opening_balance: false, expense_category: null, reason,
+      },
+    })
+  }
+  if (mine) items.push({ kind: 'ENTRY_RESIDUAL_SET', anchors: { entry: bill.entry_anchor }, payload: { expense_amount: mine.amount, expense_category: mine.category, reason } })
+  return items
+}

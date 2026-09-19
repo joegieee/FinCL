@@ -281,6 +281,97 @@ def debt_events(
         connection.close()
 
 
+def _entry_candidates(
+    connection: Any,
+    *,
+    currency: str | None,
+    direction: str,
+    search: str | None,
+    anchor: str | None,
+    cursor: str | None,
+    limit: int,
+    without_owner_share: bool = False,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Selected, non-internal entries in one bank direction with an unclaimed
+    amount left, newest first, keyset-paged by ``(effective_at, natural_anchor)``.
+
+    ``without_owner_share`` leaves out entries whose owner share is already
+    recorded (an ``ENTRY_RESIDUAL_SET``): an entry carries one owner share, so a
+    second one would replace it rather than add to it.
+    """
+    from ..analysis.allocations import open_residual
+
+    params: list[Any] = [direction]
+    clauses = ""
+    if currency is not None:
+        clauses += " AND e.currency_pocket = ?"
+        params.append(currency)
+    if search:
+        clauses += " AND instr(lower(COALESCE(r.description_raw, d.description_raw, '')), lower(?)) > 0"
+        params.append(search)
+    if anchor:
+        clauses += " AND e.natural_anchor = ?"
+        params.append(anchor)
+    if without_owner_share:
+        clauses += (
+            " AND NOT EXISTS (SELECT 1 FROM entry_residuals er"
+            " WHERE er.entry_anchor = e.natural_anchor AND er.bound = 1)"
+        )
+    keyset = _decode_allocation_cursor(cursor)
+    if keyset is not None:
+        clauses += " AND (e.effective_at < ? OR (e.effective_at = ? AND e.natural_anchor > ?))"
+        params.extend([keyset[0], keyset[0], keyset[1]])
+    rows = connection.execute(
+        f"""
+        SELECT e.natural_anchor, e.effective_at, e.economic_direction,
+               e.amount_coefficient, e.amount_scale, e.currency_pocket,
+               COALESCE(r.description_raw, d.description_raw) AS description_raw
+        FROM ledger_entries e
+        JOIN extraction_runs x
+          ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+        LEFT JOIN raw_records r ON r.id = e.raw_record_id
+        LEFT JOIN document_records d ON d.id = e.document_record_id
+        LEFT JOIN entry_categories c ON c.entry_id = e.id
+        WHERE e.economic_direction = ?
+          AND (c.group_name IS NULL OR c.group_name != 'Internal'){clauses}
+        ORDER BY e.effective_at DESC, e.natural_anchor ASC
+        LIMIT ?
+        """,
+        (*params, limit + 1),
+    ).fetchall()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    next_cursor = (
+        _encode_allocation_cursor(str(rows[-1]["effective_at"]), str(rows[-1]["natural_anchor"]))
+        if has_more and rows
+        else None
+    )
+
+    def _decimal(fraction: Fraction, scale: int) -> str:
+        scaled = fraction * (10**scale)
+        return format_decimal(int(scaled), scale) if scaled.denominator == 1 else str(fraction)
+
+    candidates = []
+    for row in rows:
+        scale = int(row["amount_scale"])
+        magnitude = Fraction(abs(int(row["amount_coefficient"])), 10**scale)
+        remaining = open_residual(connection, str(row["natural_anchor"]), role="amount")
+        if remaining <= 0:
+            continue  # fully reconciled elsewhere; not a usable source
+        candidates.append(
+            {
+                "entry_anchor": str(row["natural_anchor"]),
+                "effective_at": str(row["effective_at"]),
+                "economic_direction": str(row["economic_direction"]),
+                "currency": str(row["currency_pocket"]),
+                "amount": _decimal(magnitude, scale),
+                "open_amount": _decimal(remaining, scale),
+                "description": row["description_raw"],
+            }
+        )
+    return candidates, next_cursor
+
+
 def allocation_candidates(
     database: Path,
     *,
@@ -306,8 +397,6 @@ def allocation_candidates(
     would give for it -- whether it can back this kind at all, and how much of
     it is still unclaimed -- rather than guessing from its face amount.
     """
-    from ..analysis.allocations import open_residual
-
     limit = max(1, min(int(limit), 200))
     connection = connect_readonly(database)
     try:
@@ -325,67 +414,10 @@ def allocation_candidates(
         if event_kind not in kinds:
             raise FinCLError(f"{event_kind!r} is not a {debt['direction']} event kind")
         want = expected_bank_direction(str(debt["direction"]), kinds[event_kind])
-
-        params: list[Any] = [str(debt["currency"]), want]
-        clauses = ""
-        if search:
-            clauses += " AND instr(lower(COALESCE(r.description_raw, d.description_raw, '')), lower(?)) > 0"
-            params.append(search)
-        if anchor:
-            clauses += " AND e.natural_anchor = ?"
-            params.append(anchor)
-        keyset = _decode_allocation_cursor(cursor)
-        if keyset is not None:
-            clauses += " AND (e.effective_at < ? OR (e.effective_at = ? AND e.natural_anchor > ?))"
-            params.extend([keyset[0], keyset[0], keyset[1]])
-        rows = connection.execute(
-            f"""
-            SELECT e.natural_anchor, e.effective_at, e.economic_direction,
-                   e.amount_coefficient, e.amount_scale, e.currency_pocket,
-                   COALESCE(r.description_raw, d.description_raw) AS description_raw
-            FROM ledger_entries e
-            JOIN extraction_runs x
-              ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
-            LEFT JOIN raw_records r ON r.id = e.raw_record_id
-            LEFT JOIN document_records d ON d.id = e.document_record_id
-            LEFT JOIN entry_categories c ON c.entry_id = e.id
-            WHERE e.currency_pocket = ? AND e.economic_direction = ?
-              AND (c.group_name IS NULL OR c.group_name != 'Internal'){clauses}
-            ORDER BY e.effective_at DESC, e.natural_anchor ASC
-            LIMIT ?
-            """,
-            (*params, limit + 1),
-        ).fetchall()
-        has_more = len(rows) > limit
-        rows = rows[:limit]
-        next_cursor = (
-            _encode_allocation_cursor(str(rows[-1]["effective_at"]), str(rows[-1]["natural_anchor"]))
-            if has_more and rows
-            else None
+        candidates, next_cursor = _entry_candidates(
+            connection, currency=str(debt["currency"]), direction=want, search=search,
+            anchor=anchor, cursor=cursor, limit=limit,
         )
-
-        def _decimal(fraction: Fraction, scale: int) -> str:
-            scaled = fraction * (10**scale)
-            return format_decimal(int(scaled), scale) if scaled.denominator == 1 else str(fraction)
-
-        candidates = []
-        for row in rows:
-            scale = int(row["amount_scale"])
-            magnitude = Fraction(abs(int(row["amount_coefficient"])), 10**scale)
-            remaining = open_residual(connection, str(row["natural_anchor"]), role="amount")
-            if remaining <= 0:
-                continue  # fully reconciled elsewhere; not a usable source
-            candidates.append(
-                {
-                    "entry_anchor": str(row["natural_anchor"]),
-                    "effective_at": str(row["effective_at"]),
-                    "economic_direction": str(row["economic_direction"]),
-                    "currency": str(row["currency_pocket"]),
-                    "amount": _decimal(magnitude, scale),
-                    "open_amount": _decimal(remaining, scale),
-                    "description": row["description_raw"],
-                }
-            )
         return {
             "generation": token,
             "debt_id": debt_id,
@@ -395,5 +427,34 @@ def allocation_candidates(
             "candidates": candidates,
             "next_cursor": next_cursor,
         }
+    finally:
+        connection.close()
+
+
+def split_candidates(
+    database: Path,
+    *,
+    search: str | None = None,
+    cursor: str | None = None,
+    limit: int = 50,
+    expected: str | None = None,
+) -> dict[str, Any]:
+    """Bills that can be split with other people: outgoing entries, in any
+    currency, with an unclaimed amount and no owner share recorded yet.
+
+    A split records each other person's share as ``EXPENSE_PAID_FOR_OTHER`` on a
+    receivable and the owner's own share as the entry's residual, so it is
+    offered only where both can still be written.
+    """
+    limit = max(1, min(int(limit), 200))
+    connection = connect_readonly(database)
+    try:
+        connection.execute("BEGIN")
+        token = _generation(connection, expected)
+        candidates, next_cursor = _entry_candidates(
+            connection, currency=None, direction="OUT", search=search, anchor=None,
+            cursor=cursor, limit=limit, without_owner_share=True,
+        )
+        return {"generation": token, "candidates": candidates, "next_cursor": next_cursor}
     finally:
         connection.close()

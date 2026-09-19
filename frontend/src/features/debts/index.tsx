@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ChevronRight, Plus } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Plus, Split } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
 import { EventForm } from './EventForm'
 import { NewDebtForm } from './NewDebtForm'
+import { SplitBillForm } from './SplitBillForm'
 import {
   RECONCILIATION_LABEL,
   lifecycleCommand,
@@ -195,6 +196,7 @@ export function DebtsView({
   const [page, setPage] = useState<DebtsPage | null>(null)
   const [detail, setDetail] = useState<DebtDetail | null>(null)
   const [creating, setCreating] = useState(false)
+  const [splitting, setSplitting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -225,6 +227,18 @@ export function DebtsView({
       }}
     />
   )
+  if (splitting && page) return (
+    <SplitBillForm
+      generation={generation}
+      categories={categories}
+      receivables={page.owed_to_me}
+      onCancel={() => setSplitting(false)}
+      onSaved={async (status) => {
+        setSplitting(false)
+        await onSaved?.(status)
+      }}
+    />
+  )
   if (detail) return (
     <DebtDetailView
       detail={detail}
@@ -243,7 +257,10 @@ export function DebtsView({
     <div className="debts-view">
       <div className="debts-toolbar">
         <p className="debts-asof">Balances as of {page.as_of}. Payables and receivables shown separately.</p>
-        <Button size="sm" onClick={() => setCreating(true)}><Plus size={14} /> New debt</Button>
+        <span className="debts-toolbar-actions">
+          <Button size="sm" variant="outline" onClick={() => setSplitting(true)}><Split size={14} /> Split a bill</Button>
+          <Button size="sm" onClick={() => setCreating(true)}><Plus size={14} /> New debt</Button>
+        </span>
       </div>
       <div className="debts-columns">
         <DebtList

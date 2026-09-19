@@ -168,6 +168,9 @@ class BatchItem(StrictModel):
     'MERCHANT_ALIAS_SET','MERCHANT_ALIAS_RETIRE','CATEGORY_RULE_SET','CATEGORY_RULE_RETIRE',
         'ENTRY_ROLE_SET','ENTRY_ROLE_RETIRE','ROLE_RULE_SET','ROLE_RULE_RETIRE',
         'INBOUND_RULE_SET','INBOUND_RULE_RETIRE',
+        # A split bill: new receivables, each person's share, and the owner's
+        # own share, recorded together or not at all.
+        'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_EVENT_SET','ENTRY_RESIDUAL_SET',
     ]
     anchors: dict[str,str]
     payload: dict[str,Any]
@@ -1786,6 +1789,18 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
+
+    @app.get('/api/v1/debts/split-candidates')
+    def debt_split_candidates(search: str | None = None, cursor: str | None = None, limit: int = 50,
+                              generation: str | None = None) -> Any:
+        from .debts.queries import split_candidates
+        with ledger_writer(database):
+            try:
+                return split_candidates(database, search=search, cursor=cursor, limit=limit, expected=generation)
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise HTTPException(422, str(exc)) from exc
 
     @app.get('/api/v1/debts/{debt_id}')
     def debt(debt_id: str, as_of: str | None = None, generation: str | None = None) -> Any:
