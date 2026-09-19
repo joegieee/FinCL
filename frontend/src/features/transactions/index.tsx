@@ -192,7 +192,7 @@ export function TransactionsView({
         </select>
         <select aria-label="Transaction type" value={filters.kind} onChange={e => setFilters(f => ({ ...f, kind: e.target.value }))}>
           <option value="">All types</option>
-          {['spending', 'income', 'refunds', 'fees', 'pending_review', 'internal', 'review'].map(k => <option key={k} value={k}>{k.replaceAll('_', ' ')}</option>)}
+          {['spending', 'income', 'refunds', 'fees', 'pending_review', 'internal', 'debt', 'review'].map(k => <option key={k} value={k}>{k.replaceAll('_', ' ')}</option>)}
         </select>
         <select aria-label="Filter direction" value={filters.direction} onChange={e => setFilters(f => ({ ...f, direction: e.target.value }))}>
           <option value="">Any direction</option>
@@ -250,9 +250,12 @@ export function TransactionsView({
               const e = row.entry
               // Defensive fallback matching the legacy Transactions table: a
               // non-spending/non-role-eligible entry may carry no cost_behavior/need.
-              const costBehavior = e.cost_behavior ?? (e.bucket === 'spending' ? 'unresolved' : 'N/A')
+              // A debt-owned movement has no spending pattern or need: principal is
+              // not spending, whatever the category engine left on the row.
+              const debtOwned = e.bucket === 'debt'
+              const costBehavior = debtOwned ? 'N/A' : e.cost_behavior ?? (e.bucket === 'spending' ? 'unresolved' : 'N/A')
               const costBehaviorBasis = e.cost_behavior_basis ?? 'unresolved'
-              const need = e.need ?? (e.bucket === 'spending' ? 'unresolved' : 'N/A')
+              const need = debtOwned ? 'N/A' : e.need ?? (e.bucket === 'spending' ? 'unresolved' : 'N/A')
               const needBasis = e.need_basis ?? 'unresolved'
               return (
                 <tr key={e.id} tabIndex={0} data-anchor={e.anchor} data-index={i} onKeyDown={ev => { if (ev.key === ' ' && (ev.target as HTMLElement).tagName === 'TR') { ev.preventDefault(); togglePick(e.anchor, i, ev.shiftKey) } }} className={picked.has(e.anchor) ? 'row-picked' : ''}>
@@ -260,13 +263,14 @@ export function TransactionsView({
                   <td className="date-cell" data-label="Date">{e.precision === 'MONTH' ? e.date.slice(0, 7) : dateLabel(e.date)}{e.precision === 'MONTH' && <small>Month precision</small>}</td>
                   <td data-label="Merchant"><strong>{e.merchant}</strong><small title={e.description}>{e.description}</small></td>
                   <td data-label="Account">{e.account}</td>
-                  <td data-label="Category"><button className="category-chip" onClick={() => onOpenEntry(row)}>{shortCategory(e.category)}</button></td>
+                  <td data-label="Category"><button className="category-chip" onClick={() => onOpenEntry(row)}>{debtOwned ? 'Personal debt' : shortCategory(e.category)}</button></td>
                   <td data-label="Spending pattern"><button className="category-chip" title={`Basis: ${costBehaviorBasis}`} onClick={() => onOpenEntry(row)}>{costBehavior.replaceAll('_', ' ')}</button></td>
                   <td data-label="Need"><button className="category-chip" title={`Basis: ${needBasis}`} onClick={() => onOpenEntry(row)}>{need}</button></td>
                   <td className="amount" data-label="Amount">
                     <Money value={row.amount} />
                     {row.amount.unavailable && <small>Native: {money(e.amount, e.currency)}</small>}
                     {row.fee && Number(row.fee.native.value) !== 0 && <small>Fee <Money value={row.fee} /></small>}
+                    {e.debt_allocation === 'partial' && <small>Part repays a personal debt</small>}
                   </td>
                   <td data-label="Status"><Badge variant="outline" className={e.review ? 'review-badge' : ''}>{!e.eligible ? 'Excluded' : e.review ? 'Needs review' : e.bucket.replaceAll('_', ' ')}</Badge></td>
                   <td data-label=""><Button variant="ghost" size="sm" onClick={() => onOpenEntry(row)} aria-label={`Details for ${e.merchant}`}><ChevronRight size={16} /></Button></td>

@@ -8220,6 +8220,17 @@
               }
             ],
             "title": "Classification"
+          },
+          "debt_allocation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Allocation"
           }
         },
         "additionalProperties": false,
@@ -8250,7 +8261,8 @@
           "role_review_state",
           "suggested_classification",
           "linked",
-          "classification"
+          "classification",
+          "debt_allocation"
         ],
         "title": "Entry"
       },

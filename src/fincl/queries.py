@@ -24,12 +24,76 @@ from .intervals import DateInterval, covers_date, month_span
 from .money import format_decimal
 from .report import _coverage_contract, _economic_flow
 
+
+# `10 ** k` for the scale differences a money value can have (0..MAX_SCALE = 9),
+# as an exact integer: SQLite's `power()` is REAL, and a REAL comparison is not
+# an exact-money comparison.
+def _pow10_sql(exponent: str) -> str:
+    return "CASE " + exponent + " " + " ".join(f"WHEN {k} THEN {10 ** k}" for k in range(10)) + " END"
+
+
+# Personal-debt claims against an entry's *amount* component: allocated
+# principal, interest and fee, plus the owner's residual share. This is exactly
+# the `amount_off_by_anchor` that `analysis.components._debt_economic_effects`
+# removes from the entry before reporting it, so the read model below and the
+# reports agree on how much of a movement a debt explains. Claims are summed at
+# their own finest scale per anchor; the partition invariant
+# (`analysis.allocations.assert_partition`, enforced when a debt event is
+# projected) keeps that sum no larger than the entry's own magnitude.
+_DEBT_CLAIMS_CTE = """
+debt_terms AS (
+  SELECT entry_anchor, principal_coefficient AS c, principal_scale AS s FROM personal_debt_allocations WHERE bound = 1
+  UNION ALL SELECT entry_anchor, interest_coefficient, interest_scale FROM personal_debt_allocations WHERE bound = 1
+  UNION ALL SELECT entry_anchor, fee_coefficient, fee_scale FROM personal_debt_allocations WHERE bound = 1
+  UNION ALL SELECT entry_anchor, expense_coefficient, expense_scale FROM entry_residuals WHERE bound = 1
+),
+debt_scales AS (SELECT entry_anchor, max(s) AS s FROM debt_terms GROUP BY entry_anchor),
+debt_claims AS (
+  SELECT t.entry_anchor, ds.s AS s, sum(t.c * (""" + _pow10_sql("ds.s - t.s") + """)) AS c
+  FROM debt_terms t JOIN debt_scales ds ON ds.entry_anchor = t.entry_anchor
+  GROUP BY t.entry_anchor
+)"""
+
+# 'full' when debt claims explain the entry's whole amount, 'partial' when they
+# explain some of it, NULL when none. Compared exactly at the common scale; a
+# product that would overflow SQLite's integers (only possible with a claim
+# finer-grained than a very large entry) becomes REAL and is answered
+# 'partial', so the row keeps asking to be classified rather than silently
+# leaving review.
+_DEBT_ALLOCATION_SQL = """
+    CASE
+      WHEN dc.c IS NULL OR dc.c = 0 THEN NULL
+      WHEN typeof(abs(e.amount_coefficient) * (""" + _pow10_sql("max(e.amount_scale, dc.s) - e.amount_scale") + """)) = 'integer'
+       AND typeof(dc.c * (""" + _pow10_sql("max(e.amount_scale, dc.s) - dc.s") + """)) = 'integer'
+       AND abs(e.amount_coefficient) * (""" + _pow10_sql("max(e.amount_scale, dc.s) - e.amount_scale") + """)
+         = dc.c * (""" + _pow10_sql("max(e.amount_scale, dc.s) - dc.s") + """) THEN 'full'
+      ELSE 'partial'
+    END"""
+
+# Anchors whose amount a personal debt fully explains, for callers that read
+# `entry_categories` directly instead of through `_ENTRY_VIEW` (the
+# categorization inbox and its coverage summary).
+DEBT_FULLY_ALLOCATED_ANCHORS = """
+WITH """ + _DEBT_CLAIMS_CTE + """
+SELECT e.natural_anchor FROM ledger_entries e
+JOIN debt_claims dc ON dc.entry_anchor = e.natural_anchor
+WHERE (""" + _DEBT_ALLOCATION_SQL + """) = 'full'
+"""
+
 # One shared shaping of a ledger entry for every screen: the raw join, then the
 # economic `bucket` and the `review` flag as SQL so a paged query can filter and
 # sort on them before LIMIT. `dashboard()` and `transactions_page()` both read
 # from this so they can never disagree on what a row's bucket is.
+#
+# A movement a personal debt fully explains is bucket `debt`: principal is
+# neither spending nor income (DESIGN-debts-and-context.md §3), so it is not
+# asked for a category, spending pattern/need or incoming type, and it is not
+# flagged for review. A partly allocated movement keeps its ordinary bucket --
+# the reports classify its unallocated remainder under the entry's own
+# category -- and carries `debt_allocation = 'partial'` so a screen can say so.
 _ENTRY_VIEW = """
-WITH base AS (
+WITH """ + _DEBT_CLAIMS_CTE + """,
+base AS (
   SELECT e.*, a.display_name AS account,
     coalesce(ma.display_name, m.merchant_canonical, m.merchant_normalized, r.description_raw, d.description_raw, 'Unknown merchant') AS merchant,
     coalesce(r.description_raw, d.description_raw, '') AS description,
@@ -47,7 +111,8 @@ WITH base AS (
     EXISTS(SELECT 1 FROM transfer_links t WHERE t.status='CONFIRMED' AND (t.left_entry_id=e.id OR t.right_entry_id=e.id)) AS linked,
     (e.analytics_eligible=1 AND e.lifecycle_state='COMPLETED' AND x.selection_state='SELECTED'
       AND (e.source_family='CSV' OR s.selection_state='SELECTED')) AS eligible,
-    x.selection_state AS selection_state
+    x.selection_state AS selection_state,
+""" + _DEBT_ALLOCATION_SQL + """ AS debt_allocation
   FROM ledger_entries e JOIN accounts a ON a.id=e.account_id
   JOIN extraction_runs x ON x.id=e.extraction_run_id
   LEFT JOIN statements s ON s.id=e.statement_id
@@ -58,12 +123,14 @@ WITH base AS (
   LEFT JOIN entry_categories c ON c.entry_id=e.id
   LEFT JOIN inbound_classifications i ON i.anchor=e.natural_anchor AND i.bound=1
   LEFT JOIN entry_financial_roles fr ON fr.entry_id=e.id
+  LEFT JOIN debt_claims dc ON dc.entry_anchor=e.natural_anchor
 ),
 shaped AS (
   SELECT base.*,
     CASE
       WHEN NOT eligible THEN 'excluded'
       WHEN linked OR classification = 'self_transfer' THEN 'internal'
+      WHEN debt_allocation = 'full' THEN 'debt'
       WHEN economic_direction = 'OUT' THEN 'spending'
       WHEN economic_direction = 'IN' THEN CASE classification
         WHEN 'income' THEN 'income'
@@ -78,7 +145,7 @@ shaped AS (
   FROM base
 )
 SELECT shaped.*,
-  (ambiguous OR direction_conflict OR category LIKE 'Unclassified%' OR bucket = 'pending_review') AS review,
+  (bucket <> 'debt' AND (ambiguous OR direction_conflict OR category LIKE 'Unclassified%' OR bucket = 'pending_review')) AS review,
   (coalesce(fee_coefficient, 0) <> 0) AS fee_nonzero,
   substr(effective_at, 1, 7) AS effective_month,
   CAST(amount_coefficient AS REAL) / power(10.0, amount_scale) AS amount_value
@@ -109,7 +176,7 @@ _SORTS: dict[str, dict[str, str]] = {
 _ROW_KEYS = ('id','anchor','date','precision','amount','fee','currency','account','merchant',
              'description','category','basis','source_location','bucket','eligible','review',
              'source_family','lifecycle_state','cost_behavior','cost_behavior_basis','need','need_basis','role_review_state',
-             'suggested_classification','linked','classification')
+             'suggested_classification','linked','classification','debt_allocation')
 
 
 def money(value: Decimal) -> str:

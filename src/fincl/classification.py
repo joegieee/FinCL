@@ -98,6 +98,10 @@ class AnchorPlan:
 
 
 _NOT_ACTIVE = "This transaction is not active in the current selection scope"
+# A movement a personal debt fully explains is principal (plus any interest,
+# fee and owner residual the debt records), not spending or income -- the debt
+# owns it, the way a confirmed transfer link owns an internal movement.
+_DEBT_OWNED = "This transaction is fully allocated to a personal debt, which decides how it counts"
 _NOT_APPLICABLE = {
     "category": {
         "internal_linked": "Category is set by the linked transfer decision",
@@ -123,7 +127,7 @@ def _detail_bucket(row: dict[str, Any]) -> str:
 
 
 def _applicability(detail_bucket: str) -> dict[str, bool]:
-    if detail_bucket == "excluded":
+    if detail_bucket in ("excluded", "debt"):
         return dict.fromkeys(FIELD_NAMES, False)
     return {
         "category": detail_bucket not in ("internal_linked", "internal_self_transfer"),
@@ -140,6 +144,8 @@ def _applicability(detail_bucket: str) -> dict[str, bool]:
 def _not_applicable_reason(name: str, detail_bucket: str) -> str:
     if detail_bucket == "excluded":
         return _NOT_ACTIVE
+    if detail_bucket == "debt":
+        return _DEBT_OWNED
     table = _NOT_APPLICABLE[name]
     return table.get(detail_bucket, table.get("__default__", "This field does not apply to this transaction"))
 

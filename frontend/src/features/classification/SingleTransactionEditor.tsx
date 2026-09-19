@@ -122,7 +122,7 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
   }
 
   const disabled = data.freshness === 'stale'
-  const notEditable = bucket === 'excluded' || bucket === 'internal_linked'
+  const notEditable = bucket === 'excluded' || bucket === 'internal_linked' || bucket === 'debt'
   const retrying = Boolean(batch.submitted && batch.error)
 
   return <Dialog open onOpenChange={open => { if (!open) close() }}>
@@ -133,7 +133,7 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
         <div><dt>Date</dt><dd>{e.precision === 'MONTH' ? e.date.slice(0, 7) + ' · month precision' : dateLabel(e.date)}</dd></div>
         <div><dt>Account</dt><dd>{e.account}</dd></div>
         <div><dt>Fee</dt><dd>{money(e.fee, e.currency)}</dd></div>
-        <div><dt>Cash-flow treatment</dt><dd>{e.bucket.replaceAll('_', ' ')}</dd></div>
+        <div><dt>Cash-flow treatment</dt><dd>{e.bucket === 'debt' ? 'personal debt' : e.bucket.replaceAll('_', ' ')}{e.debt_allocation === 'partial' && <small> · part of this amount is allocated to a personal debt; the classification below covers the rest</small>}</dd></div>
         <div><dt>Category basis</dt><dd>{e.basis}</dd></div>
         {applicable.cost_behavior && <>
           <div><dt>Spending pattern basis</dt><dd>{e.cost_behavior_basis}</dd></div>
@@ -155,7 +155,9 @@ export function EntryDialog({ entry: e, data, onClose, onSaved, statementDetail 
           ? <p className="muted-note">
               {bucket === 'excluded'
                 ? 'This transaction is not active in the current selection scope and cannot be classified.'
-                : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
+                : bucket === 'debt'
+                  ? 'This movement is fully allocated to a personal debt, so it is neither spending nor income. Change the debt event on the Debts page instead of classifying it here.'
+                  : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
             </p>
           : <>
             <PresetPicker applicable={applicable} categories={data.categories} current={currentPresetFields}

@@ -16,6 +16,7 @@ from .db import connect_readonly
 from .errors import FinCLError
 from .generation import current_generation
 from .money import ExactMoney, exact_sum, format_decimal
+from .queries import DEBT_FULLY_ALLOCATED_ANCHORS
 
 CANDIDATE_GROUPING_VERSION = "categorization-candidates-2026-v2"
 
@@ -336,13 +337,21 @@ def merchant_rename_preview(database: Path, *, generation: str, merchant_key: st
 
 
 def categorization_summary(database: Path, *, generation: str) -> dict[str, Any]:
-    """Return disjoint effective-category buckets plus the attention overlay."""
+    """Return disjoint effective-category buckets plus the attention overlay.
+
+    A movement a personal debt fully explains is its own bucket
+    (``debt_allocated``): the debt decides how it counts, so it is neither
+    waiting for a category nor flagged for attention -- the same answer
+    ``queries._ENTRY_VIEW`` gives the transaction list and the classification
+    editor for that row.
+    """
     connection = _pinned_connection(database, generation)
     try:
         rows = connection.execute(
-            """
+            f"""
             SELECT ec.group_name, ec.category, ec.basis, ec.ambiguous, ec.direction_conflict,
-                   e.analytics_eligible, e.lifecycle_state
+                   e.analytics_eligible, e.lifecycle_state,
+                   e.natural_anchor IN ({DEBT_FULLY_ALLOCATED_ANCHORS}) AS debt_owned
             FROM entry_categories ec JOIN ledger_entries e ON e.id=ec.entry_id
             JOIN extraction_runs x ON x.id=e.extraction_run_id AND x.selection_state='SELECTED'
             """
@@ -350,9 +359,12 @@ def categorization_summary(database: Path, *, generation: str) -> dict[str, Any]
         buckets: Counter[str] = Counter()
         attention = 0
         for row in rows:
+            active = bool(row["analytics_eligible"]) and row["lifecycle_state"] == "COMPLETED"
+            if row["debt_owned"]:
+                buckets["debt_allocated"] += 1
+                continue
             if row["ambiguous"] or row["direction_conflict"]:
                 attention += 1
-            active = bool(row["analytics_eligible"]) and row["lifecycle_state"] == "COMPLETED"
             basis = str(row["basis"])
             if basis == "override":
                 bucket = "manual_override"
@@ -367,11 +379,17 @@ def categorization_summary(database: Path, *, generation: str) -> dict[str, Any]
             else:  # Defensive: category engine should not produce another basis.
                 bucket = "other_system_assigned"
             buckets[bucket] += 1
-        denominator = sum(
-            1 for row in rows
+        active_rows = [
+            row for row in rows
             if bool(row["analytics_eligible"]) and row["lifecycle_state"] == "COMPLETED"
-        )
-        numerator = buckets["rule_assigned"] + buckets["manual_override"]
+        ]
+        denominator = len(active_rows)
+        # Every active row the inbox is not still asking about. Counting only
+        # rule and manual assignments here left transfer-linked, income-typed
+        # and debt-owned rows in the denominator but never the numerator (so
+        # the bar could not reach 100%), and counted *inactive* rule
+        # assignments the denominator excludes.
+        numerator = denominator - buckets["unclassified_active"]
         return {
             "generation": generation,
             "counts": dict(buckets),
@@ -723,7 +741,11 @@ def _candidate_groups(
     connection: Any, *, account: str = "", currency: str = "", direction: str = "", lifecycle: str = "",
 ) -> dict[tuple[str, str], list[Any]]:
     groups: dict[tuple[str, str], list[Any]] = defaultdict(list)
-    clauses = ["ec.group_name='Unclassified'", "ec.category='Unclassified'"]
+    clauses = [
+        "ec.group_name='Unclassified'", "ec.category='Unclassified'",
+        # A debt owns a movement it fully explains; there is no category to choose.
+        f"e.natural_anchor NOT IN ({DEBT_FULLY_ALLOCATED_ANCHORS})",
+    ]
     params: list[str] = []
     for field, value in (("e.account_id", account), ("e.currency_pocket", currency), ("e.economic_direction", direction), ("e.lifecycle_state", lifecycle)):
         if value:
@@ -818,7 +840,9 @@ def _derived_focus_groups(
             if not _applicability(detail_bucket)["incoming_type"] or raw.get("classification") is not None:
                 continue
         else:  # conflicts
-            if not (raw["ambiguous"] or raw["direction_conflict"]):
+            # A category-rule conflict is moot where the category no longer
+            # applies (a debt-owned movement), matching the view's `review`.
+            if detail_bucket == "debt" or not (raw["ambiguous"] or raw["direction_conflict"]):
                 continue
         adapted = {
             "natural_anchor": raw["natural_anchor"], "account_id": raw["account_id"],

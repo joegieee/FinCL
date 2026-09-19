@@ -2715,6 +2715,8 @@ export interface components {
             linked: boolean;
             /** Classification */
             classification: string | null;
+            /** Debt Allocation */
+            debt_allocation: string | null;
         };
         /** EventDateChangeDraft */
         EventDateChangeDraft: {

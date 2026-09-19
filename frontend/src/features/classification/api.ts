@@ -103,7 +103,9 @@ const INCOMING_ELIGIBLE_BUCKETS = new Set([
 ])
 
 export function applicability(bucket: string): Applicability {
-  if (bucket === 'excluded') return { category: false, cost_behavior: false, need: false, incoming_type: false }
+  // A personal debt owns a movement it fully explains (`debt`), the way a
+  // confirmed transfer link owns an internal one: nothing here applies.
+  if (bucket === 'excluded' || bucket === 'debt') return { category: false, cost_behavior: false, need: false, incoming_type: false }
   return {
     category: bucket !== 'internal_linked' && bucket !== 'internal_self_transfer',
     cost_behavior: bucket === 'spending',

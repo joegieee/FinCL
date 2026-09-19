@@ -316,6 +316,10 @@ class Entry(StrictModel):
     suggested_classification: str
     linked: bool
     classification: str | None
+    # 'full' / 'partial' when personal-debt allocations explain all / some of
+    # this movement's amount (`queries._DEBT_ALLOCATION_SQL`); a full one is
+    # bucket 'debt'.
+    debt_allocation: str | None
 
 
 class Total(StrictModel):
