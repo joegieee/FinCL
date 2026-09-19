@@ -562,6 +562,13 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
                 if b["basis"] == "statement-running-balance"), None),
             "manual_observation": next((b for b in reversed(boundaries)
                 if b["basis"] == "manual-observation"), None),
+            # Filled in below for liquid pockets only. An excluded pocket (a
+            # card's obligation balance) is never derived into a cash cutoff,
+            # but readers still expect every pocket to carry these keys.
+            "derived_balance": None, "derived_as_of": None, "derived_basis": None,
+            "coverage_status": "unsupported", "best_supported_cutoff": None,
+            "best_supported_balance": None, "best_supported_basis": None,
+            "blocking_reason": None,
         })
     included = [p for p in pockets if p["liquid"]]
     periods_by_key = {

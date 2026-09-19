@@ -309,6 +309,8 @@ class PositionReadTests(unittest.TestCase):
         self.assertIn("obligation", page["pockets"][0]["excluded_reason"])
         self.assertEqual(page["included_pockets"], [])
         self.assertEqual(page["combined_liquid_position"], {})
+        self.assertIsNone(page["pockets"][0]["derived_balance"])
+        self.assertEqual(page["pockets"][0]["coverage_status"], "unsupported")
 
     def test_unsupported_current_position_keeps_last_known_amount(self) -> None:
         database = _ledger(_ROWS)
