@@ -246,9 +246,16 @@ test('desktop: isolated income, recurring payer suggestion, grouped save-next an
   await dialog.getByLabel(/Reason/).fill('Synthetic reusable rule acceptance')
   await dialog.getByRole('button', { name: /Also save a reusable rule/ }).click()
   await dialog.getByRole('button', { name: 'Check for a reusable predicate' }).click()
-  await dialog.getByRole('radio').first().check()
+  // Scope this to the rule's own predicate fieldset. The dialog also renders
+  // the "What is this?" nature radios above the form, and an unscoped
+  // getByRole('radio').first() picks the already-checked "ordinary" one --
+  // check() then no-ops and the predicate is silently left unselected.
+  await dialog.getByRole('group', { name: 'Apply the rule to' }).getByRole('radio').first().check()
   await dialog.getByLabel(/Reusable category rule/).check()
   await dialog.getByLabel(/Reusable spending rule/).check()
+  // Fail here, at the cause, rather than timing out on a permanently disabled
+  // button if a precondition for the preview ever goes unmet again.
+  await expect(dialog.getByRole('button', { name: 'Preview rule' })).toBeEnabled()
   await dialog.getByRole('button', { name: 'Preview rule' }).click()
   await expect(dialog.getByText('Category rule impact')).toBeVisible()
   await expect(dialog.getByText('Spending-role rule impact')).toBeVisible()
