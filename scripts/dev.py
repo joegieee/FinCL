@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -83,6 +84,28 @@ def _resolve_database(requested: Path | None) -> Path:
     return create_demo(database.parent).resolve()
 
 
+def _node_path() -> str:
+    """A PATH on which `npm` (and the `node` its shebang needs) can be found.
+
+    nvm only adds Node to PATH in shells that source it, so a terminal that did
+    not falls back to nvm's newest installed version.
+    """
+    path = os.environ.get("PATH", "")
+    if shutil.which("npm"):
+        return path
+    nvm = Path(os.environ.get("NVM_DIR", Path.home() / ".nvm")) / "versions" / "node"
+    installed = [bin_dir for bin_dir in nvm.glob("v*/bin") if (bin_dir / "npm").exists()]
+
+    def version(bin_dir: Path) -> tuple[int, ...]:
+        return tuple(int(part) for part in bin_dir.parent.name[1:].split(".") if part.isdigit())
+
+    if not installed:
+        sys.exit("npm was not found on PATH or under ~/.nvm. Install Node, or pass --no-vite.")
+    newest = max(installed, key=version)
+    print(f"npm is not on PATH; using nvm's {newest.parent.name}.")
+    return f"{newest}{os.pathsep}{path}"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--database", type=Path, help=f"default: {DEFAULT_DATABASE}")
@@ -92,16 +115,22 @@ def main() -> None:
 
     import uvicorn
 
+    node_path = None
+    if not args.no_vite:
+        node_path = _node_path()
+        if not (REPO / "frontend" / "node_modules").exists():
+            sys.exit("frontend/node_modules is missing. Run: cd frontend && npm ci")
+
     database = _resolve_database(args.database)
     os.environ[_DATABASE_ENV] = str(database)
     os.environ[_PORT_ENV] = str(args.port)
 
     vite: subprocess.Popen[bytes] | None = None
-    if not args.no_vite:
+    if node_path is not None:
         vite = subprocess.Popen(
             ["npm", "run", "dev", "--", "--port", str(VITE_PORT), "--strictPort"],
             cwd=REPO / "frontend",
-            env={**os.environ, "FINCL_API_PORT": str(args.port)},
+            env={**os.environ, "PATH": node_path, "FINCL_API_PORT": str(args.port)},
             # Its own process group, so stopping it also stops the vite that npm spawned.
             start_new_session=True,
         )
