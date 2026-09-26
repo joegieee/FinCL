@@ -60,6 +60,9 @@ function CandidateRow({
           from {candidate.opened_on}
           {' · '}
           {candidate.complete ? 'fully paid' : `${candidate.term_months - candidate.observed_count} still to come`}
+          {candidate.known_principal
+            ? ` · principal ${money(candidate.known_principal.value, candidate.currency)}`
+            : ''}
         </small>
       </span>
       <span className="debt-row-amount">

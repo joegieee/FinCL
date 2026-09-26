@@ -6,6 +6,13 @@ keeps that block verbatim in ``document_records.raw_fields_json``; this module
 reads it back and groups the lines into the chains a plan would confirm, so the
 operator picks a proposed chain instead of hand-authoring occurrence anchors.
 
+When the operator converts purchases into a split payment, the statement that
+prints the chain's first instalment also prints a ``Split Payment Conversion``
+credit for the converted total. That credit is the plan's principal, printed; it
+is paired to a chain only when exactly one credit and one chain fit each other
+(see ``_pair_conversions``), so a running chain can carry a known principal
+without inventing one from ``amount x term``.
+
 Nothing here writes. A proposal is evidence plus an arrangement of it, never a
 confirmed plan: the operator still records ``INSTALLMENT_PLAN_SET``. Chains are
 built from the printed ordinals alone, never from "these amounts look alike" --
@@ -74,7 +81,7 @@ def _rows(connection: Any, card: str | None) -> list[dict[str, Any]]:
     sql = """
         SELECT e.natural_anchor, e.account_id, e.currency_pocket, e.effective_at,
                e.effective_precision, e.amount_coefficient, e.amount_scale,
-               r.description_raw, r.raw_fields_json
+               r.description_raw, r.raw_fields_json, r.statement_id
         FROM ledger_entries e
         JOIN document_records r ON r.id = e.document_record_id
         JOIN extraction_runs x ON x.id = e.extraction_run_id
@@ -103,10 +110,116 @@ def _rows(connection: Any, card: str | None) -> list[dict[str, Any]]:
                 "coefficient": abs(int(row["amount_coefficient"])),
                 "scale": int(row["amount_scale"]),
                 "description": (row["description_raw"] or "") or None,
+                "statement_id": str(row["statement_id"]),
                 **block,
             }
         )
     return out
+
+
+def _conversions(connection: Any, card: str | None) -> list[dict[str, Any]]:
+    """Selected ``<family> Conversion`` credits from the Repayment/Conversion section.
+
+    The credit is the total of the purchases the operator converted; the
+    statement prints no link from it to the chain it opened, which is what
+    ``_pair_conversions`` supplies.
+    """
+    sql = """
+        SELECT e.natural_anchor, e.account_id, e.currency_pocket, e.effective_at,
+               e.amount_coefficient, e.amount_scale,
+               r.description_raw, r.raw_fields_json, r.statement_id
+        FROM ledger_entries e
+        JOIN document_records r ON r.id = e.document_record_id
+        JOIN extraction_runs x ON x.id = e.extraction_run_id
+        WHERE x.selection_state = 'SELECTED'
+          AND e.amount_coefficient > 0
+          AND r.description_raw LIKE '% Conversion'
+    """
+    params: list[Any] = []
+    if card:
+        sql += " AND e.account_id = ?"
+        params.append(card)
+    sql += " ORDER BY e.effective_at, e.natural_anchor"
+    out: list[dict[str, Any]] = []
+    for row in connection.execute(sql, params).fetchall():
+        try:
+            fields = json.loads(str(row["raw_fields_json"]))
+        except ValueError:
+            continue
+        if not isinstance(fields, dict) or fields.get("summary_bucket") != "B":
+            continue
+        description = " ".join(str(row["description_raw"]).split())
+        family = description[: -len(" Conversion")].strip()
+        if not family:
+            continue
+        out.append(
+            {
+                "entry_anchor": str(row["natural_anchor"]),
+                "account_id": str(row["account_id"]),
+                "currency": str(row["currency_pocket"]),
+                "effective_on": str(row["effective_at"])[:10],
+                "coefficient": int(row["amount_coefficient"]),
+                "scale": int(row["amount_scale"]),
+                "description": description,
+                "family": family,
+                "statement_id": str(row["statement_id"]),
+            }
+        )
+    return out
+
+
+def _fits_conversion(chain: list[dict[str, Any]], conversion: dict[str, Any], term: int) -> bool:
+    """Is ``chain`` the schedule this conversion credit would print?
+
+    The chain must open with its 1/N line on the same statement as the credit,
+    in the same family, and every observed instalment must be exactly what the
+    principal implies: ``round-half-up(principal / term)`` each month, with the
+    final instalment absorbing the remainder. Mari conversions
+    follow that rule to the cent (e.g. 150.40 over 6 is 25.07 x 5 then 25.05).
+    """
+    first = chain[0]
+    if first["ordinal"] != 1 or first["statement_id"] != conversion["statement_id"]:
+        return False
+    if (first["account_id"], first["currency"]) != (conversion["account_id"], conversion["currency"]):
+        return False
+    if first["family"].casefold() != conversion["family"].casefold():
+        return False
+    scale = max(conversion["scale"], *(item["scale"] for item in chain))
+    principal = conversion["coefficient"] * 10 ** (scale - conversion["scale"])
+    monthly = (2 * principal + term) // (2 * term)
+    final = principal - monthly * (term - 1)
+    if monthly <= 0 or final <= 0:
+        return False
+    return all(
+        item["coefficient"] * 10 ** (scale - item["scale"])
+        == (final if item["ordinal"] == term else monthly)
+        for item in chain
+    )
+
+
+def _pair_conversions(
+    chains: list[tuple[list[dict[str, Any]], int]], conversions: list[dict[str, Any]]
+) -> dict[int, dict[str, Any]]:
+    """Chain index -> the one conversion credit that is its principal.
+
+    A pair is made only when the chain fits exactly one credit and that credit
+    fits exactly one chain. Two identical conversions on one statement are
+    indistinguishable, so both chains keep an unknown principal rather than
+    receiving a guess.
+    """
+    fits = {
+        index: [c for c, conversion in enumerate(conversions) if _fits_conversion(chain, conversion, term)]
+        for index, (chain, term) in enumerate(chains)
+    }
+    claims: dict[int, int] = {}
+    for matched in fits.values():
+        for c in matched:
+            claims[c] = claims.get(c, 0) + 1
+    return {
+        index: conversions[matched[0]]
+        for index, matched in fits.items()
+        if len(matched) == 1 and claims[matched[0]] == 1
+    }
 
 
 def _same_amount(left: dict[str, Any], right: dict[str, Any]) -> bool:
@@ -179,11 +292,30 @@ def _label(chain: list[dict[str, Any]], family: str, term: int) -> str:
     return f"{family} · {monthly} × {term}"[:_LABEL_MAX]
 
 
-def _candidate(chain: list[dict[str, Any]], group: tuple[str, str, str, int]) -> dict[str, Any]:
+def _candidate(
+    chain: list[dict[str, Any]],
+    group: tuple[str, str, str, int],
+    conversion: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     account_id, currency, family, term = group
     complete = len(chain) == term and chain[0]["ordinal"] == 1 and chain[-1]["ordinal"] == term
     scale = max(item["scale"] for item in chain)
     observed = sum(item["coefficient"] * 10 ** (scale - item["scale"]) for item in chain)
+    # The principal is known two ways, both printed: a conversion credit paired
+    # to this chain, or every instalment of the chain on a statement. Anything
+    # else leaves it null -- the remaining instalments are not evidence, and
+    # `amount x term` would be an invention the schema is built to refuse.
+    principal: dict[str, str] | None = None
+    principal_source: str | None = None
+    if conversion is not None:
+        principal = {
+            "value": format_decimal(conversion["coefficient"], conversion["scale"]),
+            "currency": currency,
+        }
+        principal_source = "conversion_credit"
+    elif complete:
+        principal = {"value": format_decimal(observed, scale), "currency": currency}
+        principal_source = "observed_chain"
     return {
         # Stable across refreshes: the same evidence proposes the same key, so a
         # dismissed or confirmed chain can be recognized again without storing it.
@@ -199,13 +331,16 @@ def _candidate(chain: list[dict[str, Any]], group: tuple[str, str, str, int]) ->
         "observed_count": len(chain),
         "complete": complete,
         "observed_total": {"value": format_decimal(observed, scale), "currency": currency},
-        # Only a chain whose every instalment is on a statement has an exactly
-        # observed principal. A partial chain leaves it null: the remaining
-        # instalments are not evidence, and `amount x term` would be an
-        # invention the schema is built to refuse.
-        "known_principal": (
-            {"value": format_decimal(observed, scale), "currency": currency}
-            if complete
+        "known_principal": principal,
+        "principal_source": principal_source,
+        "conversion": (
+            {
+                "entry_anchor": conversion["entry_anchor"],
+                "effective_on": conversion["effective_on"],
+                "amount": format_decimal(conversion["coefficient"], conversion["scale"]),
+                "description": conversion["description"],
+            }
+            if conversion is not None
             else None
         ),
         "occurrences": [
@@ -244,7 +379,7 @@ def propose(connection: Any, card: str | None = None) -> dict[str, Any]:
         key = (row["account_id"], row["currency"], row["family"], row["term"])
         groups.setdefault(key, []).append(row)
 
-    candidates: list[dict[str, Any]] = []
+    proposed: list[tuple[list[dict[str, Any]], tuple[str, str, str, int]]] = []
     ambiguous: list[dict[str, Any]] = []
     for key, rows in sorted(groups.items()):
         chains: list[list[dict[str, Any]]] = []
@@ -283,7 +418,12 @@ def propose(connection: Any, card: str | None = None) -> dict[str, Any]:
                 }
             )
             continue
-        candidates.extend(_candidate(chain, key) for chain in chains)
+        proposed.extend((chain, key) for chain in chains)
+
+    paired = _pair_conversions([(chain, key[3]) for chain, key in proposed], _conversions(connection, card))
+    candidates = [
+        _candidate(chain, key, paired.get(index)) for index, (chain, key) in enumerate(proposed)
+    ]
 
     candidates.sort(key=lambda c: (c["opened_on"], c["merchant_label"]))
     return {

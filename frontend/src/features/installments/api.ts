@@ -139,8 +139,19 @@ export type PlanCandidate = {
   complete: boolean
   observed_total: WireMoney
   known_principal: WireMoney | null
+  /** Where `known_principal` was read from; null when it is unknown. */
+  principal_source: 'conversion_credit' | 'observed_chain' | null
+  /** The `Split Payment Conversion` credit paired to this chain, if any. */
+  conversion: CandidateConversion | null
   occurrences: CandidateOccurrence[]
   source: string
+}
+
+export type CandidateConversion = {
+  entry_anchor: string
+  effective_on: string
+  amount: string
+  description: string
 }
 
 export type AmbiguousGroup = {
@@ -231,7 +242,8 @@ export async function previewThenCommit(body: InstallmentCommandBody): Promise<{
 /**
  * Confirm a proposed chain as a plan (INSTALLMENT_PLAN_SET).
  *
- * `known_principal` is sent only when the operator has one: a chain whose every
+ * `known_principal` is sent only when the operator has one: a chain paired to
+ * its printed conversion credit carries that credit, a chain whose every
  * instalment has appeared carries its exact observed total, and anything else
  * stays null. The schedule follows the same rule — the payload validator refuses
  * a schedule without a principal, because an unknown principal cannot imply a

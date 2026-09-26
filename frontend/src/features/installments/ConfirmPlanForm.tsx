@@ -23,9 +23,10 @@ export function ConfirmPlanForm({
 }) {
   const [merchantLabel, setMerchantLabel] = useState(candidate.merchant_label)
   const [planReference, setPlanReference] = useState('')
-  // A complete chain has an exactly observed principal, so it is offered
-  // prefilled. A partial one starts empty: the remaining instalments have not
-  // happened, and `monthly x term` would be a guess wearing a fact's clothes.
+  // A principal the statement printed -- a paired conversion credit, or a chain
+  // fully observed -- is offered prefilled. Otherwise it starts empty: the
+  // remaining instalments have not happened, and `monthly x term` would be a
+  // guess wearing a fact's clothes.
   const [knownPrincipal, setKnownPrincipal] = useState(
     candidate.known_principal ? candidate.known_principal.value : '',
   )
@@ -114,7 +115,7 @@ export function ConfirmPlanForm({
           <input
             aria-label="Known principal"
             inputMode="decimal"
-            placeholder={candidate.complete ? '' : 'Leave blank if unknown'}
+            placeholder={candidate.known_principal ? '' : 'Leave blank if unknown'}
             value={knownPrincipal}
             onChange={(e) => setKnownPrincipal(e.target.value)}
             disabled={busy}
@@ -132,7 +133,15 @@ export function ConfirmPlanForm({
         </label>
       </div>
 
-      {candidate.complete ? (
+      {candidate.conversion ? (
+        <p className="muted-note">
+          The statement that printed the first instalment also printed a{' '}
+          {candidate.conversion.description} credit of{' '}
+          {money(candidate.conversion.amount, candidate.currency)} on {candidate.conversion.effective_on}
+          . That is the total of the purchases you converted, and every instalment so far is
+          exactly what it divides into, so the principal above is that printed credit.
+        </p>
+      ) : candidate.complete ? (
         <p className="muted-note">
           Every instalment of this plan has appeared, so the principal above is the exact
           observed total, not an estimate.
