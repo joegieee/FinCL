@@ -192,7 +192,7 @@ export function TransactionsView({
         </select>
         <select aria-label="Transaction type" value={filters.kind} onChange={e => setFilters(f => ({ ...f, kind: e.target.value }))}>
           <option value="">All types</option>
-          {['spending', 'income', 'refunds', 'fees', 'pending_review', 'internal', 'debt', 'review'].map(k => <option key={k} value={k}>{k.replaceAll('_', ' ')}</option>)}
+          {['spending', 'income', 'refunds', 'fees', 'pending_review', 'internal', 'debt', 'installment', 'review'].map(k => <option key={k} value={k}>{k.replaceAll('_', ' ')}</option>)}
         </select>
         <select aria-label="Filter direction" value={filters.direction} onChange={e => setFilters(f => ({ ...f, direction: e.target.value }))}>
           <option value="">Any direction</option>
@@ -250,9 +250,10 @@ export function TransactionsView({
               const e = row.entry
               // Defensive fallback matching the legacy Transactions table: a
               // non-spending/non-role-eligible entry may carry no cost_behavior/need.
-              // A debt-owned movement has no spending pattern or need: principal is
-              // not spending, whatever the category engine left on the row.
-              const debtOwned = e.bucket === 'debt'
+              // A debt- or installment-owned movement has no spending pattern or
+              // need: principal is not spending, whatever the category engine
+              // left on the row.
+              const debtOwned = e.bucket === 'debt' || e.bucket === 'installment'
               const costBehavior = debtOwned ? 'N/A' : e.cost_behavior ?? (e.bucket === 'spending' ? 'unresolved' : 'N/A')
               const costBehaviorBasis = e.cost_behavior_basis ?? 'unresolved'
               const need = debtOwned ? 'N/A' : e.need ?? (e.bucket === 'spending' ? 'unresolved' : 'N/A')

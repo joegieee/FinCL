@@ -333,16 +333,7 @@ def _candidate(
         "observed_total": {"value": format_decimal(observed, scale), "currency": currency},
         "known_principal": principal,
         "principal_source": principal_source,
-        "conversion": (
-            {
-                "entry_anchor": conversion["entry_anchor"],
-                "effective_on": conversion["effective_on"],
-                "amount": format_decimal(conversion["coefficient"], conversion["scale"]),
-                "description": conversion["description"],
-            }
-            if conversion is not None
-            else None
-        ),
+        "conversion": _conversion_shape(conversion) if conversion is not None else None,
         "occurrences": [
             {
                 "entry_anchor": item["entry_anchor"],
@@ -359,13 +350,96 @@ def _candidate(
     }
 
 
-def propose(connection: Any, card: str | None = None) -> dict[str, Any]:
-    """The proposals themselves, read on the caller's connection.
+def _conversion_shape(conversion: dict[str, Any]) -> dict[str, str]:
+    return {
+        "entry_anchor": conversion["entry_anchor"],
+        "effective_on": conversion["effective_on"],
+        "amount": format_decimal(conversion["coefficient"], conversion["scale"]),
+        "description": conversion["description"],
+    }
 
-    Split out so a read model that already holds a generation-pinned
-    connection (the categorization inbox's "Installment candidates" focus)
-    proposes from exactly the snapshot it is showing, not a second one.
+
+def _unconverted_plan_chains(
+    connection: Any, rows: list[dict[str, Any]]
+) -> list[tuple[str, list[dict[str, Any]], int]]:
+    """Confirmed plans with no conversion credit yet, as ``(plan_id, chain, term)``.
+
+    A plan confirmed before conversion credits were read (or one whose credit
+    arrived on a later import) still competes for its credit here, so the
+    Installments screen can offer to attach it.
     """
+    by_anchor = {row["entry_anchor"]: row for row in rows}
+    plans: dict[str, tuple[int | None, list[dict[str, Any]]]] = {}
+    for row in connection.execute(
+        """
+        SELECT p.plan_id, p.term_months, o.entry_anchor
+        FROM installment_plans p
+        JOIN installment_occurrences o ON o.plan_id = p.plan_id
+        WHERE p.bound = 1 AND p.status = 'CONFIRMED'
+          AND NOT EXISTS (SELECT 1 FROM installment_conversions c WHERE c.plan_id = p.plan_id)
+        ORDER BY p.plan_id
+        """
+    ).fetchall():
+        term, chain = plans.setdefault(str(row["plan_id"]), (row["term_months"], []))
+        if str(row["entry_anchor"]) in by_anchor:
+            chain.append(by_anchor[str(row["entry_anchor"])])
+    out = []
+    for plan_id, (term, chain) in plans.items():
+        if not chain:
+            continue
+        chain.sort(key=lambda item: (item["ordinal"], item["effective_on"]))
+        out.append((plan_id, chain, int(term) if term else chain[0]["term"]))
+    return out
+
+
+def _pairing(
+    connection: Any,
+    proposed: list[tuple[list[dict[str, Any]], int]],
+    rows: list[dict[str, Any]],
+    card: str | None,
+) -> tuple[dict[int, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Pair unattached conversion credits across proposed chains and confirmed
+    plans together, so one credit is never offered to two of them.
+
+    Returns ``(proposed index -> credit, plan_id -> credit)``.
+    """
+    attached = {
+        str(row["entry_anchor"])
+        for row in connection.execute("SELECT entry_anchor FROM installment_conversions")
+    }
+    conversions = [c for c in _conversions(connection, card) if c["entry_anchor"] not in attached]
+    plans = _unconverted_plan_chains(connection, rows)
+    paired = _pair_conversions(proposed + [(chain, term) for _, chain, term in plans], conversions)
+    by_plan = {
+        plan_id: paired[len(proposed) + index]
+        for index, (plan_id, _chain, _term) in enumerate(plans)
+        if len(proposed) + index in paired
+    }
+    return {i: c for i, c in paired.items() if i < len(proposed)}, by_plan
+
+
+def suggested_conversion(connection: Any, plan_id: str) -> dict[str, str] | None:
+    """The one conversion credit that is this confirmed plan's principal, if the
+    printed evidence names exactly one; ``None`` otherwise."""
+    card = connection.execute(
+        "SELECT card_account_id FROM installment_plans WHERE plan_id = ?", (plan_id,)
+    ).fetchone()
+    if card is None:
+        return None
+    card_id = card["card_account_id"]
+    proposed, _ambiguous, rows, _claimed = _proposed_chains(connection, card_id)
+    _paired, by_plan = _pairing(connection, [(chain, key[3]) for chain, key in proposed], rows, card_id)
+    conversion = by_plan.get(plan_id)
+    return _conversion_shape(conversion) if conversion is not None else None
+
+
+_Chain = tuple[list[dict[str, Any]], tuple[str, str, str, int]]
+
+
+def _proposed_chains(
+    connection: Any, card: str | None
+) -> tuple[list[_Chain], list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    """``(proposed chains, ambiguous groups, every installment row, claimed anchors)``."""
     claimed = {
         str(row["entry_anchor"])
         for row in connection.execute(
@@ -373,7 +447,8 @@ def propose(connection: Any, card: str | None = None) -> dict[str, Any]:
         ).fetchall()
     }
     groups: dict[tuple[str, str, str, int], list[dict[str, Any]]] = {}
-    for row in _rows(connection, card):
+    all_rows = _rows(connection, card)
+    for row in all_rows:
         if row["entry_anchor"] in claimed:
             continue
         key = (row["account_id"], row["currency"], row["family"], row["term"])
@@ -420,7 +495,18 @@ def propose(connection: Any, card: str | None = None) -> dict[str, Any]:
             continue
         proposed.extend((chain, key) for chain in chains)
 
-    paired = _pair_conversions([(chain, key[3]) for chain, key in proposed], _conversions(connection, card))
+    return proposed, ambiguous, all_rows, claimed
+
+
+def propose(connection: Any, card: str | None = None) -> dict[str, Any]:
+    """The proposals themselves, read on the caller's connection.
+
+    Split out so a read model that already holds a generation-pinned
+    connection (the categorization inbox's "Installment candidates" focus)
+    proposes from exactly the snapshot it is showing, not a second one.
+    """
+    proposed, ambiguous, rows, claimed = _proposed_chains(connection, card)
+    paired, _by_plan = _pairing(connection, [(chain, key[3]) for chain, key in proposed], rows, card)
     candidates = [
         _candidate(chain, key, paired.get(index)) for index, (chain, key) in enumerate(proposed)
     ]
@@ -448,4 +534,4 @@ def installment_candidates(
         connection.close()
 
 
-__all__ = ["installment_candidates", "propose"]
+__all__ = ["installment_candidates", "propose", "suggested_conversion"]

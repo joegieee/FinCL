@@ -71,6 +71,16 @@ export type Settlement = {
   bound: boolean
 }
 
+/** The conversion credit a plan opened from; the plan owns it like its
+ * instalments. Amount/date are null when the credit no longer resolves. */
+export type AttachedConversion = {
+  entry_anchor: string
+  effective_on: string | null
+  amount: WireMoney | null
+  description: string | null
+  bound: boolean
+}
+
 export type InstallmentDetail = {
   generation: string
   as_of: string
@@ -79,6 +89,9 @@ export type InstallmentDetail = {
   purchase_allocations: PurchaseAllocation[]
   schedule: ScheduleRow[]
   settlements: Settlement[]
+  conversion: AttachedConversion | null
+  /** The one credit the printed evidence pairs to a plan that has none yet. */
+  suggested_conversion: CandidateConversion | null
   views: {
     recognized_purchase_cost: {
       recognized_principal: WireMoney | null
@@ -284,7 +297,51 @@ export function confirmPlan(opts: {
         date_precision: o.date_precision,
       })),
       schedule: [],
+      // The printed credit for the converted purchases: the plan owns it, so
+      // it stops asking for a category or incoming type.
+      conversion_anchor: candidate.conversion?.entry_anchor ?? null,
       reason: opts.reason,
+    },
+  })
+}
+
+/**
+ * Attach a conversion credit to an existing plan by re-recording its
+ * INSTALLMENT_PLAN_SET unchanged apart from `conversion_anchor`.
+ */
+export function attachConversion(opts: {
+  detail: InstallmentDetail
+  generation: string
+  conversion: CandidateConversion
+}): Promise<{ status: string }> {
+  const { plan, source_occurrences, schedule, views } = opts.detail
+  return previewThenCommit({
+    request_id: crypto.randomUUID(),
+    expected_generation: opts.generation,
+    kind: 'INSTALLMENT_PLAN_SET',
+    anchors: { plan: plan.plan_id },
+    payload: {
+      card_account_id: plan.card_account_id,
+      currency: plan.currency,
+      plan_reference: plan.plan_reference,
+      merchant_label: plan.merchant_label,
+      term_months: plan.progress.term_months,
+      known_principal: plan.progress.known_principal?.value ?? null,
+      financing_fee: views.recognized_purchase_cost.financing_fee?.value ?? null,
+      opened_on: plan.opened_on,
+      status: plan.status,
+      occurrences: source_occurrences.map((o) => ({
+        occurrence_id: o.occurrence_id,
+        occurrence_index: o.occurrence_index,
+        occurrence_count: o.occurrence_count,
+        entry_anchor: o.entry_anchor,
+        effective_on: o.effective_on,
+        amount: o.amount.value,
+        date_precision: o.date_precision,
+      })),
+      schedule: schedule.map((s) => ({ due_on: s.due_on, principal: s.principal.value, fee: s.fee.value })),
+      conversion_anchor: opts.conversion.entry_anchor,
+      reason: `Attach the ${opts.conversion.description} credit of ${opts.conversion.amount} on ${opts.conversion.effective_on}: the purchases this plan converted`,
     },
   })
 }

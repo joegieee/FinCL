@@ -347,6 +347,7 @@ function CoverageSummary({ summary }: { summary: Summary }) {
         <Card><small>Rule-assigned</small><strong>{summary.counts.rule_assigned || 0}</strong></Card>
         <Card><small>Manually assigned</small><strong>{summary.counts.manual_override || 0}</strong></Card>
         <Card><small>Needs a category</small><strong>{summary.counts.unclassified_active || 0}</strong></Card>
+        {(summary.counts.installment_plan || 0) > 0 && <Card><small>Installment plan payments</small><strong>{summary.counts.installment_plan}</strong><small>no category needed — the original purchase carries it</small></Card>}
         {combined && <Card><small>Combined completeness</small><strong>{combinedPercent}%</strong><small>{combined.numerator} / {combined.denominator} — category, spending pattern/need, and incoming type where each applies</small></Card>}
         {summary.needs_attention > 0 && <Card><small>Needs attention</small><strong>{summary.needs_attention}</strong></Card>}
       </div>

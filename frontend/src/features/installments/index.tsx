@@ -8,6 +8,7 @@ import { ConfirmPlanForm } from './ConfirmPlanForm'
 import { PurchaseAttributionForm } from './PurchaseAttributionForm'
 import { SettlementForm } from './SettlementForm'
 import {
+  attachConversion,
   loadCandidates,
   loadInstallmentDetail,
   loadInstallments,
@@ -92,6 +93,20 @@ function DetailView({
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
+  async function attach() {
+    if (!detail.suggested_conversion) return
+    setBusy(true)
+    setError('')
+    try {
+      const result = await attachConversion({ detail, generation, conversion: detail.suggested_conversion })
+      await onSaved(result.status)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not attach the conversion credit.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function retire() {
     const reason = window.prompt(
       'Retiring removes this plan and its allocations and settlement. Why?',
@@ -173,6 +188,33 @@ function DetailView({
         </Button>
       </div>
       {error ? <p className="debt-event-error">{error}</p> : null}
+
+      <h3>Conversion credit</h3>
+      {detail.conversion ? (
+        <p className="muted-note">
+          {detail.conversion.bound && detail.conversion.amount
+            ? `Opened from the ${detail.conversion.description ?? 'conversion'} credit of ${money(detail.conversion.amount.value, currency)} on ${detail.conversion.effective_on}. `
+            : 'The attached conversion credit no longer matches a selected transaction. '}
+          The plan owns that credit and its instalments, so neither is spending or needs a
+          category: the original purchases carry the spending.
+        </p>
+      ) : detail.suggested_conversion ? (
+        <div className="muted-note">
+          <p>
+            The statement printed a {detail.suggested_conversion.description} credit of{' '}
+            {money(detail.suggested_conversion.amount, currency)} on {detail.suggested_conversion.effective_on}{' '}
+            that matches this plan. Attach it so the credit stops waiting for review.
+          </p>
+          <Button size="sm" variant="outline" onClick={attach} disabled={busy}>
+            {busy ? 'Working…' : 'Attach conversion credit'}
+          </Button>
+        </div>
+      ) : (
+        <p className="muted-note">
+          No conversion credit is attached. The instalments are still owned by the plan and
+          are not counted as spending.
+        </p>
+      )}
 
       <h3>Source occurrences</h3>
       <p className="muted-note">Occurrence identity is an evidence anchor, not list position.</p>

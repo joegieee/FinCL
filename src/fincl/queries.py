@@ -20,6 +20,7 @@ from .db import connect_readonly
 from .decision_journal import default_journal_path, read_records
 from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
+from .installments.models import INSTALLMENT_OWNED_ANCHORS
 from .intervals import DateInterval, covers_date, month_span
 from .money import format_decimal
 from .report import _coverage_contract, _economic_flow
@@ -91,6 +92,8 @@ WHERE (""" + _DEBT_ALLOCATION_SQL + """) = 'full'
 # flagged for review. A partly allocated movement keeps its ordinary bucket --
 # the reports classify its unallocated remainder under the entry's own
 # category -- and carries `debt_allocation = 'partial'` so a screen can say so.
+# A movement a confirmed installment plan owns (`INSTALLMENT_OWNED_ANCHORS`) is
+# bucket `installment` on the same terms.
 _ENTRY_VIEW = """
 WITH """ + _DEBT_CLAIMS_CTE + """,
 base AS (
@@ -112,6 +115,7 @@ base AS (
     (e.analytics_eligible=1 AND e.lifecycle_state='COMPLETED' AND x.selection_state='SELECTED'
       AND (e.source_family='CSV' OR s.selection_state='SELECTED')) AS eligible,
     x.selection_state AS selection_state,
+    e.natural_anchor IN (""" + INSTALLMENT_OWNED_ANCHORS + """) AS installment_owned,
 """ + _DEBT_ALLOCATION_SQL + """ AS debt_allocation
   FROM ledger_entries e JOIN accounts a ON a.id=e.account_id
   JOIN extraction_runs x ON x.id=e.extraction_run_id
@@ -131,6 +135,7 @@ shaped AS (
       WHEN NOT eligible THEN 'excluded'
       WHEN linked OR classification = 'self_transfer' THEN 'internal'
       WHEN debt_allocation = 'full' THEN 'debt'
+      WHEN installment_owned THEN 'installment'
       WHEN economic_direction = 'OUT' THEN 'spending'
       WHEN economic_direction = 'IN' THEN CASE classification
         WHEN 'income' THEN 'income'
@@ -145,7 +150,7 @@ shaped AS (
   FROM base
 )
 SELECT shaped.*,
-  (bucket <> 'debt' AND (ambiguous OR direction_conflict OR category LIKE 'Unclassified%' OR bucket = 'pending_review')) AS review,
+  (bucket NOT IN ('debt', 'installment') AND (ambiguous OR direction_conflict OR category LIKE 'Unclassified%' OR bucket = 'pending_review')) AS review,
   (coalesce(fee_coefficient, 0) <> 0) AS fee_nonzero,
   substr(effective_at, 1, 7) AS effective_month,
   CAST(amount_coefficient AS REAL) / power(10.0, amount_scale) AS amount_value

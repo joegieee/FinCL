@@ -144,8 +144,16 @@ def _validate_plan(anchors: dict[str, str], payload: dict[str, Any]) -> None:
         "schedule",
         "reason",
     }
-    if set(payload) != expected:
-        raise FinCLError(f"INSTALLMENT_PLAN_SET payload is exactly {sorted(expected)}")
+    # `conversion_anchor` (schema 26) is optional so plans recorded before it
+    # existed still replay; absent and null both mean "no conversion credit".
+    if set(payload) - {"conversion_anchor"} != expected:
+        raise FinCLError(
+            f"INSTALLMENT_PLAN_SET payload is exactly {sorted(expected)}, "
+            "plus an optional conversion_anchor"
+        )
+    conversion = payload.get("conversion_anchor")
+    if conversion is not None and (not isinstance(conversion, str) or not conversion):
+        raise FinCLError("conversion_anchor must be a non-empty string or null")
     if not isinstance(payload["card_account_id"], str) or not payload["card_account_id"]:
         raise FinCLError("card_account_id is required")
     _currency(payload["currency"])
@@ -187,6 +195,8 @@ def _validate_plan(anchors: dict[str, str], payload: dict[str, Any]) -> None:
                 "another occurrence in this plan"
             )
         seen_anchors.add(anchor)
+    if conversion is not None and conversion in seen_anchors:
+        raise FinCLError("the conversion credit cannot also be one of the plan's instalments")
 
     schedule = payload["schedule"]
     if not isinstance(schedule, list):

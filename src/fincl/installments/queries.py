@@ -279,6 +279,38 @@ def installment_detail(
             )
         ]
 
+        # The conversion credit the plan opened from: the plan owns it, like its
+        # instalments. A plan without one gets the single credit the printed
+        # evidence pairs it to, if any, for the operator to attach.
+        attached = connection.execute(
+            """
+            SELECT c.entry_anchor, c.bound, e.effective_at, e.amount_coefficient,
+                   e.amount_scale, r.description_raw
+            FROM installment_conversions c
+            LEFT JOIN ledger_entries e ON e.id = c.entry_id
+            LEFT JOIN document_records r ON r.id = e.document_record_id
+            WHERE c.plan_id = ?
+            """,
+            (plan_id,),
+        ).fetchone()
+        conversion = None
+        if attached is not None:
+            bound = bool(attached["bound"]) and attached["amount_coefficient"] is not None
+            conversion = {
+                "entry_anchor": str(attached["entry_anchor"]),
+                "effective_on": str(attached["effective_at"])[:10] if bound else None,
+                "amount": _money(
+                    int(attached["amount_coefficient"]), int(attached["amount_scale"]), currency
+                ) if bound else None,
+                "description": attached["description_raw"] if bound else None,
+                "bound": bound,
+            }
+        suggested = None
+        if conversion is None and plan["status"] == "CONFIRMED" and plan["bound"]:
+            from .candidates import suggested_conversion
+
+            suggested = suggested_conversion(connection, plan_id)
+
         financing_fee = (
             _money(
                 int(plan["financing_fee_coefficient"]),
@@ -319,6 +351,8 @@ def installment_detail(
             "purchase_allocations": allocations,
             "schedule": schedule,
             "settlements": settlements,
+            "conversion": conversion,
+            "suggested_conversion": suggested,
             "views": views,
         }
     finally:

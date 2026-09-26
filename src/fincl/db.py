@@ -12,7 +12,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 25
+SCHEMA_VERSION = 26
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -475,6 +475,24 @@ CREATE TABLE IF NOT EXISTS reserve_policy (
     decided_at TEXT NOT NULL,
     policy_version TEXT NOT NULL
 ) STRICT;
+"""
+
+# Schema 26: the conversion credit an installment plan opened from. A card that
+# converts purchases into a plan prints a credit for their total (Mari's "Split
+# Payment Conversion"); that credit is the plan's principal being borrowed, not
+# an income or a refund, so the plan owns it the way it owns its instalments.
+# Replayed from the optional `conversion_anchor` of `INSTALLMENT_PLAN_SET`; at
+# most one per plan, and one plan per credit.
+SCHEMA_26_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS installment_conversions (
+    plan_id TEXT PRIMARY KEY REFERENCES installment_plans(plan_id),
+    entry_anchor TEXT NOT NULL,
+    entry_id TEXT,
+    bound INTEGER NOT NULL CHECK (bound IN (0, 1))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS installment_conversions_by_anchor
+    ON installment_conversions(entry_anchor);
 """
 
 
@@ -1087,6 +1105,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_23_TABLES_SQL
         + SCHEMA_24_TABLES_SQL
         + SCHEMA_25_TABLES_SQL
+        + SCHEMA_26_TABLES_SQL
     )
 
 

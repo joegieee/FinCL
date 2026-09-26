@@ -69,6 +69,27 @@ def preview_installment(
                     "occurrence source "
                     f"{item['entry_anchor']} does not resolve to one selected entry"
                 )
+        conversion = payload.get("conversion_anchor")
+        if conversion is not None:
+            entry_id = resolve_anchor(str(conversion))
+            if entry_id is None:
+                raise FinCLError(
+                    f"conversion credit {conversion} does not resolve to one selected entry"
+                )
+            entry = connection.execute(
+                "SELECT account_id, currency_pocket, amount_coefficient "
+                "FROM ledger_entries WHERE id = ?",
+                (entry_id,),
+            ).fetchone()
+            if entry is None or int(entry["amount_coefficient"]) <= 0:
+                raise FinCLError("the conversion credit must be a credit (an inflow) on the card")
+            if (str(entry["account_id"]), str(entry["currency_pocket"])) != (
+                payload["card_account_id"],
+                payload["currency"],
+            ):
+                raise FinCLError(
+                    "the conversion credit must be on the plan's own card and currency"
+                )
     if decision_kind == INSTALLMENT_ALLOCATION_SET:
         for item in payload["allocations"]:
             if resolve_anchor(str(item["entry_anchor"])) is None:

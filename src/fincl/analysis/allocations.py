@@ -103,7 +103,9 @@ def _installment_claim_minor(
     An original-purchase allocation with ``component_role = 'principal'`` claims
     the purchase entry's ``amount``; ``'fee'`` claims its ``fee``. An early
     settlement's principal and fee components consume the settlement source
-    repayment's ``amount`` (cash); a waived amount is not a cash claim.
+    repayment's ``amount`` (cash); a waived amount is not a cash claim. A
+    conversion credit attached to a plan is the plan's principal being borrowed,
+    so the plan claims that credit's whole ``amount``.
     """
     total = Fraction(0)
     for row in connection.execute(
@@ -128,6 +130,11 @@ def _installment_claim_minor(
             total += Fraction(
                 int(row["fee_coefficient"]), 10 ** int(row["fee_scale"])
             )
+        if _table_exists(connection, "installment_conversions") and connection.execute(
+            "SELECT 1 FROM installment_conversions WHERE entry_anchor = ? AND bound = 1",
+            (entry_anchor,),
+        ).fetchone():
+            total += _entry_component_minor(connection, entry_anchor, "amount")
     return total
 
 

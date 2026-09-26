@@ -181,7 +181,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
   }
 
   const disabled = data.freshness === 'stale'
-  const notEditable = bucket === 'excluded' || bucket === 'internal_linked' || bucket === 'debt'
+  const notEditable = bucket === 'excluded' || bucket === 'internal_linked' || bucket === 'debt' || bucket === 'installment'
   const retrying = Boolean(batch.submitted && batch.error)
 
   return <Dialog open onOpenChange={open => { if (!open) close() }}>
@@ -192,7 +192,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
         <div><dt>Date</dt><dd>{e.precision === 'MONTH' ? e.date.slice(0, 7) + ' · month precision' : dateLabel(e.date)}</dd></div>
         <div><dt>Account</dt><dd>{e.account}</dd></div>
         <div><dt>Fee</dt><dd>{money(e.fee, e.currency)}</dd></div>
-        <div><dt>Cash-flow treatment</dt><dd>{e.bucket === 'debt' ? 'personal debt' : e.bucket.replaceAll('_', ' ')}{e.debt_allocation === 'partial' && <small> · part of this amount is allocated to a personal debt; the classification below covers the rest</small>}</dd></div>
+        <div><dt>Cash-flow treatment</dt><dd>{e.bucket === 'debt' ? 'personal debt' : e.bucket === 'installment' ? 'installment plan' : e.bucket.replaceAll('_', ' ')}{e.debt_allocation === 'partial' && <small> · part of this amount is allocated to a personal debt; the classification below covers the rest</small>}</dd></div>
         <div><dt>Category basis</dt><dd>{e.basis}</dd></div>
         {applicable.cost_behavior && <>
           <div><dt>Spending pattern basis</dt><dd>{e.cost_behavior_basis}</dd></div>
@@ -216,7 +216,9 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
               ? 'This transaction is not active in the current selection scope and cannot be classified.'
               : bucket === 'debt'
                 ? 'This movement is fully allocated to a personal debt, so it is neither spending nor income. Change the debt event on the Debts page instead of classifying it here.'
-                : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
+                : bucket === 'installment'
+                  ? 'This movement belongs to a confirmed installment plan, so it is neither spending nor income: the original purchase carries the spending and its category. Change the plan on the Installments page instead of classifying it here.'
+                  : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
           </p>
         : <div className="nature-choice" role="radiogroup" aria-label="What is this?">
             <span className="eyebrow">WHAT IS THIS?</span>

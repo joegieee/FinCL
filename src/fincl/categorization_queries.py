@@ -15,6 +15,7 @@ from .common import canonical_json
 from .db import connect_readonly
 from .errors import FinCLError
 from .generation import current_generation
+from .installments.models import INSTALLMENT_OWNED_ANCHORS
 from .money import ExactMoney, exact_sum, format_decimal
 from .queries import DEBT_FULLY_ALLOCATED_ANCHORS
 
@@ -352,7 +353,8 @@ def categorization_summary(database: Path, *, generation: str) -> dict[str, Any]
     (``debt_allocated``): the debt decides how it counts, so it is neither
     waiting for a category nor flagged for attention -- the same answer
     ``queries._ENTRY_VIEW`` gives the transaction list and the classification
-    editor for that row.
+    editor for that row. A movement a confirmed installment plan owns is its
+    own bucket (``installment_plan``) on the same terms.
     """
     connection = _pinned_connection(database, generation)
     try:
@@ -360,7 +362,8 @@ def categorization_summary(database: Path, *, generation: str) -> dict[str, Any]
             f"""
             SELECT ec.group_name, ec.category, ec.basis, ec.ambiguous, ec.direction_conflict,
                    e.analytics_eligible, e.lifecycle_state,
-                   e.natural_anchor IN ({DEBT_FULLY_ALLOCATED_ANCHORS}) AS debt_owned
+                   e.natural_anchor IN ({DEBT_FULLY_ALLOCATED_ANCHORS}) AS debt_owned,
+                   e.natural_anchor IN ({INSTALLMENT_OWNED_ANCHORS}) AS installment_owned
             FROM entry_categories ec JOIN ledger_entries e ON e.id=ec.entry_id
             JOIN extraction_runs x ON x.id=e.extraction_run_id AND x.selection_state='SELECTED'
             """
@@ -371,6 +374,9 @@ def categorization_summary(database: Path, *, generation: str) -> dict[str, Any]
             active = bool(row["analytics_eligible"]) and row["lifecycle_state"] == "COMPLETED"
             if row["debt_owned"]:
                 buckets["debt_allocated"] += 1
+                continue
+            if row["installment_owned"]:
+                buckets["installment_plan"] += 1
                 continue
             if row["ambiguous"] or row["direction_conflict"]:
                 attention += 1
@@ -756,6 +762,8 @@ def _candidate_groups(
         "ec.group_name='Unclassified'", "ec.category='Unclassified'",
         # A debt owns a movement it fully explains; there is no category to choose.
         f"e.natural_anchor NOT IN ({DEBT_FULLY_ALLOCATED_ANCHORS})",
+        # Nor for a confirmed installment plan's instalments or conversion credit.
+        f"e.natural_anchor NOT IN ({INSTALLMENT_OWNED_ANCHORS})",
     ]
     params: list[str] = []
     for field, value in (("e.account_id", account), ("e.currency_pocket", currency), ("e.economic_direction", direction), ("e.lifecycle_state", lifecycle)):
@@ -877,7 +885,7 @@ def _debt_focus_groups(connection: Any, filters: dict[str, str]) -> tuple[_Group
     groups: _Groups = defaultdict(list)
     extras: _Extras = {}
     for raw in rows:
-        if raw["bucket"] in ("excluded", "internal", "debt") or raw["debt_allocation"] is not None:
+        if raw["bucket"] in ("excluded", "internal", "debt", "installment") or raw["debt_allocation"] is not None:
             continue
         if not _passes(raw, filters):
             continue
@@ -1009,8 +1017,9 @@ def _derived_focus_groups(
                 continue
         else:  # conflicts
             # A category-rule conflict is moot where the category no longer
-            # applies (a debt-owned movement), matching the view's `review`.
-            if detail_bucket == "debt" or not (raw["ambiguous"] or raw["direction_conflict"]):
+            # applies (a debt- or installment-owned movement), matching the
+            # view's `review`.
+            if detail_bucket in ("debt", "installment") or not (raw["ambiguous"] or raw["direction_conflict"]):
                 continue
         adapted = _adapt_view_row(raw, display_names)
         kind, key, label = _candidate_key(adapted)

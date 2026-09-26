@@ -47,6 +47,7 @@ from .db import (
     SCHEMA_23_TABLES_SQL,
     SCHEMA_24_TABLES_SQL,
     SCHEMA_25_TABLES_SQL,
+    SCHEMA_26_TABLES_SQL,
     SCHEMA_VERSION,
     connect_sqlite,
 )
@@ -238,6 +239,17 @@ def _migrate_24_to_25(connection: sqlite3.Connection) -> None:
     _apply_table_ddl(connection, SCHEMA_25_TABLES_SQL)
 
 
+def _migrate_25_to_26(connection: sqlite3.Connection) -> None:
+    """Add the schema-26 ``installment_conversions`` table; no data rewrite.
+
+    Populated by the next journal replay from the optional
+    ``conversion_anchor`` of ``INSTALLMENT_PLAN_SET``; empty until an operator
+    attaches a conversion credit to a plan, so a migrated ledger reads exactly
+    as before.
+    """
+    _apply_table_ddl(connection, SCHEMA_26_TABLES_SQL)
+
+
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
 # edit to that DDL is a new migration rather than a silent change under one id.
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
@@ -291,6 +303,9 @@ MIGRATION_23_TO_24_CHECKSUM = "sha256:" + hashlib.sha256(
 MIGRATION_24_TO_25_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_25_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_25_TO_26_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_26_TABLES_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
@@ -311,6 +326,7 @@ MIGRATIONS: dict[int, Migration] = {
     22: Migration(22, 23, MIGRATION_22_TO_23_CHECKSUM, _migrate_22_to_23),
     23: Migration(23, 24, MIGRATION_23_TO_24_CHECKSUM, _migrate_23_to_24),
     24: Migration(24, 25, MIGRATION_24_TO_25_CHECKSUM, _migrate_24_to_25),
+    25: Migration(25, 26, MIGRATION_25_TO_26_CHECKSUM, _migrate_25_to_26),
 }
 
 

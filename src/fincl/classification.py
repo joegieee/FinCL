@@ -102,6 +102,10 @@ _NOT_ACTIVE = "This transaction is not active in the current selection scope"
 # fee and owner residual the debt records), not spending or income -- the debt
 # owns it, the way a confirmed transfer link owns an internal movement.
 _DEBT_OWNED = "This transaction is fully allocated to a personal debt, which decides how it counts"
+_INSTALLMENT_OWNED = (
+    "This transaction belongs to a confirmed installment plan; the original "
+    "purchase carries the spending and its category"
+)
 _NOT_APPLICABLE = {
     "category": {
         "internal_linked": "Category is set by the linked transfer decision",
@@ -127,7 +131,7 @@ def _detail_bucket(row: dict[str, Any]) -> str:
 
 
 def _applicability(detail_bucket: str) -> dict[str, bool]:
-    if detail_bucket in ("excluded", "debt"):
+    if detail_bucket in ("excluded", "debt", "installment"):
         return dict.fromkeys(FIELD_NAMES, False)
     return {
         "category": detail_bucket not in ("internal_linked", "internal_self_transfer"),
@@ -146,6 +150,8 @@ def _not_applicable_reason(name: str, detail_bucket: str) -> str:
         return _NOT_ACTIVE
     if detail_bucket == "debt":
         return _DEBT_OWNED
+    if detail_bucket == "installment":
+        return _INSTALLMENT_OWNED
     table = _NOT_APPLICABLE[name]
     return table.get(detail_bucket, table.get("__default__", "This field does not apply to this transaction"))
 

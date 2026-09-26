@@ -6,7 +6,8 @@ occurrences into ``installment_occurrences`` (anchors resolved here), the
 projected schedule into ``installment_schedule`` with a disclosed rounding
 remainder on the final row, the original-purchase component claims into
 ``installment_purchase_allocations`` (so the shared registry can read
-``bound = 1`` rows), and early settlements partitioned into principal / fees /
+``bound = 1`` rows), the conversion credit the plan opened from into
+``installment_conversions``, and early settlements partitioned into principal / fees /
 waivers into ``installment_settlements``.
 
 ``resolve_installments`` runs once after the record loop: it revalidates every
@@ -199,6 +200,15 @@ def apply_installment(
             ),
         )
         _write_occurrences(connection, plan_id, list(payload["occurrences"]), resolve_anchor)
+        connection.execute("DELETE FROM installment_conversions WHERE plan_id = ?", (plan_id,))
+        conversion = payload.get("conversion_anchor")
+        if conversion is not None:
+            entry_id = resolve_anchor(str(conversion))
+            connection.execute(
+                "INSERT INTO installment_conversions (plan_id, entry_anchor, entry_id, bound) "
+                "VALUES (?, ?, ?, ?)",
+                (plan_id, str(conversion), entry_id, 1 if entry_id is not None else 0),
+            )
         _write_schedule(connection, plan_id, list(payload["schedule"]))
         _apply_schedule_remainder(connection, plan_id, payload["known_principal"])
         return
@@ -210,6 +220,7 @@ def apply_installment(
             "installment_purchase_allocations",
             "installment_schedule",
             "installment_occurrences",
+            "installment_conversions",
         ):
             connection.execute(f"DELETE FROM {table} WHERE plan_id = ?", (plan_id,))
         connection.execute(
@@ -329,6 +340,26 @@ def _check_single_active_plan_per_occurrence(connection: sqlite3.Connection) -> 
         seen[anchor] = plan_id
 
 
+def _check_single_plan_per_conversion(connection: sqlite3.Connection) -> None:
+    """A conversion credit opens one plan, and is never also an instalment."""
+    for row in connection.execute(
+        "SELECT entry_anchor, group_concat(plan_id, ', ') AS plans FROM installment_conversions "
+        "GROUP BY entry_anchor HAVING count(*) > 1"
+    ).fetchall():
+        raise FinCLError(
+            f"conversion credit {row['entry_anchor']} is attached to more than one "
+            f"installment plan ({row['plans']})"
+        )
+    row = connection.execute(
+        "SELECT c.entry_anchor FROM installment_conversions c "
+        "JOIN installment_occurrences o ON o.entry_anchor = c.entry_anchor LIMIT 1"
+    ).fetchone()
+    if row is not None:
+        raise FinCLError(
+            f"entry {row['entry_anchor']} is both a conversion credit and an instalment"
+        )
+
+
 def _check_partitions(connection: sqlite3.Connection) -> None:
     from ..analysis.allocations import assert_partition
 
@@ -341,6 +372,10 @@ def _check_partitions(connection: sqlite3.Connection) -> None:
         "SELECT DISTINCT source_entry_anchor FROM installment_settlements WHERE bound = 1"
     ):
         anchors.add(str(anchor))
+    for (anchor,) in connection.execute(
+        "SELECT entry_anchor FROM installment_conversions WHERE bound = 1"
+    ):
+        anchors.add(str(anchor))
     for anchor in anchors:
         assert_partition(connection, anchor, role="amount")
         assert_partition(connection, anchor, role="fee")
@@ -348,6 +383,7 @@ def _check_partitions(connection: sqlite3.Connection) -> None:
 
 def resolve_installments(connection: sqlite3.Connection) -> None:
     _check_single_active_plan_per_occurrence(connection)
+    _check_single_plan_per_conversion(connection)
     _check_partitions(connection)
 
 

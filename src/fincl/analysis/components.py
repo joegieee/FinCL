@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from ..cards.models import CARD_SOURCE_TYPES
+from ..installments.models import INSTALLMENT_OWNED_ANCHORS
 from ..intervals import DateInterval, covers_date, month_span
 from ..money import ExactMoney, exact_sum, format_decimal
 
@@ -287,6 +288,34 @@ class _DebtEffects:
     exceptional: list[_Exceptional]
 
 
+def _installment_owned(connection: sqlite3.Connection) -> dict[str, tuple[int, int] | None]:
+    """Anchors a confirmed installment plan owns -> the scheduled plan fee on it.
+
+    An instalment repays plan principal and a conversion credit borrows it, so
+    neither contributes an amount: the original purchases already carry the
+    spending, in their own categories (DESIGN-relationships-and-cost.md §4,
+    at-purchase view). A financing fee the plan schedules on an instalment is
+    not principal; it is returned so it still counts under ``fees``.
+    """
+    if not _table_exists(connection, "installment_conversions"):
+        return {}
+    owned: dict[str, tuple[int, int] | None] = {
+        str(row[0]): None for row in connection.execute(INSTALLMENT_OWNED_ANCHORS)
+    }
+    for row in connection.execute(
+        """
+        SELECT o.entry_anchor, s.fee_coefficient, s.fee_scale
+        FROM installment_occurrences o
+        JOIN installment_schedule s
+          ON s.plan_id = o.plan_id AND s.schedule_index = o.occurrence_index
+        WHERE o.bound = 1 AND s.fee_coefficient <> 0
+        """
+    ):
+        if str(row["entry_anchor"]) in owned:
+            owned[str(row["entry_anchor"])] = (int(row["fee_coefficient"]), int(row["fee_scale"]))
+    return owned
+
+
 def _debt_economic_effects(connection: sqlite3.Connection) -> _DebtEffects:
     if not _table_exists(connection, "personal_debt_allocations"):
         return _DebtEffects({}, {}, [], [])
@@ -381,6 +410,7 @@ def build_components(
     """
     rows = connection.execute(_ENTRY_SELECT).fetchall()
     debt = _debt_economic_effects(connection)
+    installment_owned = _installment_owned(connection)
 
     components: list[Component] = []
     stats: dict[str, dict[str, int]] = {}
@@ -492,8 +522,24 @@ def build_components(
             amount_coefficient = magnitude
 
         # A confirmed internal / self-transfer / ZERO-direction entry contributes
-        # no amount component, exactly as the MVP report drops it.
-        if amount_bucket != "internal":
+        # no amount component, exactly as the MVP report drops it; nor does an
+        # instalment or conversion credit a confirmed installment plan owns,
+        # beyond any fee the plan schedules on it.
+        owned_by_plan = row["entry_anchor"] in installment_owned
+        if owned_by_plan:
+            plan_fee = installment_owned[row["entry_anchor"]]
+            if plan_fee is not None:
+                components.append(
+                    Component(
+                        role="amount",
+                        bucket="fees",
+                        coefficient=-abs(plan_fee[0]),
+                        scale=plan_fee[1],
+                        nets=True,
+                        **shared,
+                    )
+                )
+        elif amount_bucket != "internal":
             components.append(
                 Component(
                     role="amount",
