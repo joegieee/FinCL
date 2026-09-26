@@ -43,6 +43,18 @@ def _plan_row(connection: sqlite3.Connection, plan_id: str) -> sqlite3.Row:
     return row
 
 
+def _has_conversions(connection: sqlite3.Connection) -> bool:
+    """Whether the schema-26 ``installment_conversions`` table exists.
+
+    A migration backup replays the journal against the pre-upgrade layout, and
+    no conversion can have been recorded before the table existed, so replay
+    on that layout simply has nothing to project there.
+    """
+    return connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'installment_conversions'"
+    ).fetchone() is not None
+
+
 def _money(value: object) -> tuple[int, int]:
     money = ExactMoney.parse(str(value))
     return money.coefficient, money.scale
@@ -200,8 +212,13 @@ def apply_installment(
             ),
         )
         _write_occurrences(connection, plan_id, list(payload["occurrences"]), resolve_anchor)
-        connection.execute("DELETE FROM installment_conversions WHERE plan_id = ?", (plan_id,))
         conversion = payload.get("conversion_anchor")
+        if _has_conversions(connection):
+            connection.execute("DELETE FROM installment_conversions WHERE plan_id = ?", (plan_id,))
+        elif conversion is not None:
+            raise FinCLError(
+                "this plan records a conversion credit, which needs schema 26; run fincl migrate"
+            )
         if conversion is not None:
             entry_id = resolve_anchor(str(conversion))
             connection.execute(
@@ -215,13 +232,15 @@ def apply_installment(
 
     if decision_kind == INSTALLMENT_PLAN_RETIRE:
         plan_id = anchors["plan"]
-        for table in (
+        tables = [
             "installment_settlements",
             "installment_purchase_allocations",
             "installment_schedule",
             "installment_occurrences",
-            "installment_conversions",
-        ):
+        ]
+        if _has_conversions(connection):
+            tables.append("installment_conversions")
+        for table in tables:
             connection.execute(f"DELETE FROM {table} WHERE plan_id = ?", (plan_id,))
         connection.execute(
             "DELETE FROM installment_plans WHERE plan_id = ?", (plan_id,)
@@ -342,6 +361,8 @@ def _check_single_active_plan_per_occurrence(connection: sqlite3.Connection) -> 
 
 def _check_single_plan_per_conversion(connection: sqlite3.Connection) -> None:
     """A conversion credit opens one plan, and is never also an instalment."""
+    if not _has_conversions(connection):
+        return
     for row in connection.execute(
         "SELECT entry_anchor, group_concat(plan_id, ', ') AS plans FROM installment_conversions "
         "GROUP BY entry_anchor HAVING count(*) > 1"
@@ -372,10 +393,11 @@ def _check_partitions(connection: sqlite3.Connection) -> None:
         "SELECT DISTINCT source_entry_anchor FROM installment_settlements WHERE bound = 1"
     ):
         anchors.add(str(anchor))
-    for (anchor,) in connection.execute(
-        "SELECT entry_anchor FROM installment_conversions WHERE bound = 1"
-    ):
-        anchors.add(str(anchor))
+    if _has_conversions(connection):
+        for (anchor,) in connection.execute(
+            "SELECT entry_anchor FROM installment_conversions WHERE bound = 1"
+        ):
+            anchors.add(str(anchor))
     for anchor in anchors:
         assert_partition(connection, anchor, role="amount")
         assert_partition(connection, anchor, role="fee")
