@@ -183,15 +183,32 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .debt-detail-foot{font-size:11px;color:var(--muted);margin:0}
 
 /* slice 2: event form + allocation table */
-.debt-event-form{border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:12px}
-.debt-event-form h3{margin:0;font-size:14px}
-.debt-event-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
-.debt-event-grid label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}
-.debt-event-grid input,.debt-event-grid select,.debt-event-reason textarea{font-size:13px;padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:inherit}
-.debt-event-check{flex-direction:row!important;align-items:flex-start;gap:6px;grid-column:1/-1}
-.debt-event-reason{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}
+.debt-event-form{border:1px solid var(--border);border-radius:10px;background:var(--card);padding:18px;display:flex;flex-direction:column;gap:16px}
+.debt-event-title{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.debt-event-title h3{margin:0;font-size:14px}
+.debt-event-title span{font-size:12px;color:var(--muted)}
+.debt-event-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px 14px;align-items:start}
+.debt-event-grid>label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:var(--muted)}
+.debt-event-grid>label>small{font-size:10px;font-weight:400}
+.debt-event-grid>label>input,.debt-event-grid>label>select,.debt-event-money,.debt-event-reason textarea{font-size:13px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--foreground);width:100%}
+.debt-event-grid>label>input:focus,.debt-event-grid>label>select:focus,.debt-event-money:focus-within,.debt-event-reason textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 14%,transparent)}
+.debt-event-grid>.category-combobox{display:flex;flex-direction:column;gap:4px}
+.debt-event-grid>.category-combobox>label{font-size:11px;font-weight:500;color:var(--muted)}
+.debt-event-grid>.category-combobox>input{font-size:13px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--foreground)}
+.debt-event-grid>.category-combobox>input:focus{outline:none;border-color:var(--primary)}
+.debt-event-money{display:flex;align-items:center;gap:6px;cursor:text}
+.debt-event-money>span{font-size:11px;color:var(--muted)}
+.debt-event-money input{flex:1;min-width:0;height:100%;border:0;background:none;color:inherit;font-size:13px;font-variant-numeric:tabular-nums;padding:0}
+.debt-event-money input:focus{outline:none}
+.debt-event-check{flex-direction:row!important;align-items:flex-start;gap:8px!important;grid-column:1/-1;font-size:12px!important;color:var(--foreground)!important;cursor:pointer}
+.debt-event-grid>.debt-event-check>input{flex:none;width:16px;height:16px;padding:0;margin-top:1px;accent-color:var(--primary);box-shadow:none}
+.debt-event-check span{display:flex;flex-direction:column;gap:1px}
+.debt-event-check small{font-size:11px;color:var(--muted)}
+.debt-event-note{margin:0;font-size:12px;color:var(--muted);padding:10px 12px;border:1px dashed var(--border);border-radius:8px}
+.debt-event-reason{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:var(--muted)}
+.debt-event-reason textarea{height:auto;min-height:56px;padding:8px 10px;resize:vertical;font-family:inherit}
 .debt-event-error{color:var(--danger-strong);font-size:12px;margin:0}
-.debt-event-actions{display:flex;justify-content:flex-end;gap:8px}
+.debt-event-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
 .debts-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
 .split-bill-picked{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}
 .split-bill-picked span{flex:1;min-width:0}
@@ -199,26 +216,37 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .split-bill-share{align-items:end}
 .split-bill-form>.muted-note,.split-bill-form .entry-picker{margin:0}
 .split-bill-mine{margin:0;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}
-.debt-alloc{border:1px solid var(--border);border-radius:6px;padding:10px;display:flex;flex-direction:column;gap:8px}
-.debt-alloc-head{display:flex;flex-direction:column;gap:1px}
-.debt-alloc-head span{font-size:11px;font-weight:600}
-.debt-alloc-head small{font-size:10px;color:var(--muted)}
+.debt-alloc{border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.debt-alloc-head{display:flex;flex-direction:column;gap:2px}
+.debt-alloc-head span{font-size:12px;font-weight:600}
+.debt-alloc-head small{font-size:11px;color:var(--muted)}
 .debt-alloc table{width:100%;border-collapse:collapse;font-size:12px}
-.debt-alloc th{text-align:left;font-weight:600;color:var(--muted);padding:4px 6px}
-.debt-alloc td{padding:3px 6px}
-.debt-alloc input,.debt-alloc select{width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;background:var(--bg);color:inherit}
-.debt-alloc td input{max-width:88px}
-.debt-alloc td:first-child{min-width:220px}
-.debt-alloc-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:11px}
-.debt-alloc-foot button{display:inline-flex;align-items:center;gap:4px;font-size:11px;border:1px solid var(--border);border-radius:6px;padding:3px 8px;background:var(--bg);color:inherit;cursor:pointer}
+.debt-alloc th{text-align:left;font-size:10px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:0 4px 4px}
+.debt-alloc td{padding:4px;vertical-align:top}
+.debt-alloc .num{width:108px}
+.debt-alloc td.num input{width:100%;height:32px;font-size:12px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:inherit;text-align:right;font-variant-numeric:tabular-nums}
+.debt-alloc td.num input:focus{outline:none;border-color:var(--primary)}
+.debt-alloc-source{min-width:200px}
+.debt-alloc-remove{width:32px}
+.debt-alloc-remove button{display:grid;place-items:center;width:32px;height:32px;border-radius:6px;color:var(--muted);cursor:pointer}
+.debt-alloc-remove button:hover{background:var(--danger-surface);color:var(--danger-strong)}
+.debt-alloc-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:11px}
+.debt-alloc-foot-actions{display:flex;align-items:center;gap:10px}
+.debt-alloc-foot-actions>button:first-child{display:inline-flex;align-items:center;gap:4px;font-size:11px;border:1px solid var(--border);border-radius:6px;padding:5px 10px;background:var(--bg);color:inherit;cursor:pointer}
+.debt-alloc-foot-actions>button:first-child:hover{border-color:var(--hover-border)}
+.debt-alloc-foot button.link{font-size:11px;color:var(--primary);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.debt-alloc-foot>span{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
 .debt-alloc-foot .ok{color:var(--muted)}
 .debt-alloc-foot .warn{color:var(--danger-strong)}
 .alloc-combobox{position:relative}
-.alloc-combobox-input{display:flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:5px;background:var(--bg);padding:0 6px;color:var(--muted)}
-.alloc-combobox-input:focus-within{border-color:var(--muted)}
-.alloc-combobox-input input{border:none;padding:4px 0;color:inherit}
+.alloc-combobox-input{display:flex;align-items:center;gap:6px;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:0 8px;color:var(--muted);cursor:text}
+.alloc-combobox-input:hover{border-color:var(--hover-border)}
+.alloc-combobox-input:focus-within{border-color:var(--primary)}
+.alloc-combobox-input svg{flex-shrink:0}
+.debt-alloc .alloc-combobox-input input{flex:1;min-width:0;width:auto;max-width:none;height:100%;border:none;padding:0;background:none;color:var(--foreground);font-size:12px;text-overflow:ellipsis}
 .alloc-combobox-input input:focus{outline:none}
 .alloc-combobox-input input::placeholder{color:var(--muted)}
+.alloc-combobox-picked{margin:3px 0 0 2px;font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
 .alloc-combobox-unresolved{margin:3px 0 0;font-size:10px;color:var(--danger-strong)}
 .alloc-combobox-list{list-style:none;margin:4px 0 0;padding:4px;position:absolute;z-index:10;left:0;min-width:320px;width:max-content;max-width:min(480px,90vw);max-height:260px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--shadow-soft)}
 .alloc-combobox-list li{border-radius:6px}

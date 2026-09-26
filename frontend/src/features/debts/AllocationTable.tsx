@@ -113,12 +113,22 @@ function SourcePicker({
   }
 
   const unresolved = Boolean(value) && !picked
+  const inputRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="alloc-combobox">
-      <div className="alloc-combobox-input">
+      {/* The whole box is the hit target, not just the text inside it. */}
+      <div
+        className="alloc-combobox-input"
+        onMouseDown={(e) => {
+          if (e.target === inputRef.current) return
+          e.preventDefault()
+          inputRef.current?.focus()
+        }}
+      >
         {searching ? <Loader2 size={12} className="spin" /> : <Search size={12} />}
         <input
+          ref={inputRef}
           id={id}
           role="combobox"
           aria-expanded={open}
@@ -149,6 +159,11 @@ function SourcePicker({
           }}
         />
       </div>
+      {picked && !open && (
+        <p className="alloc-combobox-picked">
+          {picked.effective_at.slice(0, 10)} · {money(picked.amount, currency)}
+        </p>
+      )}
       {unresolved && <p className="alloc-combobox-unresolved">{value} (unresolved — no longer among candidates)</p>}
       {open && (
         <ul className="alloc-combobox-list" id={`${id}-list`} role="listbox">
@@ -176,7 +191,9 @@ function SourcePicker({
           ))}
           {!filtered.length && !searching && (
             <li className="alloc-combobox-empty">
-              {trimmed.length < MIN_SEARCH_LENGTH
+              {!trimmed
+                ? 'No suggestions yet. Type to search every transaction.'
+                : trimmed.length < MIN_SEARCH_LENGTH
                 ? `No transaction matches "${query}".`
                 : `No transaction matching "${query}" found across the ledger.`}
             </li>
@@ -187,6 +204,13 @@ function SourcePicker({
   )
 }
 
+const CHARGE_FIELDS = ['interest_amount', 'fee_amount', 'separate_fee_amount'] as const
+const CHARGE_LABEL = { interest_amount: 'Interest', fee_amount: 'Fee', separate_fee_amount: 'Separate fee' } as const
+
+function hasCharges(row: AllocationInput): boolean {
+  return CHARGE_FIELDS.some((f) => toMinor(row[f]) !== 0)
+}
+
 export function AllocationTable({
   debtId,
   eventKind,
@@ -195,6 +219,8 @@ export function AllocationTable({
   rows,
   onChange,
   eventPrincipal,
+  sourceDirection,
+  onUseTotal,
   known = [],
 }: {
   debtId: string
@@ -202,8 +228,13 @@ export function AllocationTable({
   generation: string
   currency: string
   rows: AllocationInput[]
-  onChange: (rows: AllocationInput[]) => void
+  /** `picked` is the transaction just chosen for a row, when that is what changed. */
+  onChange: (rows: AllocationInput[], picked?: AllocationCandidate) => void
   eventPrincipal: string
+  /** Which way the backing bank movement runs, to say what to pick. */
+  sourceDirection?: 'IN' | 'OUT'
+  /** Offered when the allocations do not match: adopt their total as the event principal. */
+  onUseTotal?: (total: string) => void
   /** Sources already resolved by the caller (a seeded transaction), offered
    * ahead of the newest-first page so a pre-picked row shows its label from
    * the first render instead of reading as an unknown anchor. */
@@ -212,6 +243,10 @@ export function AllocationTable({
   const [loaded, setLoaded] = useState<AllocationCandidate[]>([])
   const candidates = [...known, ...loaded.filter((c) => !known.some((k) => k.entry_anchor === c.entry_anchor))]
   const [note, setNote] = useState('')
+  // Interest and fees are rare on informal debts, so their columns stay folded
+  // away unless asked for -- or unless a row already carries one.
+  const [chargesOpen, setChargesOpen] = useState(false)
+  const showCharges = chargesOpen || rows.some(hasCharges)
 
   useEffect(() => {
     let live = true
@@ -243,33 +278,42 @@ export function AllocationTable({
             : { ...r, entry_anchor: '' }
           : r,
       ),
+      candidate ?? undefined,
     )
   }
 
   const totalMinor = principalTotalMinor(rows)
   const wantMinor = toMinor(eventPrincipal)
   const balanced = Number.isFinite(totalMinor) && totalMinor === wantMinor
+  const total = Number.isFinite(totalMinor) ? (totalMinor / 100).toFixed(2) : ''
 
   return (
     <div className="debt-alloc">
       <div className="debt-alloc-head">
         <span>Source transactions</span>
         <small>
-          borrowed / returned principal is a bank inflow; lent / repaid principal is an outflow
+          {sourceDirection === 'IN'
+            ? 'The bank transfers that brought this money in.'
+            : sourceDirection === 'OUT'
+              ? 'The bank payments that sent this money out.'
+              : 'borrowed / returned principal is a bank inflow; lent / repaid principal is an outflow'}
+          {rows.length > 1 ? ' The event principal is their total.' : ''}
         </small>
       </div>
       {note ? <p className="debt-empty">{note}</p> : null}
       <table>
         <thead>
           <tr>
-            <th>Transaction</th><th>Principal</th><th>Interest</th>
-            <th>Fee</th><th>Separate fee</th><th />
+            <th>Transaction</th>
+            <th className="num">Principal</th>
+            {showCharges && CHARGE_FIELDS.map((f) => <th key={f} className="num">{CHARGE_LABEL[f]}</th>)}
+            <th />
           </tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
             <tr key={index}>
-              <td>
+              <td className="debt-alloc-source">
                 <SourcePicker
                   id={`alloc-${index}-source`}
                   label={`Allocation ${index + 1} source`}
@@ -280,25 +324,25 @@ export function AllocationTable({
                   onSelect={(candidate) => selectSource(index, candidate)}
                 />
               </td>
-              {(['principal_amount', 'interest_amount', 'fee_amount', 'separate_fee_amount'] as const).map(
-                (field) => (
-                  <td key={field}>
-                    <input
-                      aria-label={`Allocation ${index + 1} ${field.replace('_amount', '')}`}
-                      inputMode="decimal"
-                      value={row[field]}
-                      onChange={(e) => patch(index, field, e.target.value)}
-                    />
-                  </td>
-                ),
-              )}
-              <td>
+              {(['principal_amount', ...(showCharges ? CHARGE_FIELDS : [])] as const).map((field) => (
+                <td key={field} className="num">
+                  <input
+                    aria-label={`Allocation ${index + 1} ${field.replace('_amount', '')}`}
+                    inputMode="decimal"
+                    value={row[field]}
+                    onChange={(e) => patch(index, field, e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                  />
+                </td>
+              ))}
+              <td className="debt-alloc-remove">
                 <button
                   type="button"
                   aria-label={`Remove allocation ${index + 1}`}
+                  title="Remove this source"
                   onClick={() => onChange(rows.filter((_, i) => i !== index))}
                 >
-                  <X size={13} />
+                  <X size={14} />
                 </button>
               </td>
             </tr>
@@ -306,13 +350,31 @@ export function AllocationTable({
         </tbody>
       </table>
       <div className="debt-alloc-foot">
-        <button type="button" onClick={() => onChange([...rows, emptyAllocation()])}>
-          <Plus size={13} /> Add a source
-        </button>
+        <div className="debt-alloc-foot-actions">
+          <button type="button" onClick={() => onChange([...rows, emptyAllocation()])}>
+            <Plus size={13} /> Add a source
+          </button>
+          {!rows.some(hasCharges) && (
+            <button type="button" className="link" onClick={() => setChargesOpen((o) => !o)} aria-expanded={showCharges}>
+              {showCharges ? 'Hide interest & fees' : 'Interest & fees'}
+            </button>
+          )}
+        </div>
         <span className={balanced ? 'ok' : 'warn'}>
-          Allocated principal {money((totalMinor / 100).toFixed(2), currency)} of{' '}
-          {money(eventPrincipal, currency)}
-          {balanced ? '' : ' — must match the event principal'}
+          {balanced && totalMinor === 0 ? (
+            <>Pick the transaction{rows.length > 1 ? 's' : ''} above</>
+          ) : balanced ? (
+            <>Allocated {money(total, currency)} · matches the event principal</>
+          ) : (
+            <>
+              Allocated {money(total || '0', currency)} of {money(eventPrincipal, currency)} — must match the event principal
+              {onUseTotal && totalMinor > 0 ? (
+                <button type="button" className="link" onClick={() => onUseTotal(total)}>
+                  Use {money(total, currency)}
+                </button>
+              ) : null}
+            </>
+          )}
         </span>
       </div>
     </div>

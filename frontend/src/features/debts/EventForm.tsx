@@ -5,6 +5,7 @@ import { CategoryPicker, rememberCategory } from '@/features/classification/Cate
 import { AllocationTable, emptyAllocation, principalTotalMinor } from './AllocationTable'
 import {
   EVENT_KINDS,
+  bankDirection,
   kindsForMovement,
   previewThenCommit,
   type AllocationCandidate,
@@ -13,6 +14,16 @@ import {
   type EventKindSpec,
 } from './api'
 
+function todayIso(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** A row the user added but never filled in: dropped rather than sent. */
+function isBlank(row: AllocationInput): boolean {
+  return !row.entry_anchor && principalTotalMinor([row]) === 0
+}
+
 /** Record one PERSONAL_DEBT_EVENT_SET against an open debt.
  *
  * `seed` is one source transaction handed over from the classification editor:
@@ -20,7 +31,10 @@ import {
  * back, and starts with it allocated in full for its still-unclaimed amount.
  *
  * An expense someone paid for me is reported as spending under its category, so
- * it is chosen from the same category list as every other transaction. */
+ * it is chosen from the same category list as every other transaction.
+ *
+ * The principal and the date follow the picked sources until the user edits
+ * them: the principal tracks the allocated total, the date the latest source. */
 export function EventForm({
   detail,
   generation,
@@ -41,7 +55,15 @@ export function EventForm({
   const kinds = seed ? kindsForMovement(debt.direction, seed.economic_direction) : EVENT_KINDS[debt.direction]
   const [spec, setSpec] = useState<EventKindSpec>(kinds[0])
   const [principal, setPrincipal] = useState(seed?.open_amount ?? '')
-  const [effectiveOn, setEffectiveOn] = useState(seed ? seed.effective_at.slice(0, 10) : debt.opened_on)
+  const [principalAuto, setPrincipalAuto] = useState(true)
+  // A debt's first event usually opens it; later ones happen now-ish.
+  const [effectiveOn, setEffectiveOn] = useState(() => {
+    if (seed) return seed.effective_at.slice(0, 10)
+    const today = todayIso()
+    return debt.event_count > 0 && today > debt.opened_on ? today : debt.opened_on
+  })
+  const [dateAuto, setDateAuto] = useState(!seed)
+  const sourceDated = useRef(false)
   const [openingBalance, setOpeningBalance] = useState(false)
   const [expenseCategory, setExpenseCategory] = useState('')
   const [rows, setRows] = useState<AllocationInput[]>(
@@ -55,35 +77,56 @@ export function EventForm({
   const offLedger = spec.offLedger || (spec.opening && openingBalance)
   const needsCategory = spec.kind === 'EXPENSE_PAID_FOR_ME'
 
+  const filledRows = useMemo(() => rows.filter((r) => !isBlank(r)), [rows])
   const principalBalanced = useMemo(() => {
     if (offLedger) return true
     const want = Math.round(Number(principal) * 100)
-    return Number.isFinite(want) && principalTotalMinor(rows) === want && rows.length > 0
-  }, [offLedger, principal, rows])
+    return Number.isFinite(want) && principalTotalMinor(filledRows) === want && filledRows.length > 0
+  }, [offLedger, principal, filledRows])
 
   function pickKind(kind: string) {
     const next = kinds.find((k) => k.kind === kind) ?? kinds[0]
     setSpec(next)
     // A seeded source suits every kind offered (they share its direction), so
     // it survives a kind change; otherwise the picked sources may not.
-    if (!seed) setRows([])
+    if (!seed) {
+      setRows([])
+      sourceDated.current = false
+      if (principalAuto) setPrincipal('')
+    }
     if (!next.opening) setOpeningBalance(false)
   }
 
-  // Seeds the principal from the first source picked, but never overwrites a
-  // number already there: the stated principal is the claim the allocations are
-  // checked against, so once it exists it stays the user's to change.
-  function updateRows(next: AllocationInput[]) {
+  // The principal follows the allocated total as sources are picked, added and
+  // edited -- until the user types their own: the stated principal is the claim
+  // the allocations are checked against, so once typed it is theirs to change.
+  function updateRows(next: AllocationInput[], picked?: AllocationCandidate) {
     setRows(next)
-    if (principal.trim()) return
-    const total = principalTotalMinor(next)
-    if (Number.isFinite(total) && total > 0) setPrincipal((total / 100).toFixed(2))
+    if (principalAuto) {
+      const total = principalTotalMinor(next)
+      if (Number.isFinite(total)) setPrincipal(total > 0 ? (total / 100).toFixed(2) : '')
+    }
+    if (picked && dateAuto) {
+      const day = picked.effective_at.slice(0, 10)
+      const floor = day < debt.opened_on ? debt.opened_on : day
+      setEffectiveOn((prev) => (sourceDated.current && prev > floor ? prev : floor))
+      sourceDated.current = true
+    }
+  }
+
+  function editPrincipal(value: string) {
+    setPrincipal(value)
+    setPrincipalAuto(!value.trim())
   }
 
   async function submit() {
     if (inFlight.current) return
     if (!reason.trim() || !principal.trim() || (needsCategory && !expenseCategory)) {
       setError('Principal, a reason' + (needsCategory ? ' and an expense category from the list' : '') + ' are required.')
+      return
+    }
+    if (!offLedger && filledRows.some((r) => !r.entry_anchor)) {
+      setError('Pick a transaction for every source row that has an amount, or remove the row.')
       return
     }
     if (!principalBalanced) {
@@ -101,7 +144,7 @@ export function EventForm({
         direction: debt.direction,
         principal_amount: principal.trim(),
         effective_on: effectiveOn,
-        entry_allocations: offLedger ? [] : rows,
+        entry_allocations: offLedger ? [] : filledRows,
         opening_balance: spec.opening && openingBalance,
         expense_category: needsCategory ? expenseCategory : null,
         reason: reason.trim(),
@@ -120,7 +163,10 @@ export function EventForm({
 
   return (
     <div className="debt-event-form">
-      <h3>Record an event · {debt.counterparty_label}</h3>
+      <div className="debt-event-title">
+        <h3>Record an event · {debt.counterparty_label}</h3>
+        <span>{debt.direction === 'PAYABLE' ? 'I owe them' : 'They owe me'}</span>
+      </div>
       <div className="debt-event-grid">
         <label>
           Event
@@ -134,14 +180,19 @@ export function EventForm({
           </select>
         </label>
         <label>
-          Principal ({debt.currency})
-          <input
-            aria-label="Event principal"
-            inputMode="decimal"
-            value={principal}
-            onChange={(e) => setPrincipal(e.target.value)}
-            disabled={busy}
-          />
+          Principal
+          <span className="debt-event-money">
+            <span aria-hidden>{debt.currency}</span>
+            <input
+              aria-label="Event principal"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={principal}
+              onChange={(e) => editPrincipal(e.target.value)}
+              disabled={busy}
+            />
+          </span>
+          {!offLedger && principalAuto ? <small>Totals the sources below</small> : null}
         </label>
         <label>
           Effective date
@@ -150,9 +201,10 @@ export function EventForm({
             type="date"
             value={effectiveOn}
             min={debt.opened_on}
-            onChange={(e) => setEffectiveOn(e.target.value)}
+            onChange={(e) => { setEffectiveOn(e.target.value); setDateAuto(false) }}
             disabled={busy}
           />
+          {!offLedger && dateAuto ? <small>Follows the transaction you pick</small> : null}
         </label>
         {spec.opening ? (
           <label className="debt-event-check">
@@ -162,7 +214,10 @@ export function EventForm({
               onChange={(e) => setOpeningBalance(e.target.checked)}
               disabled={busy}
             />
-            Opening balance — a pre-existing obligation with no observed funding
+            <span>
+              Opening balance
+              <small>An amount already owed before tracking started, with no bank transaction behind it.</small>
+            </span>
           </label>
         ) : null}
         {needsCategory ? (
@@ -178,8 +233,8 @@ export function EventForm({
       </div>
 
       {offLedger ? (
-        <p className="muted-note">
-          This event carries no source allocations — it records an off-ledger amount.
+        <p className="debt-event-note">
+          No bank transaction backs this event — it records an off-ledger amount.
         </p>
       ) : (
         <AllocationTable
@@ -190,6 +245,8 @@ export function EventForm({
           rows={rows.length ? rows : [emptyAllocation()]}
           onChange={updateRows}
           eventPrincipal={principal || '0'}
+          sourceDirection={bankDirection(debt.direction, spec)}
+          onUseTotal={(total) => { setPrincipal(total); setPrincipalAuto(true) }}
           known={seed ? [seed] : undefined}
         />
       )}
@@ -198,6 +255,7 @@ export function EventForm({
         Reason
         <textarea
           aria-label="Reason"
+          placeholder={spec.sign > 0 ? 'e.g. Rent top-up for October' : 'e.g. Monthly repayment'}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           disabled={busy}
@@ -205,7 +263,7 @@ export function EventForm({
         />
       </label>
 
-      {error ? <p className="debt-event-error">{error}</p> : null}
+      {error ? <p className="debt-event-error" role="alert">{error}</p> : null}
       <div className="debt-event-actions">
         <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>Cancel</Button>
         <Button size="sm" onClick={submit} disabled={busy}>

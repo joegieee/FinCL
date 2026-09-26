@@ -99,6 +99,31 @@ describe('EventForm', () => {
     expect(screen.queryByText(/must match the event principal/)).not.toBeInTheDocument()
   })
 
+  it('keeps the event principal on the allocated total and the date on the source', async () => {
+    await mount({ ...receivableDetail, debt: { ...receivableDetail.debt, opened_on: '2026-01-01' } })
+    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
+
+    await screen.findByLabelText('Allocation 1 source')
+    fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'rent' } })
+    fireEvent.click(await screen.findByText('Flat rent March'))
+    await waitFor(() => expect(screen.getByLabelText('Event principal')).toHaveValue('120.00'))
+    expect(screen.getByLabelText('Effective date')).toHaveValue('2026-03-05')
+
+    fireEvent.change(screen.getByLabelText('Allocation 1 principal'), { target: { value: '45.50' } })
+    expect(screen.getByLabelText('Event principal')).toHaveValue('45.50')
+    expect(screen.queryByText(/must match the event principal/)).not.toBeInTheDocument()
+  })
+
+  it('folds interest and fee columns away until asked for', async () => {
+    await mount()
+    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
+    await screen.findByLabelText('Allocation 1 source')
+    expect(screen.queryByLabelText('Allocation 1 interest')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Interest & fees' }))
+    expect(screen.getByLabelText('Allocation 1 interest')).toBeInTheDocument()
+  })
+
   it('leaves a principal the user already typed alone', async () => {
     await mount()
     fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
@@ -110,6 +135,9 @@ describe('EventForm', () => {
 
     await screen.findByText(/must match the event principal/)
     expect(screen.getByLabelText('Event principal')).toHaveValue('80.00')
+
+    fireEvent.click(screen.getByRole('button', { name: /Use SGD/ }))
+    expect(screen.getByLabelText('Event principal')).toHaveValue('120.00')
   })
 
   it('requires the source allocations to sum to the event principal', async () => {
