@@ -7,6 +7,8 @@ build/
 dist/
 *.egg-info/
 var/
+# Synthetic ledger built by scripts/dev.py
+demo-ledger/
 raw/
 *.sqlite3
 *.sqlite3-shm

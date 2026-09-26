@@ -1,6 +1,6 @@
 """Hot-reloading development server over a synthetic demo ledger. Never touches var/.
 
-    uv run python scripts/dev.py                      # ~/finc-demo, created on first run
+    uv run python scripts/dev.py                      # demo-ledger/, created on first run
     uv run python scripts/dev.py --database PATH      # an existing throwaway ledger
     uv run python scripts/dev.py --no-vite            # backend only
 
@@ -31,7 +31,7 @@ from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPTS = REPO / "scripts"
-DEFAULT_DATABASE = Path.home() / "finc-demo" / "demo.sqlite3"
+DEFAULT_DATABASE = REPO / "demo-ledger" / "demo.sqlite3"  # git-ignored
 HOST = "127.0.0.1"
 VITE_PORT = 5173
 DEV_SESSION = "fincl-dev-session"
