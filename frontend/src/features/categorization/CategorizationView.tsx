@@ -52,9 +52,12 @@ function cycle(options: readonly string[], current: string): string {
   return values[(index + 1) % values.length]
 }
 
-export function CategorizationView({ generation, freshness, categories, accounts = [], currencies = [], onSaved, onOpenRules, onOpenTransactions }: {
+export function CategorizationView({ generation, freshness, categories, accounts = [], currencies = [], onSaved, onOpenRules, onOpenTransactions, onOpenNext }: {
   generation: string; freshness: string; categories: string[]; accounts?: string[]; currencies?: string[]; onSaved: (status: string) => void | Promise<void>
   onOpenRules?: () => void; onOpenTransactions?: () => void
+  /** Where the routine goes once the inbox is clear: transfers still to
+   * confirm, then the forecast answer the categorization feeds. */
+  onOpenNext?: (tab: 'Review' | 'Will I have enough') => void
 }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [page, setPage] = useState<CandidatesPage | null>(null)
@@ -239,7 +242,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
     {summary && <CoverageSummary summary={summary}/>}
     <div className="categorization-split">
       <Card className="candidate-list" onKeyDown={onListKeyDown}>
-        <div className="panel-title"><div><p className="eyebrow"><span>CATEGORIZATION INBOX</span> · ALL SELECTED HISTORY</p><h2>{page ? (focus === 'category' ? `${page.total} groups need review` : `${page.total} groups match ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2><p className="muted-note">Covers every imported statement, all dates and currencies. Rules also apply to future imports. Pending, reverted and superseded rows are shown but not counted as active.</p></div></div>
+        <div className="panel-title"><div><p className="eyebrow"><span>CATEGORIZATION INBOX</span> · ALL SELECTED HISTORY</p><h2>{page ? (focus === 'category' ? `${page.total} group${page.total === 1 ? '' : 's'} need${page.total === 1 ? 's' : ''} review` : `${page.total} group${page.total === 1 ? '' : 's'} match${page.total === 1 ? 'es' : ''} ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2><p className="muted-note">Covers every imported statement, all dates and currencies. Rules also apply to future imports. Pending, reverted and superseded rows are shown but not counted as active.</p></div></div>
         {!page?.candidates.length && (focus === 'debts'
           ? <p className="empty-line">Nothing to propose. A movement shows up here once you have recorded an earlier one with the same payee against an open debt; record the first one from its transaction's "What is this?" choice.</p>
           : focus === 'installments'
@@ -248,8 +251,16 @@ export function CategorizationView({ generation, freshness, categories, accounts
           {focus === 'category' ? 'Everything active is categorized, or no groups match the current ledger generation.' : 'Nothing active matches this focus, or no groups match the current ledger generation.'}
           {' '}Check the <Button variant="link" size="sm" onClick={onOpenRules}>Rules</Button> page for existing rules, or browse <Button variant="link" size="sm" onClick={onOpenTransactions}>Transactions</Button> directly.
         </p>)}
+        {page && !page.candidates.length && focus === 'category' && onOpenNext && <div className="inbox-next">
+          <p className="eyebrow">NEXT</p>
+          <p>Confirm any proposed transfers, then see whether your cash covers what is coming.</p>
+          <div className="dialog-actions">
+            <Button variant="outline" onClick={() => onOpenNext('Review')}>Open Review</Button>
+            <Button onClick={() => onOpenNext('Will I have enough')}>Will I have enough?</Button>
+          </div>
+        </div>}
         {page?.candidates.map((candidate, index) => <button className={`candidate-card${index === activeIndex ? ' is-active' : ''}`} key={candidate.candidate_id} tabIndex={index === activeIndex ? 0 : -1} onFocus={() => setActiveIndex(index)} onClick={() => void open(candidate, index)}>
-          <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transactions · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.filter(example => example !== candidate.label).slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small>{candidate.relationship_basis && <small>{candidate.relationship_basis}</small>}{candidate.directions.IN > 0 && candidate.directions.OUT > 0 && <small className="tag">includes {candidate.directions.IN} incoming</small>}{candidate.currencies && Object.keys(candidate.currencies).length > 1 && <small className="tag">{Object.keys(candidate.currencies).length} currencies</small>}</span><ChevronRight size={16}/>
+          <span className="merchant-icon"><Tag size={16}/></span><span className="candidate-main"><strong>{candidate.label}</strong><small>{candidate.transaction_count} transaction{candidate.transaction_count === 1 ? '' : 's'} · {candidate.active_count} active · {candidate.date_range.first} to {candidate.date_range.last}</small><small>{candidate.examples.filter(example => example !== candidate.label).slice(0, 2).join(' · ') || candidate.kind.replace('_', ' ')}</small>{candidate.relationship_basis && <small>{candidate.relationship_basis}</small>}{candidate.directions.IN > 0 && candidate.directions.OUT > 0 && <small className="tag">includes {candidate.directions.IN} incoming</small>}{candidate.currencies && Object.keys(candidate.currencies).length > 1 && <small className="tag">{Object.keys(candidate.currencies).length} currencies</small>}</span><ChevronRight size={16}/>
         </button>)}
         {page?.next_cursor && <div className="dialog-actions"><Button variant="outline" onClick={() => void loadMoreCandidates()}>Load more groups</Button></div>}
       </Card>
@@ -363,6 +374,13 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   const [reason, setReason] = useState('')
   const [reasonEdited, setReasonEdited] = useState(false)
   const [compiled, setCompiled] = useState<CompiledCombinedRule | null>(null)
+  /** An incoming-type rule only *suggests* a type for later inflows
+   * (inbound_rules.py); it never classifies one. So the inflows on screen,
+   * which the user is looking at while choosing the type, are classified
+   * explicitly in the same batch -- otherwise saving leaves the group exactly
+   * where it was and the inbox cannot be cleared. */
+  const [inflowCommands, setInflowCommands] = useState<ClassificationCommand[]>([])
+  const [inflowCount, setInflowCount] = useState(0)
   const [compiling, setCompiling] = useState(false)
   const [overlapAcknowledged, setOverlapAcknowledged] = useState(false)
   const [error, setError] = useState('')
@@ -408,7 +426,9 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     await onSaved(status)
   })
   async function undoRuleSave(saved: CompiledCombinedRule, savedReason: string) {
-    const items = saved.commands.map(command => ({ kind: RETIRE_KIND[command.kind] ?? command.kind, anchors: command.anchors, payload: { reason: `Undo: ${savedReason}` } }))
+    // Only the rule half has an inverse; an explicit incoming type has no
+    // clear (see `undoGroupSave`), so inflows classified alongside it stay.
+    const items = saved.commands.filter(command => RETIRE_KIND[command.kind]).map(command => ({ kind: RETIRE_KIND[command.kind], anchors: command.anchors, payload: { reason: `Undo: ${savedReason}` } }))
     await api('batch', { request_id: crypto.randomUUID(), expected_generation: generation, reason: `Undo: ${savedReason}`, items })
     await onSaved('undone')
   }
@@ -490,11 +510,22 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     if (!options[option] || !hasAnyRuleField || !reason.trim()) return
     setError(''); ruleBatch.invalidate(); setCompiling(true); setOverlapAcknowledged(false)
     try {
-      setCompiled(await compileCombinedRule(generation, options[option].match, {
-        category: category || null, cost_behavior: costBehavior || null,
-        need: need || null, incoming_type: incomingType || null,
-      }, reason.trim()))
+      const unresolvedInflows = incomingType ? unresolvedInflowAnchors() : []
+      const [rule, inflows] = await Promise.all([
+        compileCombinedRule(generation, options[option].match, {
+          category: category || null, cost_behavior: costBehavior || null,
+          need: need || null, incoming_type: incomingType || null,
+        }, reason.trim()),
+        unresolvedInflows.length
+          ? previewClassification({ generation, anchors: unresolvedInflows, incoming_type: { intent: 'set', value: incomingType }, policy: 'fill_missing', reason: reason.trim() })
+          : Promise.resolve(null),
+      ])
+      setInflowCommands(inflows?.commands ?? []); setInflowCount(inflows?.changed_transactions ?? 0)
+      setCompiled(rule)
     } catch (e) { reportError(e) } finally { setCompiling(false) }
+  }
+  function unresolvedInflowAnchors() {
+    return records.filter(row => row.active && row.direction === 'IN' && row.applicable_fields?.incoming_type && !row.effective?.incoming_type).map(row => row.anchor)
   }
   function checkedRecords() { return records.filter(row => anchors.has(row.anchor)) }
   /** Step 6d: a new rule that would leave rows ambiguous or in direction
@@ -535,7 +566,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     await batch.submit(preview.commands, reason.trim())
   }
   function saveAndNext() {
-    if (scope === 'rule') { if (compiled && !ruleBatch.busy && !(hasOverlapWarning && !overlapAcknowledged)) void ruleBatch.submit(compiled.commands, reason.trim()) }
+    if (scope === 'rule') { if (compiled && !ruleBatch.busy && !(hasOverlapWarning && !overlapAcknowledged)) void ruleBatch.submit([...compiled.commands, ...inflowCommands], reason.trim()) }
     else if (preview && !batch.busy) void saveGroupChanges()
   }
   async function loadMoreRecords() {
@@ -650,7 +681,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     <div className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><h2>{detail.candidate.label}{detail.candidate.kind === 'merchant' && detail.candidate.merchant_key && <>
       <MerchantRenameControl generation={generation} merchantKey={detail.candidate.merchant_key} currentLabel={detail.candidate.label} disabled={disabled} onSaved={onSaved} />
       <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => setMerging(true)}>Same merchant as…</Button>
-    </>}</h2><p className="muted-note">{detail.candidate.transaction_count} similar transactions. Choose exactly what should change — a preview refreshes automatically.</p></div>
+    </>}</h2><p className="muted-note">{detail.candidate.transaction_count === 1 ? '1 transaction' : `${detail.candidate.transaction_count} similar transactions`}. Choose exactly what should change — a preview refreshes automatically.</p></div>
     <span className="candidate-review-nav"><Button type="button" variant="ghost" size="sm" onClick={() => setShowShortcuts(s => !s)}><HelpCircle size={14}/></Button><Button variant="ghost" size="sm" onClick={onClose}>Close</Button></span>
     </div></div>
     {showShortcuts && <div className="shortcut-sheet">
@@ -757,6 +788,9 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
       reason={reason} disabled={disabled} onSaved={onSaved}/>}
     {error && <p className="form-error">{error}</p>}{ruleBatch.error && <p className="form-error">{ruleBatch.error}</p>}{batch.error && <p className="form-error">{batch.error}</p>}
     {scope === 'rule' && compiled && !ruleBatch.submitted && <CombinedImpactSummary impact={compiled.impact}/>}
+    {scope === 'rule' && compiled && !ruleBatch.submitted && inflowCount > 0 && <p className="muted-note">
+      Also classifies the {inflowCount === 1 ? 'inflow' : `${inflowCount} inflows`} shown here as {INCOMING_LABELS[incomingType]} now. The rule only suggests a type for later inflows; each one is still confirmed here.
+    </p>}
     {scope === 'rule' && hasOverlapWarning && !ruleBatch.submitted && <label className="form-error">
       <input type="checkbox" checked={overlapAcknowledged} onChange={e => setOverlapAcknowledged(e.target.checked)}/>
       {' '}I understand this rule leaves some transactions ambiguous, in direction conflict, or overlapping another rule.

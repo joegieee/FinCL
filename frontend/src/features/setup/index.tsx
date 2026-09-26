@@ -27,7 +27,10 @@ function sizeLabel(bytes: number | null) {
  * import history. Successful files survive a later file's failure; the chosen
  * adapter and file selection are local draft state and never enter the URL.
  */
-export function SetupView({ onImported }: { onImported: () => void }) {
+/** `onReview`, when given, is the next step after an accepted import: rebuild
+ * the ledger from the new evidence and go to whatever it now needs decided. An
+ * import on its own changes nothing a reader can see until that refresh. */
+export function SetupView({ onImported, onReview }: { onImported: () => void; onReview?: () => void | Promise<void> }) {
   const [setup, setSetup] = useState<SetupOptions | null>(null)
   const [imports, setImports] = useState<ImportRun[] | null>(null)
   const [error, setError] = useState('')
@@ -47,13 +50,13 @@ export function SetupView({ onImported }: { onImported: () => void }) {
 
   return (
     <AsyncView loading={loading} error={error} data={setup} onRetry={load} loadingLabel="Loading setup" errorTitle="We couldn’t load setup.">
-      {setup => <SetupContent setup={setup} imports={imports} loading={loading} load={load} onImported={onImported} detail={detail} setDetail={setDetail} setError={setError} />}
+      {setup => <SetupContent setup={setup} imports={imports} loading={loading} load={load} onImported={onImported} onReview={onReview} detail={detail} setDetail={setDetail} setError={setError} />}
     </AsyncView>
   )
 }
 
-function SetupContent({ setup, imports, loading, load, onImported, detail, setDetail, setError }: {
-  setup: SetupOptions; imports: ImportRun[] | null; loading: boolean; load: () => void; onImported: () => void
+function SetupContent({ setup, imports, loading, load, onImported, onReview, detail, setDetail, setError }: {
+  setup: SetupOptions; imports: ImportRun[] | null; loading: boolean; load: () => void; onImported: () => void; onReview?: () => void | Promise<void>
   detail: ImportDetail | null; setDetail: (d: ImportDetail | null) => void; setError: (e: string) => void
 }) {
   return (
@@ -68,7 +71,7 @@ function SetupContent({ setup, imports, loading, load, onImported, detail, setDe
         <p className="muted-note"><ShieldCheck size={13} /> New ledgers and switching are granted by the host launcher (<code>fincl setup --workspace-root</code>). This screen never takes an absolute path from the browser.</p>
       </Card>
 
-      <ImportWizard onDone={() => { load(); onImported() }} />
+      <ImportWizard onDone={() => { load(); onImported() }} onReview={onReview} />
 
       <FxRatesWizard />
 
@@ -127,10 +130,11 @@ function SetupContent({ setup, imports, loading, load, onImported, detail, setDe
   )
 }
 
-function ImportWizard({ onDone }: { onDone: () => void }) {
+function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () => void | Promise<void> }) {
   const [adapter, setAdapter] = useState(ADAPTERS[0].id)
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
   const [result, setResult] = useState<UploadResult | null>(null)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -211,7 +215,12 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
               </li>
             ))}
           </ul>
-          <Button variant="ghost" size="sm" onClick={() => setResult(null)}><X size={14} /> Dismiss</Button>
+          <div className="dialog-actions">
+            <Button variant="ghost" size="sm" onClick={() => setResult(null)}><X size={14} /> Dismiss</Button>
+            {onReview && result.accepted > 0 && <Button size="sm" disabled={reviewing} onClick={() => { setReviewing(true); void Promise.resolve(onReview()).finally(() => setReviewing(false)) }}>
+              {reviewing ? <>Refreshing… <RefreshCw size={14} className="spin" /></> : 'Refresh and review new transactions'}
+            </Button>}
+          </div>
         </div>
       )}
     </Card>

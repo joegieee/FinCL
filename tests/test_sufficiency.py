@@ -95,6 +95,27 @@ class VerdictTests(unittest.TestCase):
         self.assertIsNone(case["shortfall"])
         self.assertEqual(case["drivers"], [])
 
+    def test_a_yes_still_names_what_the_horizon_already_pays_for(self) -> None:
+        """A debt recorded today must be visibly counted even when nothing breaches."""
+        case = _case(
+            _scenario(events={"items": [
+                _event(label="Loan from Alex", on="2026-11-15", amount="2000.00",
+                       origin="personal_debt"),
+                _event(label="Annual invoice", on="2027-02-15", amount="3000.00",
+                       origin="personal_debt"),
+                _event(label="Salary", on="2026-11-01", amount="4000.00",
+                       direction="inflow", origin="recurring_commitment"),
+            ]}),
+            scale=2,
+        )
+
+        self.assertEqual(case["verdict"], VERDICT_ENOUGH)
+        self.assertEqual(case["drivers"], [])
+        [debts] = case["accounted_for"]
+        self.assertEqual(debts["origin"], "personal_debt")
+        self.assertEqual(debts["amount"], "5000.00")
+        self.assertEqual([item["label"] for item in debts["items"]], ["Loan from Alex", "Annual invoice"])
+
     def test_an_unbuildable_case_reports_its_reasons_and_no_verdict(self) -> None:
         """A missing answer must never be readable as "you have enough"."""
         case = _case(

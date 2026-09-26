@@ -112,16 +112,19 @@ function LifecycleControls({
 }
 
 function DebtDetailView({
-  detail, generation, categories, onBack, onSaved,
+  detail, generation, categories, startRecording = false, onBack, onSaved,
 }: {
   detail: DebtDetail
   generation: string
   categories: string[]
+  /** Open with the event form already showing -- used right after a debt is
+   * created, since a new debt carries no amount until its first event. */
+  startRecording?: boolean
   onBack: () => void
   onSaved: (status: string) => void | Promise<void>
 }) {
   const debt = detail.debt
-  const [recording, setRecording] = useState(false)
+  const [recording, setRecording] = useState(startRecording)
   return (
     <Card className="debt-detail">
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={14} /> All debts</Button>
@@ -198,6 +201,10 @@ export function DebtsView({
   const [creating, setCreating] = useState(false)
   const [splitting, setSplitting] = useState(false)
   const [error, setError] = useState('')
+  // A debt just created, to reopen at its first event once the ledger has
+  // reloaded under the generation that includes it.
+  const [justCreated, setJustCreated] = useState<string | null>(null)
+  const [recordOnOpen, setRecordOnOpen] = useState(false)
 
   useEffect(() => {
     let live = true
@@ -208,22 +215,30 @@ export function DebtsView({
     return () => { live = false }
   }, [generation])
 
-  function openDetail(id: string) {
+  function openDetail(id: string, record = false) {
     setError('')
     setCreating(false)
     loadDebtDetail(id, { generation })
-      .then(setDetail)
+      .then((d) => { setRecordOnOpen(record); setDetail(d) })
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Could not load that debt.'))
   }
+
+  useEffect(() => {
+    if (!justCreated) return
+    setJustCreated(null)
+    openDetail(justCreated, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [justCreated, generation])
 
   if (error) return <Card className="debt-list"><p className="debt-empty">{error}</p></Card>
   if (creating) return (
     <NewDebtForm
       generation={generation}
       onCancel={() => setCreating(false)}
-      onSaved={async (status) => {
+      onSaved={async (status, debtId) => {
         setCreating(false)
         await onSaved?.(status)
+        setJustCreated(debtId)
       }}
     />
   )
@@ -241,9 +256,11 @@ export function DebtsView({
   )
   if (detail) return (
     <DebtDetailView
+      key={detail.debt.debt_id}
       detail={detail}
       generation={generation}
       categories={categories}
+      startRecording={recordOnOpen}
       onBack={() => setDetail(null)}
       onSaved={async (status) => {
         setDetail(null)

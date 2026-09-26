@@ -16,6 +16,8 @@ export type SufficiencyCase = {
   first_short_on: string | null
   reserve_target: string | null
   drivers: SufficiencyDriver[]
+  /** Every outflow family across the horizon, whatever the verdict. */
+  accounted_for: SufficiencyDriver[]
   reasons: string[]
   headline: string
 }

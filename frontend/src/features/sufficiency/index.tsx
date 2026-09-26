@@ -5,8 +5,9 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AsyncView } from '@/components/AsyncView'
 import { money } from '@/lib/api'
+import { readerLimitations } from '@/lib/limitations'
 import { ReservePolicyForm } from './ReservePolicyForm'
-import { loadSufficiency, type SufficiencyCase, type SufficiencyCurrency, type SufficiencyPage } from './api'
+import { loadSufficiency, type SufficiencyCase, type SufficiencyCurrency, type SufficiencyDriver, type SufficiencyPage } from './api'
 
 const TONE: Record<SufficiencyCase['verdict'], string> = {
   enough: 'is-enough',
@@ -39,8 +40,13 @@ function VerdictIcon({ verdict }: { verdict: SufficiencyCase['verdict'] }) {
  *   verdict. It must never render as a yes.
  */
 export function SufficiencyView({
-  generation, onSaved,
-}: { generation: string; onSaved?: (status: string) => void | Promise<void> }) {
+  generation, onSaved, onOpenObligations, onOpenCash,
+}: {
+  generation: string; onSaved?: (status: string) => void | Promise<void>; onOpenObligations?: () => void
+  /** Where a missing answer is fixed: the Cash page names, per pocket, the
+   * account and date holding the shared cutoff back. */
+  onOpenCash?: () => void
+}) {
   const [page, setPage] = useState<SufficiencyPage | null>(null)
   const [error, setError] = useState('')
   const [editingPolicy, setEditingPolicy] = useState(false)
@@ -68,13 +74,14 @@ export function SufficiencyView({
             <Card className="controls-card">
               <div className="panel-title"><div><p className="eyebrow">NO ANSWER YET</p><h2>No currency has a usable forecast</h2></div></div>
               <ul className="issue-list">
-                {page.limitations.map((reason, i) => <li key={i}><p>{reason}</p></li>)}
+                {readerLimitations(page.limitations).map((reason, i) => <li key={i}><p>{reason}</p></li>)}
               </ul>
+              {onOpenCash && <Button variant="outline" size="sm" onClick={onOpenCash}>See which account is holding this back</Button>}
             </Card>
           )}
 
           {Object.values(page.by_currency).map(cell => (
-            <CurrencyAnswer key={cell.currency} cell={cell} />
+            <CurrencyAnswer key={cell.currency} cell={cell} onOpenObligations={onOpenObligations} onOpenCash={onOpenCash} />
           ))}
 
           <Card className="controls-card">
@@ -113,7 +120,28 @@ export function SufficiencyView({
   )
 }
 
-function CurrencyAnswer({ cell }: { cell: SufficiencyCurrency }) {
+function DriverList({ drivers, currency }: { drivers: SufficiencyDriver[]; currency: string }) {
+  return (
+    <ul className="driver-list">
+      {drivers.map(driver => (
+        <li key={driver.origin}>
+          <div className="driver-head">
+            <strong>{driver.label}</strong>
+            <span>{money(driver.amount, currency)}</span>
+          </div>
+          {driver.items.length > 0 && (
+            <p className="muted-note">
+              {driver.items.map(item => `${item.label} (${item.on})`).join(' · ')}
+              {driver.item_count > driver.items.length && ` · and ${driver.item_count - driver.items.length} more`}
+            </p>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function CurrencyAnswer({ cell, onOpenObligations, onOpenCash }: { cell: SufficiencyCurrency; onOpenObligations?: () => void; onOpenCash?: () => void }) {
   const base = cell.base
   return (
     <Card className={`sufficiency-card ${TONE[base.verdict]}`}>
@@ -141,26 +169,24 @@ function CurrencyAnswer({ cell }: { cell: SufficiencyCurrency }) {
           {base.reasons.map((reason, i) => <li key={i}><p>{reason}</p></li>)}
         </ul>
       )}
+      {base.verdict === 'unavailable' && onOpenCash && (
+        <Button variant="outline" size="sm" onClick={onOpenCash}>See which account is holding this back</Button>
+      )}
 
       {base.drivers.length > 0 && (
         <>
           <p className="eyebrow">WHAT DRIVES IT</p>
-          <ul className="driver-list">
-            {base.drivers.map(driver => (
-              <li key={driver.origin}>
-                <div className="driver-head">
-                  <strong>{driver.label}</strong>
-                  <span>{money(driver.amount, cell.currency)}</span>
-                </div>
-                {driver.items.length > 0 && (
-                  <p className="muted-note">
-                    {driver.items.map(item => `${item.label} (${item.on})`).join(' · ')}
-                    {driver.item_count > driver.items.length && ` · and ${driver.item_count - driver.items.length} more`}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
+          <DriverList drivers={base.drivers} currency={cell.currency} />
+        </>
+      )}
+
+      {base.verdict !== 'unavailable' && (base.accounted_for?.length ?? 0) > 0 && (
+        <>
+          <p className="eyebrow">EVERYTHING THIS ANSWER COUNTS</p>
+          <DriverList drivers={base.accounted_for} currency={cell.currency} />
+          {onOpenObligations && (
+            <Button variant="link" size="sm" onClick={onOpenObligations}>See everything owed</Button>
+          )}
         </>
       )}
 

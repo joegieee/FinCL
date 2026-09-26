@@ -101,13 +101,14 @@ def _driver_origin(event: dict[str, Any]) -> str:
 
 
 def _drivers(
-    events: list[dict[str, Any]], *, month: str, scale: int
+    events: list[dict[str, Any]], *, month: str | None, scale: int
 ) -> list[dict[str, Any]]:
-    """The breach month's outflows, grouped by what committed them."""
+    """Outflows grouped by what committed them: the breach month's, or with
+    ``month=None`` the whole horizon's."""
     totals: dict[str, int] = {}
     examples: dict[str, list[dict[str, Any]]] = {}
     for event in events:
-        if event["direction"] != "outflow" or event["on"][:7] != month:
+        if event["direction"] != "outflow" or (month is not None and event["on"][:7] != month):
             continue
         origin = _driver_origin(event)
         totals[origin] = totals.get(origin, 0) + _minor(event["amount"], scale)
@@ -166,10 +167,15 @@ def _case(scenario: dict[str, Any], *, scale: int) -> dict[str, Any]:
             "first_short_on": None,
             "reserve_target": None,
             "drivers": [],
+            "accounted_for": [],
             "reasons": list(scenario.get("limitations", [])),
             "headline": "This case could not be built from the available evidence.",
         }
     events = list((scenario.get("events") or {}).get("items", []))
+    # Everything the path already pays for, whatever the verdict. A "yes" with
+    # no breakdown gives no way to tell whether a debt just recorded was
+    # counted at all.
+    accounted_for = _drivers(events, month=None, scale=scale)
     first_zero = scenario.get("first_zero") or {}
     breach = scenario.get("first_reserve_breach") or {}
     gaps = scenario.get("reserve_funding_gaps") or {}
@@ -186,6 +192,7 @@ def _case(scenario: dict[str, Any], *, scale: int) -> dict[str, Any]:
             "first_short_on": on,
             "reserve_target": breach.get("reserve_target"),
             "drivers": _drivers(events, month=on[:7], scale=scale) if on else [],
+            "accounted_for": accounted_for,
             "reasons": [],
             "headline": f"Cash runs out on {on}.",
         }
@@ -199,6 +206,7 @@ def _case(scenario: dict[str, Any], *, scale: int) -> dict[str, Any]:
             "first_short_on": on,
             "reserve_target": breach.get("reserve_target"),
             "drivers": _drivers(events, month=on[:7], scale=scale) if on else [],
+            "accounted_for": accounted_for,
             "reasons": [],
             "headline": (
                 f"Cash stays positive but drops below your reserve on {on}."
@@ -212,6 +220,7 @@ def _case(scenario: dict[str, Any], *, scale: int) -> dict[str, Any]:
         "first_short_on": None,
         "reserve_target": breach.get("reserve_target"),
         "drivers": [],
+        "accounted_for": accounted_for,
         "reasons": [],
         "headline": "Cash stays above zero and above your reserve across the horizon.",
     }

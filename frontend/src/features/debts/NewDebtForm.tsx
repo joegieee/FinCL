@@ -135,8 +135,9 @@ export function NewDebtForm({
       </div>
 
       <p className="muted-note">
-        This just opens the debt with the details above. Record the amount as a
-        "Borrowed" / "Lent" event (optionally as an opening balance) right after.
+        Saving opens the debt with these details, then takes you straight to its
+        first event: record the amount as "Borrowed" / "Lent" (optionally as an
+        opening balance).
       </p>
 
       <label className="debt-event-reason">

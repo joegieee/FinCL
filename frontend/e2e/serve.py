@@ -109,6 +109,18 @@ generated_fixtures["classification-future"] = generated_pdf(
     [["Topup", "Current", "2026-01-06 10:00:00", "2026-01-06 10:00:00",
       "FREELANCE PAYER", "715.00", "0.00", "SGD", "COMPLETED", "9715.00"]],
 )
+# The monthly-routine spec's "new statement": the days straight after
+# later-actuals, with no gap in coverage, carrying its closing balance forward, with one merchant no rule knows and one
+# payer never seen before, so the routine has something of each kind to decide.
+generated_fixtures["monthly-late-september"] = generated_pdf(
+    "monthly-late-september",
+    [
+        ["Card Payment", "Current", "2026-09-21 10:00:00", "2026-09-21 10:00:01",
+         "BOOKSHOP SYNTHETIC", "-45.00", "0.00", "SGD", "COMPLETED", "23255.00"],
+        ["Topup", "Current", "2026-09-29 10:00:00", "2026-09-29 10:00:01",
+         "SIDE GIG PAYER", "300.00", "0.00", "SGD", "COMPLETED", "23555.00"],
+    ],
+)
 service = DocumentImportService.plaintext_phase2(anchor_db, anchor_root / "evidence")
 service.import_revolut_pdf(generated_fixtures["inadequate-one-month"])
 service.import_revolut_pdf(generated_fixtures["reconciled-history"])

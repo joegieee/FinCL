@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ConsolidatedMoney } from '@/components/Money'
 import { dateLabel } from '@/lib/format'
+import { readerLimitations } from '@/lib/limitations'
 import type { ConsolidatedValuationDTO, MoneyFlowOut } from './reportedApi'
 
 export type OverviewDestination = 'Analysis' | 'Transactions' | 'Cash' | 'Net worth' | 'Forecast' | 'Income'
@@ -30,6 +31,7 @@ export function MoneyFlowCards({ page, onOpen }: { page: MoneyFlowOut; onOpen: (
   const burn = page.summary.gross_burn
   const cash = page.summary.cash_at_cutoff
   const forecast = page.summary.forecast_closing
+  const limitations = readerLimitations(page.limitations)
 
   return (
     <div className="money-flow-section">
@@ -79,9 +81,9 @@ export function MoneyFlowCards({ page, onOpen }: { page: MoneyFlowOut; onOpen: (
         </Card>
       </div>
 
-      {page.limitations.length > 0 && (
+      {limitations.length > 0 && (
         <div className="alert" role="status">
-          <div><strong>Some metrics above are limited.</strong><p>{page.limitations.join(' ')}</p></div>
+          <div><strong>Some metrics above are limited.</strong><ul>{limitations.map(text => <li key={text}>{text}</li>)}</ul></div>
         </div>
       )}
 

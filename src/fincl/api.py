@@ -1768,7 +1768,10 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .debts.queries import debts_page
         with ledger_writer(database):
             try:
-                return debts_page(database, as_of=as_of, currency=currency,
+                # The app's own clock, not the host's: Obligations and the
+                # forecast value debts at `clock.today()`, and a pinned demo
+                # clock must not leave this page on a different day.
+                return debts_page(database, as_of=as_of or clock.today().isoformat(), currency=currency,
                                   status=status, cursor=cursor, limit=limit,
                                   expected=generation)
             except FinCLError as exc:
@@ -1807,7 +1810,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .debts.queries import debt_detail
         with ledger_writer(database):
             try:
-                return debt_detail(database, debt_id, as_of=as_of, expected=generation)
+                return debt_detail(database, debt_id, as_of=as_of or clock.today().isoformat(), expected=generation)
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc
