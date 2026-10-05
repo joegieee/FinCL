@@ -549,3 +549,53 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .nature-choice{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 12px}.nature-choice .eyebrow{flex-basis:100%}.nature-choice button{padding:7px 11px;font-size:12px;border:1px solid var(--border);border-radius:20px;background:var(--card);color:inherit}.nature-choice button[aria-checked=true]{background:var(--secondary);color:var(--primary);border-color:var(--primary);font-weight:600}.nature-choice button:disabled{opacity:.5}
 .handoff{display:grid;gap:10px;margin:4px 0 12px}.handoff select{max-width:100%}
 .relationship-record{display:grid;gap:6px;padding:8px 0;border-bottom:1px solid var(--border)}.relationship-record:last-child{border-bottom:0}.relationship-record>button{justify-self:start}
+
+/* Let content shrink inside the shell instead of sizing the viewport to a
+   table's intrinsic width. Wide reports scroll within their own surface. */
+main{width:100%;min-width:0}
+[data-slot=dialog-content]{max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
+@media(max-width:900px){
+ .rail-drawer{width:min(280px,calc(100vw - 48px))}
+ .rail-drawer .nav-rail{width:100%;height:100dvh}
+ .app-main-col,.view-shell,.card,[data-slot=card],[data-slot=table-container]{min-width:0;max-width:100%}
+ .table-scroll{position:relative;width:100%;min-width:0;max-width:100%;overflow-x:auto}
+ table:not(.transactions-table):not([data-slot=table]){position:relative;display:block;max-width:100%;overflow-x:auto}
+ .forecast-table,.import-table{min-width:0}
+ .scope-bar,.section-heading,.panel-title,.debts-toolbar,.controls-month{flex-wrap:wrap}
+ .period-popover{max-width:calc(100vw - 44px);flex-wrap:wrap}
+ .card-lenses{grid-template-columns:1fr}
+ .insight-grid:has(.forecast-summary){grid-template-columns:repeat(2,minmax(0,1fr))}
+ .insight-grid>*{min-width:0}
+ .forecast-summary>span:last-child{white-space:normal;overflow-wrap:anywhere}
+ .money-disclosure:not([open])>.money-disclosure-panel{display:none}
+ .money-disclosure[open]{display:block}
+ .money-disclosure-panel{position:static;min-width:0;max-width:100%;overflow-wrap:anywhere}
+}
+@media(max-width:600px){
+ .insight-grid:has(.forecast-summary){grid-template-columns:1fr}
+ .page-heading>div,.scope-bar>*,.panel-title>div,.section-heading>div{min-width:0;max-width:100%}
+ .page-heading h1,.alert,.explanation,.preview,.detail-list,.issue-row{overflow-wrap:anywhere}
+ .form-row{flex-wrap:wrap;grid-template-columns:1fr}
+ .form-row>label{flex:1 1 100%;min-width:0}
+ input,textarea{max-width:100%}
+ input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px}
+ .search-field,.bulk-field,.custom-category-row>div:first-child,.issue-row>div:first-child{min-width:0}
+ .search-field{flex-basis:100%}
+ .dialog-actions,.proposal-basis,.custom-category-row,.issue-row,.filter-secondary>div,.row-actions{flex-wrap:wrap}
+ .month-pick{flex-wrap:wrap;min-width:0}
+ .dialog-actions>button{flex:1 1 auto;white-space:normal;height:auto;min-height:44px}
+ .rail-section button,.rail-group{min-height:44px}
+ .rail-drawer-toggle{min-width:44px;min-height:44px}
+ .period-presets>button{min-height:40px;height:auto}
+ .categorization-panel{max-height:none;overflow:visible}
+ .candidate-records>label,.candidate-record-row{grid-template-columns:auto minmax(0,1fr)}
+ .candidate-records strong{overflow-wrap:anywhere}
+ .transactions-table tr{grid-template-columns:minmax(0,auto) minmax(0,1fr)}
+ .transactions-table td{min-width:0;overflow-wrap:anywhere}
+ .transactions-table td>*{min-width:0;max-width:100%}
+ .detail-list>div{grid-template-columns:1fr;gap:4px}
+ .alloc-combobox-list{min-width:0;width:100%;max-width:100%}
+ .money-disclosure-panel{min-width:0;width:min(260px,calc(100vw - 64px))}
+ .proposal-leg{flex-wrap:wrap}
+ .proposal-leg>strong{margin-left:auto}
+}

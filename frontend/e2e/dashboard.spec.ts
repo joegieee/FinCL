@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { openTab } from './rail'
 
-// The session cookie is provisioned once by auth.setup.ts and reused here.
+// Normal serving opens directly without a launch key.
 test.beforeEach(async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop')
   await page.goto('/')

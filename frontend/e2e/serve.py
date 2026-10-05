@@ -1,9 +1,8 @@
 """Launch a throwaway demo ledger under the real HTTP app for Playwright.
 
 Playwright's ``webServer`` runs this. It builds an isolated synthetic ledger in a
-temp directory, then serves ``fincl.api`` with a fixed bootstrap secret on
-127.0.0.1:8799 so the browser test can open ``/#bootstrap=e2e-secret``. Nothing
-here touches a real ledger.
+temp directory, then serves the normal key-free ``fincl.api`` on
+127.0.0.1:8799. Nothing here touches a real ledger.
 """
 from __future__ import annotations
 

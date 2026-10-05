@@ -772,7 +772,7 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         connection.close()
 
 
-def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.1', bootstrap_secret: str | None = None, assets: Path | None = None, evidence_dir: Path | None = None, demo: bool = False, today: date | None = None) -> FastAPI:
+def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.1', bootstrap_secret: str | None = None, require_access_key: bool = False, assets: Path | None = None, evidence_dir: Path | None = None, demo: bool = False, today: date | None = None) -> FastAPI:
     # `today` pins this process's notion of the current date (see `fincl.clock`).
     # It exists for the synthetic browser fixtures, whose dates are fixed: a
     # suite that read the real clock would stop agreeing with them as time
@@ -784,6 +784,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     app.state.bootstrap_secret = bootstrap_secret or secrets.token_urlsafe(32)
     app.state.session = secrets.token_urlsafe(32)
     app.state.csrf = secrets.token_urlsafe(32)
+    # Preserve the one-use gate for opt-in use; normal serving is key-free.
+    app.state.require_access_key = require_access_key
     app.state.bootstrapped = False
     origin = f'http://{public_host}:{port}'
     cookie_name = f'fincl_session_{port}'
@@ -802,7 +804,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         if request.method not in ('GET','HEAD') and (request.headers.get('origin') != origin or not allowed_write_type):
             return JSONResponse({'detail':'Same-origin JSON is required'},status_code=403)
         if request.url.path.startswith('/api/'):
-            if not app.state.bootstrapped or not secrets.compare_digest(request.cookies.get(cookie_name,''),app.state.session):
+            if app.state.require_access_key and (not app.state.bootstrapped or not secrets.compare_digest(request.cookies.get(cookie_name,''),app.state.session)):
                 return JSONResponse({'detail':'Session expired. Reopen the link from fincl serve.'},status_code=401)
             if request.method != 'GET' and not secrets.compare_digest(request.headers.get('x-csrf-token',''),app.state.csrf):
                 return JSONResponse({'detail':'Invalid CSRF token'},status_code=403)
@@ -820,6 +822,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
 
     @app.post('/session')
     def session(body: Bootstrap) -> JSONResponse:
+        if not app.state.require_access_key:
+            return JSONResponse({'csrf':app.state.csrf})
         if app.state.bootstrapped or not secrets.compare_digest(body.secret,app.state.bootstrap_secret):
             raise HTTPException(403,'Launch link already used or invalid. Relaunch fincl serve.')
         app.state.bootstrapped = True
