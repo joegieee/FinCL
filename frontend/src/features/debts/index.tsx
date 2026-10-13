@@ -10,6 +10,7 @@ import { NewDebtForm } from './NewDebtForm'
 import { SplitBillForm } from './SplitBillForm'
 import {
   RECONCILIATION_LABEL,
+  detailsCommand,
   lifecycleCommand,
   loadDebtDetail,
   loadDebts,
@@ -27,7 +28,7 @@ function DebtRow({ debt, onOpen }: { debt: DebtCard; onOpen: (id: string) => voi
           {debt.reconciliation_status === 'opening_balance_only'
             ? 'Opening balance'
             : RECONCILIATION_LABEL[debt.reconciliation_status] ?? debt.reconciliation_status}
-          {debt.due_on ? ` · due ${dateLabel(debt.due_on)}` : ''}
+          {debt.due_on ? ` · due ${dateLabel(debt.due_on)}` : debt.direction === 'PAYABLE' && debt.status === 'OPEN' ? ' · no due date — not in the forecast' : ''}
         </small>
       </span>
       <span className="debt-row-amount">
@@ -57,6 +58,51 @@ function DebtList({
         ))
       )}
     </Card>
+  )
+}
+
+/** Name and due date. A debt with no due date is not in any day of the
+ * forecast, so "Will I have enough" can only flag it, not place it. */
+function DetailsControls({ detail, generation, onSaved }: {
+  detail: DebtDetail; generation: string; onSaved: (status: string) => void | Promise<void>
+}) {
+  const debt = detail.debt
+  const [open, setOpen] = useState(!debt.due_on && debt.direction === 'PAYABLE' && debt.status === 'OPEN')
+  const [label, setLabel] = useState(debt.counterparty_label)
+  const [dueOn, setDueOn] = useState(debt.due_on ?? '')
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const changed = label.trim() !== debt.counterparty_label || (dueOn || null) !== (debt.due_on ?? null)
+
+  async function submit() {
+    if (busy) return
+    if (!label.trim() || !reason.trim()) { setError('A name and a reason are required.'); return }
+    setBusy(true); setError('')
+    try {
+      const result = await detailsCommand({ debtId: debt.debt_id, generation, counterpartyLabel: label.trim(), dueOn: dueOn || null, reason: reason.trim() })
+      await onSaved(result.status)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not update the debt.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <details className="debt-lifecycle" open={open} onToggle={e => setOpen(e.currentTarget.open)}>
+      <summary>{debt.due_on ? 'Change name or due date' : 'Give this debt a due date'}</summary>
+      {!debt.due_on && debt.direction === 'PAYABLE' && (
+        <p className="muted-note">Without a due date this debt isn’t in your forecast, so “Will I have enough” can only warn about it. Add the date you expect to repay it.</p>
+      )}
+      <div className="debt-lifecycle-row">
+        <input aria-label="Debt name" value={label} maxLength={200} onChange={e => setLabel(e.target.value)} disabled={busy} />
+        <input aria-label="Due date" type="date" value={dueOn} min={debt.opened_on} onChange={e => setDueOn(e.target.value)} disabled={busy} />
+        <input aria-label="Details reason" placeholder="Reason" value={reason} onChange={e => setReason(e.target.value)} disabled={busy} />
+        <Button size="sm" onClick={submit} disabled={busy || !changed}>{busy ? 'Saving…' : 'Save'}</Button>
+      </div>
+      {error && <p className="debt-event-error" role="alert">{error}</p>}
+    </details>
   )
 }
 
@@ -161,6 +207,7 @@ function DebtDetailView({
           </Button>
         )
       )}
+      {!recording && <DetailsControls detail={detail} generation={generation} onSaved={onSaved} />}
       {!recording && (
         <LifecycleControls detail={detail} generation={generation} onSaved={onSaved} />
       )}

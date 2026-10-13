@@ -41,19 +41,20 @@ const detail = {
   },
 }
 
-const apiMock = vi.fn(async (path: string) => {
+const apiMock = vi.fn(async (path: string, _body?: unknown) => {
   if (path.startsWith('reporting/workspaces/debts?')) return page
   if (path.startsWith('reporting/workspaces/debts/')) return detail
+  if (path === 'preview' || path === 'commands') return { status: 'applied' }
   throw new Error(`unmocked ${path}`)
 })
 vi.mock('@/lib/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api')>()
-  return { ...actual, api: (path: string) => apiMock(path) }
+  return { ...actual, api: (path: string, body?: unknown) => apiMock(path, body) }
 })
 
-async function mount() {
+async function mount(onSaved = vi.fn()) {
   const { DebtsView } = await import('./index')
-  return render(<DebtsView generation="sha256:abc" />)
+  return render(<DebtsView generation="sha256:abc" onSaved={onSaved} />)
 }
 
 afterEach(() => { cleanup(); apiMock.mockClear() })
@@ -74,5 +75,20 @@ describe('DebtsView', () => {
     expect(screen.getByText('Remaining principal')).toBeInTheDocument()
     expect(screen.getByText(/opening/)).toBeInTheDocument()
     expect(screen.getByText('Opening balance owed to Alex')).toBeInTheDocument()
+  })
+
+  it('flags a debt with no due date and lets one be given', async () => {
+    await mount()
+    expect(await screen.findByText(/no due date — not in the forecast/)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Alex'))
+    expect(await screen.findByText('Give this debt a due date')).toBeInTheDocument()
+    expect(screen.getByText(/isn’t in your forecast/)).toBeVisible()
+    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-12-31' } })
+    fireEvent.change(screen.getByLabelText('Details reason'), { target: { value: 'Agreed with Alex' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith('commands', expect.objectContaining({
+      kind: 'PERSONAL_DEBT_DETAILS_SET', anchors: { debt: 'd-1' },
+      payload: { counterparty_label: 'Alex', due_on: '2026-12-31', reason: 'Agreed with Alex' },
+    })))
   })
 })

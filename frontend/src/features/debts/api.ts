@@ -167,6 +167,23 @@ export function lifecycleCommand(opts: {
   })
 }
 
+/** Rename a debt or give it a due date (or clear one). Due dates put it into the forecast. */
+export function detailsCommand(opts: {
+  debtId: string
+  generation: string
+  counterpartyLabel: string
+  dueOn: string | null
+  reason: string
+}): Promise<{ status: string }> {
+  return previewThenCommit({
+    request_id: crypto.randomUUID(),
+    expected_generation: opts.generation,
+    kind: 'PERSONAL_DEBT_DETAILS_SET',
+    anchors: { debt: opts.debtId },
+    payload: { counterparty_label: opts.counterpartyLabel, due_on: opts.dueOn, reason: opts.reason },
+  })
+}
+
 export const RECONCILIATION_LABEL: Record<string, string> = {
   no_events: 'No events yet',
   opening_balance_only: 'Opening balance only — historical funding undisclosed',
