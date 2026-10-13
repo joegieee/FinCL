@@ -66,7 +66,7 @@ export type CombinedAnswer = {
   reserve: { available: boolean; target: string | null }
   pockets: {
     currency: string
-    counted: 'projected' | 'held_as_is' | 'not_counted'
+    counted: 'projected' | 'held_as_is' | 'not_counted' | 'ignored'
     why: string | null
     starting_balance: string | null
     starting_balance_reported: string | null

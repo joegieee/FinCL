@@ -34,6 +34,7 @@ from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.planning.sufficiency import (
     COUNTED_AS_IS,
+    COUNTED_IGNORED,
     COUNTED_NOT,
     COUNTED_PROJECTED,
     VERDICT_BELOW_RESERVE,
@@ -433,7 +434,7 @@ class CombinedAnswerTests(unittest.TestCase):
     def test_a_pocket_with_no_rate_is_named_and_the_answer_is_incomplete(self) -> None:
         answer = self._answer(_timeline({
             "SGD": _pocket(_days(("2026-02-01", "100.00"))),
-            "THB": _pocket(_days(("2026-02-01", "0.50")), balance="0.50"),
+            "THB": _pocket(_days(("2026-02-01", "250.00")), balance="250.00"),
         }), {"SGD": Fraction(1), "THB": None})
 
         self.assertFalse(answer["complete"])
@@ -441,6 +442,30 @@ class CombinedAnswerTests(unittest.TestCase):
         self.assertEqual(thb["counted"], COUNTED_NOT)
         self.assertIn("pocket-THB", [todo["key"] for todo in answer["todos"]])
         self.assertEqual(answer["starting_total"], "100.00")
+
+    def test_a_quiet_pocket_under_one_unit_is_ignored_even_without_a_rate(self) -> None:
+        """THB 0.50 with nothing scheduled: too small to matter, so it neither
+        blocks the answer nor becomes a to-do."""
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "100.00"))),
+            "THB": _pocket(_days(("2026-02-01", "0.50")), available=False, balance="0.50",
+                           reason="no spending history"),
+        }), {"SGD": Fraction(1), "THB": None})
+
+        self.assertTrue(answer["complete"])
+        thb = next(p for p in answer["pockets"] if p["currency"] == "THB")
+        self.assertEqual(thb["counted"], COUNTED_IGNORED)
+        self.assertNotIn("pocket-THB", [todo["key"] for todo in answer["todos"]])
+        self.assertEqual(answer["base"]["lowest"], "100.00")
+
+    def test_a_small_pocket_with_scheduled_money_is_not_ignored(self) -> None:
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "100.00"))),
+            "THB": _pocket(_days(("2026-02-01", "0.50")), available=False, balance="0.50",
+                           events=[_event(label="Fee", on="2026-02-01", amount="500.00")]),
+        }), {"SGD": Fraction(1), "THB": None})
+
+        self.assertFalse(answer["complete"])
 
     def test_a_quiet_pocket_with_no_history_is_held_as_it_stands(self) -> None:
         """Nothing scheduled and nothing to project: its balance is simply there."""

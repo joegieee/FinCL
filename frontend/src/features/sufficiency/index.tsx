@@ -87,7 +87,7 @@ export function SufficiencyView({
     >
       {page => {
         const combined = page.combined_answer
-        const counted = combined && combined.pockets.some(p => p.counted !== 'not_counted')
+        const counted = combined && combined.pockets.some(p => p.counted === 'projected' || p.counted === 'held_as_is')
         return (
           <div className="sufficiency-view"><WorkspaceReportingDetails data={page}/>
             <div className="scope-caption">
@@ -233,7 +233,8 @@ function Assumptions({ combined, today, onOpenObligations }: { combined: Combine
           <li key={p.currency}>
             <span>{p.starting_balance == null ? `${p.currency} —` : money(p.starting_balance, p.currency)}</span>
             <span>
-              {p.counted === 'not_counted' ? 'not counted'
+              {p.counted === 'ignored' ? 'ignored, too small to matter'
+                : p.counted === 'not_counted' ? 'not counted'
                 : p.rate_display ? `${money(p.starting_balance_reported, c)} at 1 ${p.currency} = ${p.rate_display} ${c}`
                 : 'counted as it is'}
               {p.counted === 'held_as_is' && ' · kept as it is, nothing projected'}

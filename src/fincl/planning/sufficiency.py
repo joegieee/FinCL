@@ -262,10 +262,16 @@ _ANSWER = {
 #     path is its balance, flat. Nothing is projected for it;
 #   * not counted — anything else (no balance, no rate, scheduled money with no
 #     spending model). The answer is then marked incomplete and names it.
+#
+# A fourth case sits outside the pool: a pocket with nothing scheduled in or
+# out and less than one whole unit of its own currency is ignored. One unit is
+# worth at most a few dollars in any currency, so this needs no exchange rate,
+# and it neither blocks the answer nor asks for a fix.
 
 COUNTED_PROJECTED = "projected"
 COUNTED_AS_IS = "held_as_is"
 COUNTED_NOT = "not_counted"
+COUNTED_IGNORED = "ignored"
 _NO_RATE = "no exchange rate to the reporting currency is available"
 
 # Where each kind of fix is made, as the app's own tab name.
@@ -292,12 +298,15 @@ def _quantized(value: Fraction, scale: int) -> str:
 
 def _counting(cell: dict[str, Any], rate: Fraction | None) -> tuple[str, str | None]:
     """How a pocket enters the combined answer, and why when it does not."""
+    base = cell.get("base") or {}
+    events = (base.get("events") or {}).get("items", [])
+    balance = cell.get("starting_balance")
+    if not cell.get("available") and not events and balance is not None and 0 <= _fraction(balance) < 1:
+        return COUNTED_IGNORED, "it holds less than one unit of its currency and nothing is scheduled"
     if rate is None:
         return COUNTED_NOT, _NO_RATE
     if cell.get("available"):
         return COUNTED_PROJECTED, None
-    base = cell.get("base") or {}
-    events = (base.get("events") or {}).get("items", [])
     if base.get("days") and not events and cell.get("starting_balance") is not None:
         return COUNTED_AS_IS, "it has no spending history and nothing is scheduled in or out of it"
     return COUNTED_NOT, str(cell.get("reason") or "its forecast could not be built")
@@ -544,7 +553,7 @@ def combined_answer(
                 _quantized(rate, 4) if rate is not None and currency != reporting_currency else None
             ),
         })
-        if how != COUNTED_NOT and rate is not None:
+        if how not in (COUNTED_NOT, COUNTED_IGNORED) and rate is not None:
             counted[currency] = cell
             held[currency] = rate
 
@@ -563,7 +572,7 @@ def combined_answer(
     cautious = _combined_case(
         _combined_path(counted, held, name="conservative"), reserve=reserve, scale=scale
     )
-    complete = bool(counted) and len(counted) == len(by_currency)
+    complete = bool(counted) and all(p["counted"] != COUNTED_NOT for p in pockets)
     first = next(iter(counted.values()), {})
     return {
         "reporting_currency": reporting_currency,
