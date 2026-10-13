@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, CalendarRange, CheckCircle2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -64,7 +65,7 @@ function BaselineContent({ page, estimate, loading, load }: { page: BaselineRead
   const analysis = page.scope.analysis_window
 
   return (
-    <div className="baseline-view">
+    <div className="baseline-view"><WorkspaceReportingDetails data={page}/>{estimate && <WorkspaceReportingDetails data={estimate}/>}
       <div className="scope-caption">
         <span>{page.pockets.length} pocket{page.pockets.length === 1 ? '' : 's'} · {page.scope.currencies.join(', ') || 'no currency'}{analysis && ` · evidence ${analysis.start} → ${analysis.end}`}</span>
         <Button variant="ghost" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</Button>
@@ -181,7 +182,7 @@ function EstimateSection({ estimate }: { estimate: BaselineEstimate }) {
               {estimate.income_streams.map((stream, i) => (
                 <li key={i}>
                   <strong>{stream.payer}</strong> · {stream.currency}
-                  <p>{stream.occurrence_count} receipts {stream.first_month}–{stream.last_month} · {money(stream.min_amount, stream.currency)}–{money(stream.max_amount, stream.currency)} · Likely, never Confirmed</p>
+                  <p>{stream.occurrence_count} receipts {stream.first_month}–{stream.last_month} · {reportedMoney(stream, 'min_amount', stream.currency)}–{reportedMoney(stream, 'max_amount', stream.currency)} · Likely, never Confirmed</p>
                 </li>
               ))}
             </ul>
@@ -196,40 +197,40 @@ function EstimateCard({ currency, est, quality }: { currency: string; est: Curre
   return (
     <Card className="baseline-pocket-card">
       <div className="panel-title">
-        <div><p className="eyebrow">WHAT YOUR NORMAL LIFE COSTS · {currency}</p><h2>{money(est.routine_lifestyle_baseline, currency)} / month</h2></div>
+        <div><p className="eyebrow">WHAT YOUR NORMAL LIFE COSTS · {currency}</p><h2>{reportedMoney(est, 'routine_lifestyle_baseline', currency)} / month</h2></div>
         <Badge variant="outline" className={quality === 'normal' ? '' : 'review-badge'}>{QUALITY_LABEL[quality] ?? quality}</Badge>
       </div>
       {est.regime.warning && (
         <p className="muted-note"><AlertTriangle size={13} /> Regime: {est.regime.reasons.join('; ')}.</p>
       )}
       <dl className="baseline-metrics">
-        <div><dt>Fixed recurring</dt><dd>{money(est.fixed_recurring_monthly, currency)}</dd></div>
-        <div><dt>Variable residual (mean)</dt><dd>{money(est.variable_residual_monthly, currency)}</dd></div>
-        <div><dt>· median / min / max</dt><dd>{money(est.variable_residual_median, currency)} · {money(est.variable_residual_min, currency)} · {money(est.variable_residual_max, currency)}</dd></div>
-        <div><dt>Irregular allowance (mean)</dt><dd>{money(est.irregular_allowance_monthly, currency)}</dd></div>
-        <div><dt>Total observed monthly</dt><dd>{money(est.total_observed_monthly, currency)}</dd></div>
-        <div><dt>Net received income (mean)</dt><dd>{money(est.net_received_income_monthly, currency)}</dd></div>
-        <div><dt>Historical surplus</dt><dd>{money(est.historical_surplus_monthly, currency)}</dd></div>
+        <div><dt>Fixed recurring</dt><dd>{reportedMoney(est, 'fixed_recurring_monthly', currency)}</dd></div>
+        <div><dt>Variable residual (mean)</dt><dd>{reportedMoney(est, 'variable_residual_monthly', currency)}</dd></div>
+        <div><dt>· median / min / max</dt><dd>{reportedMoney(est, 'variable_residual_median', currency)} · {reportedMoney(est, 'variable_residual_min', currency)} · {reportedMoney(est, 'variable_residual_max', currency)}</dd></div>
+        <div><dt>Irregular allowance (mean)</dt><dd>{reportedMoney(est, 'irregular_allowance_monthly', currency)}</dd></div>
+        <div><dt>Total observed monthly</dt><dd>{reportedMoney(est, 'total_observed_monthly', currency)}</dd></div>
+        <div><dt>Net received income (mean)</dt><dd>{reportedMoney(est, 'net_received_income_monthly', currency)}</dd></div>
+        <div><dt>Historical surplus</dt><dd>{reportedMoney(est, 'historical_surplus_monthly', currency)}</dd></div>
         <div><dt>Savings rate</dt><dd>{ratioText(est.savings_rate)}</dd></div>
         <div><dt>Fixed-cost ratio</dt><dd>{ratioText(est.fixed_cost_ratio)}</dd></div>
         <div><dt>Sensitivity (highest month removed)</dt><dd>{est.sensitivity.available
-          ? `${money(est.sensitivity.routine_lifestyle_baseline, currency)} / month without ${est.sensitivity.excluded_month} — a spread check, not a probability`
+          ? `${reportedMoney(est.sensitivity, 'routine_lifestyle_baseline', currency)} / month without ${est.sensitivity.excluded_month} — a spread check, not a probability`
           : est.sensitivity.reason}</dd></div>
         {est.roles && <>
-          <div><dt>Essential (sample total)</dt><dd>{money(est.roles.totals.essential, currency)}</dd></div>
-          <div><dt>Discretionary (sample total)</dt><dd>{money(est.roles.totals.discretionary, currency)}</dd></div>
-          <div><dt>Unresolved (sample total)</dt><dd>{money(est.roles.totals.unresolved, currency)}</dd></div>
+          <div><dt>Essential (sample total)</dt><dd>{reportedMoney(est.roles.totals, 'essential', currency)}</dd></div>
+          <div><dt>Discretionary (sample total)</dt><dd>{reportedMoney(est.roles.totals, 'discretionary', currency)}</dd></div>
+          <div><dt>Unresolved (sample total)</dt><dd>{reportedMoney(est.roles.totals, 'unresolved', currency)}</dd></div>
         </>}
-        <div><dt>Minimum reserve</dt><dd>{est.reserve.available ? `${money(est.reserve.amount, currency)} · ${est.reserve.basis}` : `Unavailable — ${est.reserve.reason}`}</dd></div>
+        <div><dt>Minimum reserve</dt><dd>{est.reserve.available ? `${reportedMoney(est.reserve, 'amount', currency)} · ${est.reserve.basis}` : `Unavailable — ${est.reserve.reason}`}</dd></div>
       </dl>
       {est.roles && <table className="pocket-table">
         <thead><tr><th>Month</th><th>Essential</th><th>Discretionary</th><th>Unresolved</th><th>Total</th></tr></thead>
-        <tbody>{est.roles.months.map(row => <tr key={row.month}><td>{row.month}</td><td>{money(row.essential, currency)}</td><td>{money(row.discretionary, currency)}</td><td>{money(row.unresolved, currency)}</td><td>{money(row.total, currency)}{!row.reconciles && <small className="form-error">does not reconcile</small>}</td></tr>)}</tbody>
+        <tbody>{est.roles.months.map(row => <tr key={row.month}><td>{row.month}</td><td>{reportedMoney(row, 'essential', currency)}</td><td>{reportedMoney(row, 'discretionary', currency)}</td><td>{reportedMoney(row, 'unresolved', currency)}</td><td>{reportedMoney(row, 'total', currency)}{!row.reconciles && <small className="form-error">does not reconcile</small>}</td></tr>)}</tbody>
       </table>}
       <p className="muted-note">Role defaults are source-backed category rules; confirmed recurring occurrences are marked separately. Unmapped categories and unlinked receipts stay unresolved for review.</p>
       {est.role_groups.length > 0 && <table className="pocket-table">
         <thead><tr><th>Category / source group</th><th>Pattern</th><th>Need</th><th>Tier</th><th>Review</th><th>Observed cost</th></tr></thead>
-        <tbody>{est.role_groups.map((group, i) => <tr key={`${group.category_key}:${group.cost_pattern}:${i}`}><td>{group.category_key}<small>{group.source_count} source row{group.source_count === 1 ? '' : 's'}</small></td><td>{group.cost_pattern.replaceAll('_', ' ')}</td><td>{group.essential_status}</td><td>{group.tier === null ? 'Unresolved' : `Tier ${group.tier}`}</td><td title={group.basis}>{group.review_status}</td><td>{money(group.amount, currency)}</td></tr>)}</tbody>
+        <tbody>{est.role_groups.map((group, i) => <tr key={`${group.category_key}:${group.cost_pattern}:${i}`}><td>{group.category_key}<small>{group.source_count} source row{group.source_count === 1 ? '' : 's'}</small></td><td>{group.cost_pattern.replaceAll('_', ' ')}</td><td>{group.essential_status}</td><td>{group.tier === null ? 'Unresolved' : `Tier ${group.tier}`}</td><td title={group.basis}>{group.review_status}</td><td>{reportedMoney(group, 'amount', currency)}</td></tr>)}</tbody>
       </table>}
       <table className="pocket-table">
         <thead><tr><th>Month</th><th>Owner cost</th><th>Recurring</th><th>Irregular</th><th>Adjustments</th><th>Routine residual</th></tr></thead>
@@ -237,11 +238,11 @@ function EstimateCard({ currency, est, quality }: { currency: string; est: Curre
           {est.months.map(row => (
             <tr key={row.month}>
               <td>{row.month}</td>
-              <td>{money(row.owner_cost_recorded, currency)}</td>
-              <td>{money(row.identified_recurring, currency)}</td>
-              <td>{money(row.unresolved_irregular, currency)}</td>
-              <td>{money(row.adjustments, currency)}</td>
-              <td>{money(row.routine_variable_residual, currency)}{!row.reconciles && <small className="form-error">does not reconcile</small>}</td>
+              <td>{reportedMoney(row, 'owner_cost_recorded', currency)}</td>
+              <td>{reportedMoney(row, 'identified_recurring', currency)}</td>
+              <td>{reportedMoney(row, 'unresolved_irregular', currency)}</td>
+              <td>{reportedMoney(row, 'adjustments', currency)}</td>
+              <td>{reportedMoney(row, 'routine_variable_residual', currency)}{!row.reconciles && <small className="form-error">does not reconcile</small>}</td>
             </tr>
           ))}
         </tbody>

@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 export type CommitmentItem = {
@@ -97,7 +98,7 @@ export type WhatIfDraft = {
 }
 
 export const loadSpendingControls = (month: string, currency: string) =>
-  api<SpendingControlsPage>(`spending-controls?${new URLSearchParams({ month, currency })}`)
+  reportedApi<SpendingControlsPage>(`spending-controls?${new URLSearchParams({ month, currency })}`)
 
 export const runSpendingWhatIf = (draft: WhatIfDraft) =>
-  api<SpendingControlsPage>('spending-controls/what-if', draft)
+  reportedApi<SpendingControlsPage>('spending-controls/what-if', draft)

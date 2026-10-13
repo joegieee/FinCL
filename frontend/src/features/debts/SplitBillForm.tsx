@@ -1,3 +1,4 @@
+import { reportedMoney } from '@/lib/workspaceReporting'
 import { useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -93,7 +94,7 @@ export function SplitBillForm({
       : chosen.some((s) => s.who === NEW && !s.name.trim()) ? 'Name each new person.'
       : new Set(chosen.filter((s) => s.who !== NEW).map((s) => s.who)).size !== chosen.filter((s) => s.who !== NEW).length ? 'Each person appears once; add their shares together.'
       : shareMinors.some((m) => m === null || m === 0) ? `Enter each share as an amount above zero with at most ${scale} decimals.`
-      : mineMinor < 0 ? `The shares are more than the ${money(bill.open_amount, bill.currency)} left on this bill.`
+      : mineMinor < 0 ? `The shares are more than the ${reportedMoney(bill, 'open_amount', bill.currency)} left on this bill.`
       : mineMinor > 0 && !category ? 'Choose a category for your own share.'
       : !reason.trim() ? 'A reason is required.'
       : ''
@@ -135,8 +136,8 @@ export function SplitBillForm({
                     <td>{row.effective_at.slice(0, 10)}</td>
                     <td>{row.description ?? '—'}</td>
                     <td>
-                      {money(row.open_amount, row.currency)}
-                      {row.open_amount !== row.amount ? <small> of {money(row.amount, row.currency)} unclaimed</small> : null}
+                      {reportedMoney(row, 'open_amount', row.currency)}
+                      {row.open_amount !== row.amount ? <small> of {reportedMoney(row, 'amount', row.currency)} unclaimed</small> : null}
                     </td>
                     <td><Button type="button" size="sm" variant="outline" onClick={() => pick(row)}>Split this</Button></td>
                   </tr>
@@ -149,7 +150,7 @@ export function SplitBillForm({
         <>
           <div className="split-bill-picked">
             <span>{bill.effective_at.slice(0, 10)} · {bill.description ?? 'Payment'}</span>
-            <strong>{money(bill.open_amount, bill.currency)}</strong>
+            <strong>{reportedMoney(bill, 'open_amount', bill.currency)}</strong>
             <Button type="button" size="sm" variant="ghost" onClick={() => edit(() => setBill(null))} disabled={cmd.busy}>Change bill</Button>
           </div>
 

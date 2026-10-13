@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 export type Completeness = 'established' | 'provisional' | 'missing'
@@ -60,7 +61,7 @@ export type BaselineReadiness = {
   tasks: ReadinessTask[]
 }
 
-export const loadBaselineReadiness = () => api<BaselineReadiness>('baseline/readiness')
+export const loadBaselineReadiness = () => reportedApi<BaselineReadiness>('baseline/readiness')
 
 export type Ratio =
   | { available: true; numerator: string; denominator: string; value: string }
@@ -149,4 +150,4 @@ export type BaselineEstimate =
       tasks: ReadinessTask[]
     }
 
-export const loadBaselineEstimate = () => api<BaselineEstimate>('baseline/estimate')
+export const loadBaselineEstimate = () => reportedApi<BaselineEstimate>('baseline/estimate')

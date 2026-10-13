@@ -1989,6 +1989,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     register_planning_routes(app, database)
     from .api_reporting import register_reporting_routes
     register_reporting_routes(app, database)
+    from .reporting_workspaces import register_workspace_reports
+    register_workspace_reports(app, database)
 
     if assets.exists():
         if (assets / 'assets').exists():

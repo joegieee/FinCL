@@ -1,3 +1,4 @@
+import { reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Plus, Search, X } from 'lucide-react'
 import { ApiError, money } from '@/lib/api'
@@ -161,7 +162,7 @@ function SourcePicker({
       </div>
       {picked && !open && (
         <p className="alloc-combobox-picked">
-          {picked.effective_at.slice(0, 10)} · {money(picked.amount, currency)}
+          {picked.effective_at.slice(0, 10)} · {reportedMoney(picked, 'amount', currency)}
         </p>
       )}
       {unresolved && <p className="alloc-combobox-unresolved">{value} (unresolved — no longer among candidates)</p>}
@@ -184,7 +185,7 @@ function SourcePicker({
               >
                 <span className="alloc-combobox-desc">{c.description?.trim() || 'No description'}</span>
                 <span className="alloc-combobox-meta">
-                  {c.effective_at.slice(0, 10)} · {money(c.amount, currency)} · {money(c.open_amount, currency)} open
+                  {c.effective_at.slice(0, 10)} · {reportedMoney(c, 'amount', currency)} · {reportedMoney(c, 'open_amount', currency)} open
                 </span>
               </button>
             </li>

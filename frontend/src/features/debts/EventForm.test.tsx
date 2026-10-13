@@ -27,7 +27,7 @@ const candidates = {
 const calls: Array<{ path: string; body?: unknown }> = []
 const apiMock = vi.fn(async (path: string, body?: unknown) => {
   calls.push({ path, body })
-  if (path.startsWith('debts/allocation-candidates')) return candidates
+  if (path.startsWith('reporting/workspaces/debts/allocation-candidates')) return candidates
   if (path === 'categories') return { categories: [{ key: 'Social / Retired Club', archived: true }] }
   if (path === 'preview') return { valid: true }
   if (path === 'commands') return { status: 'applied' }

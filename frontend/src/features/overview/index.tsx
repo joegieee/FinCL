@@ -3,10 +3,11 @@ import { AlertTriangle, ArrowRight, CheckCircle2, CircleHelp, FileUp, Landmark, 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ApiError, money, type Dashboard } from '@/lib/api'
-import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness } from '@/features/baseline/api'
+import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness, type CurrencyEstimate } from '@/features/baseline/api'
 import { loadCashPosition, type CashPosition } from '@/features/cash/api'
 import { loadForecast, type ForecastCurrency, type ForecastPage } from '@/features/forecast/api'
-import { loadNetWorth, type NetWorthPage } from '@/features/networth/api'
+import { loadReportedNetWorth, type NetWorthPageOut } from '@/features/networth/reportedApi'
+import { reportedMoney } from '@/lib/workspaceReporting'
 import { loadObligations, type ObligationsPage } from '@/features/obligations/api'
 import { loadRecurring, type RecurringPage } from '@/features/planning/api'
 import { loadImports, type ImportsPage } from '@/features/setup/api'
@@ -27,7 +28,7 @@ type Snapshot = {
   estimate?: BaselineEstimate
   cash?: CashPosition
   forecast?: ForecastPage
-  netWorth?: NetWorthPage
+  netWorth?: NetWorthPageOut
   obligations?: ObligationsPage
   recurring?: RecurringPage
 }
@@ -181,14 +182,14 @@ export function OverviewActionPanel({
     setLoading(true)
     void Promise.allSettled([
       loadImports(), loadBaselineReadiness(), loadBaselineEstimate(), loadCashPosition(),
-      loadForecast(), loadNetWorth(), loadObligations(), loadRecurring(),
+      loadForecast(), loadReportedNetWorth({}), loadObligations(), loadRecurring(),
     ]).then(results => {
       if (id !== sequence.current) return
       const value = <T,>(index: number) => results[index].status === 'fulfilled' ? results[index].value as T : undefined
       const forecast = value<ForecastPage>(4)
       setSnapshot({
         imports: value<ImportsPage>(0), readiness: value<BaselineReadiness>(1), estimate: value<BaselineEstimate>(2), cash: value<CashPosition>(3),
-        forecast, netWorth: value<NetWorthPage>(5), obligations: value<ObligationsPage>(6), recurring: value<RecurringPage>(7),
+        forecast, netWorth: value<NetWorthPageOut>(5), obligations: value<ObligationsPage>(6), recurring: value<RecurringPage>(7),
       })
       onForecast?.(forecast)
       setLoading(false)
@@ -196,12 +197,12 @@ export function OverviewActionPanel({
   }, [onForecast])
   useEffect(() => { load() }, [load, data.generation])
 
-  const reserve = reserveText(snapshot.estimate, currency)
-  const surplus = surplusText(snapshot.estimate, currency)
+  const reserve = reserveText(snapshot.estimate)
+  const surplus = surplusText(snapshot.estimate)
   const cash = cashText(snapshot.cash)
-  const owed = moneyOwedText(snapshot.obligations, currency)
+  const owed = moneyOwedText(snapshot.obligations)
   const risk = riskText(snapshot.forecast)
-  const netWorth = netWorthText(snapshot.netWorth, currency)
+  const netWorth = netWorthText(snapshot.netWorth)
   const imports = snapshot.imports
   const readiness = snapshot.readiness
   const estimate = snapshot.estimate
@@ -248,20 +249,37 @@ function ChecklistItem({ done, title, detail, onOpen }: { done: boolean; title: 
   return <li><span className={`checklist-state ${done ? 'is-done' : ''}`}>{done ? <CheckCircle2 size={16} /> : <CircleHelp size={16} />}</span><div><strong>{title}</strong><p>{detail}</p></div><Button variant="ghost" size="sm" onClick={onOpen}>Open <ArrowRight size={13} /></Button></li>
 }
 
-function reserveText(estimate: BaselineEstimate | undefined, currency: string) {
-  if (!estimate) return { value: unavailable, note: 'Checking baseline evidence.', policyNote: 'Reserve evidence is still being checked.', ready: false }
-  if (!estimate.available) return { value: 'Not derivable', note: estimate.reason, policyNote: 'A reserve policy cannot be grounded until the baseline is derived.', ready: false }
-  const reserve = estimate.by_currency[currency]?.reserve
-  if (!reserve) return { value: unavailable, note: `No ${currency} reserve read.`, policyNote: 'No reserve read is available for this currency.', ready: false }
-  if (!reserve.available) return { value: 'Not derivable', note: reserve.reason, policyNote: reserve.reason, ready: false }
-  return { value: money(reserve.amount, currency), note: reserve.basis, policyNote: `Evidence-derived minimum: ${money(reserve.amount, currency)}. Review how it is used in Controls.`, ready: true }
+// Every currency pocket is shown, each in the reporting currency. Pockets are
+// listed side by side, never summed: the owners define these per pocket.
+function pockets<T>(entries: [string, T | undefined][], render: (cell: T, pocket: string) => string | null): string | null {
+  const parts = entries.flatMap(([pocket, cell]) => {
+    const text = cell === undefined ? null : render(cell, pocket)
+    return text === null ? [] : [entries.length > 1 ? `${text} (${pocket} pocket)` : text]
+  })
+  return parts.length ? parts.join(' · ') : null
 }
 
-function surplusText(estimate: BaselineEstimate | undefined, currency: string) {
+function reserveText(estimate: BaselineEstimate | undefined) {
+  if (!estimate) return { value: unavailable, note: 'Checking baseline evidence.', policyNote: 'Reserve evidence is still being checked.', ready: false }
+  if (!estimate.available) return { value: 'Not derivable', note: estimate.reason, policyNote: 'A reserve policy cannot be grounded until the baseline is derived.', ready: false }
+  const reserves = Object.entries(estimate.by_currency).map(([pocket, cell]) => [pocket, cell.reserve] as [string, CurrencyEstimate['reserve'] | undefined])
+  if (!reserves.length) return { value: unavailable, note: 'No reserve read is available.', policyNote: 'No reserve read is available.', ready: false }
+  const missing = reserves.filter(([, reserve]) => !reserve?.available)
+  const value = pockets(reserves, (reserve, pocket) => reserve.available ? reportedMoney(reserve, 'amount', pocket) : null)
+  if (value === null) {
+    const first = missing[0]?.[1]
+    const reason = first && !first.available ? first.reason : 'No pocket has a derivable reserve.'
+    return { value: 'Not derivable', note: reason, policyNote: reason, ready: false }
+  }
+  const note = missing.length ? `Not derivable for ${missing.map(([pocket]) => pocket).join(', ')}.` : reserves.map(([, reserve]) => reserve?.available ? reserve.basis : '').find(Boolean) ?? ''
+  return { value, note, policyNote: `Evidence-derived minimum: ${value}. Review how it is used in Controls.`, ready: missing.length === 0 }
+}
+
+function surplusText(estimate: BaselineEstimate | undefined) {
   if (!estimate) return { value: unavailable, note: 'Checking baseline evidence.' }
   if (!estimate.available) return { value: 'Not derivable', note: estimate.reason }
-  const value = estimate.by_currency[currency]?.historical_surplus_monthly
-  return value === undefined ? { value: unavailable, note: `No ${currency} baseline read.` } : { value: money(value, currency), note: 'Historical monthly surplus from the derived baseline.' }
+  const value = pockets(Object.entries(estimate.by_currency), (cell, pocket) => cell.historical_surplus_monthly == null ? null : reportedMoney(cell, 'historical_surplus_monthly', pocket))
+  return value === null ? { value: unavailable, note: 'No baseline read.' } : { value, note: 'Historical monthly surplus from the derived baseline.' }
 }
 
 function cashText(cash: CashPosition | undefined) {
@@ -271,12 +289,12 @@ function cashText(cash: CashPosition | undefined) {
   return values.length ? { value: values.map(([currency, value]) => money(value, currency)).join(' · '), note: `Observed as of ${cash.generated_for}.` } : { value: 'No liquid cash recorded', note: `Observed as of ${cash.generated_for}.` }
 }
 
-function moneyOwedText(page: ObligationsPage | undefined, currency: string) {
+function moneyOwedText(page: ObligationsPage | undefined) {
   if (!page) return { value: unavailable, note: 'Checking obligations.' }
-  const lanes = page.totals_by_currency[currency]
   const unresolved = page.obligations.filter(item => item.amount_basis === 'unknown').length
-  if (!lanes) return { value: unresolved ? 'Amount unresolved' : 'No countable amount', note: unresolved ? `${unresolved} obligation${unresolved === 1 ? '' : 's'} lacks an evidenced amount.` : 'No outflow obligation has a countable remaining amount.' }
-  return { value: `${money(lanes.bank_withdrawal, currency)} bank · ${money(lanes.via_card_statement, currency)} card`, note: unresolved ? `${unresolved} unresolved obligation${unresolved === 1 ? '' : 's'} excluded from these totals.` : 'Remaining amounts by cash effect.' }
+  const value = pockets(Object.entries(page.totals_by_currency), (lanes, pocket) => `${reportedMoney(lanes, 'bank_withdrawal', pocket)} bank · ${reportedMoney(lanes, 'via_card_statement', pocket)} card`)
+  if (value === null) return { value: unresolved ? 'Amount unresolved' : 'No countable amount', note: unresolved ? `${unresolved} obligation${unresolved === 1 ? '' : 's'} lacks an evidenced amount.` : 'No outflow obligation has a countable remaining amount.' }
+  return { value, note: unresolved ? `${unresolved} unresolved obligation${unresolved === 1 ? '' : 's'} excluded from these totals.` : 'Remaining amounts by cash effect.' }
 }
 
 function riskText(page: ForecastPage | undefined) {
@@ -288,10 +306,12 @@ function riskText(page: ForecastPage | undefined) {
   return breaches.length ? { value: 'Breach flagged', note: `${breaches.length} forecast currency path${breaches.length === 1 ? '' : 's'} reaches a cash or reserve breach.`, detail: 'Review the flagged cash or reserve breach in the forecast.', warning: true } : { value: 'No breach flagged', note: 'Within the supported forecast horizon.', detail: 'The supported horizon currently has no cash or reserve breach flagged.', warning: false }
 }
 
-function netWorthText(page: NetWorthPage | undefined, currency: string) {
+function netWorthText(page: NetWorthPageOut | undefined) {
   if (!page) return unavailable
-  const summary = page.per_currency[currency]
-  return summary ? money(summary.tracked_net_worth, currency) : 'No tracked subtotal'
+  const total = page.totals.net_worth
+  if (total.total) return money(total.total.value, total.total.currency)
+  if (total.partial_total) return `${money(total.partial_total.value, total.partial_total.currency)} known so far`
+  return 'No tracked subtotal'
 }
 
 function baselineAndCashText(estimate: BaselineEstimate | undefined, cash: CashPosition | undefined) {

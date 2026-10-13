@@ -45,7 +45,7 @@ export const tabMeta: Record<string, TabMeta> = {
   Transactions: { scope: 'range', title: 'Every recorded transaction.', subtitle: 'Filter, search and open any transaction in the selected period.', section: 'Money in & out', icon: Receipt },
   Analysis: { scope: 'range', title: 'Where the money moved.', subtitle: 'Spending and income grouped and compared across the selected period.', section: 'Money in & out', icon: GitCompare },
   Income: { scope: 'none', title: 'Money coming in, grouped by payer.', subtitle: 'Recurring inbound payers detected from imported receipts, confirmed against their own history and never auto-classified.', section: 'Money in & out', icon: HandCoins },
-  Categorization: { scope: 'range', title: 'Teach it once.', subtitle: 'Clear your backlog in groups, then choose a one-off correction or a reusable rule.', section: 'Money in & out', icon: Tag },
+  Categorization: { scope: 'none', title: 'Teach it once.', subtitle: 'Clear your backlog in groups, then choose a one-off correction or a reusable rule.', section: 'Money in & out', icon: Tag },
   Categories: { scope: 'none', title: 'What money was for.', subtitle: 'Organize categories without altering any recorded transaction.', section: 'Money in & out', icon: Layers },
   Rules: { scope: 'none', title: 'Teach it once.', subtitle: 'Build merchant aliases and category rules from closed literal predicates.', section: 'Money in & out', icon: ListChecks },
   Review: { scope: 'none', title: 'What needs a decision.', subtitle: 'Confirm proposed transfers and resolve relationships that are still open.', section: 'Money in & out', icon: CircleHelp },
@@ -66,7 +66,7 @@ export const tabMeta: Record<string, TabMeta> = {
   'Will I have enough': { scope: 'none', title: 'Will you have enough?', subtitle: 'A direct answer per currency: the verdict, the date it turns, how short it gets, and the debt, pay-later, commitment and baseline spending behind it.', section: 'Position & forecast', icon: Gauge },
   Forecast: { scope: 'none', title: 'Your next six months, with the assumptions visible.', subtitle: 'A read-only estimate from the supported cash cutoff. Conditional timing remains conditional, and unavailable inputs stay named gaps.', section: 'Position & forecast', icon: GitCompare },
   'Net worth': { scope: 'none', title: 'A tracked subtotal, not a verdict.', subtitle: 'A per-currency subtotal of the dated cash, debt, receivable and card positions the ledger can already support.', section: 'Position & forecast', icon: Scale },
-  Variance: { scope: 'currency', title: 'Where the plan and the ledger disagree.', subtitle: 'Budgets and goals compared against covered ledger totals, and by how much they differ.', section: 'Position & forecast', icon: GitCompare },
+  Variance: { scope: 'none', title: 'Where the plan and the ledger disagree.', subtitle: 'Budgets and goals compared against covered ledger totals, and by how much they differ.', section: 'Position & forecast', icon: GitCompare },
 
   Accounts: { scope: 'none', title: 'What this ledger covers.', subtitle: 'Declare expected-active windows and bind source accounts.', section: 'Setup & data', icon: Building2 },
   Setup: { scope: 'none', title: 'Set up your ledger.', subtitle: 'Bring in statements and confirm coverage.', section: 'Setup & data', icon: UploadCloud },

@@ -303,6 +303,12 @@ def _breakdowns(items: list[EvaluatedEntry]) -> dict[str, Any]:
         category = f"{item.group_name} / {item.category}"
         by_category[category] = by_category.get(category, 0) + 1
     return {
+        # The owner publishes the exact matched set for dated reporting. This
+        # is provenance, not a second predicate evaluator or a matching input.
+        "valuation_items": [{"anchor": str(item.entry["natural_anchor"]),
+                             "currency": str(item.entry["currency_pocket"]),
+                             "amount": format(abs(Decimal(str(item.entry["amount_text"]))), "f"),
+                             "effective_at": item.entry["effective_at"]} for item in items],
         "by_currency": {currency: {"count": value["count"], "absolute_amount": format(value["absolute_amount"], "f")}
                         for currency, value in sorted(by_currency.items())},
         "by_direction": dict(sorted(by_direction.items())),

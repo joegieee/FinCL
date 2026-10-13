@@ -79,12 +79,12 @@ describe('EntryDialog — debt hand-off', () => {
     const onRelationshipSaved = vi.fn(async () => {})
     mockRoutes({
       // A GBP debt this SGD outflow cannot back, alongside the one it can.
-      'debts?': () => ({ generation: 'g1', as_of: '2026-03-31', i_owe: [debtCard(), debtCard({ debt_id: 'd-gbp', currency: 'GBP', counterparty_label: 'Sam' })], owed_to_me: [], next_cursor: null }),
-      'debts/allocation-candidates': () => ({
+      'reporting/workspaces/debts?': () => ({ generation: 'g1', as_of: '2026-03-31', i_owe: [debtCard(), debtCard({ debt_id: 'd-gbp', currency: 'GBP', counterparty_label: 'Sam' })], owed_to_me: [], next_cursor: null }),
+      'reporting/workspaces/debts/allocation-candidates': () => ({
         generation: 'g1', debt_id: 'd-alex', event_kind: 'PRINCIPAL_REPAID', required_direction: 'OUT', currency: 'SGD', next_cursor: null,
         candidates: [{ entry_anchor: 'a1', effective_at: '2026-03-09 10:00:00', economic_direction: 'OUT', currency: 'SGD', amount: '110.00', open_amount: '110.00', description: 'TRANSFER TO ALEX' }],
       }),
-      'debts/d-alex': () => ({ generation: 'g1', as_of: '2026-03-31', debt: { ...debtCard(), principal_history: [], reason: 'Loan' } }),
+      'reporting/workspaces/debts/d-alex': () => ({ generation: 'g1', as_of: '2026-03-31', debt: { ...debtCard(), principal_history: [], reason: 'Loan' } }),
       preview: () => ({ status: 'previewed' }),
       commands: () => ({ status: 'recorded' }),
       'transactions/entry': () => ({ generation: 'g2', entry: entry({ bucket: 'debt', debt_allocation: 'full', review: false }) }),
@@ -102,7 +102,7 @@ describe('EntryDialog — debt hand-off', () => {
     expect(principal.value).toBe('110.00')
     const kinds = within(screen.getByLabelText('Event kind')).getAllByRole('option').map(o => o.textContent)
     expect(kinds).toEqual(['Repaid principal'])
-    const [[candidatePath]] = calls('debts/allocation-candidates')
+    const [[candidatePath]] = calls('reporting/workspaces/debts/allocation-candidates')
     expect(candidatePath).toContain('anchor=a1')
 
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Paid Alex back' } })
@@ -125,12 +125,12 @@ describe('EntryDialog — debt hand-off', () => {
 
   it('returns to the classification fields when the debt only explains part of the amount', async () => {
     mockRoutes({
-      'debts?': () => ({ generation: 'g1', as_of: '2026-03-31', i_owe: [debtCard()], owed_to_me: [], next_cursor: null }),
-      'debts/allocation-candidates': () => ({
+      'reporting/workspaces/debts?': () => ({ generation: 'g1', as_of: '2026-03-31', i_owe: [debtCard()], owed_to_me: [], next_cursor: null }),
+      'reporting/workspaces/debts/allocation-candidates': () => ({
         generation: 'g1', debt_id: 'd-alex', event_kind: 'PRINCIPAL_REPAID', required_direction: 'OUT', currency: 'SGD', next_cursor: null,
         candidates: [{ entry_anchor: 'a1', effective_at: '2026-03-09 10:00:00', economic_direction: 'OUT', currency: 'SGD', amount: '110.00', open_amount: '110.00', description: 'TRANSFER TO ALEX' }],
       }),
-      'debts/d-alex': () => ({ generation: 'g1', as_of: '2026-03-31', debt: { ...debtCard(), principal_history: [], reason: 'Loan' } }),
+      'reporting/workspaces/debts/d-alex': () => ({ generation: 'g1', as_of: '2026-03-31', debt: { ...debtCard(), principal_history: [], reason: 'Loan' } }),
       preview: () => ({ status: 'previewed' }),
       commands: () => ({ status: 'recorded' }),
       'transactions/entry': () => ({ generation: 'g2', entry: entry({ debt_allocation: 'partial' }) }),
@@ -150,9 +150,9 @@ describe('EntryDialog — debt hand-off', () => {
 
   it('says so when the transaction cannot back an event on the chosen debt', async () => {
     mockRoutes({
-      'debts?': () => ({ generation: 'g1', as_of: '2026-03-31', i_owe: [debtCard()], owed_to_me: [], next_cursor: null }),
-      'debts/allocation-candidates': () => ({ generation: 'g1', debt_id: 'd-alex', event_kind: 'PRINCIPAL_REPAID', required_direction: 'OUT', currency: 'SGD', next_cursor: null, candidates: [] }),
-      'debts/d-alex': () => ({ generation: 'g1', as_of: '2026-03-31', debt: { ...debtCard(), principal_history: [], reason: 'Loan' } }),
+      'reporting/workspaces/debts?': () => ({ generation: 'g1', as_of: '2026-03-31', i_owe: [debtCard()], owed_to_me: [], next_cursor: null }),
+      'reporting/workspaces/debts/allocation-candidates': () => ({ generation: 'g1', debt_id: 'd-alex', event_kind: 'PRINCIPAL_REPAID', required_direction: 'OUT', currency: 'SGD', next_cursor: null, candidates: [] }),
+      'reporting/workspaces/debts/d-alex': () => ({ generation: 'g1', as_of: '2026-03-31', debt: { ...debtCard(), principal_history: [], reason: 'Loan' } }),
     })
     render(<EntryDialog entry={entry()} data={dashboard()} onClose={vi.fn()} onSaved={vi.fn()} />)
     fireEvent.click(screen.getByRole('radio', { name: 'Lending or repaying a debt' }))
@@ -213,18 +213,18 @@ describe('EntryDialog — installment link', () => {
 
   it('links a purchase to a plan alongside, not instead of, its classification', async () => {
     mockRoutes({
-      'installments?': () => ({ generation: 'g1', plans: [plan], next_cursor: null }),
-      'installments/entry-candidates': () => ({
+      'reporting/workspaces/installments?': () => ({ generation: 'g1', plans: [plan], next_cursor: null }),
+      'reporting/workspaces/installments/entry-candidates': () => ({
         generation: 'g1', plan_id: 'pl1', purpose: 'purchase', currency: 'SGD', card_account_id: 'card', next_cursor: null,
         candidates: [{ entry_anchor: 'a1', effective_at: '2026-03-09 10:00:00', account_id: 'card', currency: 'SGD', amount: '110.00', open_amount: '110.00', open_fee: '0.00', description: 'LAPTOP STORE' }],
       }),
-      'installments/pl1': () => ({ generation: 'g1', as_of: '2026-03-31', plan, source_occurrences: [], purchase_allocations: [], schedule: [], settlements: [], views: {} }),
+      'reporting/workspaces/installments/pl1': () => ({ generation: 'g1', as_of: '2026-03-31', plan, source_occurrences: [], purchase_allocations: [], schedule: [], settlements: [], views: {} }),
     })
     render(<EntryDialog entry={entry()} data={dashboard()} onClose={vi.fn()} onSaved={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Part of an installment plan?' }))
     fireEvent.change(await screen.findByRole('combobox', { name: 'Installment plan' }), { target: { value: 'pl1' } })
     expect(await screen.findByText(/Attribute the original purchase/)).toBeInTheDocument()
-    await waitFor(() => expect(calls('installments/entry-candidates')[0][0]).toContain('anchor=a1'))
+    await waitFor(() => expect(calls('reporting/workspaces/installments/entry-candidates')[0][0]).toContain('anchor=a1'))
     expect(screen.getAllByText(/LAPTOP STORE/).length).toBeGreaterThan(0)
     // Still spending: the classification fields stay available.
     expect(screen.getByLabelText('Category')).toBeInTheDocument()

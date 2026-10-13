@@ -1,3 +1,4 @@
+import { reportedMoney } from '@/lib/workspaceReporting'
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
@@ -72,7 +73,7 @@ export function ConfirmPlanForm({
       <p className="muted-note">
         {candidate.observed_count} instalment{candidate.observed_count === 1 ? '' : 's'} of{' '}
         {candidate.term_months} printed on your statements, ordinals {candidate.first_ordinal}–
-        {candidate.last_ordinal}, {money(candidate.observed_total.value, candidate.currency)} paid so far.
+        {candidate.last_ordinal}, {reportedMoney(candidate.observed_total, 'value', candidate.currency)} paid so far.
       </p>
 
       <table className="debt-history">
@@ -84,7 +85,7 @@ export function ConfirmPlanForm({
             <tr key={o.entry_anchor}>
               <td>{o.occurrence_index} / {o.occurrence_count}</td>
               <td>{o.effective_on}</td>
-              <td>{money(o.amount, candidate.currency)}</td>
+              <td>{reportedMoney(o, 'amount', candidate.currency)}</td>
               <td>{o.description ?? '—'}</td>
             </tr>
           ))}
@@ -137,7 +138,7 @@ export function ConfirmPlanForm({
         <p className="muted-note">
           The statement that printed the first instalment also printed a{' '}
           {candidate.conversion.description} credit of{' '}
-          {money(candidate.conversion.amount, candidate.currency)} on {candidate.conversion.effective_on}
+          {reportedMoney(candidate.conversion, 'amount', candidate.currency)} on {candidate.conversion.effective_on}
           . That is the total of the purchases you converted, and every instalment so far is
           exactly what it divides into, so the principal above is that printed credit.
         </p>

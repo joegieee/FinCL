@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 import sqlite3
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 from .common import LEDGER_EVENT_KINDS
 from .errors import SchemaVersionError
@@ -18,6 +20,45 @@ SCHEMA_VERSION = 26
 # wait for the lock to clear instead of failing immediately with "database is
 # locked".
 BUSY_TIMEOUT_MS = 5000
+
+# Composite read adapters can reuse existing native readers without reopening
+# the database between panels. Scope is local to the calling thread/context.
+_READ_SNAPSHOT: ContextVar[tuple[Path, sqlite3.Connection] | None] = ContextVar("fincl_read_snapshot", default=None)
+
+
+class _BorrowedReadConnection:
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self.connection = connection
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.connection, name)
+
+    def execute(self, sql: str, parameters: Any = ()) -> sqlite3.Cursor:
+        # Native readers own BEGIN/close when called independently. A composed
+        # reader borrows the outer transaction instead, and cannot end it.
+        if sql.strip().upper() == "BEGIN":
+            return self.connection.execute("SELECT 1")
+        return self.connection.execute(sql, parameters)
+
+    def close(self) -> None:
+        pass
+
+
+@contextmanager
+def read_snapshot(path: Path) -> Iterator[sqlite3.Connection]:
+    """Pin every native reader of this ledger to one read-only transaction."""
+    scoped = _READ_SNAPSHOT.get()
+    if scoped is not None and scoped[0] == path.resolve():
+        yield scoped[1]
+        return
+    connection = connect_readonly(path)
+    connection.execute("BEGIN")
+    token = _READ_SNAPSHOT.set((path.resolve(), connection))
+    try:
+        yield connection
+    finally:
+        _READ_SNAPSHOT.reset(token)
+        connection.close()
 
 # Legacy startup migration registry remains empty. Historical ledgers require
 # a tested reader or the explicit, backup-verified runner in migrations.py;
@@ -1141,6 +1182,9 @@ def connect_readonly(path: Path) -> sqlite3.Connection:
     way past.
     """
     path = Path(path)
+    scoped = _READ_SNAPSHOT.get()
+    if scoped is not None and scoped[0] == path.resolve():
+        return cast(sqlite3.Connection, _BorrowedReadConnection(scoped[1]))
     if not path.exists():
         raise SchemaVersionError(
             f"ledger {path} does not exist; import a statement or run "

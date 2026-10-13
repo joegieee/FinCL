@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedMoney } from '@/lib/workspaceReporting'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ChevronRight, Plus, Split } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -30,7 +31,7 @@ function DebtRow({ debt, onOpen }: { debt: DebtCard; onOpen: (id: string) => voi
         </small>
       </span>
       <span className="debt-row-amount">
-        {money(debt.remaining_principal.value, debt.currency)}
+        {reportedMoney(debt.remaining_principal, 'value', debt.currency)}
       </span>
       <ChevronRight size={15} />
     </button>
@@ -126,7 +127,7 @@ function DebtDetailView({
   const debt = detail.debt
   const [recording, setRecording] = useState(startRecording)
   return (
-    <Card className="debt-detail">
+    <Card className="debt-detail"><WorkspaceReportingDetails data={detail}/>
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={14} /> All debts</Button>
       <div className="debt-detail-head">
         <div>
@@ -138,7 +139,7 @@ function DebtDetailView({
         </div>
         <div className="debt-detail-balance">
           <span>Remaining principal</span>
-          <strong>{money(debt.remaining_principal.value, debt.currency)}</strong>
+          <strong>{reportedMoney(debt.remaining_principal, 'value', debt.currency)}</strong>
           <small>as of {detail.as_of}</small>
         </div>
       </div>
@@ -176,7 +177,7 @@ function DebtDetailView({
                 {e.opening_balance ? <span className="tag">opening</span> : null}
                 {!e.bound ? <span className="tag warn">unverified</span> : null}
               </td>
-              <td>{(e.signed < 0 ? '−' : '+') + money(e.principal.value, debt.currency).replace(/^−/, '')}</td>
+              <td>{(e.signed < 0 ? '−' : '+') + reportedMoney(e.principal, 'value', debt.currency).replace(/^−/, '')}</td>
               <td>{e.reason}{e.expense_category ? <span className="tag">{e.expense_category}</span> : null}</td>
             </tr>
           ))}
@@ -271,7 +272,7 @@ export function DebtsView({
   if (!page) return <Card className="debt-list"><p className="debt-empty">Loading debts…</p></Card>
 
   return (
-    <div className="debts-view">
+    <div className="debts-view"><WorkspaceReportingDetails data={page}/>
       <div className="debts-toolbar">
         <p className="debts-asof">Balances as of {page.as_of}. Payables and receivables shown separately.</p>
         <span className="debts-toolbar-actions">

@@ -1,3 +1,4 @@
+import { reportedMoney } from '@/lib/workspaceReporting'
 import { useState } from 'react'
 import { PiggyBank, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -92,7 +93,7 @@ export function AllocationControls({
           {fund.recorded_allocation.entries.map(entry => (
             <li key={entry.allocation}>
               <div className="remedy-body">
-                <p><strong>{money(entry.amount, fund.currency)}</strong> · {entry.allocated_on}</p>
+                <p><strong>{reportedMoney(entry, 'amount', fund.currency)}</strong> · {entry.allocated_on}</p>
               </div>
               <Button
                 variant="ghost" size="sm" disabled={busy !== ''}

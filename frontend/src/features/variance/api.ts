@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 export type SnapshotIndex = { snapshots: { snapshot: string; issued_at: string; digest: string; journal_seq: number }[] }
@@ -38,7 +39,7 @@ export type MatchSuggestion = {
 
 export const loadSnapshots = () => api<SnapshotIndex>('forecast/snapshots')
 export const saveSnapshot = (generation: string, currency: string, caseName: string) => api<{ snapshot: string; status: string }>('forecast/snapshots', { generation, currency, case: caseName, reason: 'Saved after reviewing the issued forecast' })
-export const loadVariance = (snapshot: string, asOf?: string) => api<VariancePage>(`forecast/variance/${encodeURIComponent(snapshot)}${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`)
+export const loadVariance = (snapshot: string, asOf?: string) => reportedApi<VariancePage>(`forecast/variance/${encodeURIComponent(snapshot)}${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`)
 
 async function previewThenCommit(body: {
   request_id: string

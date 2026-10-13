@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedMoney } from '@/lib/workspaceReporting'
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ChevronRight } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -31,7 +32,7 @@ function CardRow({ row, onOpen }: { row: CardListRow; onOpen: (id: string) => vo
       </span>
       <span className="debt-row-amount">
         {latest?.closing_liability
-          ? money(latest.closing_liability.value, latest.closing_liability.currency ?? 'SGD')
+          ? reportedMoney(latest.closing_liability, 'value', latest.closing_liability.currency ?? 'SGD')
           : 'Unavailable'}
       </span>
       <ChevronRight size={15} />
@@ -47,7 +48,7 @@ function Utilization({ detail }: { detail: CardDetail }) {
   if (u.credit_balance) {
     return (
       <p className="muted-note">
-        Credit balance of {money(u.credit_balance_amount ?? '0', u.currency)} — nothing is owed.
+        Credit balance of {reportedMoney(u, 'credit_balance_amount', u.currency)} — nothing is owed.
       </p>
     )
   }
@@ -57,7 +58,7 @@ function Utilization({ detail }: { detail: CardDetail }) {
       <div className="card-util-bar"><span style={{ width: `${width}%` }} /></div>
       <small>
         {u.basis} · ratio {u.ratio}
-        {u.over_limit ? ` · over limit by ${money(u.over_limit_amount ?? '0', u.currency)}` : ` · ${money(u.headroom ?? '0', u.currency)} headroom`}
+        {u.over_limit ? ` · over limit by ${reportedMoney(u, 'over_limit_amount', u.currency)}` : ` · ${reportedMoney(u, 'headroom', u.currency)} headroom`}
       </small>
     </div>
   )
@@ -68,7 +69,7 @@ function CardDetailView({
 }: { detail: CardDetail; onBack: () => void }) {
   const limit = detail.limit_basis as { value?: string; currency?: string; observed_on?: string; source_kind?: string } | null
   return (
-    <Card className="debt-detail">
+    <Card className="debt-detail"><WorkspaceReportingDetails data={detail}/>
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={14} /> All cards</Button>
       <div className="debt-detail-head">
         <div>
@@ -81,7 +82,7 @@ function CardDetailView({
         </div>
         <div className="debt-detail-balance">
           <span>Limit basis</span>
-          <strong>{limit?.value ? money(limit.value, limit.currency ?? 'SGD') : 'Unavailable'}</strong>
+          <strong>{limit?.value ? reportedMoney(limit, 'value', limit.currency ?? 'SGD') : 'Unavailable'}</strong>
           <small>
             {limit?.observed_on
               ? `observed ${limit.observed_on} · ${limit.source_kind ?? ''}`
@@ -104,7 +105,7 @@ function CardDetailView({
           <ul>
             {detail.manually_allocated_payments.map((m, i) => (
               <li key={i}>
-                {money(m.amount.value, m.amount.currency ?? 'SGD')} → statement {m.statement_id}
+                {reportedMoney(m.amount, 'value', m.amount.currency ?? 'SGD')} → statement {m.statement_id}
                 {m.bound ? '' : ' (unverified)'}
               </li>
             ))}
@@ -162,7 +163,7 @@ export function CardsView({ generation }: { generation: string }) {
   if (!page) return <Card className="debt-list"><p className="debt-empty">Loading cards…</p></Card>
 
   return (
-    <div className="debts-view">
+    <div className="debts-view"><WorkspaceReportingDetails data={page}/>
       <p className="debts-asof">Card balances as of {page.as_of}. Observed at each statement period end.</p>
       <Card className="debt-list">
         <header><h3>Cards</h3><p>One row per card account and currency.</p></header>

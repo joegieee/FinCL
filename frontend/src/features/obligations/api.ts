@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 // Stage 2B — the unified obligations read model. Hand-written until the
@@ -125,5 +126,5 @@ export function loadObligations(opts?: { asOf?: string }): Promise<ObligationsPa
   const q = new URLSearchParams()
   if (opts?.asOf) q.set('as_of', opts.asOf)
   const query = q.toString()
-  return api<ObligationsPage>('obligations' + (query ? '?' + query : ''))
+  return reportedApi<ObligationsPage>('obligations' + (query ? '?' + query : ''))
 }

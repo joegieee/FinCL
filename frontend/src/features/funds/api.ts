@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 export type FundProposal = {
@@ -23,7 +24,7 @@ export type FundsPage = {
   limitations: string[]
 }
 
-export const loadFunds = () => api<FundsPage>('funds')
+export const loadFunds = () => reportedApi<FundsPage>('funds')
 export const confirmFund = (proposal_id: string, generation: string, reason: string) =>
   api<{ status: string; fund: string }>('funds/confirm', { proposal_id, generation, reason })
 

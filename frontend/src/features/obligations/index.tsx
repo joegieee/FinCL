@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -97,7 +98,7 @@ function ObligationsContent({ page, loading, load }: { page: ObligationsPage; lo
   const currencies = Object.keys(page.totals_by_currency).sort()
 
   return (
-    <div className="obligations-view">
+    <div className="obligations-view"><WorkspaceReportingDetails data={page}/>
       <div className="scope-caption">
         <span>
           {page.obligations.length} obligation{page.obligations.length === 1 ? '' : 's'} as of {page.as_of}
@@ -137,8 +138,8 @@ function ObligationsContent({ page, loading, load }: { page: ObligationsPage; lo
             const lanes = page.totals_by_currency[currency]
             return (
               <dl className="baseline-metrics" key={currency}>
-                <div><dt>{currency} · bank withdrawal</dt><dd>{money(lanes.bank_withdrawal, currency)}</dd></div>
-                <div><dt>{currency} · via card statement</dt><dd>{money(lanes.via_card_statement, currency)}</dd></div>
+                <div><dt>{currency} · bank withdrawal</dt><dd>{reportedMoney(lanes, 'bank_withdrawal', currency)}</dd></div>
+                <div><dt>{currency} · via card statement</dt><dd>{reportedMoney(lanes, 'via_card_statement', currency)}</dd></div>
               </dl>
             )
           })
@@ -238,9 +239,9 @@ function ObligationRow({ o }: { o: Obligation }) {
       <td>
         {o.remaining_amount ? (
           <>
-            {money(o.remaining_amount.value, o.currency)}
+            {reportedMoney(o.remaining_amount, 'value', o.currency)}
             {superseded && (
-              <small>supersedes {money(superseded.value, superseded.currency)} lump sum — not counted</small>
+              <small>supersedes {reportedMoney(superseded, 'value', superseded.currency)} lump sum — not counted</small>
             )}
           </>
         ) : (
@@ -273,7 +274,7 @@ function ObligationRow({ o }: { o: Obligation }) {
           <small>{unmatched} unmatched past occurrence{unmatched === 1 ? '' : 's'}</small>
         )}
         {o.actual_payments.count > 0 && (
-          <small>{o.actual_payments.count} payment{o.actual_payments.count === 1 ? '' : 's'} recorded · {money(o.actual_payments.total, o.currency)}</small>
+          <small>{o.actual_payments.count} payment{o.actual_payments.count === 1 ? '' : 's'} recorded · {reportedMoney(o.actual_payments, 'total', o.currency)}</small>
         )}
       </td>
     </tr>

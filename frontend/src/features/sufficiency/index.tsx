@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -64,7 +65,7 @@ export function SufficiencyView({
       errorTitle="We couldn’t work out whether there is enough."
     >
       {page => (
-        <div className="sufficiency-view">
+        <div className="sufficiency-view"><WorkspaceReportingDetails data={page}/>
           <div className="scope-caption">
             <span>Projected from the supported cash cutoff, on the same evidence as the Forecast tab.</span>
             <Button variant="ghost" size="sm" onClick={load}><RefreshCw size={14} /> Refresh</Button>
@@ -127,7 +128,7 @@ function DriverList({ drivers, currency }: { drivers: SufficiencyDriver[]; curre
         <li key={driver.origin}>
           <div className="driver-head">
             <strong>{driver.label}</strong>
-            <span>{money(driver.amount, currency)}</span>
+            <span>{reportedMoney(driver, 'amount', currency)}</span>
           </div>
           {driver.items.length > 0 && (
             <p className="muted-note">
@@ -152,7 +153,7 @@ function CurrencyAnswer({ cell, onOpenObligations, onOpenCash }: { cell: Suffici
         </div>
         {base.shortfall && (
           <Badge variant="outline" className="review-badge">
-            short {money(base.shortfall, cell.currency)}
+            short {reportedMoney(base, 'shortfall', cell.currency)}
           </Badge>
         )}
       </div>
@@ -160,7 +161,7 @@ function CurrencyAnswer({ cell, onOpenObligations, onOpenCash }: { cell: Suffici
       <p className="sufficiency-headline">
         {base.headline}
         {base.shortfall && base.shortfall_on && (
-          <> The worst point is {money(base.shortfall, cell.currency)} on {base.shortfall_on}.</>
+          <> The worst point is {reportedMoney(base, 'shortfall', cell.currency)} on {base.shortfall_on}.</>
         )}
       </p>
 
@@ -193,7 +194,7 @@ function CurrencyAnswer({ cell, onOpenObligations, onOpenCash }: { cell: Suffici
       <div className="sufficiency-cases">
         <p className="muted-note">
           <strong>If spending runs at its observed high:</strong> {cell.conservative.headline}
-          {cell.conservative.shortfall && ` Short ${money(cell.conservative.shortfall, cell.currency)}.`}
+          {cell.conservative.shortfall && ` Short ${reportedMoney(cell.conservative, 'shortfall', cell.currency)}.`}
         </p>
         {cell.only_safe_in_the_base_case && (
           <p className="muted-note">
@@ -202,7 +203,7 @@ function CurrencyAnswer({ cell, onOpenObligations, onOpenCash }: { cell: Suffici
           </p>
         )}
         <p className="muted-note">
-          Opening {money(cell.starting_balance, cell.currency)} as of {cell.starting_balance_as_of}
+          Opening {reportedMoney(cell, 'starting_balance', cell.currency)} as of {cell.starting_balance_as_of}
           {cell.horizon_end && `, projected through ${cell.horizon_end}`}. Estimate only.
         </p>
       </div>

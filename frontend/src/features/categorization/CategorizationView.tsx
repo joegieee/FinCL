@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedApi, reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronRight, Filter, HelpCircle, RefreshCw, Tag, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -108,16 +109,16 @@ export function CategorizationView({ generation, freshness, categories, accounts
     const seq = ++loadSeq.current
     try {
       const [s, p] = await Promise.all([
-        api<Summary>(`categorization/summary?generation=${encodeURIComponent(generationRef.current)}`),
-        api<CandidatesPage>(`categorization/candidates?${candidateQuery()}`),
+        reportedApi<Summary>(`categorization/summary?generation=${encodeURIComponent(generationRef.current)}`),
+        reportedApi<CandidatesPage>(`categorization/candidates?${candidateQuery()}`),
       ])
       setSummary(s); setPage(p)
       setFocusCounts({ [focus]: p.total })
-      api<{ suggestions: RuleSuggestion[] }>(`categorization/rule-suggestions?generation=${encodeURIComponent(generationRef.current)}`)
+      reportedApi<{ suggestions: RuleSuggestion[] }>(`categorization/rule-suggestions?generation=${encodeURIComponent(generationRef.current)}`)
         .then(result => setSuggestions(result.suggestions))
         .catch(() => {})
       for (const other of FOCUSES.filter(f => f.value !== focus)) {
-        api<CandidatesPage>(`categorization/candidates?${candidateQuery('', other.value)}`)
+        reportedApi<CandidatesPage>(`categorization/candidates?${candidateQuery('', other.value)}`)
           .then(result => { if (seq === loadSeq.current) setFocusCounts(current => ({ ...current, [other.value]: result.total })) })
           .catch(() => {})
       }
@@ -128,13 +129,13 @@ export function CategorizationView({ generation, freshness, categories, accounts
   const queue = page?.candidates ?? []
   async function open(candidate: Candidate, index: number) {
     setError('')
-    try { setSelected(await api<Detail>(`categorization/candidates/${candidate.candidate_id}?${candidateQuery()}`)); setSelectedIndex(index); setActiveIndex(index) }
+    try { setSelected(await reportedApi<Detail>(`categorization/candidates/${candidate.candidate_id}?${candidateQuery()}`)); setSelectedIndex(index); setActiveIndex(index) }
     catch (e) { setError((e as Error).message) }
   }
   async function loadMoreCandidates() {
     if (!page?.next_cursor) return
     try {
-      const more = await api<CandidatesPage>(`categorization/candidates?${candidateQuery(page.next_cursor)}`)
+      const more = await reportedApi<CandidatesPage>(`categorization/candidates?${candidateQuery(page.next_cursor)}`)
       setPage(current => current ? { ...more, candidates: [...current.candidates, ...more.candidates], total: current.total } : more)
     } catch (e) { setError((e as Error).message) }
   }
@@ -196,11 +197,11 @@ export function CategorizationView({ generation, freshness, categories, accounts
       const fresh = await api<{ generation: string }>('overview')
       setGenerationOverride(fresh.generation)
       const freshQuery = new URLSearchParams({ generation: fresh.generation, direction, lifecycle, kind, account, currency, focus, sort }).toString()
-      const freshPage = await api<CandidatesPage>(`categorization/candidates?${freshQuery}`)
+      const freshPage = await reportedApi<CandidatesPage>(`categorization/candidates?${freshQuery}`)
       setPage(freshPage)
       const index = reopenCandidateId ? freshPage.candidates.findIndex(c => c.candidate_id === reopenCandidateId) : -1
       if (index >= 0) {
-        setSelected(await api<Detail>(`categorization/candidates/${freshPage.candidates[index].candidate_id}?${freshQuery}`))
+        setSelected(await reportedApi<Detail>(`categorization/candidates/${freshPage.candidates[index].candidate_id}?${freshQuery}`))
         setSelectedIndex(index); setActiveIndex(index)
       } else if (reopenCandidateId) {
         setSelected(null); setSelectedIndex(null)
@@ -210,7 +211,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
   }
   const visibleSuggestions = suggestions.filter(s => !dismissedSuggestions.has(s.merchant_key))
   const disabled = freshness === 'stale'
-  return <div className="categorization-view">
+  return <div className="categorization-view">{page && <WorkspaceReportingDetails data={page}/>}
     {error && <div className="alert error" role="alert">{error}</div>}
     {visibleSuggestions.map(suggestion => <div className="alert rule-suggestion" role="status" key={suggestion.merchant_key}>
       <span>{suggestion.label}</span>
@@ -574,7 +575,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     if (!nextCursor || detailLoading) return
     setDetailLoading(true)
     try {
-      const more = await api<Detail>(`categorization/candidates/${encodeURIComponent(detail.candidate.candidate_id)}?generation=${encodeURIComponent(generation)}&cursor=${encodeURIComponent(nextCursor)}`)
+      const more = await reportedApi<Detail>(`categorization/candidates/${encodeURIComponent(detail.candidate.candidate_id)}?generation=${encodeURIComponent(generation)}&cursor=${encodeURIComponent(nextCursor)}`)
       // The draft's initially frozen selection is intentionally not expanded;
       // additional records are inspectable, then explicitly selectable.
       setRecords(current => [...current, ...more.records])
@@ -695,17 +696,17 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     <div className="candidate-records">
       {scope === 'selected' && <label key="all"><input type="checkbox" checked={anchors.size === records.length && records.length > 0} onChange={() => setAnchors(current => current.size === records.length ? new Set() : new Set(records.map(r => r.anchor)))}/><span>{anchors.size === records.length ? `Deselect all ${records.length} loaded` : `Select all ${records.length} loaded`}</span><strong/></label>}
       {visibleRecords.map(row => scope === 'selected'
-        ? <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}{row.refund_context ? ` · ${row.refund_context}` : ''}</small></label>
+        ? <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{row.date} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}{row.refund_context ? ` · ${row.refund_context}` : ''}</small></label>
         : <button type="button" key={row.anchor} className={`candidate-record-row${scope === 'one' && onlyTarget?.anchor === row.anchor ? ' is-active' : ''}`} disabled={scope === 'rule'}
             onClick={() => { if (scope === 'one') { setAnchors(new Set([row.anchor])); resetChecks() } }}>
-            <span>{row.date} · {row.account}</span><strong>{row.currency} {row.amount}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}{row.refund_context ? ` · ${row.refund_context}` : ''}</small>
+            <span>{row.date} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}{row.refund_context ? ` · ${row.refund_context}` : ''}</small>
           </button>)}
     </div>
     {records.length > 5 && !showAllRecords && <Button variant="ghost" size="sm" onClick={() => setShowAllRecords(true)}>Show all {records.length}</Button>}
     {nextCursor && <Button variant="outline" size="sm" disabled={detailLoading} onClick={() => void loadMoreRecords()}>{detailLoading ? 'Loading records…' : 'Load more records'}</Button>}
     <div className="scope-segmented" role="radiogroup" aria-label="Choose scope">
       <button type="button" role="radio" aria-checked={scope === 'one'} disabled={disabled || Boolean(ruleBatch.submitted) || batch.busy} onClick={() => chooseScope('one')}>
-        This one{onlyTarget ? ` — ${onlyTarget.date} · ${money(onlyTarget.amount, onlyTarget.currency)}${onlyTarget.description ? ` · ${onlyTarget.description}` : ''}` : ''}
+        This one{onlyTarget ? ` — ${onlyTarget.date} · ${reportedMoney(onlyTarget, 'amount', onlyTarget.currency)}${onlyTarget.description ? ` · ${onlyTarget.description}` : ''}` : ''}
       </button>
       <button type="button" role="radio" aria-checked={scope === 'selected'} disabled={disabled || Boolean(ruleBatch.submitted) || batch.busy} onClick={() => chooseScope('selected')}>
         Selected ({anchors.size} of {records.length} loaded)

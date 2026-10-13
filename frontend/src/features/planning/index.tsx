@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Archive, ArchiveRestore, Check, ChevronRight, RefreshCw, Target, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -55,7 +56,7 @@ function useResource<T>(load: () => Promise<T>, deps: unknown[]) {
       .finally(() => { if (id === seq.current) setLoading(false) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
-  useEffect(() => { reload() }, [reload])
+  useEffect(() => { setData(null); reload() }, [reload])
   return { data, error, loading, reload }
 }
 
@@ -85,6 +86,7 @@ function BudgetsSection({ month, setMonth, generation, disabled, categories, onS
       {data && data.budgets.length === 0 && !creating && (
         <p className="muted-note">No budget is active for {month}. Create one with an explicit first month.</p>
       )}
+      {data && <WorkspaceReportingDetails data={data}/>}
       {data?.budgets.map(b => (
         <BudgetRow key={b.plan} budget={b} monthCovered={data.month_covered} generation={generation}
           categories={categories} disabled={disabled} onSaved={afterSave} />
@@ -111,14 +113,14 @@ function BudgetRow({ budget, generation, categories, disabled, onSaved }: {
         <Badge variant="outline" className={budget.status === 'coverage_unknown' ? 'review-badge' : ''}>{STATUS[budget.status]}</Badge>
       </div>
       <div className="budget-values">
-        <strong>{money(budget.actual, budget.currency)}</strong>
-        <span>of {money(budget.limit, budget.currency)}</span>
+        <strong>{reportedMoney(budget, 'actual', budget.currency)}</strong>
+        <span>of {reportedMoney(budget, 'limit', budget.currency)}</span>
       </div>
       <div className="progress-track" role="progressbar" aria-label={`${budget.name} spent`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
         <span style={{ width: `${pct}%` }} />
       </div>
       <small>{budget.remaining !== null
-        ? `${money(budget.remaining, budget.currency)} ${Number(budget.remaining) < 0 ? 'over' : 'left'}`
+        ? `${reportedMoney(budget, 'remaining', budget.currency)} ${Number(budget.remaining) < 0 ? 'over' : 'left'}`
         : 'Observed spending so far — no confident remaining for an incomplete month.'}</small>
       <div className="row-actions">
         <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setMode(m => m === 'revise' ? 'idle' : 'revise')}>Revise</Button>
@@ -207,10 +209,10 @@ function BackdateImpact({ plan, effectiveMonth, limit, currency, categoryKey }: 
           {data.affected_months.map(m => (
             <tr key={m.month}>
               <td>{m.month}</td>
-              <td>{m.previous_limit ? `${money(m.previous_limit, currency)} → ` : ''}{money(m.new_limit, currency)}</td>
-              <td>{money(m.actual, currency)}</td>
+              <td>{m.previous_limit ? `${reportedMoney(m, 'previous_limit', currency)} → ` : ''}{reportedMoney(m, 'new_limit', currency)}</td>
+              <td>{reportedMoney(m, 'actual', currency)}</td>
               <td>{m.new_remaining !== null
-                ? `${m.previous_remaining !== null ? `${money(m.previous_remaining, currency)} → ` : ''}${money(m.new_remaining, currency)}`
+                ? `${m.previous_remaining !== null ? `${reportedMoney(m, 'previous_remaining', currency)} → ` : ''}${reportedMoney(m, 'new_remaining', currency)}`
                 : '—'}</td>
             </tr>
           ))}
@@ -229,7 +231,7 @@ function BudgetHistoryPanel({ plan }: { plan: string }) {
     <div className="history-panel">
       <p className="eyebrow">DATED REVISIONS</p>
       <ul>
-        {data.revisions.map(r => <li key={r.revision}>{r.effective_month}: {money(r.limit, r.currency)} · {r.category_key ?? 'all + fees'} · “{r.name}”</li>)}
+        {data.revisions.map(r => <li key={r.revision}>{r.effective_month}: {reportedMoney(r, 'limit', r.currency)} · {r.category_key ?? 'all + fees'} · “{r.name}”</li>)}
       </ul>
       {data.archive_periods.length > 0 && (
         <>
@@ -259,6 +261,7 @@ function GoalsSection({ generation, disabled, onSaved }: {
       {error && <div className="alert error" role="alert"><p>{error}</p></div>}
       {creating && <GoalForm generation={generation} disabled={disabled} onSaved={async s => { setCreating(false); await afterSave(s) }} />}
       {data && data.goals.length === 0 && !creating && <p className="muted-note">No goals yet. A new goal needs a dated first observation, including an explicit zero.</p>}
+      {data && <WorkspaceReportingDetails data={data}/>}
       {data?.goals.map(g => (
         <GoalRow key={g.plan} goal={g} generation={generation} disabled={disabled} onSaved={afterSave} />
       ))}
@@ -283,13 +286,13 @@ function GoalRow({ goal, generation, disabled, onSaved }: {
         </div>
       </div>
       <div className="budget-values">
-        <strong>{goal.saved !== null ? money(goal.saved, goal.currency) : 'No dated progress'}</strong>
-        <span>of {money(goal.target, goal.currency)}</span>
+        <strong>{goal.saved !== null ? reportedMoney(goal, 'saved', goal.currency) : 'No dated progress'}</strong>
+        <span>of {reportedMoney(goal, 'target', goal.currency)}</span>
       </div>
       <div className="progress-track" role="progressbar" aria-label={`${goal.name} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
         <span style={{ width: `${pct}%` }} />
       </div>
-      <small>{goal.remaining !== null ? `${money(goal.remaining, goal.currency)} to go` : 'Record a dated observation to see progress.'}</small>
+      <small>{goal.remaining !== null ? `${reportedMoney(goal, 'remaining', goal.currency)} to go` : 'Record a dated observation to see progress.'}</small>
       <div className="row-actions">
         <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setMode(m => m === 'observe' ? 'idle' : 'observe')}>Add progress</Button>
         <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setMode(m => m === 'edit' ? 'idle' : 'edit')}>Edit target</Button>
@@ -338,10 +341,10 @@ function ScenarioPanel({ plan, currency, targetOn }: { plan: string; currency: s
         <div className="preview" role="status">
           <div>
             {result.status === 'scheduled'
-              ? <p><strong>{money(result.monthly_amount, currency)}</strong> per contribution across {result.contribution_dates_considered.length} dates to reach the target by {targetOn}.</p>
+              ? <p><strong>{reportedMoney(result, 'monthly_amount', currency)}</strong> per contribution across {result.contribution_dates_considered.length} dates to reach the target by {targetOn}.</p>
               : result.status === 'reached'
-                ? <p>Target already reached — {money(result.remaining, currency)} remaining.</p>
-                : <p>{money(result.remaining, currency)} remaining and no contribution date falls before {targetOn}{result.status === 'overdue' ? ' (overdue)' : ''}.</p>}
+                ? <p>Target already reached — {reportedMoney(result, 'remaining', currency)} remaining.</p>
+                : <p>{reportedMoney(result, 'remaining', currency)} remaining and no contribution date falls before {targetOn}{result.status === 'overdue' ? ' (overdue)' : ''}.</p>}
             <p className="muted-note">A scenario only — no interest or investment return is assumed, and this reserves no money.</p>
           </div>
         </div>
@@ -465,7 +468,7 @@ function RecurringSection({ generation, disabled, onSaved }: { generation: strin
             <div>
               <strong><RefreshCw size={13} /> {c.name}</strong>
               <Badge variant="outline" className={c.status !== 'active' ? 'review-badge' : ''}> {c.status}{c.ended_on ? ` ${c.ended_on}` : ''}</Badge>
-              <small>{c.schedule.kind === 'monthly' ? `day ${c.schedule.day}` : `weekly (weekday ${c.schedule.weekday})`} · {money(c.expected_amount, c.currency)} ± {money(c.amount_tolerance, c.currency)}</small>
+              <small>{c.schedule.kind === 'monthly' ? `day ${c.schedule.day}` : `weekly (weekday ${c.schedule.weekday})`} · {reportedMoney(c, 'expected_amount', c.currency)} · matched within ± {money(c.amount_tolerance, c.currency)}</small>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setOpen(o => o === c.commitment ? null : c.commitment)}>Occurrences <ChevronRight size={13} /></Button>
           </div>
@@ -500,7 +503,7 @@ function CandidateReview({ candidate, generation, disabled, onSaved }: {
     })
   }}>
     <strong>{candidate.merchant_key}</strong>
-    <small>{candidate.cadence} · {candidate.count} observed · {money(candidate.expected_amount, candidate.currency)}</small>
+    <small>{candidate.cadence} · {candidate.count} observed · {reportedMoney(candidate, 'expected_amount', candidate.currency)}</small>
     <label>Decision<select value={action} disabled={cmd.attempted} onChange={e => setAction(e.target.value as 'confirm' | 'dismiss')}>
       <option value="confirm">Confirm reviewed schedule</option><option value="dismiss">Dismiss candidate</option>
     </select></label>

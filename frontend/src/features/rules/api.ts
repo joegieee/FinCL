@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 export type AliasRow = {
@@ -50,7 +51,7 @@ export const PREDICATES = [
 
 export const loadRules = () => api<RulesPage>('rules')
 export const compileRule = (match: Record<string, unknown>, category: string, reason: string) =>
-  api<CompiledRule>('rules/compile', { match, category, reason })
+  reportedApi<CompiledRule>('rules/compile', { match, category, reason })
 
 export type RoleRuleImpact = { matches: number; will_change: number; protected_overrides: number }
 export type CompiledRoleRule = {
@@ -118,14 +119,14 @@ export type CombinedRuleFields = { category?: string | null; cost_behavior?: str
  * pure pass-through to `/rules/compile-combined`. Leaving a field `null`
  * (rather than omitting it) retires that kind when it was already active. */
 export const compileCombinedRule = (generation: string, match: Record<string, unknown>, fields: CombinedRuleFields, reason: string) =>
-  api<CompiledCombinedRule>('rules/compile-combined', {
+  reportedApi<CompiledCombinedRule>('rules/compile-combined', {
     generation, match,
     category: fields.category ?? null, cost_behavior: fields.cost_behavior ?? null,
     need: fields.need ?? null, incoming_type: fields.incoming_type ?? null, reason,
   })
 export type CombinedRetirePreview = { rule_id: string; commands: CombinedRuleCommand[]; impact: CombinedRuleImpact }
 export const retireCombinedPreview = (ruleId: string, generation: string, reason: string) =>
-  api<CombinedRetirePreview>(`rules/${encodeURIComponent(ruleId)}/retire-combined/preview`, { generation, reason })
+  reportedApi<CombinedRetirePreview>(`rules/${encodeURIComponent(ruleId)}/retire-combined/preview`, { generation, reason })
 
 /** One observed merchant identity, aggregated across all-time ledger history
  * (PLAN-categorization-workflow.md Step 4) -- the row shape shared by search

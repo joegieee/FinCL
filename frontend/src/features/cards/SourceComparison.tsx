@@ -1,3 +1,4 @@
+import { reportedMoney } from '@/lib/workspaceReporting'
 import { money } from '@/lib/api'
 import { RECONCILIATION_LABEL, type PocketView } from './api'
 
@@ -38,7 +39,7 @@ export function SourceComparison({ pocket }: { pocket: PocketView }) {
             <th>Opening liability</th>
             <td>
               {pocket.opening_liability
-                ? money(pocket.opening_liability.value, pocket.currency)
+                ? reportedMoney(pocket.opening_liability, 'value', pocket.currency)
                 : 'Not evidenced'}
             </td>
           </tr>
@@ -47,14 +48,14 @@ export function SourceComparison({ pocket }: { pocket: PocketView }) {
               <th>
                 {BUCKET_LABEL[letter] ?? `Bucket ${letter}`}
               </th>
-              <td>{money(fact.value, pocket.currency)}</td>
+              <td>{reportedMoney(fact, 'value', pocket.currency)}</td>
             </tr>
           ))}
           <tr className="card-source-total">
             <th>Closing liability</th>
             <td>
               {pocket.closing_liability
-                ? money(pocket.closing_liability.value, pocket.currency)
+                ? reportedMoney(pocket.closing_liability, 'value', pocket.currency)
                 : 'Not evidenced'}
             </td>
           </tr>

@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 export type SufficiencyDriver = {
@@ -51,7 +52,7 @@ export type SufficiencyPage = {
   semantics: Record<string, string>
 }
 
-export const loadSufficiency = () => api<SufficiencyPage>('planning/sufficiency')
+export const loadSufficiency = () => reportedApi<SufficiencyPage>('planning/sufficiency')
 
 async function previewThenCommit(body: {
   request_id: string

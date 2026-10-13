@@ -1,3 +1,4 @@
+import { reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useState } from 'react'
 import { Search } from 'lucide-react'
 import { ApiError, money } from '@/lib/api'
@@ -104,9 +105,9 @@ export function EntryPicker({
                 </td>
                 <td>{row.effective_at.slice(0, 10)}</td>
                 <td>{row.description ?? '—'}</td>
-                <td>{money(row.amount, currency)}</td>
+                <td>{reportedMoney(row, 'amount', currency)}</td>
                 <td>
-                  {money(row.open_amount, currency)}
+                  {reportedMoney(row, 'open_amount', currency)}
                   {row.open_amount !== row.amount ? <small> (partly claimed)</small> : null}
                 </td>
               </tr>

@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedApi, reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, Layers2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -28,7 +29,7 @@ export function RelationshipEditor({
   const load = useCallback(() => {
     const id = ++seq.current
     setError('')
-    api<Review>(`relationships/review?generation=${encodeURIComponent(generation)}`)
+    reportedApi<Review>(`relationships/review?generation=${encodeURIComponent(generation)}`)
       .then(r => { if (id === seq.current) setReview(r) })
       .catch(e => { if (id === seq.current) setError((e as Error).message) })
   }, [generation])
@@ -36,7 +37,7 @@ export function RelationshipEditor({
   useEffect(() => { load() }, [load])
 
   return (
-    <Card className="recurring-card">
+    <Card className="recurring-card">{review && <WorkspaceReportingDetails data={review}/>}
       <div className="panel-title">
         <div>
           <p className="eyebrow">POSSIBLE DUPLICATES</p>
@@ -107,13 +108,13 @@ function DuplicateRow({
         <div>
           <span className="eyebrow">PRIMARY (KEPT)</span>
           <strong>{p.merchant}</strong>
-          <small>{p.account} · {p.date} · {money(p.amount, p.currency)}</small>
+          <small>{p.account} · {p.date} · {reportedMoney(p, 'amount', p.currency)}</small>
           <small className="anchor">{p.primary}</small>
         </div>
         <div>
           <span className="eyebrow">CANDIDATE</span>
           <strong>{p.merchant}</strong>
-          <small>{p.account} · {p.date} · {money(p.amount, p.currency)}</small>
+          <small>{p.account} · {p.date} · {reportedMoney(p, 'amount', p.currency)}</small>
           <small className="anchor">{p.candidate}</small>
         </div>
       </div>

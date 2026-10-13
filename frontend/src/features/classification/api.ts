@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 // Shared unified-classification client types
@@ -64,7 +65,7 @@ export type ClassificationPreview = {
 }
 
 export function previewClassification(draft: ClassificationDraftBody) {
-  return api<ClassificationPreview>('classification/preview', draft)
+  return reportedApi<ClassificationPreview>('classification/preview', draft)
 }
 
 export const COST_BEHAVIORS = ['fixed_recurring', 'variable_routine', 'irregular', 'unresolved'] as const

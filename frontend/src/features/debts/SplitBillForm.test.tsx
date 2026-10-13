@@ -17,7 +17,7 @@ const receivables = [
 ]
 
 const apiMock = vi.fn(async (path: string, _body?: unknown) => {
-  if (path.startsWith('debts/split-candidates')) return { generation: 'g1', candidates: [bill], next_cursor: null }
+  if (path.startsWith('reporting/workspaces/debts/split-candidates')) return { generation: 'g1', candidates: [bill], next_cursor: null }
   if (path === 'categories') return { categories: [] }
   if (path === 'batch') return { status: 'applied' }
   throw new Error(`unmocked ${path}`)

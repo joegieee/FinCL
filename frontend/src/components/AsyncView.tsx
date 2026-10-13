@@ -24,5 +24,5 @@ export function AsyncView<T>({ loading, error, data, onRetry, errorTitle = 'We c
     return <div className="alert error" role="alert"><div><strong>{errorTitle}</strong><p>{error}</p></div><Button variant="outline" onClick={onRetry}>Try again</Button></div>
   }
   if (data == null) return null
-  return <>{children(data)}</>
+  return <>{error && <div className="alert error" role="alert"><div><strong>{errorTitle}</strong><p>{error}</p><p>Showing the previously loaded view; these values have not been refreshed.</p></div><Button variant="outline" onClick={onRetry}>Try again</Button></div>}{children(data)}</>
 }

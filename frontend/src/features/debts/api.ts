@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 // v0.3 slice 1 debt read shapes. These are hand-written until the integration
@@ -50,13 +51,13 @@ export type DebtDetail = {
 export function loadDebts(opts: { asOf?: string; generation: string }): Promise<DebtsPage> {
   const q = new URLSearchParams({ generation: opts.generation, limit: '200' })
   if (opts.asOf) q.set('as_of', opts.asOf)
-  return api<DebtsPage>('debts?' + q)
+  return reportedApi<DebtsPage>('debts?' + q)
 }
 
 export function loadDebtDetail(id: string, opts: { asOf?: string; generation: string }): Promise<DebtDetail> {
   const q = new URLSearchParams({ generation: opts.generation })
   if (opts.asOf) q.set('as_of', opts.asOf)
-  return api<DebtDetail>(`debts/${encodeURIComponent(id)}?` + q)
+  return reportedApi<DebtDetail>(`debts/${encodeURIComponent(id)}?` + q)
 }
 
 // --- slice 2 writes: source-linked events and shared-expense residuals --------
@@ -126,7 +127,7 @@ export function loadAllocationCandidates(opts: {
   if (opts.eventKind) q.set('event_kind', opts.eventKind)
   if (opts.search) q.set('search', opts.search)
   if (opts.anchor) q.set('anchor', opts.anchor)
-  return api<AllocationCandidatesPage>('debts/allocation-candidates?' + q)
+  return reportedApi<AllocationCandidatesPage>('debts/allocation-candidates?' + q)
 }
 
 export type AllocationInput = {
@@ -181,7 +182,7 @@ export type SplitCandidatesPage = { generation: string; candidates: AllocationCa
 export function loadSplitCandidates(opts: { generation: string; search?: string; limit?: number }): Promise<SplitCandidatesPage> {
   const q = new URLSearchParams({ generation: opts.generation, limit: String(opts.limit ?? 30) })
   if (opts.search) q.set('search', opts.search)
-  return api<SplitCandidatesPage>('debts/split-candidates?' + q)
+  return reportedApi<SplitCandidatesPage>('debts/split-candidates?' + q)
 }
 
 /** The number of decimals an amount string carries ("51.25" -> 2). */

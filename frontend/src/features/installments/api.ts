@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 export type WireMoney = { value: string; currency: string | null }
@@ -114,7 +115,7 @@ export function loadInstallments(opts: {
   const q = new URLSearchParams({ generation: opts.generation, limit: '200' })
   if (opts.card) q.set('card', opts.card)
   if (opts.status) q.set('status', opts.status)
-  return api<InstallmentsPage>('installments?' + q)
+  return reportedApi<InstallmentsPage>('installments?' + q)
 }
 
 export function loadInstallmentDetail(
@@ -123,7 +124,7 @@ export function loadInstallmentDetail(
 ): Promise<InstallmentDetail> {
   const q = new URLSearchParams({ generation: opts.generation })
   if (opts.asOf) q.set('as_of', opts.asOf)
-  return api<InstallmentDetail>(`installments/${encodeURIComponent(id)}?` + q)
+  return reportedApi<InstallmentDetail>(`installments/${encodeURIComponent(id)}?` + q)
 }
 
 // --- candidates: chains the card parser already printed, not yet confirmed ----
@@ -186,7 +187,7 @@ export type CandidatesPage = {
 export function loadCandidates(opts: { card?: string; generation: string }): Promise<CandidatesPage> {
   const q = new URLSearchParams({ generation: opts.generation })
   if (opts.card) q.set('card', opts.card)
-  return api<CandidatesPage>('installments/candidates?' + q)
+  return reportedApi<CandidatesPage>('installments/candidates?' + q)
 }
 
 // --- source transactions for attribution and settlement ----------------------
@@ -231,7 +232,7 @@ export function loadEntryCandidates(opts: {
   })
   if (opts.search) q.set('search', opts.search)
   if (opts.anchor) q.set('anchor', opts.anchor)
-  return api<EntryCandidatesPage>('installments/entry-candidates?' + q)
+  return reportedApi<EntryCandidatesPage>('installments/entry-candidates?' + q)
 }
 
 // --- writes ------------------------------------------------------------------

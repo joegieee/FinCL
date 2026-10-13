@@ -1,3 +1,4 @@
+import { reportedMoney, WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import { Check } from 'lucide-react'
 import type { ClassificationPreview, FieldName } from './api'
 
@@ -22,9 +23,9 @@ export function ClassificationPreviewSummary({ preview }: { preview: Classificat
   }
   const activeFields = (Object.keys(preview.fields) as FieldName[]).filter(name => preview.fields[name].applicable > 0)
   return <div className="preview" role="status"><Check size={16}/><div>
-    <strong>Ready to save {preview.changed_transactions} transaction{preview.changed_transactions === 1 ? '' : 's'} ({preview.command_count} decision{preview.command_count === 1 ? '' : 's'})</strong>
+    <WorkspaceReportingDetails data={preview}/><strong>Ready to save {preview.changed_transactions} transaction{preview.changed_transactions === 1 ? '' : 's'} ({preview.command_count} decision{preview.command_count === 1 ? '' : 's'})</strong>
     {preview.by_currency.map(row => <p key={row.currency}>
-      {row.currency} · {row.count} selected, {row.changed} changing, {row.absolute_amount} total
+      {row.currency} · {row.count} selected, {row.changed} changing, {reportedMoney(row, 'absolute_amount', row.currency)} total
     </p>)}
     {activeFields.map(name => {
       const f = preview.fields[name]

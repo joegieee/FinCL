@@ -1,3 +1,4 @@
+import { WorkspaceReportingDetails, reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, ArrowLeft, ChevronRight, Plus } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -29,14 +30,14 @@ function PlanRow({ plan, onOpen }: { plan: PlanShape; onOpen: (id: string) => vo
         <small>
           {plan.effective_status} · {plan.interpretation_status}
           {' · '}
-          {p.known_principal ? `principal ${money(p.known_principal.value, plan.currency)}` : 'principal unknown'}
+          {p.known_principal ? `principal ${reportedMoney(p.known_principal, 'value', plan.currency)}` : 'principal unknown'}
           {' · '}
           {p.occurrences_bound}/{p.occurrence_count} occurrences
         </small>
       </span>
       <span className="debt-row-amount">
         {p.remaining_obligation
-          ? money(p.remaining_obligation.value, plan.currency)
+          ? reportedMoney(p.remaining_obligation, 'value', plan.currency)
           : 'Not determinable'}
       </span>
       <ChevronRight size={15} />
@@ -62,12 +63,12 @@ function CandidateRow({
           {' · '}
           {candidate.complete ? 'fully paid' : `${candidate.term_months - candidate.observed_count} still to come`}
           {candidate.known_principal
-            ? ` · principal ${money(candidate.known_principal.value, candidate.currency)}`
+            ? ` · principal ${reportedMoney(candidate.known_principal, 'value', candidate.currency)}`
             : ''}
         </small>
       </span>
       <span className="debt-row-amount">
-        {money(candidate.observed_total.value, candidate.currency)}
+        {reportedMoney(candidate.observed_total, 'value', candidate.currency)}
       </span>
       <Button size="sm" onClick={() => onConfirm(candidate)}>
         <Plus size={13} /> Confirm
@@ -126,7 +127,7 @@ function DetailView({
 
   if (mode === 'settle') {
     return (
-      <Card className="debt-detail">
+      <Card className="debt-detail"><WorkspaceReportingDetails data={detail}/>
         <SettlementForm
           detail={detail}
           generation={generation}
@@ -151,7 +152,7 @@ function DetailView({
   }
 
   return (
-    <Card className="debt-detail">
+    <Card className="debt-detail"><WorkspaceReportingDetails data={detail}/>
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={14} /> All plans</Button>
       <div className="debt-detail-head">
         <div>
@@ -165,12 +166,12 @@ function DetailView({
           <span>Remaining obligation</span>
           <strong>
             {plan.progress.remaining_obligation
-              ? money(plan.progress.remaining_obligation.value, currency)
+              ? reportedMoney(plan.progress.remaining_obligation, 'value', currency)
               : 'Not determinable'}
           </strong>
           <small>
             {plan.progress.known_principal
-              ? `of ${money(plan.progress.known_principal.value, currency)} recognized`
+              ? `of ${reportedMoney(plan.progress.known_principal, 'value', currency)} recognized`
               : 'principal is unknown — nothing inferred'}
           </small>
         </div>
@@ -193,7 +194,7 @@ function DetailView({
       {detail.conversion ? (
         <p className="muted-note">
           {detail.conversion.bound && detail.conversion.amount
-            ? `Opened from the ${detail.conversion.description ?? 'conversion'} credit of ${money(detail.conversion.amount.value, currency)} on ${detail.conversion.effective_on}. `
+            ? `Opened from the ${detail.conversion.description ?? 'conversion'} credit of ${reportedMoney(detail.conversion.amount, 'value', currency)} on ${detail.conversion.effective_on}. `
             : 'The attached conversion credit no longer matches a selected transaction. '}
           The plan owns that credit and its instalments, so neither is spending or needs a
           category: the original purchases carry the spending.
@@ -202,7 +203,7 @@ function DetailView({
         <div className="muted-note">
           <p>
             The statement printed a {detail.suggested_conversion.description} credit of{' '}
-            {money(detail.suggested_conversion.amount, currency)} on {detail.suggested_conversion.effective_on}{' '}
+            {reportedMoney(detail.suggested_conversion, 'amount', currency)} on {detail.suggested_conversion.effective_on}{' '}
             that matches this plan. Attach it so the credit stops waiting for review.
           </p>
           <Button size="sm" variant="outline" onClick={attach} disabled={busy}>
@@ -225,7 +226,7 @@ function DetailView({
             <tr key={o.occurrence_id}>
               <td>{(o.occurrence_index ?? '?') + ' / ' + (o.occurrence_count ?? '?')}</td>
               <td>{o.effective_on}{o.date_precision !== 'DAY' ? ` (${o.date_precision})` : ''}</td>
-              <td>{money(o.amount.value, currency)}</td>
+              <td>{reportedMoney(o.amount, 'value', currency)}</td>
               <td>{o.bound ? 'yes' : 'no'}</td>
             </tr>
           ))}
@@ -243,9 +244,9 @@ function DetailView({
                 <tr key={s.schedule_index}>
                   <td>{s.schedule_index}</td>
                   <td>{s.due_on}</td>
-                  <td>{money(s.principal.value, currency)}</td>
-                  <td>{money(s.fee.value, currency)}</td>
-                  <td>{money(s.rounding_remainder.value, currency)}</td>
+                  <td>{reportedMoney(s.principal, 'value', currency)}</td>
+                  <td>{reportedMoney(s.fee, 'value', currency)}</td>
+                  <td>{reportedMoney(s.rounding_remainder, 'value', currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -273,7 +274,7 @@ function DetailView({
                 <tr key={i}>
                   <td>{a.entry_anchor.slice(0, 16)}…</td>
                   <td>{a.component_role}</td>
-                  <td>{money(a.amount.value, currency)}</td>
+                  <td>{reportedMoney(a.amount, 'value', currency)}</td>
                   <td>{a.bound ? 'yes' : 'no'}</td>
                 </tr>
               ))}
@@ -291,9 +292,9 @@ function DetailView({
               {detail.settlements.map((s) => (
                 <tr key={s.settlement_id}>
                   <td>{s.settled_on}</td>
-                  <td>{money(s.principal.value, currency)}</td>
-                  <td>{money(s.fee.value, currency)}</td>
-                  <td>{money(s.waiver.value, currency)}</td>
+                  <td>{reportedMoney(s.principal, 'value', currency)}</td>
+                  <td>{reportedMoney(s.fee, 'value', currency)}</td>
+                  <td>{reportedMoney(s.waiver, 'value', currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -306,10 +307,10 @@ function DetailView({
           <h4>Recognized purchase cost</h4>
           <p>
             {views.recognized_purchase_cost.recognized_principal
-              ? money(views.recognized_purchase_cost.recognized_principal.value, currency)
+              ? reportedMoney(views.recognized_purchase_cost.recognized_principal, 'value', currency)
               : 'Unknown'}
             {views.recognized_purchase_cost.financing_fee
-              ? ` + ${money(views.recognized_purchase_cost.financing_fee.value, currency)} financing fee`
+              ? ` + ${reportedMoney(views.recognized_purchase_cost.financing_fee, 'value', currency)} financing fee`
               : ''}
           </p>
           <small>{views.recognized_purchase_cost.note}</small>
@@ -407,7 +408,7 @@ export function InstallmentsView({
       loadingLabel="Loading installments…"
     >
       {(plans) => (
-        <div className="debts-view">
+        <div className="debts-view"><WorkspaceReportingDetails data={plans}/>{candidates && <WorkspaceReportingDetails data={candidates}/>}
           {candidates && candidates.candidates.length > 0 && (
             <Card className="debt-list">
               <header>
@@ -436,7 +437,7 @@ export function InstallmentsView({
                     <tr key={o.entry_anchor}>
                       <td>{o.occurrence_index} / {o.occurrence_count}</td>
                       <td>{o.effective_on}</td>
-                      <td>{money(o.amount, g.currency)}</td>
+                      <td>{reportedMoney(o, 'amount', g.currency)}</td>
                       <td>{o.description ?? '—'}</td>
                     </tr>
                   ))}

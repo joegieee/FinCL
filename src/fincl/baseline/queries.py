@@ -298,6 +298,12 @@ def _income_streams(income_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "total_received": _total(amounts),
                 "min_amount": format_decimal(lo.coefficient, lo.scale),
                 "max_amount": format_decimal(hi.coefficient, hi.scale),
+                # Additive: each dated receipt, so a reporting view can value the
+                # total and range at their own months instead of at one rate.
+                "occurrences": [
+                    {"month": occ["month"], "amount": format_decimal(occ["amount"].coefficient, occ["amount"].scale)}
+                    for occ in occurrences
+                ],
                 "note": (
                     "historical receipts only; a future receipt is not evidenced, "
                     "so this stream is Likely, never Confirmed"

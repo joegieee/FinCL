@@ -38,19 +38,19 @@ describe('CategorizationView — relationship discovery focuses', () => {
       // is refused exactly as the server refuses it.
       if (saved && path.includes('generation=g1')) return Promise.reject(new Error('STALE_GENERATION: reload categorization'))
       if (path === 'overview') return Promise.resolve({ generation: saved ? 'g2' : 'g1' })
-      if (path.startsWith('categorization/summary')) return Promise.resolve(summary)
-      if (path.startsWith('categorization/rule-suggestions')) return Promise.resolve({ suggestions: [] })
-      if (path.startsWith('categorization/candidates?')) {
+      if (path.startsWith('reporting/workspaces/categorization/summary')) return Promise.resolve(summary)
+      if (path.startsWith('reporting/workspaces/categorization/rule-suggestions')) return Promise.resolve({ suggestions: [] })
+      if (path.startsWith('reporting/workspaces/categorization/candidates?')) {
         const focus = focusOf(path)
         return Promise.resolve(focus === 'debts' ? { total: 1, next_cursor: null, candidates: [debtCard] } : { total: 0, next_cursor: null, candidates: [] })
       }
-      if (path.startsWith('categorization/candidates/cd1')) return Promise.resolve({ candidate: debtCard, records: debtRecords })
-      if (path.startsWith('debts/allocation-candidates')) return Promise.resolve({
+      if (path.startsWith('reporting/workspaces/categorization/candidates/cd1')) return Promise.resolve({ candidate: debtCard, records: debtRecords })
+      if (path.startsWith('reporting/workspaces/debts/allocation-candidates')) return Promise.resolve({
         generation: 'g1', debt_id: 'd-alex', event_kind: 'LENT', required_direction: 'OUT', currency: 'SGD', next_cursor: null,
         candidates: [{ entry_anchor: 'r-out', effective_at: '2026-03-10 10:00:00', economic_direction: 'OUT', currency: 'SGD', amount: '30.00', open_amount: '30.00', description: 'ALEX TAN' }],
       })
-      if (path.startsWith('debts/d-alex')) return Promise.resolve({ generation: 'g1', as_of: '2026-03-31', debt: { ...alex, principal_history: [], reason: 'Loan' } })
-      if (path.startsWith('debts?')) return Promise.resolve({ generation: 'g1', as_of: '2026-03-31', i_owe: [], owed_to_me: [alex], next_cursor: null })
+      if (path.startsWith('reporting/workspaces/debts/d-alex')) return Promise.resolve({ generation: 'g1', as_of: '2026-03-31', debt: { ...alex, principal_history: [], reason: 'Loan' } })
+      if (path.startsWith('reporting/workspaces/debts?')) return Promise.resolve({ generation: 'g1', as_of: '2026-03-31', i_owe: [], owed_to_me: [alex], next_cursor: null })
       if (path === 'preview') return Promise.resolve({ status: 'previewed' })
       if (path === 'commands') { saved = true; return Promise.resolve({ status: 'recorded' }) }
       return Promise.reject(new Error(`unexpected ${path} ${JSON.stringify(body)}`))
@@ -76,7 +76,7 @@ describe('CategorizationView — relationship discovery focuses', () => {
     fireEvent.click(within(panel).getByRole('button', { name: 'Preview and save' }))
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('recorded'))
-    await waitFor(() => expect(apiMock.mock.calls.some(([path]) => String(path).startsWith('categorization/candidates?') && String(path).includes('generation=g2'))).toBe(true))
+    await waitFor(() => expect(apiMock.mock.calls.some(([path]) => String(path).startsWith('reporting/workspaces/categorization/candidates?') && String(path).includes('generation=g2'))).toBe(true))
     expect(screen.queryByText(/STALE_GENERATION/)).not.toBeInTheDocument()
     const [, body] = apiMock.mock.calls.find(([path]) => path === 'commands')!
     expect(body).toMatchObject({ kind: 'PERSONAL_DEBT_EVENT_SET', anchors: { debt: 'd-alex' }, payload: { entry_allocations: [expect.objectContaining({ entry_anchor: 'r-out' })] } })
@@ -89,13 +89,13 @@ describe('CategorizationView — relationship discovery focuses', () => {
       installment_candidate_key: 'card:Split Payment:6:a5', relationship_basis: 'The statement prints these as instalments 2–3 of 6; 2 are on your statements.',
     }
     apiMock.mockImplementation((path: string) => {
-      if (path.startsWith('categorization/summary')) return Promise.resolve(summary)
-      if (path.startsWith('categorization/rule-suggestions')) return Promise.resolve({ suggestions: [] })
-      if (path.startsWith('categorization/candidates?')) return Promise.resolve(focusOf(path) === 'installments' ? { total: 1, next_cursor: null, candidates: [chainCard] } : { total: 0, next_cursor: null, candidates: [] })
-      if (path.startsWith('categorization/candidates/ci1')) return Promise.resolve({ candidate: chainCard, records: [
+      if (path.startsWith('reporting/workspaces/categorization/summary')) return Promise.resolve(summary)
+      if (path.startsWith('reporting/workspaces/categorization/rule-suggestions')) return Promise.resolve({ suggestions: [] })
+      if (path.startsWith('reporting/workspaces/categorization/candidates?')) return Promise.resolve(focusOf(path) === 'installments' ? { total: 1, next_cursor: null, candidates: [chainCard] } : { total: 0, next_cursor: null, candidates: [] })
+      if (path.startsWith('reporting/workspaces/categorization/candidates/ci1')) return Promise.resolve({ candidate: chainCard, records: [
         { anchor: 'i2', account: 'card', currency: 'SGD', amount: '-15.00', date: '2026-06-21', direction: 'OUT', active: true, description: 'Split Payment 2/6 Instalment' },
       ] })
-      if (path.startsWith('installments/candidates')) return Promise.resolve({ generation: 'g1', ambiguous_groups: [], claimed_occurrence_count: 0, candidates: [{
+      if (path.startsWith('reporting/workspaces/installments/candidates')) return Promise.resolve({ generation: 'g1', ambiguous_groups: [], claimed_occurrence_count: 0, candidates: [{
         candidate_key: 'card:Split Payment:6:a5', card_account_id: 'card', currency: 'SGD', family: 'Split Payment', term_months: 6,
         merchant_label: 'Split Payment · 6 months', opened_on: '2026-06-21', first_ordinal: 2, last_ordinal: 3, observed_count: 2, complete: false,
         observed_total: { value: '30.00', currency: 'SGD' }, known_principal: null, occurrences: [], source: 'mari-card-installment-block-v1',
@@ -113,9 +113,9 @@ describe('CategorizationView — relationship discovery focuses', () => {
 
   it('explains where debt proposals come from when there are none', async () => {
     apiMock.mockImplementation((path: string) => {
-      if (path.startsWith('categorization/summary')) return Promise.resolve(summary)
-      if (path.startsWith('categorization/rule-suggestions')) return Promise.resolve({ suggestions: [] })
-      if (path.startsWith('categorization/candidates?')) return Promise.resolve({ total: 0, next_cursor: null, candidates: [] })
+      if (path.startsWith('reporting/workspaces/categorization/summary')) return Promise.resolve(summary)
+      if (path.startsWith('reporting/workspaces/categorization/rule-suggestions')) return Promise.resolve({ suggestions: [] })
+      if (path.startsWith('reporting/workspaces/categorization/candidates?')) return Promise.resolve({ total: 0, next_cursor: null, candidates: [] })
       return Promise.reject(new Error(`unexpected ${path}`))
     })
     render(<CategorizationView generation="g1" freshness="current" categories={[]} onSaved={() => {}} />)

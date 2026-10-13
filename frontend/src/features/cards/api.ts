@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 // v0.4 card read shapes. Hand-written until the integration branch regenerates
@@ -152,7 +153,7 @@ export const RECONCILIATION_LABEL: Record<string, string> = {
 export function loadCards(opts: { asOf?: string; generation: string }): Promise<CardsPage> {
   const q = new URLSearchParams({ generation: opts.generation, limit: '200' })
   if (opts.asOf) q.set('as_of', opts.asOf)
-  return api<CardsPage>('cards?' + q)
+  return reportedApi<CardsPage>('cards?' + q)
 }
 
 export function loadCardDetail(
@@ -161,7 +162,7 @@ export function loadCardDetail(
 ): Promise<CardDetail> {
   const q = new URLSearchParams({ generation: opts.generation })
   if (opts.asOf) q.set('as_of', opts.asOf)
-  return api<CardDetail>(`cards/${encodeURIComponent(id)}?` + q)
+  return reportedApi<CardDetail>(`cards/${encodeURIComponent(id)}?` + q)
 }
 
 export function loadCardStatements(
@@ -169,5 +170,5 @@ export function loadCardStatements(
   opts: { generation: string },
 ): Promise<CardStatementsPage> {
   const q = new URLSearchParams({ generation: opts.generation, limit: '200' })
-  return api<CardStatementsPage>(`cards/${encodeURIComponent(id)}/statements?` + q)
+  return reportedApi<CardStatementsPage>(`cards/${encodeURIComponent(id)}/statements?` + q)
 }

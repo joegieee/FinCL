@@ -240,6 +240,8 @@ def _breach_drivers(cell: dict[str, Any]) -> dict[str, Any] | None:
 
 def _driver_href(event: dict[str, Any]) -> str:
     source = (event.get("provenance") or {}).get("source") or {}
+    if not isinstance(source, dict):
+        return "?view=Baseline"
     return {
         "personal_debt": "?view=Debts",
         "card_statement": "?view=Cards",

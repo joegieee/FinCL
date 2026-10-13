@@ -42,8 +42,8 @@ const detail = {
 }
 
 const apiMock = vi.fn(async (path: string) => {
-  if (path.startsWith('debts?')) return page
-  if (path.startsWith('debts/')) return detail
+  if (path.startsWith('reporting/workspaces/debts?')) return page
+  if (path.startsWith('reporting/workspaces/debts/')) return detail
   throw new Error(`unmocked ${path}`)
 })
 vi.mock('@/lib/api', async (importOriginal) => {

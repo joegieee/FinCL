@@ -274,6 +274,12 @@ def baseline_roles_from(connection: sqlite3.Connection, *, today: date) -> dict[
                         Decimal("0.01"), rounding=ROUND_HALF_UP
                     )
                 ),
+                # Additive: the per-month amounts behind the totals above, so a
+                # reporting view can value each month at its own rate.
+                "months": [
+                    {"month": month, "amount": _sum(group_months[key].get(month, []))}
+                    for month in months
+                ],
             }
         )
     return {"available": True, "generation": token, "baseline_window": table["baseline_window"],

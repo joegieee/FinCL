@@ -14,7 +14,7 @@ const review = {
 }
 
 const apiMock = vi.fn(async (path: string, body?: unknown) => {
-  if (path.startsWith('relationships/review')) return review
+  if (path.startsWith('reporting/workspaces/relationships/review')) return review
   if (path === 'preview') return { valid: true }
   if (path === 'commands') return { status: 'applied' }
   throw new Error(`unmocked ${path} ${JSON.stringify(body)}`)

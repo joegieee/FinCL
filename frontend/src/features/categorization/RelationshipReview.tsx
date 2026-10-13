@@ -1,3 +1,4 @@
+import { reportedMoney } from '@/lib/workspaceReporting'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -50,7 +51,7 @@ export function RelationshipReview({ candidate, records, generation, disabled, o
 }
 
 function recordLine(row: RelationshipRecord) {
-  return <><span>{row.date} · {row.account}</span><strong>{money(row.amount, row.currency)}</strong><small>{row.description || 'No description'}</small></>
+  return <><span>{row.date} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}</small></>
 }
 
 function DebtProposals({ candidate, records, generation, disabled, onRecorded, onRefresh }: {

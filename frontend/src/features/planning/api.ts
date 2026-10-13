@@ -1,3 +1,4 @@
+import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
 export type BudgetCard = {
@@ -82,11 +83,11 @@ export type Occurrence = { scheduled_on: string; state: string; entry: string | 
 export type OccurrencesPage = { generation: string; commitment: string; occurrences: Occurrence[] }
 
 export const loadBudgets = (month: string, currency: string) =>
-  api<BudgetsPage>(`budgets?month=${encodeURIComponent(month)}&currency=${encodeURIComponent(currency)}`)
+  reportedApi<BudgetsPage>(`budgets?month=${encodeURIComponent(month)}`)
 export const loadBudgetHistory = (plan: string) =>
-  api<BudgetHistory>(`budgets/${encodeURIComponent(plan)}/history`)
+  reportedApi<BudgetHistory>(`budgets/${encodeURIComponent(plan)}/history`)
 export const loadGoals = (asOf?: string) =>
-  api<GoalsPage>(`goals${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`)
+  reportedApi<GoalsPage>(`goals${asOf ? `?as_of=${encodeURIComponent(asOf)}` : ''}`)
 export type BackdatePreview = {
   plan: string
   affected_months: {
@@ -100,7 +101,7 @@ export type BackdatePreview = {
   note?: string
 }
 export const loadBackdatePreview = (plan: string, effectiveMonth: string, limit: string, currency: string, categoryKey: string | null) =>
-  api<BackdatePreview>(
+  reportedApi<BackdatePreview>(
     `budgets/${encodeURIComponent(plan)}/backdate-preview?effective_month=${effectiveMonth}` +
     `&limit=${encodeURIComponent(limit)}&currency=${currency}` +
     (categoryKey ? `&category_key=${encodeURIComponent(categoryKey)}` : ''),
@@ -116,7 +117,7 @@ export type GoalScenario = {
   assumes_no_investment_return: boolean
 }
 export const loadGoalScenario = (plan: string, dates: string[], asOf?: string) =>
-  api<GoalScenario>(
+  reportedApi<GoalScenario>(
     `goals/${encodeURIComponent(plan)}/scenario?dates=${dates.join(',')}` +
     (asOf ? `&as_of=${asOf}` : ''),
   )
@@ -135,9 +136,9 @@ export function monthlyDates(dayOfMonth: number, fromMonth: string, throughDate:
   return out
 }
 
-export const loadRecurring = () => api<RecurringPage>('recurring')
+export const loadRecurring = () => reportedApi<RecurringPage>('recurring')
 export const loadOccurrences = (commitment: string, start: string, end: string) =>
-  api<OccurrencesPage>(`recurring/${encodeURIComponent(commitment)}/occurrences?start=${start}&end=${end}`)
+  reportedApi<OccurrencesPage>(`recurring/${encodeURIComponent(commitment)}/occurrences?start=${start}&end=${end}`)
 
 export function thisMonth(): string {
   const now = new Date()
