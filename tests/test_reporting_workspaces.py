@@ -218,3 +218,15 @@ class WorkspaceAuditTests(WorkspaceValuationTests):
         self.assertEqual(values[(*totals, "refunds")]["reported"]["value"], "14.00")
         self.assertEqual(values[(*totals, "net_cost")]["reported"]["value"], "12.00")
         self.assertEqual(values[("by_category", 0, "cost_amount")]["reported"]["value"], "26.00")
+
+    def test_a_report_row_with_no_refunds_reports_zero_and_a_full_net(self) -> None:
+        native = {"rows": [{"currency": "USD", "gross_cost": "20.00", "refunds": "0.00", "net_cost": "20.00",
+                            "cost_parts": [{"on": "2026-01-31", "currency": "USD", "kind": "cost", "amount": "10.00"},
+                                           {"on": "2026-02-01", "currency": "USD", "kind": "cost", "amount": "10.00"}]}],
+                  "totals_by_currency": {"USD": {"gross_cost": "20.00", "refunds": "0.00", "net_cost": "20.00"}}}
+        values = self.annotate(native, "reports/r/result")
+        self.assertIsNone(values[("rows", 0, "refunds")]["unavailable"])
+        self.assertEqual(values[("rows", 0, "gross_cost")]["reported"]["value"], "26.00")
+        self.assertEqual(values[("rows", 0, "refunds")]["reported"]["value"], "0.00")
+        self.assertEqual(values[("rows", 0, "net_cost")]["reported"]["value"], "26.00")
+        self.assertEqual(values[("totals_by_currency", "USD", "net_cost")]["reported"]["value"], "26.00")

@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, downloadFile } from '@/lib/api'
 import { reportedApi } from '@/lib/workspaceReporting'
 
 // v0.7 saved reports. A definition is journal-backed configuration; a result
@@ -46,6 +46,8 @@ export type ReportResult = {
   lens_note: string
   report: Partial<SavedReport>
   window: { start: string | null; end: string | null }
+  /** The latest date any recorded transaction covers. */
+  data_through: string | null
   group_labels: Partial<Record<GroupKey, string>>
   warnings: string[]
   rows: ReportRow[]
@@ -63,3 +65,10 @@ export const loadReports = () => api<{ reports: SavedReport[] }>('reports')
 export const loadResult = (reportId: string) => reportedApi<ReportResult>(`reports/${encodeURIComponent(reportId)}/result`)
 export const previewResult = (definition: ReportDefinition) => reportedApi<ReportResult>('reports/preview', definition)
 export const loadTripNames = () => api<{ trips: { trip_id: string; name: string }[] }>('trips')
+
+export type ExportFormat = 'csv' | 'json' | 'html'
+export const EXPORT_LABEL: Record<ExportFormat, string> = {
+  csv: 'CSV spreadsheet (zip with manifest)', json: 'JSON (exact, with manifest)', html: 'Web page (one file)',
+}
+export const exportReport = (format: ExportFormat, source: { report_id: string } | { definition: ReportDefinition }, generation?: string) =>
+  downloadFile('reports/export', { format, ...source, generation })

@@ -155,6 +155,9 @@ def evaluate(
         "report": {key: definition[key] for key in ("report_id", "name", "scope", "lens", "group_by", "columns")
                    if key in definition},
         "window": {"start": start, "end": end},
+        # The latest date any recorded transaction covers: a window reaching
+        # past it is not evidence that nothing was spent there.
+        "data_through": max((entry["end"] for entry in state["entries"].values()), default=None),
         "group_labels": {key: _GROUP_LABEL[key] for key in group_by},
         "warnings": warnings,
         "rows": rows,

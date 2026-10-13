@@ -70,6 +70,21 @@ export async function uploadFxRates<T>(file:File, fields:Record<string,string>):
   if (!response.ok) throw new ApiError(typeof value.detail==='string'?value.detail:'That upload could not be accepted.',response.status)
   return value as T
 }
+// A file the server builds and the browser saves. Same Origin/session/CSRF
+// boundary as JSON writes; the server never writes to a path of its own.
+export async function downloadFile(path:string, body:unknown):Promise<string> {
+  const response = await fetch(`/api/v1/${path}`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)})
+  if (!response.ok) {
+    const value = await response.json().catch(() => ({}))
+    throw new ApiError(typeof value.detail==='string'?humanizeError(value.detail):'That file could not be made.',response.status)
+  }
+  const name = /filename="([^"]+)"/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? 'download'
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+  return name
+}
 let boot: Promise<{csrf:string;demo:boolean;label:string}> | undefined
 export function bootstrap() { return boot ??= doBootstrap() }
 async function doBootstrap() {

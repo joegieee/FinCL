@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, FileBarChart, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Download, FileBarChart, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { AsyncView } from '@/components/AsyncView'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -7,8 +7,8 @@ import { dateLabel } from '@/lib/format'
 import { useLedgerCommand } from '@/lib/command'
 import { reportedMoney, WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import {
-  COLUMN_LABEL, GROUP_LABEL, loadReports, loadResult, loadTripNames, previewResult,
-  type Column, type GroupKey, type ReportDefinition, type ReportResult, type SavedReport, type Window,
+  COLUMN_LABEL, EXPORT_LABEL, GROUP_LABEL, exportReport, loadReports, loadResult, loadTripNames, previewResult,
+  type Column, type ExportFormat, type GroupKey, type ReportDefinition, type ReportResult, type SavedReport, type Window,
 } from './api'
 
 type Saved = (status: string) => void | Promise<void>
@@ -111,10 +111,31 @@ function ReportPanel({ report, generation, onEdit, onClose, onRetired }: {
         </div>
       </div>}
       <AsyncView loading={!result && !error} error={error} data={result} onRetry={load} errorTitle="We couldn’t run this report.">
-        {data => <ResultTable result={data} columns={report.columns}/>}
+        {data => <><ResultTable result={data} columns={report.columns}/><ExportControls source={{ report_id: report.report_id }} generation={data.generation}/></>}
       </AsyncView>
     </div>
   </Card>
+}
+
+/** Choose a format and download; the file is built from one snapshot with a manifest. */
+function ExportControls({ source, generation }: { source: Parameters<typeof exportReport>[1]; generation?: string }) {
+  const [format, setFormat] = useState<ExportFormat>('csv')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  async function run() {
+    setBusy(true); setError(''); setMessage('')
+    try { setMessage(`Downloaded ${await exportReport(format, source, generation)}.`) } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+  }
+  return <div className="report-export">
+    <label>Export as<select value={format} onChange={e => setFormat(e.target.value as ExportFormat)}>
+      {(Object.keys(EXPORT_LABEL) as ExportFormat[]).map(f => <option key={f} value={f}>{EXPORT_LABEL[f]}</option>)}
+    </select></label>
+    <Button variant="outline" size="sm" disabled={busy} onClick={() => void run()}><Download size={14}/> {busy ? 'Preparing…' : 'Download'}</Button>
+    <p className="muted-note">Contains only this report’s rows and a manifest of how they were worked out — no statements or decision history.</p>
+    {message && <p className="muted-note" role="status">{message}</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+  </div>
 }
 
 export function ResultTable({ result, columns }: { result: ReportResult; columns: Column[] }) {
@@ -122,7 +143,7 @@ export function ResultTable({ result, columns }: { result: ReportResult; columns
   const window = result.window.start ? `${dateLabel(result.window.start)} – ${dateLabel(result.window.end!)}` : 'All time'
   return <div className="report-result">
     <WorkspaceReportingDetails data={result}/>
-    <p className="muted-note">{window} · figures as of {dateLabel(result.evaluated_on)}. {result.lens_note}</p>
+    <p className="muted-note">{window} · figures as of {dateLabel(result.evaluated_on)}{result.data_through && ` · your recorded transactions run through ${dateLabel(result.data_through)}`}. {result.lens_note}</p>
     {result.warnings.length > 0 && <ul className="issue-list report-warnings">
       {result.warnings.map((warning, i) => <li key={i}><p><AlertTriangle size={13}/> {warning}</p></li>)}
     </ul>}
@@ -255,7 +276,7 @@ function ReportForm({ initial, generation, categories, accounts, currencies, onS
 
       <div className="row-actions"><Button variant="outline" disabled={!shapeOk} onClick={() => void run()}>Show result</Button></div>
       {previewError && <p className="form-error" role="alert">{previewError}</p>}
-      {preview && <ResultTable result={preview} columns={columns}/>}
+      {preview && <><ResultTable result={preview} columns={columns}/><ExportControls source={{ definition }} generation={preview.generation}/></>}
 
       <div className="form-grid">
         <label>Reason<input value={reason} placeholder="Why keep this report" onChange={e => change(setReason)(e.target.value)}/></label>

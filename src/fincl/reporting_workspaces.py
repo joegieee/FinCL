@@ -285,6 +285,15 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
         composed.add(tuple(path))
         publish(path, result)
 
+    def kind_parts(parts_path: Path, parts: list[Any], kind: str, currency: str | None = None) -> list[tuple[Path, Fraction]]:
+        """A cost or refund total's dated parts. With none of that kind (no
+        refunds, say), the same owner's other dated parts at weight zero: the
+        total is exactly zero and keeps the rates and dates it sits beside,
+        instead of reading as unconverted."""
+        mine = [index for index, part in enumerate(parts) if currency in (None, part.get("currency"))]
+        chosen = [([*parts_path, index, "amount"], Fraction(1)) for index in mine if parts[index].get("kind") == kind]
+        return chosen or [([*parts_path, index, "amount"], Fraction(0)) for index in mine]
+
     def value_sources(prefix: Path, rows: Iterable[tuple[str, str, str | None]]) -> list[Path]:
         """Value dated native source rows (amount, currency, date) as FLOW at their own dates."""
         paths: list[Path] = []
@@ -463,9 +472,7 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
             for currency in summary.get("totals_by_currency") or {}:
                 totals: Path = [*path, "totals_by_currency", currency]
                 for field, kind in (("gross_cost", "cost"), ("refunds", "refund")):
-                    combine([*totals, field], [([*path, "cost_parts", index, "amount"], Fraction(1))
-                                             for index, part in enumerate(parts)
-                                             if part.get("currency") == currency and part.get("kind") == kind])
+                    combine([*totals, field], kind_parts([*path, "cost_parts"], parts, kind, currency))
                 combine([*totals, "net_cost"], [([*totals, "gross_cost"], Fraction(1)), ([*totals, "refunds"], Fraction(-1))])
         contributors = native.get("contributors") or []
         for index, row in enumerate(native.get("by_category") or []):
@@ -478,8 +485,7 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
         for index, row in enumerate(rows):
             path = ["rows", index]
             for field, kind in (("gross_cost", "cost"), ("refunds", "refund")):
-                combine([*path, field], [([*path, "cost_parts", j, "amount"], Fraction(1))
-                                         for j, part in enumerate(row.get("cost_parts") or []) if part.get("kind") == kind])
+                combine([*path, field], kind_parts([*path, "cost_parts"], row.get("cost_parts") or [], kind))
             combine([*path, "net_cost"], [([*path, "gross_cost"], Fraction(1)), ([*path, "refunds"], Fraction(-1))])
         for currency in native.get("totals_by_currency") or {}:
             report_totals: Path = ["totals_by_currency", currency]

@@ -6188,6 +6188,43 @@
         }
       }
     },
+    "/api/v1/reports/export": {
+      "post": {
+        "summary": "Report Export",
+        "description": "The file itself, downloaded by the browser; never written to a server path.",
+        "operationId": "report_export_api_v1_reports_export_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/workspaces/baseline/readiness": {
       "get": {
         "summary": "Reported Workspace Baseline Readiness Read",
@@ -11713,6 +11750,55 @@
           "remedies"
         ],
         "title": "ExcludedScopeDetailDTO"
+      },
+      "ExportRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "report_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Id"
+          },
+          "definition": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Definition"
+          },
+          "generation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "format"
+        ],
+        "title": "ExportRequest",
+        "description": "Exactly one of a saved report or an unsaved definition, and a format."
       },
       "FieldEditIn": {
         "properties": {

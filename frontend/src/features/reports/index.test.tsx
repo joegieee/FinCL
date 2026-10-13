@@ -3,8 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { ReportsView } from './index'
 
 const apiMock = vi.fn()
-vi.mock('@/lib/api', async original => ({ ...await original<typeof import('@/lib/api')>(), api: (...args: unknown[]) => apiMock(...args) }))
-afterEach(() => { cleanup(); apiMock.mockReset() })
+const downloadMock = vi.fn()
+vi.mock('@/lib/api', async original => ({ ...await original<typeof import('@/lib/api')>(), api: (...args: unknown[]) => apiMock(...args), downloadFile: (...args: unknown[]) => downloadMock(...args) }))
+afterEach(() => { cleanup(); apiMock.mockReset(); downloadMock.mockReset() })
 
 const saved = {
   report_id: '22222222-2222-4222-8222-222222222222', name: 'Monthly food', reason: 'r', lens: 'recorded_flow',
@@ -14,6 +15,7 @@ const saved = {
 const result = {
   generation: 'g1', evaluated_on: '2026-10-13', lens: 'recorded_flow', lens_note: 'Recorded lens.',
   report: saved, window: { start: '2026-08-01', end: '2026-10-13' }, group_labels: { month: 'Month' },
+  data_through: '2026-08-20',
   warnings: ['Category “Food / Old” no longer exists, so nothing matches it.'],
   rows: [{ group: [{ key: 'month', value: '2026-09', label: '2026-09' }], currency: 'SGD', gross_cost: '120.00', refunds: '0.00', net_cost: '120.00', entry_count: 4, cost_parts: [] }],
   totals_by_currency: { SGD: { gross_cost: '120.00', refunds: '0.00', net_cost: '120.00', entry_count: 4 } },
@@ -72,6 +74,18 @@ describe('ReportsView', () => {
     fireEvent.click(await screen.findByRole('button', { name: /New report/ }))
     fireEvent.click(screen.getByLabelText('Month'))
     expect(screen.getByLabelText('Merchant')).toBeDisabled()
+  })
+
+  it('downloads a saved report in the chosen format', async () => {
+    apiMock.mockImplementation(routes)
+    downloadMock.mockResolvedValue('monthly-food-2026-10-13.json')
+    render(<ReportsView {...props} onSaved={() => {}}/>)
+    fireEvent.click(await screen.findByRole('button', { name: /Monthly food/ }))
+    expect(await screen.findByText(/recorded transactions run through 20 Aug 2026/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Export as'), { target: { value: 'json' } })
+    fireEvent.click(screen.getByRole('button', { name: /Download/ }))
+    expect(await screen.findByText('Downloaded monthly-food-2026-10-13.json.')).toBeInTheDocument()
+    expect(downloadMock).toHaveBeenCalledWith('reports/export', { format: 'json', report_id: saved.report_id, generation: 'g1' })
   })
 
   it('deletes a report through preview, then confirm', async () => {

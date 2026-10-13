@@ -2098,6 +2098,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Export
+         * @description The file itself, downloaded by the browser; never written to a server path.
+         */
+        post: operations["report_export_api_v1_reports_export_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/workspaces/baseline/readiness": {
         parameters: {
             query?: never;
@@ -3769,6 +3789,22 @@ export interface components {
             reasons: string[];
             /** Remedies */
             remedies: string[];
+        };
+        /**
+         * ExportRequest
+         * @description Exactly one of a saved report or an unsaved definition, and a format.
+         */
+        ExportRequest: {
+            /** Format */
+            format: string;
+            /** Report Id */
+            report_id?: string | null;
+            /** Definition */
+            definition?: {
+                [key: string]: unknown;
+            } | null;
+            /** Generation */
+            generation?: string | null;
         };
         /** FieldEditIn */
         FieldEditIn: {
@@ -8268,6 +8304,39 @@ export interface operations {
                 "application/json": {
                     [key: string]: unknown;
                 };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_export_api_v1_reports_export_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
             };
         };
         responses: {
