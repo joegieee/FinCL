@@ -45,6 +45,7 @@ from ..money import ExactMoney, format_decimal
 from ..obligations.queries import obligations_page_from
 from ..planning.queries import recurring_page_from
 from ..planning.schedules import occurrences as schedule_occurrences
+from ..read_cache import request_cache
 from .manifest import READINESS_UNAVAILABLE, forecast_input_manifest_from
 
 ENGINE_VERSION = "cash-timeline-engine-v1"
@@ -2012,6 +2013,25 @@ def cash_timeline_from(
     reader — no function inside the money-flow call graph consults the wall
     clock.
     """
+    with request_cache(connection):
+        return _cash_timeline(
+            connection, today=today, likely_income_policy=likely_income_policy,
+            strong_income_interruption=strong_income_interruption,
+            prospective_card_purchases=prospective_card_purchases,
+            sourced_events=sourced_events, residual_categories=residual_categories,
+        )
+
+
+def _cash_timeline(
+    connection: sqlite3.Connection,
+    *,
+    today: date,
+    likely_income_policy: str,
+    strong_income_interruption: bool,
+    prospective_card_purchases: Sequence[dict[str, Any]],
+    sourced_events: Sequence[ForecastEvent],
+    residual_categories: Sequence[ResidualCategory],
+) -> dict[str, Any]:
     manifest = forecast_input_manifest_from(connection, today=today)
     cutoff_cell = manifest.get("cutoff") or {}
     cutoff = cutoff_cell.get("supported_cutoff")

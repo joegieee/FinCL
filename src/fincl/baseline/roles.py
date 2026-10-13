@@ -20,6 +20,7 @@ from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
 from ..money import ExactMoney, exact_sum, format_decimal
+from ..read_cache import per_request
 from .queries import _month_list, cost_income_table_from
 
 ROLE_RULE_VERSION = "baseline-roles-2026-v1"
@@ -100,6 +101,7 @@ def baseline_roles(database: Path, *, today: date) -> dict[str, Any]:
         connection.close()
 
 
+@per_request
 def baseline_roles_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
     """Return role totals and source-backed groups for the selected baseline window."""
     table = cost_income_table_from(connection, today=today)

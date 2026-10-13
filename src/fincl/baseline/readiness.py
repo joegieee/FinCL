@@ -34,6 +34,7 @@ from ..db import connect_readonly, database_path
 from ..decision_journal import default_journal_path, read_records
 from ..intervals import DateInterval, month_span, normalize
 from ..money import ExactMoney, exact_sum, format_decimal
+from ..read_cache import per_request
 from ..v05 import generation_of_from
 
 _COMPLETENESS_RANK = {"missing": 0, "provisional": 1, "established": 2}
@@ -252,6 +253,7 @@ def baseline_readiness(database: Path, *, today: date) -> dict[str, Any]:
         connection.close()
 
 
+@per_request
 def baseline_readiness_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
     """The evidence-coverage-backed baseline window.
 

@@ -30,6 +30,7 @@ from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
 from ..money import ExactMoney, compare, exact_sum, format_decimal
+from ..read_cache import per_request
 from .readiness import baseline_readiness_from
 
 _COST_BUCKETS = {"spending", "fees"}
@@ -98,6 +99,7 @@ def cost_income_table(database: Path, *, today: date) -> dict[str, Any]:
         connection.close()
 
 
+@per_request
 def cost_income_table_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
     readiness = baseline_readiness_from(connection, today=today)
     window = readiness["baseline_window"]

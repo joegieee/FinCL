@@ -23,6 +23,7 @@ from typing import Any
 from .db import connect_readonly
 from .money import ExactMoney, format_decimal
 from .obligations.queries import obligations_page_from
+from .read_cache import request_cache
 from .reporting_currency.models import CURRENCY_REGISTRY
 from .reporting_currency.queries import reporting_policy
 from .valuation import (
@@ -163,8 +164,11 @@ def _owed(connection: sqlite3.Connection, today: date, reporting: str, scale: in
 
 
 def money_journey_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
-    if not connection.in_transaction:
-        connection.execute("BEGIN")
+    with request_cache(connection):
+        return _journey(connection, today=today)
+
+
+def _journey(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
     reporting = reporting_policy(connection).currency
     definition = CURRENCY_REGISTRY.get(reporting)
     scale = definition.minor_unit_scale if definition else 2

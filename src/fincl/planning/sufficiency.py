@@ -50,6 +50,7 @@ from ..db import connect_readonly
 from ..forecast.engine import HORIZON_MONTHS, cash_timeline_from
 from ..money import ExactMoney, format_decimal
 from ..obligations.queries import obligations_page_from
+from ..read_cache import request_cache
 from ..reporting_currency.models import CURRENCY_REGISTRY
 from ..reporting_currency.queries import reporting_policy
 from ..reserve import reserve_policy
@@ -676,6 +677,11 @@ def _forecast_rates(
 def sufficiency_page_from(
     connection: sqlite3.Connection, *, today: date
 ) -> dict[str, Any]:
+    with request_cache(connection):
+        return _sufficiency_page(connection, today=today)
+
+
+def _sufficiency_page(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
     timeline = cash_timeline_from(connection, today=today)
     policy = reserve_policy(connection)
     reporting_currency = reporting_policy(connection).currency

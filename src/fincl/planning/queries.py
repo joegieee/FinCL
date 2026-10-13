@@ -21,6 +21,7 @@ from ..generation import current_generation
 from ..intervals import DateInterval
 from ..money import ExactMoney
 from ..queries import _ENTRY_VIEW
+from ..read_cache import per_request
 from ..report import _coverage_contract
 from .detection import candidates as detect_candidates
 
@@ -395,6 +396,7 @@ def recurring_page(database: Path) -> dict[str, Any]:
         connection.close()
 
 
+@per_request
 def recurring_page_from(connection: Any) -> dict[str, Any]:
     generation = _generation(connection)
     commitments = [

@@ -13,6 +13,7 @@ from typing import Any
 
 from ..db import connect_readonly
 from ..money import ExactMoney, exact_sum, format_decimal
+from ..read_cache import per_request
 from .models import STALE_AFTER_DAYS
 
 _LIQUID_SOURCE_TYPES = frozenset({
@@ -502,6 +503,7 @@ def position_page(database: Path, *, today: date) -> dict[str, Any]:
         connection.close()
 
 
+@per_request
 def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[str, Any]:
     accounts = {row["id"]: row for row in connection.execute(
         "SELECT id,institution,source_type,display_name,masked_identifier FROM accounts"

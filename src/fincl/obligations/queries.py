@@ -36,6 +36,7 @@ from ..generation import current_generation
 from ..intervals import month_span
 from ..money import format_decimal
 from ..planning.schedules import occurrences as schedule_occurrences
+from ..read_cache import per_request
 from .rules import (
     baseline_component_link,
     history_confidence,
@@ -568,6 +569,7 @@ def obligations_page(
         connection.close()
 
 
+@per_request
 def obligations_page_from(
     connection: sqlite3.Connection, *, as_of: str | None = None, today: date
 ) -> dict[str, Any]:
