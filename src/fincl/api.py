@@ -1039,6 +1039,12 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             )
             return {'status': 'recorded_refresh_pending' if receipt.refresh_pending else 'applied', 'fund': fund_id}
 
+    @app.get('/api/v1/journey')
+    def money_journey_read() -> Any:
+        """Steps 1 and 3 of the landing page: statement reach and what is owed."""
+        from .journey import money_journey
+        return money_journey(database, today=clock.today())
+
     @app.get('/api/v1/planning/sufficiency')
     def planning_sufficiency_read() -> Any:
         """Will there be enough money, when it runs short, and what drove it."""

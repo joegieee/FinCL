@@ -535,6 +535,25 @@
         }
       }
     },
+    "/api/v1/journey": {
+      "get": {
+        "summary": "Money Journey Read",
+        "description": "Steps 1 and 3 of the landing page: statement reach and what is owed.",
+        "operationId": "money_journey_read_api_v1_journey_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Money Journey Read Api V1 Journey Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/planning/sufficiency": {
       "get": {
         "summary": "Planning Sufficiency Read",

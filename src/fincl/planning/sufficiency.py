@@ -49,6 +49,7 @@ from typing import Any
 from ..db import connect_readonly
 from ..forecast.engine import HORIZON_MONTHS, cash_timeline_from
 from ..money import ExactMoney, format_decimal
+from ..obligations.queries import obligations_page_from
 from ..reporting_currency.models import CURRENCY_REGISTRY
 from ..reporting_currency.queries import reporting_policy
 from ..reserve import reserve_policy
@@ -529,9 +530,48 @@ def _todos(
     return todos
 
 
+def _not_in_the_path(
+    timeline: dict[str, Any], owed: list[dict[str, Any]], rates: dict[str, Fraction | None], *,
+    lowest: Fraction | None, scale: int,
+) -> dict[str, Any]:
+    """Money owed that the path does not pay, because nothing says when.
+
+    A debt with no due date is not in any day of the forecast, so a "yes" can
+    sit beside a debt larger than everything left at the end. This states
+    that total and what repaying it now would do to the lowest point; it never
+    picks a date for it.
+    """
+    undated = {str(i.get("obligation_id")) for i in timeline.get("action_items") or []
+               if i.get("output") == "obligation_timing" and i.get("obligation_id")}
+    items, total, unconverted = [], Fraction(0), []
+    for obligation in owed:
+        if obligation.get("obligation_id") not in undated or obligation.get("direction") != "outflow":
+            continue
+        amount = obligation.get("remaining_amount")
+        if amount is None or _fraction(amount["value"]) <= 0:
+            continue
+        rate = rates.get(str(amount["currency"]))
+        if rate is None:
+            unconverted.append({"label": obligation["label"], **amount})
+            continue
+        value = _fraction(amount["value"]) * rate
+        total += value
+        items.append({"label": obligation["label"], "origin": obligation["origin"],
+                      "amount": _quantized(value, scale), "native": amount})
+    items.sort(key=lambda item: -_fraction(item["amount"]))
+    short_now = None if lowest is None or not items else max(Fraction(0), total - lowest)
+    return {
+        "total": _quantized(total, scale),
+        "items": items,
+        "unconverted": unconverted,
+        # Repaying it all on day one lowers every day by the same amount.
+        "short_if_repaid_now": None if short_now is None else _quantized(short_now, scale),
+    }
+
+
 def combined_answer(
     timeline: dict[str, Any], *, rates: dict[str, Fraction | None], reporting_currency: str,
-    scale: int, account_names: dict[str, str] | None = None,
+    scale: int, account_names: dict[str, str] | None = None, owed: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """One answer across every pocket, in the reporting currency."""
     by_currency: dict[str, Any] = timeline.get("by_currency") or {}
@@ -606,6 +646,10 @@ def combined_answer(
         "income": _income(counted, held, scale=scale),
         "where_it_goes": _where_it_goes(counted, held, scale=scale),
         "todos": _todos(timeline, account_names=account_names or {}, cutoff=cutoff, pockets=pockets),
+        "not_in_the_path": {"as_of": cutoff, **_not_in_the_path(
+            timeline, owed or [], {c: rates.get(c) for c in rates},
+            lowest=_fraction(base["lowest"]) if base.get("lowest") is not None else None, scale=scale,
+        )},
     }
 
 
@@ -644,9 +688,15 @@ def sufficiency_page_from(
         str(row[0]): str(row[1] or row[0])
         for row in connection.execute("SELECT id, display_name FROM accounts")
     }
+    cutoff = (timeline.get("horizon") or {}).get("supported_cash_cutoff")
+    owed = obligations_page_from(connection, as_of=str(cutoff) if cutoff else None, today=today)["obligations"]
+    owed_rates = dict(rates)
+    for currency in {str((o.get("remaining_amount") or {}).get("currency")) for o in owed if o.get("remaining_amount")}:
+        if currency not in owed_rates:
+            owed_rates.update(_forecast_rates(connection, [currency], reporting_currency=reporting_currency, today=today))
     combined = combined_answer(
-        timeline, rates=rates, reporting_currency=reporting_currency,
-        scale=definition.minor_unit_scale if definition else 2, account_names=account_names,
+        timeline, rates=owed_rates, reporting_currency=reporting_currency,
+        scale=definition.minor_unit_scale if definition else 2, account_names=account_names, owed=owed,
     )
     by_currency: dict[str, Any] = {}
     for currency, cell in (timeline.get("by_currency") or {}).items():

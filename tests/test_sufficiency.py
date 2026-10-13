@@ -555,3 +555,34 @@ class CardPlanTodoTests(unittest.TestCase):
 
     def test_a_declared_plan_leaves_only_the_missing_statement(self) -> None:
         self.assertNotIn("card-plan", self._keys("card c SGD has no reconciled exactly-once settlement plan"))
+
+
+class NotInThePathTests(unittest.TestCase):
+    """A debt with no due date is not in the forecast; the answer must say so."""
+
+    def test_undated_debts_are_totalled_with_what_repaying_now_would_do(self) -> None:
+        timeline = _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00"), ("2026-02-02", "40.00")))},
+                             [{"output": "obligation_timing", "obligation_id": "debt:a", "label": "A"},
+                              {"output": "obligation_timing", "obligation_id": "plan:z", "label": "Done plan"}])
+        owed = [
+            {"obligation_id": "debt:a", "origin": "personal_debt", "label": "A", "direction": "outflow",
+             "remaining_amount": {"value": "50.00", "currency": "USD"}},
+            {"obligation_id": "plan:z", "origin": "installment_plan", "label": "Done plan", "direction": "outflow",
+             "remaining_amount": {"value": "0.00", "currency": "SGD"}},
+            {"obligation_id": "debt:dated", "origin": "personal_debt", "label": "Dated", "direction": "outflow",
+             "remaining_amount": {"value": "999.00", "currency": "SGD"}},
+        ]
+        answer = combined_answer(timeline, rates={"SGD": Fraction(1), "USD": Fraction(13, 10)},
+                                 reporting_currency="SGD", scale=2, owed=owed)
+        missing = answer["not_in_the_path"]
+        self.assertEqual(answer["verdict"], VERDICT_ENOUGH)
+        self.assertEqual(missing["total"], "65.00")
+        self.assertEqual([item["label"] for item in missing["items"]], ["A"])
+        # Lowest point 40.00; repaying 65.00 now leaves it 25.00 below zero.
+        self.assertEqual(missing["short_if_repaid_now"], "25.00")
+
+    def test_nothing_undated_means_nothing_to_add(self) -> None:
+        answer = combined_answer(_timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}),
+                                 rates={"SGD": Fraction(1)}, reporting_currency="SGD", scale=2, owed=[])
+        self.assertEqual(answer["not_in_the_path"]["items"], [])
+        self.assertIsNone(answer["not_in_the_path"]["short_if_repaid_now"])

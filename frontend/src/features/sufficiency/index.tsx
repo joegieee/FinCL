@@ -151,12 +151,14 @@ function Answer({ combined, today }: { combined: CombinedAnswer; today: string }
   const base = combined.base
   const cautious = combined.cautious
   const missing = combined.pockets.filter(p => p.counted === 'not_counted')
+  const undated = combined.not_in_the_path
+  const shortIfRepaid = undated?.short_if_repaid_now && Number(undated.short_if_repaid_now) > 0 ? undated.short_if_repaid_now : null
   return (
     <Card className={`sufficiency-card ${TONE[base.verdict]}`}>
       <div className="panel-title">
         <div>
           <p className="eyebrow">WILL I HAVE ENOUGH?</p>
-          <h2 className="sufficiency-answer"><VerdictIcon verdict={base.verdict} /> {combined.answer}</h2>
+          <h2 className="sufficiency-answer"><VerdictIcon verdict={shortIfRepaid && base.verdict === 'enough' ? 'below_reserve' : base.verdict} /> {shortIfRepaid && base.verdict === 'enough' ? 'Yes, but only if your debts can wait' : combined.answer}</h2>
         </div>
       </div>
 
@@ -165,6 +167,13 @@ function Answer({ combined, today }: { combined: CombinedAnswer; today: string }
         {base.verdict === 'short' && <>You run out around {when(base.first_short_on, today)}. At the worst point, around {when(base.shortfall_on, today)}, you’d be {money(base.shortfall, c)} short.</>}
         {base.verdict === 'below_reserve' && <>You don’t run out, but you dip into your safety reserve around {when(base.first_short_on, today)}, by up to {money(base.shortfall, c)}.</>}
       </p>
+
+      {shortIfRepaid && undated && (
+        <div className="sufficiency-undated" role="note">
+          <p><strong>{money(undated.total, c)} you owe has no due date</strong>, so no day of this forecast pays it. Repaying it all now would leave you <strong>{money(shortIfRepaid, c)} short</strong> at the lowest point.</p>
+          <ul>{undated.items.map(item => <li key={item.label}><span>{item.label}</span><span>{money(item.amount, c)}</span></li>)}</ul>
+        </div>
+      )}
 
       <dl className="sufficiency-figures">
         <div><dt>Starting with</dt><dd>{money(combined.starting_total, c)}<small>{when(combined.starts_on, today)}</small></dd></div>

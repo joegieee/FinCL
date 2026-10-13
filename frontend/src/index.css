@@ -679,3 +679,25 @@ main{width:100%;min-width:0}
 .card-members legend{font-size:11px;color:var(--muted);margin-bottom:6px}
 .card-members label{flex-direction:row;align-items:center;gap:6px;font-size:12px;color:inherit}
 .card-members input{height:auto}
+.sufficiency-undated{border:1px solid var(--chart-conservative);border-radius:8px;padding:10px 12px;margin:0 0 12px;font-size:12.5px}
+.sufficiency-undated p{margin:0 0 6px}.sufficiency-undated ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px}
+.sufficiency-undated li{display:flex;justify-content:space-between;gap:12px;font-variant-numeric:tabular-nums}
+/* The landing page's four steps. */
+.money-journey{margin-bottom:22px}
+.journey-steps{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:12px}
+.journey-steps>li{min-width:0}
+.journey-step{height:100%;padding:16px 18px!important;display:flex;flex-direction:column;gap:10px}
+.journey-step>button{align-self:flex-start;margin-top:auto;max-width:100%;height:auto;min-height:32px;white-space:normal;text-align:left}
+.journey-step-head{display:flex;align-items:center;gap:9px}.journey-step-head h3{font-size:14px;margin:0}
+.journey-number{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--icon-surface);color:var(--icon-ink);font-size:12px;font-weight:700;flex-shrink:0}
+.journey-body{display:flex;flex-direction:column;gap:8px;font-size:12.5px;min-width:0}
+.journey-body .muted-note{margin:0}
+.journey-lead{margin:0;font-size:13px}.journey-lead strong{font-size:17px;letter-spacing:-.3px}
+.journey-lead small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.journey-lead.is-short strong{color:var(--chart-conservative)}
+.journey-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.journey-list li{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);padding-bottom:4px;font-variant-numeric:tabular-nums}
+.journey-list li>span:first-child{display:flex;align-items:center;gap:5px;min-width:0;overflow-wrap:anywhere}
+.journey-list li.is-behind>span:first-child{color:var(--chart-conservative)}
+.journey-warning{margin:0;padding:8px 10px;border:1px solid var(--chart-conservative);border-radius:8px;font-size:12px}
+.journey-warning svg{vertical-align:-2px}

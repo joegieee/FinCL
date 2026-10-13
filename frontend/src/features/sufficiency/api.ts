@@ -82,6 +82,15 @@ export type CombinedAnswer = {
     items: { label: string; on: string; amount: string; conditional: boolean; currency: string }[]
   }[]
   todos: { key: string; page: SufficiencyDestination; title: string; detail: string }[]
+  /** Owed money with no due date, so no day of the forecast pays it. */
+  not_in_the_path?: {
+    as_of: string | null
+    total: string
+    items: { label: string; origin: string; amount: string; native: { value: string; currency: string } }[]
+    unconverted: { label: string; value: string; currency: string }[]
+    /** How far below zero the lowest point goes if it were all repaid now; null when nothing is missing. */
+    short_if_repaid_now: string | null
+  }
 }
 
 export type SufficiencyPage = {
