@@ -1,10 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { reportedApi, reportedMoney, WorkspaceReportingDetails } from './workspaceReporting'
 
 const apiMock = vi.fn()
 vi.mock('./api', async original => ({ ...await original<typeof import('./api')>(), api: (...args: unknown[]) => apiMock(...args) }))
 afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+function open(container: HTMLElement) {
+  const details = container.querySelector('details')!
+  details.open = true
+  fireEvent(details, new Event('toggle'))
+}
 
 const valued = (value: string, date: string, native = '10.00') => ({
   native: { value: native, currency: 'USD' }, reported: { value, currency: 'SGD' },
@@ -25,7 +31,10 @@ describe('workspace reporting', () => {
     expect(JSON.parse(JSON.stringify(data))).toEqual(native)
     expect(data.rows[0]).toEqual({ amount: '10.00', currency: 'USD' })
     expect(apiMock).toHaveBeenCalledWith('reporting/workspaces/debts')
-    render(<WorkspaceReportingDetails data={data}/>)
+    const { container } = render(<WorkspaceReportingDetails data={data}/>)
+    // Collapsed: no per-amount rows exist until the disclosure is opened.
+    expect(screen.queryByText(/January payment/)).toBeNull()
+    open(container)
     expect(screen.getByText(/January payment/)).toBeInTheDocument()
     expect(screen.getByText('12.00 SGD')).toBeInTheDocument()
   })
@@ -47,7 +56,8 @@ describe('workspace reporting', () => {
     const rows = Array.from({ length: 75 }, () => ({ amount: '1.00', currency: 'USD' }))
     apiMock.mockResolvedValue({ native: { rows }, reporting_currency: 'SGD', amounts: rows.map((_, i) => ({ path: ['rows', i, 'amount'], label: `row ${i}`, value: valued('1.20', '2026-01-05') })) })
     const data = await reportedApi<{ rows: typeof rows }>('spending-controls')
-    render(<WorkspaceReportingDetails data={data}/>)
+    const { container } = render(<WorkspaceReportingDetails data={data}/>)
+    open(container)
     expect(screen.getByText(/Showing the first 60 of 75 amounts/)).toBeInTheDocument()
     expect(screen.getAllByText('1.20 SGD')).toHaveLength(60)
   })

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { api, money as nativeMoney, type components } from './api'
 import { Money } from '@/components/Money'
 
@@ -52,16 +53,20 @@ export function reportedMoney(owner: any, field: string, currency: string): stri
 const DETAIL_LIMIT = 60
 
 export function WorkspaceReportingDetails({ data }: { data: object }) {
+  // Rows are built only while open: a collapsed disclosure carries no per-amount DOM.
+  const [open, setOpen] = useState(false)
   const report = envelopes.get(data)
   if (!report) return null
   const hidden = Math.max(report.amounts.length - DETAIL_LIMIT, 0)
-  return <details className="workspace-reporting-details">
+  return <details className="workspace-reporting-details" onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Reporting in {report.reporting_currency} · valuation and native evidence</summary>
-    <p>Each amount keeps its own date. Converted targets and balances are reference values; future amounts are estimates. Original amounts remain unchanged for edits and statement checks.</p>
-    {hidden > 0 && <p className="muted-note">Showing the first {DETAIL_LIMIT} of {report.amounts.length} amounts; each one is also shown where it appears on this page.</p>}
-    <ul className="issue-list">{report.amounts.slice(0, DETAIL_LIMIT).map((item, index) => <li key={index}>
-      <span>{item.label} · {({ flow: 'Recorded amount', position: 'Balance or target reference', forecast: 'Forecast estimate' })[item.value.purpose]} · {item.value.valuation_as_of}</span>{' '}
-      <Money value={item.value} />
-    </li>)}</ul>
+    {open && <>
+      <p>Each amount keeps its own date. Converted targets and balances are reference values; future amounts are estimates. Original amounts remain unchanged for edits and statement checks.</p>
+      {hidden > 0 && <p className="muted-note">Showing the first {DETAIL_LIMIT} of {report.amounts.length} amounts; each one is also shown where it appears on this page.</p>}
+      <ul className="issue-list">{report.amounts.slice(0, DETAIL_LIMIT).map((item, index) => <li key={index}>
+        <span>{item.label} · {({ flow: 'Recorded amount', position: 'Balance or target reference', forecast: 'Forecast estimate' })[item.value.purpose]} · {item.value.valuation_as_of}</span>{' '}
+        <Money value={item.value} />
+      </li>)}</ul>
+    </>}
   </details>
 }

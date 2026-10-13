@@ -300,7 +300,7 @@ test('desktop: failed preview, uncertain retry and refresh-pending acknowledgeme
   await dialog.getByLabel(/Reason/).fill('Synthetic uncertain retry acceptance')
 
   let previewFailed = false
-  await page.route('**/api/v1/classification/preview', async route => {
+  await page.route('**/classification/preview', async route => {
     if (!previewFailed) {
       previewFailed = true
       await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Synthetic preview outage' }) })
@@ -311,7 +311,7 @@ test('desktop: failed preview, uncertain retry and refresh-pending acknowledgeme
   await dialog.getByLabel(/Reason/).fill('Synthetic uncertain retry acceptance after preview recovery')
   await dialog.getByRole('button', { name: 'Review changes' }).click()
   await expect(dialog.getByText('Ready to save')).toBeVisible()
-  await page.unroute('**/api/v1/classification/preview')
+  await page.unroute('**/classification/preview')
 
   const ids: string[] = []
   let aborted = false

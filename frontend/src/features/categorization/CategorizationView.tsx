@@ -643,7 +643,8 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     }, 400)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, option, category, costBehavior, need, incomingType, clearCategory, clearRoles, policy, reason, anchors])
+    // `options` is a dependency: a draft that settles before derive-rule answers must still preview.
+  }, [scope, option, options, category, costBehavior, need, incomingType, clearCategory, clearRoles, policy, reason, anchors])
   /** Keyboard shortcuts (Step 5.5). Ignored while the target is a form
    * control so typing in the category/reason fields is never hijacked. */
   function handleKey(e: KeyboardEvent) {

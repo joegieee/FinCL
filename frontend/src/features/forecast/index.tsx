@@ -154,7 +154,7 @@ function CombinedTotalsCard({ page }: { page: ForecastPageOut }) {
   const currency = page.reporting_currency
   return <Card className="forecast-card">
     <div className="panel-title"><div><p className="eyebrow">COMBINED ACROSS EVERY POCKET · {currency}</p><h2>Six-month closing and worst point</h2></div></div>
-    <div className="date-controls">
+    <div className="forecast-totals">
       <div><small>Base closing</small><div><ConsolidatedMoney total={page.totals.base_closing.total} partialTotal={page.totals.base_closing.partial_total} currency={currency} unavailableReasons={page.totals.base_closing.unavailable_reasons} excludedDetail={page.totals.base_closing.excluded_detail} /></div></div>
       <div><small>Conservative closing</small><div><ConsolidatedMoney total={page.totals.conservative_closing.total} partialTotal={page.totals.conservative_closing.partial_total} currency={currency} unavailableReasons={page.totals.conservative_closing.unavailable_reasons} excludedDetail={page.totals.conservative_closing.excluded_detail} /></div></div>
       <CombinedMinimumCell label="Base combined minimum" minimum={page.totals.base_combined_minimum} currency={currency} />

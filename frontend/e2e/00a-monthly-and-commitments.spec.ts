@@ -25,18 +25,16 @@ test('monthly routine: import, review what it created, and read the answer', asy
   await page.goto('/')
   await openTab(page, 'Setup')
   await page.getByLabel('Statement files').setInputFiles('/tmp/fincl-e2e-fixtures/monthly-late-september.pdf')
+  const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh') && response.request().method() === 'POST')
   await page.getByRole('button', { name: 'Upload statements', exact: true }).click()
   await expect(page.locator('.upload-result')).toContainText('1 of 1 file accepted')
 
-  // The import leaves the ledger stale. Refreshing is offered right where the
-  // warning is, not only in the rail.
-  const banner = page.getByRole('status').filter({ hasText: 'New ledger inputs are available' }).first()
-  await expect(banner.getByRole('button', { name: 'Refresh now' })).toBeVisible()
+  // An accepted import refreshes the ledger itself, so it is never left stale.
+  expect((await refreshed).status()).toBe(200)
+  await expect(page.getByText('New ledger inputs are available')).toHaveCount(0)
 
   // And the import's own result leads to the decisions it created.
-  const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh'))
-  await page.getByRole('button', { name: 'Refresh and review new transactions' }).click()
-  expect((await refreshed).status()).toBe(200)
+  await page.getByRole('button', { name: 'Review new transactions' }).click()
   await expect(page.getByRole('heading', { name: 'Teach it once.' })).toBeVisible()
 
   // A payer never seen before. Choosing "Income" for all matching inflows
@@ -92,7 +90,7 @@ test('commitments: a recorded debt reaches everything owed and the answer', asyn
 
   const row = page.locator('.debt-list, .debts-view').getByText('Jordan (e2e loan)')
   await expect(row).toBeVisible()
-  await expect(page.locator('.debts-view')).toContainText('SGD 1,500.00')
+  await expect(page.locator('.debts-view')).toContainText('1,500.00 SGD')
 
   await openTab(page, 'Obligations')
   await expect(page.getByRole('cell', { name: /Jordan \(e2e loan\)/ })).toBeVisible()
