@@ -8,7 +8,7 @@ import { AsyncView } from '@/components/AsyncView'
 import { ApiError } from '@/lib/api'
 import {
   ADAPTERS, MAX_BYTES, MAX_FILES,
-  loadImportDetail, loadImports, loadSetup, submitFxRates, submitImport,
+  loadImportDetail, loadImports, loadSetup, refreshImports, submitFxRates, submitImport,
   type FxRatesResult, type ImportDetail, type ImportRun, type SetupOptions, type UploadResult,
 } from './api'
 
@@ -27,9 +27,8 @@ function sizeLabel(bytes: number | null) {
  * import history. Successful files survive a later file's failure; the chosen
  * adapter and file selection are local draft state and never enter the URL.
  */
-/** `onReview`, when given, is the next step after an accepted import: rebuild
- * the ledger from the new evidence and go to whatever it now needs decided. An
- * import on its own changes nothing a reader can see until that refresh. */
+/** Accepted imports refresh the ledger before notifying the surrounding app.
+ * `onReview` optionally opens the next review workflow. */
 export function SetupView({ onImported, onReview }: { onImported: () => void; onReview?: () => void | Promise<void> }) {
   const [setup, setSetup] = useState<SetupOptions | null>(null)
   const [imports, setImports] = useState<ImportRun[] | null>(null)
@@ -137,22 +136,36 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
   const [reviewing, setReviewing] = useState(false)
   const [result, setResult] = useState<UploadResult | null>(null)
   const [error, setError] = useState('')
+  const [refreshError, setRefreshError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const oversize = files.find(f => f.size > MAX_BYTES)
   const tooMany = files.length > MAX_FILES
-  const canSubmit = files.length > 0 && !oversize && !tooMany && !busy
+  const canSubmit = files.length > 0 && !oversize && !tooMany && !busy && !reviewing
+
+  async function refreshAccepted() {
+    setReviewing(true); setRefreshError('')
+    try {
+      await refreshImports()
+    } catch (e) {
+      setRefreshError((e as Error).message)
+    } finally {
+      setReviewing(false)
+      onDone()
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     if (!canSubmit) return
-    setBusy(true); setError(''); setResult(null)
+    setBusy(true); setError(''); setRefreshError(''); setResult(null)
     try {
       const outcome = await submitImport(adapter, files)
       setResult(outcome)
       setFiles([])
       if (inputRef.current) inputRef.current.value = ''
-      onDone()
+      if (outcome.accepted > 0) await refreshAccepted()
+      else onDone()
     } catch (e) {
       // Draft (adapter + file selection) is intentionally preserved on failure.
       setError(e instanceof ApiError ? e.message : (e as Error).message)
@@ -166,7 +179,7 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
       <div className="panel-title"><div><p className="eyebrow">IMPORT A STATEMENT</p><h2>Add transactions from your bank</h2></div></div>
       <form onSubmit={submit}>
         <label>Source
-          <select aria-label="Statement source" value={adapter} disabled={busy} onChange={e => { setAdapter(e.target.value); setResult(null) }}>
+          <select aria-label="Statement source" value={adapter} disabled={busy || reviewing} onChange={e => { setAdapter(e.target.value); setResult(null); setRefreshError('') }}>
             {ADAPTERS.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
           </select>
         </label>
@@ -175,11 +188,12 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
             ref={inputRef}
             type="file"
             multiple
+            accept=".pdf,application/pdf"
             aria-label="Statement files"
-            disabled={busy}
-            onChange={e => { setFiles(Array.from(e.target.files ?? [])); setResult(null); setError('') }}
+            disabled={busy || reviewing}
+            onChange={e => { setFiles(Array.from(e.target.files ?? [])); setResult(null); setError(''); setRefreshError('') }}
           />
-          <small>Up to {MAX_FILES} files, {Math.round(MAX_BYTES / 1024 / 1024)} MiB each. Filenames are display text only.</small>
+          <small>PDF statements only. Up to {MAX_FILES} files, {Math.round(MAX_BYTES / 1024 / 1024)} MiB each.</small>
         </label>
         {files.length > 0 && (
           <ul className="file-chips">
@@ -203,7 +217,9 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
       </form>
       {result && (
         <div className="upload-result" role="status">
-          <p><Check size={15} /> {result.accepted} of {result.results.length} file{result.results.length === 1 ? '' : 's'} accepted.</p>
+          <p>{result.accepted > 0 ? <Check size={15} /> : <AlertTriangle size={15} />} {result.accepted} of {result.results.length} file{result.results.length === 1 ? '' : 's'} accepted.</p>
+          {reviewing && <p>Refreshing ledger…</p>}
+          {refreshError && <div className="alert error" role="alert"><div><strong>Your statements were accepted, but the ledger refresh failed.</strong><p>{refreshError}</p><p>Retry the refresh to make the new transactions visible.</p></div></div>}
           <ul className="issue-list">
             {result.results.map((r, i) => (
               <li key={i}>
@@ -211,14 +227,15 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
                 <strong>{r.filename}</strong>
                 {r.evidence_reused ? <small>evidence reused</small> : null}
                 {r.error ? <p className="form-error">{r.error}</p> : null}
-                {r.blockers ? <p>{r.blockers} blocking issue{r.blockers === 1 ? '' : 's'} — open it in Review.</p> : null}
+                {r.blocking_issue_count ? <p>{r.blocking_issue_count} blocking issue{r.blocking_issue_count === 1 ? '' : 's'} — open the import in history for details.</p> : null}
               </li>
             ))}
           </ul>
           <div className="dialog-actions">
-            <Button variant="ghost" size="sm" onClick={() => setResult(null)}><X size={14} /> Dismiss</Button>
-            {onReview && result.accepted > 0 && <Button size="sm" disabled={reviewing} onClick={() => { setReviewing(true); void Promise.resolve(onReview()).finally(() => setReviewing(false)) }}>
-              {reviewing ? <>Refreshing… <RefreshCw size={14} className="spin" /></> : 'Refresh and review new transactions'}
+            <Button variant="ghost" size="sm" disabled={busy || reviewing} onClick={() => setResult(null)}><X size={14} /> Dismiss</Button>
+            {refreshError && <Button size="sm" disabled={busy || reviewing} onClick={() => { void refreshAccepted() }}>Retry ledger refresh</Button>}
+            {onReview && result.accepted > 0 && !refreshError && <Button size="sm" disabled={busy || reviewing} onClick={async () => { setReviewing(true); try { await onReview() } catch (e) { setRefreshError((e as Error).message) } finally { setReviewing(false) } }}>
+              {reviewing ? <>Refreshing… <RefreshCw size={14} className="spin" /></> : 'Review new transactions'}
             </Button>}
           </div>
         </div>

@@ -143,7 +143,7 @@ export default function App(){
    {tab==='Variance'&&<VarianceView generation={data.generation} currency={currency} onSaved={saved}/>}
    {tab==='Maintenance'&&<MaintenanceView/>}
    {tab==='Accounts'&&<AccountsView freshness={data.freshness} onSaved={saved}/>}
-   {tab==='Setup'&&<SetupView onImported={()=>{void load()}} onReview={async()=>{await refresh();setTab('Categorization')}}/>}
+   {tab==='Setup'&&<SetupView onImported={()=>{void load()}} onReview={()=>{setTab('Categorization')}}/>}
    </div>
    <footer><span><ShieldCheck size={13}/> On your device. Backed by your records.</span><span>Refreshed {new Date(data.updated_at).toLocaleString('en-SG',{dateStyle:'medium',timeStyle:'short'})}</span></footer>
    {historyRows&&<Dialog open onOpenChange={open=>{if(!open)setHistoryRows(null)}}><DialogContent><DialogHeader><DialogTitle>Recent decisions</DialogTitle><DialogDescription>The latest 50 durable changes in your ledger, including category changes and plans.</DialogDescription></DialogHeader><div className="history-list">{historyRows.map(r=><article key={r.sequence}><span className="eyebrow">#{r.sequence} · {new Date(r.date).toLocaleString('en-SG')}</span><h3>{r.kind.toLowerCase().replaceAll('_',' ')}</h3>{r.category&&<p>{r.category}</p>}<small>{r.reason}</small></article>)}{!historyRows.length&&<p>No decisions recorded yet.</p>}</div></DialogContent></Dialog>}

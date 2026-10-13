@@ -38,16 +38,16 @@ export type UploadOutcome = {
   status: string
   evidence_reused?: boolean
   error?: string
-  blockers?: number
+  blocking_issue_count?: number
 }
 export type UploadResult = { results: UploadOutcome[]; accepted: number }
 
 // Closed adapter identifiers. Selection is an ID, never a free-text format name.
 export const ADAPTERS: { id: string; label: string }[] = [
   { id: 'REVOLUT_PDF', label: 'Revolut — PDF statement' },
-  { id: 'DBS', label: 'DBS / POSB — PDF statement' },
-  { id: 'PAYLAH', label: 'DBS PayLah! — PDF statement' },
-  { id: 'MARIBANK', label: 'MariBank — PDF statement' },
+  { id: 'DBS_CONSOLIDATED', label: 'DBS / POSB — PDF statement' },
+  { id: 'DBS_PAYLAH', label: 'DBS PayLah! — PDF statement' },
+  { id: 'MARI_SAVINGS', label: 'MariBank — PDF statement' },
   { id: 'MARI_CARD', label: 'Mari Credit Card — PDF statement' },
   { id: 'TRUST_SAVINGS', label: 'Trust Bank — PDF statement' },
 ]
@@ -60,6 +60,7 @@ export const loadImports = () => api<ImportsPage>('imports')
 export const loadImportDetail = (id: string) => api<ImportDetail>(`imports/${encodeURIComponent(id)}`)
 export const submitImport = (adapter: string, files: File[]) =>
   uploadFiles<UploadResult>('imports', adapter, files)
+export const refreshImports = () => api('refresh', {})
 
 export type FxRatesResult = { status: string; rates_written: number }
 export const submitFxRates = (file: File, masWeeklyCsv: boolean, sourceVersion: string) =>
