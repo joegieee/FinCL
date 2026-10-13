@@ -875,7 +875,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.post('/api/v1/imports')
     def imports_create(
         files: list[UploadFile] = File(...),
-        adapter: str = Form(...),
+        adapter: str = Form('AUTO'),
     ) -> Any:
         from .intake import MAX_FILES, import_stream
         if not files or len(files) > MAX_FILES:
@@ -901,7 +901,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     })
                 finally:
                     upload.file.close()
-        return {'results':results,'accepted':sum(r.get('status') not in {'FAILED'} for r in results)}
+        return {'results':results,'accepted':sum(r.get('status') not in {'FAILED','UNRECOGNISED'} for r in results)}
 
     @app.post('/api/v1/fx-rates')
     def fx_rates_create(

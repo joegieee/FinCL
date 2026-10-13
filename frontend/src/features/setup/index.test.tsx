@@ -121,6 +121,25 @@ describe('SetupView', () => {
     expect(submitImport).toHaveBeenCalledOnce()
   })
 
+  it('recognises the bank by default and says which, or asks when it cannot', async () => {
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [] })
+    submitImport.mockResolvedValue({ accepted: 1, results: [
+      { filename: 'card.pdf', adapter: 'MARI_CARD', status: 'ACCEPTED', detected: true, detection: 'recognised' },
+      { filename: 'scan.pdf', adapter: null, status: 'UNRECOGNISED', error: "We couldn't tell which bank this statement is from. Choose its type and upload it again." },
+    ] })
+    render(<SetupView onImported={() => {}} />)
+    await screen.findByText('ledger.sqlite3')
+    expect(screen.getByLabelText('Statement source')).toHaveValue('AUTO')
+    const files = [new File(['%PDF'], 'card.pdf'), new File(['%PDF'], 'scan.pdf')]
+    fireEvent.change(screen.getByLabelText('Statement files'), { target: { files } })
+    fireEvent.click(screen.getByRole('button', { name: 'Upload statements' }))
+    expect(await screen.findByText('recognised as Mari Credit Card — PDF statement')).toBeInTheDocument()
+    expect(screen.getByText('NOT RECOGNISED')).toBeInTheDocument()
+    expect(screen.getByText(/Choose its type and upload it again/)).toBeInTheDocument()
+    expect(submitImport).toHaveBeenCalledWith('AUTO', files)
+  })
+
   it('shows a rejected file without refreshing or marking it successful', async () => {
     loadSetup.mockResolvedValue(SETUP)
     loadImports.mockResolvedValue({ generation: 'g1', imports: [] })

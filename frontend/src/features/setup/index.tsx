@@ -193,7 +193,7 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
             disabled={busy || reviewing}
             onChange={e => { setFiles(Array.from(e.target.files ?? [])); setResult(null); setError(''); setRefreshError('') }}
           />
-          <small>PDF statements only. Up to {MAX_FILES} files, {Math.round(MAX_BYTES / 1024 / 1024)} MiB each.</small>
+          <small>PDF statements only; you can mix banks when recognising automatically. Up to {MAX_FILES} files, {Math.round(MAX_BYTES / 1024 / 1024)} MiB each.</small>
         </label>
         {files.length > 0 && (
           <ul className="file-chips">
@@ -223,8 +223,9 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
           <ul className="issue-list">
             {result.results.map((r, i) => (
               <li key={i}>
-                <Badge variant="outline" className={r.status === 'FAILED' ? 'review-badge' : ''}>{r.status}</Badge>
+                <Badge variant="outline" className={r.status === 'FAILED' || r.status === 'UNRECOGNISED' ? 'review-badge' : ''}>{r.status === 'UNRECOGNISED' ? 'NOT RECOGNISED' : r.status}</Badge>
                 <strong>{r.filename}</strong>
+                {r.detected && r.adapter ? <small>recognised as {ADAPTERS.find(a => a.id === r.adapter)?.label ?? r.adapter}</small> : null}
                 {r.evidence_reused ? <small>evidence reused</small> : null}
                 {r.error ? <p className="form-error">{r.error}</p> : null}
                 {r.blocking_issue_count ? <p>{r.blocking_issue_count} blocking issue{r.blocking_issue_count === 1 ? '' : 's'} — open the import in history for details.</p> : null}

@@ -2,29 +2,30 @@ import { expect, test } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 import { openTab } from './rail'
 
-test('statement sources upload through the UI and refresh the ledger automatically', async ({ page }) => {
+const fixture = (name: string) => fileURLToPath(new URL(`../../tests/fixtures/${name}`, import.meta.url))
+
+test('statements from every bank upload together, recognised automatically, and refresh the ledger', async ({ page }) => {
   await page.goto('/?start=2026-01-01&end=2026-12-31')
   await openTab(page, 'Setup')
-  for (const [adapter, fixture] of [
-    ['DBS_CONSOLIDATED', 'dbs_multicurrency.pdf'],
-    ['DBS_PAYLAH', 'paylah_legacy.pdf'],
-    ['MARI_SAVINGS', 'maribank_savings.pdf'],
-    ['MARI_CARD', 'mari_card.pdf'],
-    ['TRUST_SAVINGS', 'trust_savings.pdf'],
-    ['REVOLUT_PDF', 'revolut_statement.pdf'],
-  ]) {
-    await page.getByLabel('Statement source').selectOption(adapter)
-    await page.getByLabel('Statement files').setInputFiles(fileURLToPath(new URL(`../../tests/fixtures/${fixture}`, import.meta.url)))
-    const uploaded = page.waitForResponse(response => response.url().endsWith('/api/v1/imports') && response.request().method() === 'POST')
-    const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh') && response.request().method() === 'POST')
-    await page.getByRole('button', { name: 'Upload statements' }).click()
-    const upload = await uploaded
-    expect(upload.ok()).toBeTruthy()
-    expect((await upload.json()).accepted).toBe(1)
-    expect((await refreshed).ok()).toBeTruthy()
-    await expect(page.getByText('1 of 1 file accepted.')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Dismiss', exact: true })).toBeEnabled()
-  }
+  // No source chosen: each file's bank is recognised from the file itself.
+  await expect(page.getByLabel('Statement source')).toHaveValue('AUTO')
+  await page.getByLabel('Statement files').setInputFiles([
+    'dbs_multicurrency.pdf', 'paylah_legacy.pdf', 'maribank_savings.pdf',
+    'mari_card.pdf', 'trust_savings.pdf', 'revolut_statement.pdf',
+  ].map(fixture))
+  const uploaded = page.waitForResponse(response => response.url().endsWith('/api/v1/imports') && response.request().method() === 'POST')
+  const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh') && response.request().method() === 'POST')
+  await page.getByRole('button', { name: 'Upload statements' }).click()
+  const upload = await uploaded
+  expect(upload.ok()).toBeTruthy()
+  const body = await upload.json()
+  expect(body.accepted).toBe(6)
+  expect(body.results.map((r: { adapter: string }) => r.adapter)).toEqual([
+    'DBS_CONSOLIDATED', 'DBS_PAYLAH', 'MARI_SAVINGS', 'MARI_CARD', 'TRUST_SAVINGS', 'REVOLUT_PDF',
+  ])
+  expect((await refreshed).ok()).toBeTruthy()
+  await expect(page.getByText('6 of 6 files accepted.')).toBeVisible()
+  await expect(page.getByText('recognised as Mari Credit Card — PDF statement')).toBeVisible()
   await page.reload()
   await expect(page.locator('.import-table tbody tr').first()).toBeVisible()
   await openTab(page, 'Transactions')

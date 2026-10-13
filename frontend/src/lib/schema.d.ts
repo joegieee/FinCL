@@ -3131,7 +3131,10 @@ export interface components {
         Body_imports_create_api_v1_imports_post: {
             /** Files */
             files: string[];
-            /** Adapter */
+            /**
+             * Adapter
+             * @default AUTO
+             */
             adapter: string;
         };
         /** Bootstrap */

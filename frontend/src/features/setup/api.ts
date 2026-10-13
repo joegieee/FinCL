@@ -34,8 +34,11 @@ export type ImportsPage = { generation: string; imports: ImportRun[] }
 
 export type UploadOutcome = {
   filename: string
-  adapter: string
+  adapter: string | null
   status: string
+  /** True when the type was recognised from the file rather than chosen. */
+  detected?: boolean
+  detection?: string
   evidence_reused?: boolean
   error?: string
   blocking_issue_count?: number
@@ -44,6 +47,7 @@ export type UploadResult = { results: UploadOutcome[]; accepted: number }
 
 // Closed adapter identifiers. Selection is an ID, never a free-text format name.
 export const ADAPTERS: { id: string; label: string }[] = [
+  { id: 'AUTO', label: 'Recognise automatically (any supported bank)' },
   { id: 'REVOLUT_PDF', label: 'Revolut — PDF statement' },
   { id: 'DBS_CONSOLIDATED', label: 'DBS / POSB — PDF statement' },
   { id: 'DBS_PAYLAH', label: 'DBS PayLah! — PDF statement' },

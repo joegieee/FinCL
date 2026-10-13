@@ -9491,13 +9491,13 @@
           },
           "adapter": {
             "type": "string",
-            "title": "Adapter"
+            "title": "Adapter",
+            "default": "AUTO"
           }
         },
         "type": "object",
         "required": [
-          "files",
-          "adapter"
+          "files"
         ],
         "title": "Body_imports_create_api_v1_imports_post"
       },
