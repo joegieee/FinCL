@@ -101,6 +101,34 @@ function LimitAndFacility({ detail, cards, generation, onSaved }: {
   )
 }
 
+/** Was each statement paid, and how do we know. */
+function Repayments({ detail }: { detail: CardDetail }) {
+  const rows = detail.repayments ?? []
+  if (!rows.length) return null
+  const settled = rows.filter(row => row.paid_in_full).length
+  return (
+    <section className="card-limit-section">
+      <h3>Repayments</h3>
+      <p className="muted-note">
+        {settled} of {rows.length} statement{rows.length === 1 ? '' : 's'} paid in full. A payment counts toward a statement when the card shows money
+        arriving after that statement closed and by its due date; a payment you matched by hand takes its place.
+      </p>
+      <div className="table-scroll"><table className="card-repayments">
+        <thead><tr><th scope="col">Statement</th><th scope="col" className="num">Due</th><th scope="col" className="num">Paid</th><th scope="col">Status</th></tr></thead>
+        <tbody>{rows.map(row => (
+          <tr key={`${row.statement_id}:${row.currency}`}>
+            <td>{dateLabel(row.statement_date)}{row.payment_due_date && <small>due by {dateLabel(row.payment_due_date)}</small>}</td>
+            <td className="num">{money(row.due, row.currency)}</td>
+            <td className="num">{money(row.paid, row.currency)}</td>
+            <td>{row.paid_in_full ? 'Paid in full' : row.paid_basis === 'none' ? 'No payment seen yet' : 'Part paid'}
+              {row.paid_basis === 'manual_allocation' && <small>matched by hand</small>}</td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+    </section>
+  )
+}
+
 function RepaymentPlan({ detail, generation, onSaved }: {
   detail: CardDetail; generation: string; onSaved: (status: string) => void | Promise<void>
 }) {
@@ -151,6 +179,7 @@ function CardDetailView({
       </div>
       <Utilization detail={detail} />
       <LimitAndFacility detail={detail} cards={cards} generation={generation} onSaved={onSaved} />
+      <Repayments detail={detail} />
       <RepaymentPlan detail={detail} generation={generation} onSaved={onSaved} />
       {detail.coverage_gaps.map((g) => (
         <p key={g.from} className="debt-event-error">

@@ -701,3 +701,7 @@ main{width:100%;min-width:0}
 .journey-list li.is-behind>span:first-child{color:var(--chart-conservative)}
 .journey-warning{margin:0;padding:8px 10px;border:1px solid var(--chart-conservative);border-radius:8px;font-size:12px}
 .journey-warning svg{vertical-align:-2px}
+.card-repayments{width:100%;border-collapse:collapse;font-size:12px}
+.card-repayments th,.card-repayments td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.card-repayments .num{text-align:right;font-variant-numeric:tabular-nums}
+.card-repayments small{display:block;color:var(--muted);font-size:10.5px}

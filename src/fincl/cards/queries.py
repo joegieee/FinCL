@@ -8,7 +8,9 @@ partial export never reads as a complete picture.
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import date
+from decimal import Decimal
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
@@ -303,6 +305,10 @@ def card_detail(
             "limit_observation": limit_observation,
             # How you said this card is repaid; None when nothing is declared.
             "repayment_plan": projection.repayment_plan(connection, account_id),
+            # Each statement's amount due beside what was paid toward it, and
+            # where that figure comes from (a manual match, or the card's own
+            # credits between the period end and the due date).
+            "repayments": _repayments(connection, account_id),
             "utilization": util,
             "latest_statement": summary,
             "statement_activity": views,
@@ -317,3 +323,21 @@ def card_detail(
 
 
 __all__ = ["cards_page", "card_statements", "card_detail"]
+
+
+def _repayments(connection: sqlite3.Connection, account_id: str) -> list[dict[str, Any]]:
+    from .cash_conversion import _pockets, _statement_rows
+
+    rows: list[dict[str, Any]] = []
+    for pocket in _pockets(connection, account_id):
+        for row in _statement_rows(connection, account_id, pocket):
+            if row["due"] is None:
+                continue
+            rows.append({
+                "statement_id": row["statement_id"], "statement_date": row["statement_date"],
+                "currency": pocket, "due": row["due"], "paid": row["paid"],
+                "payment_due_date": row["payment_due_date"], "paid_basis": row["paid_basis"],
+                "paid_in_full": Decimal(row["paid"]) >= Decimal(row["due"]),
+            })
+    rows.sort(key=lambda item: str(item["statement_date"]), reverse=True)
+    return rows

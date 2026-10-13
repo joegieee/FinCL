@@ -68,7 +68,10 @@ def _minor(amount: str) -> int:
     return int(Decimal(amount).scaleb(2))
 
 
-def _build_ledger(root: Path, statements: tuple[tuple[str, ...], ...] = _STATEMENTS) -> Path:
+def _build_ledger(
+    root: Path, statements: tuple[tuple[str, ...], ...] = _STATEMENTS,
+    credits: tuple[tuple[str, str], ...] = (),
+) -> Path:
     """A card with three statements, unbilled postings and a projected generation.
 
     Built directly against the schema rather than through a PDF import: the
@@ -196,6 +199,30 @@ def _build_ledger(root: Path, statements: tuple[tuple[str, ...], ...] = _STATEME
                 "entry_id, source_account_id, account_source_type, payment_channel) "
                 "VALUES (?, 'gen-1', ?, 'card-1', 'MARI_CARD', 'card')",
                 (component_id, entry_id),
+            )
+        # Credits posted to the card itself (repayments, refunds): money in.
+        for index, (day, amount) in enumerate(credits):
+            connection.execute(
+                "INSERT INTO raw_records(id, extraction_run_id, evidence_sha256, "
+                "source_profile_version, parser_version, header_sha256, source_anchor, "
+                "extraction_ordinal, physical_line_start, physical_line_end, "
+                "record_kind, raw_record_text, raw_cells_json, description_raw, "
+                "confidence, required_fields_complete) "
+                "VALUES (?, 'run-csv', ?, 'revolut-csv-v1', 'p2', 'h1', ?, ?, ?, ?, "
+                "'TRANSACTION', 'PAYMENT', '[]', 'PAYMENT', 'HIGH', 1)",
+                (f"raw-credit-{index}", _evidence("csv"), f"credit-{index}", 100 + index,
+                 100 + index, 100 + index),
+            )
+            connection.execute(
+                "INSERT INTO ledger_entries(id, extraction_run_id, statement_id, "
+                "raw_record_id, document_record_id, account_id, source_family, "
+                "natural_anchor, effective_at, effective_precision, currency_pocket, "
+                "amount_text, amount_coefficient, amount_scale, economic_direction, "
+                "event_kind, evidence_sha256, analytics_eligible, lifecycle_state) "
+                "VALUES (?, 'run-csv', NULL, ?, NULL, 'card-1', 'CSV', ?, ?, 'DAY', "
+                "'SGD', ?, ?, 2, 'IN', 'TRANSFER', ?, 0, 'COMPLETED')",
+                (f"credit-{index}", f"raw-credit-{index}", f"credit-{index}", f"{day}T10:00:00Z",
+                 amount, _minor(amount), _evidence("csv")),
             )
         connection.commit()
     finally:
@@ -549,3 +576,55 @@ class DeclaredRepaymentPlanTests(unittest.TestCase):
         [item] = billed["items"]
         self.assertEqual((item["amount"], item["due_on"], item["settle_basis"]),
                          ("600.00", "2026-07-21", "declared_plan_overdue_paid_next_day"))
+
+
+class ObservedCardCreditTests(unittest.TestCase):
+    """A statement is paid by what the card itself shows arriving after it closed.
+
+    No manual allocation is recorded: stmt-a and stmt-b are settled by credits
+    posted after each period ended and by its due date, so the card is read as
+    paid in full each month without anyone matching a payment by hand.
+    """
+
+    _UNMATCHED = tuple(item[:6] + ("0.00",) for item in _STATEMENTS)
+
+    def _card(self, credits: tuple[tuple[str, str], ...]) -> dict:
+        database = _build_ledger(Path(tempfile.mkdtemp()), self._UNMATCHED, credits)
+        return card_cash_conversion(database, as_of=AS_OF)["cards"][0]
+
+    def test_credits_in_each_payment_window_settle_the_statement(self) -> None:
+        # stmt-a (closed 04-28, due 05-13): a refund and a repayment; stmt-b: one repayment.
+        card = self._card((("2026-04-30", "20.00"), ("2026-05-10", "480.00"), ("2026-06-12", "400.00")))
+        behaviour = card["repayment_behaviour"]
+        self.assertEqual(behaviour["pattern"], "pays_statement_in_full")
+        self.assertEqual([item["paid"] for item in behaviour["observations"]], ["500.00", "400.00"])
+
+    def test_a_credit_after_the_due_date_is_not_a_settlement_of_that_statement(self) -> None:
+        card = self._card((("2026-05-20", "500.00"), ("2026-06-12", "400.00")))
+        self.assertEqual(card["repayment_behaviour"]["pattern"], "partial_or_revolving")
+
+    def test_no_credit_is_counted_toward_two_statements(self) -> None:
+        """A due date past the next period's end still stops at that end."""
+        statements = (
+            ("stmt-a", "2026-03-29", "2026-04-28", "2026-04-28", "2026-06-13", "500.00", "0.00"),
+            ("stmt-b", "2026-04-29", "2026-05-28", "2026-05-28", "2026-06-13", "400.00", "0.00"),
+        )
+        database = _build_ledger(Path(tempfile.mkdtemp()), statements, (("2026-06-01", "900.00"),))
+        connection = connect_sqlite(database)
+        try:
+            from fincl.cards.cash_conversion import _statement_rows
+            rows = {row["statement_id"]: row for row in _statement_rows(connection, "card-1", "SGD")}
+        finally:
+            connection.close()
+        self.assertEqual((rows["stmt-a"]["paid"], rows["stmt-a"]["paid_basis"]), ("0.00", "none"))
+        self.assertEqual((rows["stmt-b"]["paid"], rows["stmt-b"]["paid_basis"]), ("900.00", "card_credits_in_payment_window"))
+
+    def test_a_manual_allocation_still_wins(self) -> None:
+        database = _build_ledger(Path(tempfile.mkdtemp()), _STATEMENTS, (("2026-05-10", "1.00"),))
+        connection = connect_sqlite(database)
+        try:
+            from fincl.cards.cash_conversion import _statement_rows
+            row = next(r for r in _statement_rows(connection, "card-1", "SGD") if r["statement_id"] == "stmt-a")
+        finally:
+            connection.close()
+        self.assertEqual((row["paid"], row["paid_basis"]), ("500.00", "manual_allocation"))

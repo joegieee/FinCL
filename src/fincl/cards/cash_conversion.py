@@ -861,9 +861,33 @@ def _generation(connection: sqlite3.Connection) -> str:
 def _statement_rows(
     connection: sqlite3.Connection, account_id: str, pocket: str
 ) -> list[dict[str, Any]]:
-    """Issued statements for one card pocket, with their printed money facts."""
+    """Issued statements for one card pocket, with their printed money facts.
+
+    What was paid toward a statement comes from one of two sources, and says
+    which. A manual allocation (``CARD_PAYMENT_ALLOCATION_SET``) wins when one
+    exists. Otherwise it is what the card itself recorded: every credit posted
+    to the card after the statement's period closed, up to its due date —
+    repayments, refunds and conversions all reduce what that statement asked
+    for. The window stops at the next period's end, so no credit is ever
+    counted toward two statements.
+    """
     rows: list[dict[str, Any]] = []
-    for statement in card_projection.selected_statements(connection, account_id):
+    statements = list(card_projection.selected_statements(connection, account_id))
+    credits = [
+        (str(row["on_date"]), Decimal(int(row["coefficient"])).scaleb(-int(row["scale"])))
+        for row in connection.execute(
+            """
+            SELECT substr(e.effective_at, 1, 10) AS on_date, abs(e.amount_coefficient) AS coefficient,
+                   e.amount_scale AS scale
+            FROM ledger_entries e
+            JOIN extraction_runs x ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
+            WHERE e.account_id = ? AND e.currency_pocket = ? AND e.economic_direction = 'IN'
+            """,
+            (account_id, pocket),
+        )
+    ]
+    period_ends = sorted(str(s["period_end"]) for s in statements if s["period_end"] is not None)
+    for statement in statements:
         facts = card_projection.statement_facts_by_pocket(
             connection, str(statement["id"])
         ).get(pocket, {})
@@ -886,15 +910,27 @@ def _statement_rows(
             ),
             Decimal(0),
         )
+        paid_basis = "manual_allocation" if allocations else "none"
+        period_end = statement["period_end"]
+        due_on = due_date_fact.value_text if due_date_fact else None
+        if not allocations and period_end is not None and due_on is not None:
+            later = [end for end in period_ends if end > str(period_end)]
+            window_end = min([str(due_on), *later])
+            observed = sum(
+                (amount for on, amount in credits if str(period_end) < on <= window_end), Decimal(0)
+            )
+            if observed:
+                paid, paid_basis = observed, "card_credits_in_payment_window"
         rows.append(
             {
                 "statement_id": str(statement["id"]),
                 "period_start": statement["period_start"],
                 "period_end": statement["period_end"],
                 "statement_date": statement["statement_date"],
-                "payment_due_date": due_date_fact.value_text if due_date_fact else None,
+                "payment_due_date": due_on,
                 "due": None if due is None else _money(due),
                 "paid": _money(paid),
+                "paid_basis": paid_basis,
             }
         )
     return rows

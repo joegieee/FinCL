@@ -131,6 +131,17 @@ export type CardDetail = {
   } | null
   /** How you said this card is repaid; null when nothing is declared. */
   repayment_plan?: { rule: 'pay_in_full'; reason: string; journal_seq: number } | null
+  /** Each statement's amount due and what was paid toward it, newest first. */
+  repayments?: {
+    statement_id: string
+    statement_date: string
+    currency: string
+    due: string
+    paid: string
+    payment_due_date: string | null
+    paid_basis: 'manual_allocation' | 'card_credits_in_payment_window' | 'none'
+    paid_in_full: boolean
+  }[]
   utilization: Utilization
   latest_statement: LatestStatement | null
   statement_activity: StatementView[]
