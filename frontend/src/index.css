@@ -668,3 +668,14 @@ main{width:100%;min-width:0}
 .report-table tfoot th,.report-table tfoot td{border-bottom:0}
 .report-export{display:flex;flex-wrap:wrap;align-items:end;gap:8px 12px;padding-top:12px;border-top:1px solid var(--border)}
 .report-export>.muted-note{flex-basis:100%}
+.card-limit-section{margin:16px 0;padding-top:12px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.card-limit-section h3{font-size:13px;margin:0}.card-limit-section .muted-note{margin:0}
+.card-form{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--border);border-radius:8px}
+.card-form h3{font-size:13px;margin:0}
+.card-form .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.card-form label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
+.card-form input{min-width:0;max-width:100%;height:34px;border:1px solid var(--border);background:var(--card);border-radius:7px;padding:0 8px;color:inherit}
+.card-members{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px 14px}
+.card-members legend{font-size:11px;color:var(--muted);margin-bottom:6px}
+.card-members label{flex-direction:row;align-items:center;gap:6px;font-size:12px;color:inherit}
+.card-members input{height:auto}

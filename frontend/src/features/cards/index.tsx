@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
 import { SourceComparison } from './SourceComparison'
+import { FacilityForm, LimitForm, RetireForm } from './FacilityForms'
 import {
+  type CardAccount,
   RECONCILIATION_LABEL,
   loadCardDetail,
   loadCards,
@@ -64,9 +66,44 @@ function Utilization({ detail }: { detail: CardDetail }) {
   )
 }
 
+type Editing = 'facility' | 'limit' | 'retire-limit' | 'retire-facility' | null
+
+/** The facility and its dated limit, and the forms that record them. */
+function LimitAndFacility({ detail, cards, generation, onSaved }: {
+  detail: CardDetail; cards: CardAccount[]; generation: string; onSaved: (status: string) => void | Promise<void>
+}) {
+  const [editing, setEditing] = useState<Editing>(null)
+  const saved = async (status: string) => { setEditing(null); await onSaved(status) }
+  const close = () => setEditing(null)
+  const facility = detail.facility
+  const observation = detail.limit_observation
+  return (
+    <section className="card-limit-section">
+      <h3>Credit limit</h3>
+      <p className="muted-note">
+        {!facility && 'No credit facility is set up for this card, so its limit is read from the latest statement only.'}
+        {facility && !observation && `Facility “${facility.label}” (${facility.currency}) has no recorded limit yet.`}
+        {facility && observation && `Facility “${facility.label}”: ${money(observation.limit.value, observation.limit.currency ?? facility.currency)}, seen ${dateLabel(observation.observed_on)}${observation.source_ref ? ` (${observation.source_ref})` : ''}.`}
+      </p>
+      {!editing && (
+        <div className="row-actions">
+          <Button variant="outline" size="sm" onClick={() => setEditing('facility')}>{facility ? 'Edit facility' : 'Set up facility'}</Button>
+          {facility && <Button variant="outline" size="sm" onClick={() => setEditing('limit')}>Record limit</Button>}
+          {observation && <Button variant="ghost" size="sm" onClick={() => setEditing('retire-limit')}>Remove limit</Button>}
+          {facility && <Button variant="ghost" size="sm" onClick={() => setEditing('retire-facility')}>Remove facility</Button>}
+        </div>
+      )}
+      {editing === 'facility' && <FacilityForm detail={detail} cards={cards} generation={generation} onSaved={saved} onCancel={close}/>}
+      {editing === 'limit' && facility && <LimitForm detail={detail} generation={generation} onSaved={saved} onCancel={close}/>}
+      {editing === 'retire-limit' && facility && <RetireForm detail={detail} target="limit" generation={generation} onSaved={saved} onCancel={close}/>}
+      {editing === 'retire-facility' && facility && <RetireForm detail={detail} target="facility" generation={generation} onSaved={saved} onCancel={close}/>}
+    </section>
+  )
+}
+
 function CardDetailView({
-  detail, onBack,
-}: { detail: CardDetail; onBack: () => void }) {
+  detail, cards, generation, onSaved, onBack,
+}: { detail: CardDetail; cards: CardAccount[]; generation: string; onSaved: (status: string) => void | Promise<void>; onBack: () => void }) {
   const limit = detail.limit_basis as { value?: string; currency?: string; observed_on?: string; source_kind?: string } | null
   return (
     <Card className="debt-detail"><WorkspaceReportingDetails data={detail}/>
@@ -91,6 +128,7 @@ function CardDetailView({
         </div>
       </div>
       <Utilization detail={detail} />
+      <LimitAndFacility detail={detail} cards={cards} generation={generation} onSaved={onSaved} />
       {detail.coverage_gaps.map((g) => (
         <p key={g.from} className="debt-event-error">
           Missing statement period {g.from} … {g.to}
@@ -137,9 +175,10 @@ function CardDetailView({
   )
 }
 
-export function CardsView({ generation }: { generation: string }) {
+export function CardsView({ generation, onSaved }: { generation: string; onSaved?: (status: string) => void | Promise<void> }) {
   const [page, setPage] = useState<CardsPage | null>(null)
   const [detail, setDetail] = useState<CardDetail | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -151,15 +190,20 @@ export function CardsView({ generation }: { generation: string }) {
     return () => { live = false }
   }, [generation])
 
-  function openDetail(id: string) {
+  // Reloads after a save too: a new generation re-reads the open card.
+  useEffect(() => {
+    if (!openId) { setDetail(null); return }
+    let live = true
     setError('')
-    loadCardDetail(id, { generation })
-      .then(setDetail)
-      .catch((e) => setError(e instanceof ApiError ? e.message : 'Could not load that card.'))
-  }
+    loadCardDetail(openId, { generation })
+      .then((d) => { if (live) setDetail(d) })
+      .catch((e) => { if (live) setError(e instanceof ApiError ? e.message : 'Could not load that card.') })
+    return () => { live = false }
+  }, [openId, generation])
 
   if (error) return <Card className="debt-list"><p className="debt-empty">{error}</p></Card>
-  if (detail) return <CardDetailView detail={detail} onBack={() => setDetail(null)} />
+  if (openId && detail) return <CardDetailView detail={detail} cards={page?.cards.map(c => c.account) ?? [detail.account]}
+    generation={generation} onSaved={async status => { await onSaved?.(status) }} onBack={() => setOpenId(null)} />
   if (!page) return <Card className="debt-list"><p className="debt-empty">Loading cards…</p></Card>
 
   return (
@@ -171,7 +215,7 @@ export function CardsView({ generation }: { generation: string }) {
           <p className="debt-empty">No card statements imported yet.</p>
         ) : (
           page.cards.map((c) => (
-            <CardRow key={c.account.account_id} row={c} onOpen={openDetail} />
+            <CardRow key={c.account.account_id} row={c} onOpen={setOpenId} />
           ))
         )}
       </Card>

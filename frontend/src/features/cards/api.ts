@@ -116,6 +116,7 @@ export type CardDetail = {
     label: string
     currency: string
     bound: boolean
+    account_ids?: string[]
   } | null
   limit_basis:
     | (FactShape & { observed_on?: string; source_kind?: string })

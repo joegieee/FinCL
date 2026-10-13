@@ -166,6 +166,7 @@ class CardFacilityTests(unittest.TestCase):
         refresh_ledger(self.database)
         data = card_detail(self.database, self.account_id, as_of="2026-08-01")
         self.assertEqual(data["facility"]["facility_id"], facility_id)
+        self.assertEqual(data["facility"]["account_ids"], [self.account_id])
         self.assertEqual(data["limit_basis"]["value"], "500.00")
         self.assertEqual(data["limit_basis"]["observed_on"], "2026-07-01")
         self.assertEqual(data["limit_basis"]["source_kind"], "statement-evidence")

@@ -256,6 +256,11 @@ def card_detail(
                 "label": str(facility_row["label"]),
                 "currency": str(facility_row["currency"]),
                 "bound": bool(facility_row["bound"]),
+                # The member cards, so an edit starts from the current set.
+                "account_ids": [str(row[0]) for row in connection.execute(
+                    "SELECT account_id FROM card_facility_accounts WHERE facility_id=? ORDER BY account_id",
+                    (str(facility_row["facility_id"]),),
+                )],
             }
             limit_observation = projection.limit_as_of(
                 connection, str(facility_row["facility_id"]), as_of
