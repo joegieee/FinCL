@@ -26,6 +26,7 @@ from .categorization import (
     validate_payload,
 )
 from .common import canonical_json, resolve_category
+from .context.trips import CONTEXT_DECISION_KINDS, apply_context
 from .debts import (
     DEBT_DECISION_KINDS,
     apply_debt,
@@ -130,6 +131,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | VARIANCE_DECISION_KINDS
     | REPORTING_CURRENCY_DECISION_KINDS
     | RESERVE_DECISION_KINDS
+    | CONTEXT_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -319,6 +321,9 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "entry_financial_roles",
             "role_rules",
             "inbound_rules",
+            "entry_trips",
+            "trips",
+            "entry_countries",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -493,6 +498,8 @@ def _apply_record(
         apply_financial_role(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq, resolve_anchor=lambda anchor: resolve_anchor(connection, anchor))
     elif record.decision_kind in INBOUND_RULE_DECISION_KINDS:
         apply_inbound_rule(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq)
+    elif record.decision_kind in CONTEXT_DECISION_KINDS:
+        apply_context(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq, resolve_anchor=lambda anchor: resolve_anchor(connection, anchor))
     elif record.decision_kind in DEBT_DECISION_KINDS:
         try:
             validate_debt_payload(

@@ -21,6 +21,7 @@ from fractions import Fraction
 from typing import Any
 
 from .common import canonical_json
+from .context.trips import CONTEXT_DECISION_KINDS
 from .debts.models import DEBT_DECISION_KINDS
 from .errors import FinCLError
 from .financial_roles import FINANCIAL_ROLE_DECISION_KINDS
@@ -62,6 +63,9 @@ BATCH_CHILD_KINDS = frozenset(
         *DEBT_DECISION_KINDS,
         *FINANCIAL_ROLE_DECISION_KINDS,
         *INBOUND_RULE_DECISION_KINDS,
+        # v0.7: assigning a set of transactions to a trip (or setting their
+        # country) together, and retiring a trip with its manual assignments.
+        *CONTEXT_DECISION_KINDS,
     }
 )
 
@@ -333,6 +337,7 @@ def preview_batch(
     """
     from .categorization import CATEGORIZATION_DECISION_KINDS, validate_payload
     from .common import resolve_category
+    from .context.trips import check_context_sequence, validate_context
     from .debts.preview import check_expense_category
     from .debts.validation import validate_debt_payload
     from .decisions import resolve_anchor
@@ -365,6 +370,9 @@ def preview_batch(
                 continue
             if kind in INBOUND_RULE_DECISION_KINDS:
                 validate_inbound_rule(kind, anchors, payload)
+                continue
+            if kind in CONTEXT_DECISION_KINDS:
+                validate_context(kind, anchors, payload)
                 continue
             if kind in DUPLICATE_KINDS:
                 validate_duplicate(kind, anchors, payload)
@@ -402,6 +410,10 @@ def preview_batch(
                     validate_payload(kind, anchors, payload, custom_categories)
         except FinCLError as exc:
             raise FinCLError(f"batch item {index}: {exc}") from exc
+
+    context_items = [(str(i["kind"]), dict(i["anchors"]), dict(i["payload"])) for i in items if i["kind"] in CONTEXT_DECISION_KINDS]
+    if context_items:
+        check_context_sequence(connection, context_items, lambda anchor: resolve_anchor(connection, anchor))
 
     # Conflicting primary designation inside this batch or against prior state.
     confirmed_primaries = {p for p, _ in suppress_pairs}

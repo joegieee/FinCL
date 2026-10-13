@@ -2,7 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Banknote, Building2, CalendarRange, CircleHelp, CreditCard, FileBarChart, GitCompare,
   Gauge, HandCoins, Layers, LayoutDashboard, PiggyBank, Receipt, Repeat, Scale, SlidersHorizontal,
-  Tag, Target, UploadCloud, Wallet, Wrench, ListChecks,
+  Tag, Target, UploadCloud, Wallet, Wrench, ListChecks, MapPinned,
 } from 'lucide-react'
 
 export type TabScope = 'range' | 'month' | 'currency' | 'none'
@@ -44,6 +44,7 @@ export const tabMeta: Record<string, TabMeta> = {
 
   Transactions: { scope: 'range', title: 'Every recorded transaction.', subtitle: 'Filter, search and open any transaction in the selected period.', section: 'Money in & out', icon: Receipt },
   Analysis: { scope: 'range', title: 'Where the money moved.', subtitle: 'Spending and income grouped and compared across the selected period.', section: 'Money in & out', icon: GitCompare },
+  Trips: { scope: 'none', title: 'Where you went, and what it cost.', subtitle: 'Trips by date and country. Transactions join a trip only when their country is known; nothing is guessed from currency.', section: 'Money in & out', icon: MapPinned },
   Income: { scope: 'none', title: 'Money coming in, grouped by payer.', subtitle: 'Recurring inbound payers detected from imported receipts, confirmed against their own history and never auto-classified.', section: 'Money in & out', icon: HandCoins },
   Categorization: { scope: 'none', title: 'Teach it once.', subtitle: 'Clear your backlog in groups, then choose a one-off correction or a reusable rule.', section: 'Money in & out', icon: Tag },
   Categories: { scope: 'none', title: 'What money was for.', subtitle: 'Organize categories without altering any recorded transaction.', section: 'Money in & out', icon: Layers },

@@ -14,7 +14,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 27
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -534,6 +534,39 @@ CREATE TABLE IF NOT EXISTS installment_conversions (
 
 CREATE INDEX IF NOT EXISTS installment_conversions_by_anchor
     ON installment_conversions(entry_anchor);
+"""
+
+# Schema 27 (v0.7): country and trip context. All three tables are projections
+# of journal decisions (ENTRY_COUNTRY_*, TRIP_*, ENTRY_TRIP_*). A null country is
+# an explicit "unknown"; a null trip is an explicit exclusion from every trip.
+# Automatic assignment is derived on read, never stored.
+SCHEMA_27_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS trips (
+    trip_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    start_on TEXT NOT NULL,
+    end_on TEXT NOT NULL,
+    countries_json TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    CHECK (start_on <= end_on)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS entry_countries (
+    entry_id TEXT PRIMARY KEY,
+    country TEXT,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS entry_trips (
+    entry_id TEXT PRIMARY KEY,
+    trip_id TEXT REFERENCES trips(trip_id),
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS entry_trips_by_trip ON entry_trips(trip_id);
 """
 
 
@@ -1147,6 +1180,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_24_TABLES_SQL
         + SCHEMA_25_TABLES_SQL
         + SCHEMA_26_TABLES_SQL
+        + SCHEMA_27_TABLES_SQL
     )
 
 

@@ -602,3 +602,18 @@ main{width:100%;min-width:0}
  .proposal-leg{flex-wrap:wrap}
  .proposal-leg>strong{margin-left:auto}
 }
+
+.trip-list{list-style:none;margin:12px 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.trip-card{width:100%;text-align:left;display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:inherit;cursor:pointer}
+.trip-card.is-active{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.trip-card-title{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.trip-card-totals{display:flex;flex-direction:column;gap:2px;font-variant-numeric:tabular-nums}
+.trip-card small,.trip-rows td small{color:var(--muted);display:block}
+.trip-form .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.trip-form label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
+.trip-rows{margin-top:14px}.trip-rows h3{font-size:13px;margin:0 0 6px}
+.trip-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+.trip-actions input,.trip-actions select{min-width:0;max-width:100%}
+.trip-retire{margin-top:16px}
+.trip-detail,.trip-form{padding-bottom:20px}
+.trip-detail>:not(.panel-title),.trip-form>:not(.panel-title){margin-inline:clamp(16px,3vw,25px)}

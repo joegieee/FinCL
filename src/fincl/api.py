@@ -99,7 +99,14 @@ _SINGLE_KINDS = Literal[
     'SINKING_FUND_ALLOCATION_SET','SINKING_FUND_ALLOCATION_RETIRE',
     # The chosen reserve policy (a month count; never an amount)
     'RESERVE_POLICY_SET',
+    # v0.7 country and trip context
+    'ENTRY_COUNTRY_SET','ENTRY_COUNTRY_RETIRE','TRIP_SET','TRIP_RETIRE',
+    'ENTRY_TRIP_SET','ENTRY_TRIP_RETIRE',
 ]
+
+_CONTEXT_KINDS = frozenset({
+    'ENTRY_COUNTRY_SET','ENTRY_COUNTRY_RETIRE','TRIP_SET','TRIP_RETIRE','ENTRY_TRIP_SET','ENTRY_TRIP_RETIRE',
+})
 
 _DEBT_KINDS = frozenset({
     'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
@@ -171,6 +178,10 @@ class BatchItem(StrictModel):
         # A split bill: new receivables, each person's share, and the owner's
         # own share, recorded together or not at all.
         'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_EVENT_SET','ENTRY_RESIDUAL_SET',
+        # v0.7: several transactions' country/trip together; a trip retired
+        # together with its manual assignments.
+        'ENTRY_COUNTRY_SET','ENTRY_COUNTRY_RETIRE','TRIP_SET','TRIP_RETIRE',
+        'ENTRY_TRIP_SET','ENTRY_TRIP_RETIRE',
     ]
     anchors: dict[str,str]
     payload: dict[str,Any]
@@ -740,6 +751,10 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         elif command.kind in {'INBOUND_RULE_SET','INBOUND_RULE_RETIRE'}:
             from .inbound_rules import validate_inbound_rule
             validate_inbound_rule(command.kind, dict(command.anchors), dict(command.payload))
+        elif command.kind in _CONTEXT_KINDS:
+            from .context import check_context_sequence
+            check_context_sequence(connection, [(command.kind, dict(command.anchors), dict(command.payload))],
+                                   lambda anchor: resolve_anchor(connection, anchor))
         elif command.kind == 'REPORTING_CURRENCY_SET':
             from .reporting_currency import (
                 currency_coverage_preview,
@@ -1875,6 +1890,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     policy = 'installment-v1'
                 elif command.kind == 'REPORTING_CURRENCY_SET':
                     policy = 'reporting-currency-v1'
+                elif command.kind in _CONTEXT_KINDS:
+                    policy = 'trip-context-v1'
             receipt = record_decision(database,request_id=str(command.request_id),intent_hash=intent,decision_kind=kind,anchors=anchors,payload=payload,policy_version=policy,snapshot=f'{kind}: {payload}',writer=writer)
             return JSONResponse({**asdict(receipt),'status':'recorded_refresh_pending' if receipt.refresh_pending else 'applied'},status_code=202 if receipt.refresh_pending else 200)
 
@@ -1989,6 +2006,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     register_planning_routes(app, database)
     from .api_reporting import register_reporting_routes
     register_reporting_routes(app, database)
+    from .api_trips import register_trip_routes
+    register_trip_routes(app, database)
     from .reporting_workspaces import register_workspace_reports
     register_workspace_reports(app, database)
 

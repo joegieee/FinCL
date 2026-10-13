@@ -203,3 +203,18 @@ class WorkspaceAuditTests(WorkspaceValuationTests):
         self.assertEqual(values[("suggested_conversion", "amount")]["reported"]["value"], "12.00")
         recognized = values[("views", "recognized_purchase_cost", "recognized_principal", "value")]
         self.assertEqual((recognized["purpose"], recognized["reported"]["value"]), ("flow", "12.00"))
+
+    def test_trip_totals_value_each_day_at_its_own_month(self) -> None:
+        native = {"trip": {"trip_id": "t", "totals_by_currency": {"USD": {"gross_cost": "20.00", "refunds": "10.00", "net_cost": "10.00"}},
+                           "cost_parts": [{"on": "2026-01-31", "currency": "USD", "kind": "cost", "amount": "10.00"},
+                                          {"on": "2026-02-01", "currency": "USD", "kind": "cost", "amount": "10.00"},
+                                          {"on": "2026-02-02", "currency": "USD", "kind": "refund", "amount": "10.00"}]},
+                  "by_category": [{"currency": "USD", "category_key": "Travel", "cost_amount": "20.00"}],
+                  "contributors": [{"currency": "USD", "category_key": "Travel", "on": "2026-01-31", "cost_amount": "10.00"},
+                                   {"currency": "USD", "category_key": "Travel", "on": "2026-02-01", "cost_amount": "10.00"}]}
+        values = self.annotate(native, "trips/t")
+        totals = ("trip", "totals_by_currency", "USD")
+        self.assertEqual(values[(*totals, "gross_cost")]["reported"]["value"], "26.00")
+        self.assertEqual(values[(*totals, "refunds")]["reported"]["value"], "14.00")
+        self.assertEqual(values[(*totals, "net_cost")]["reported"]["value"], "12.00")
+        self.assertEqual(values[("by_category", 0, "cost_amount")]["reported"]["value"], "26.00")

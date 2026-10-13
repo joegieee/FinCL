@@ -67,7 +67,7 @@ Path = list[str | int]
 
 # Closed inventory of monetary fields. Rates, percentages, counts, dates,
 # predicates and native editor input strings deliberately do not qualify.
-MONEY_FIELDS = frozenset(["amount", "principal", "fee", "rounding_remainder", "waiver", "remaining_principal", "known_principal", "remaining_obligation", "observed_total", "credit_balance_amount", "over_limit_amount", "headroom", "limit", "target", "saved", "remaining", "actual", "expected", "previous_limit", "new_limit", "previous_remaining", "new_remaining", "monthly_amount", "expected_amount", "min_amount", "max_amount", "total_received", "gross_cost", "owner_cost_recorded", "owner_cost_baseline", "identified_recurring", "unresolved_irregular", "adjustments", "routine_variable_residual", "income", "essential", "discretionary", "unresolved", "total", "fixed_recurring_monthly", "variable_residual_monthly", "variable_residual_median", "variable_residual_min", "variable_residual_max", "irregular_allowance_monthly", "routine_lifestyle_baseline", "total_observed_monthly", "net_received_income_monthly", "historical_surplus_monthly", "essential_monthly", "earlier_mean_owner_cost", "recent_mean_owner_cost", "excluded_routine_residual", "bank_withdrawal", "via_card_statement", "monthly_baseline_portion", "remaining_historical_portion", "amount_due", "required_contribution", "allocated_now", "total_cash", "earmarked_funds", "unallocated_cash", "minimum_reserve", "reserve_adjusted_unallocated_cash", "shortfall", "insufficient_allocation", "outstanding", "open_amount", "net_cash_effect", "receipts", "payments", "realized_amount", "cash_effect", "pace_projected_spend", "pace_estimated_headroom", "external_cash_outflows", "internal_earmarks", "additional_spending_capacity", "funding_need", "minimum_conservative_unallocated_reserve_adjusted_balance", "amount_per_week", "before_gap", "after_gap", "cash_improvement", "starting_balance", "reserve_target", "closing_balance", "opening_balance", "inflows", "outflows", "net_cash_change", "reserve_adjusted_closing", "minimum_balance", "opening_liability", "closing_liability", "credit_limit", "minimum_payment", "statement_due", "statement_payment_due", "recognized_principal", "financing_fee", "outstanding_earmark", "released", "amount_remaining", "known_amount", "unclassified_receipts", "unclassified_payments", "principal_amount", "fee_amount", "cost_amount", "absolute_amount", "left_amount", "right_amount", "other_inflow", "pending_inflow", "refunds_received", "reimbursements_received", "unmatched_receipts", "owner_cost_recorded_total", "owner_cost_baseline_total", "unmatched_receipts_total", "recorded_minus_baseline", "cross_month_refund_in", "cross_month_refund_out", "expected_from_allocations", "mean_monthly", "highest_observed_monthly", "source_backed_monthly", "maximum_suggested_monthly_reduction"])
+MONEY_FIELDS = frozenset(["amount", "principal", "fee", "rounding_remainder", "waiver", "remaining_principal", "known_principal", "remaining_obligation", "observed_total", "credit_balance_amount", "over_limit_amount", "headroom", "limit", "target", "saved", "remaining", "actual", "expected", "previous_limit", "new_limit", "previous_remaining", "new_remaining", "monthly_amount", "expected_amount", "min_amount", "max_amount", "total_received", "gross_cost", "owner_cost_recorded", "owner_cost_baseline", "identified_recurring", "unresolved_irregular", "adjustments", "routine_variable_residual", "income", "essential", "discretionary", "unresolved", "total", "fixed_recurring_monthly", "variable_residual_monthly", "variable_residual_median", "variable_residual_min", "variable_residual_max", "irregular_allowance_monthly", "routine_lifestyle_baseline", "total_observed_monthly", "net_received_income_monthly", "historical_surplus_monthly", "essential_monthly", "earlier_mean_owner_cost", "recent_mean_owner_cost", "excluded_routine_residual", "bank_withdrawal", "via_card_statement", "monthly_baseline_portion", "remaining_historical_portion", "amount_due", "required_contribution", "allocated_now", "total_cash", "earmarked_funds", "unallocated_cash", "minimum_reserve", "reserve_adjusted_unallocated_cash", "shortfall", "insufficient_allocation", "outstanding", "open_amount", "net_cash_effect", "receipts", "payments", "realized_amount", "cash_effect", "pace_projected_spend", "pace_estimated_headroom", "external_cash_outflows", "internal_earmarks", "additional_spending_capacity", "funding_need", "minimum_conservative_unallocated_reserve_adjusted_balance", "amount_per_week", "before_gap", "after_gap", "cash_improvement", "starting_balance", "reserve_target", "closing_balance", "opening_balance", "inflows", "outflows", "net_cash_change", "reserve_adjusted_closing", "minimum_balance", "opening_liability", "closing_liability", "credit_limit", "minimum_payment", "statement_due", "statement_payment_due", "recognized_principal", "financing_fee", "outstanding_earmark", "released", "amount_remaining", "known_amount", "unclassified_receipts", "unclassified_payments", "principal_amount", "fee_amount", "cost_amount", "absolute_amount", "left_amount", "right_amount", "other_inflow", "pending_inflow", "refunds_received", "reimbursements_received", "unmatched_receipts", "owner_cost_recorded_total", "owner_cost_baseline_total", "unmatched_receipts_total", "recorded_minus_baseline", "cross_month_refund_in", "cross_month_refund_out", "expected_from_allocations", "mean_monthly", "highest_observed_monthly", "source_backed_monthly", "maximum_suggested_monthly_reduction", "refunds", "net_cost", "refund_amount"])
 
 # Rule thresholds and matching tolerances are editor/rule inputs: they stay native.
 NATIVE_ONLY_FIELDS = frozenset(["threshold", "held_out_threshold", "amount_tolerance", "suggested_tolerance"])
@@ -97,7 +97,7 @@ FUTURE_PARTS = ("schedule", "planned_contributions", "capacity", "commitments", 
 READ_PREFIXES = (
     "debts", "cards", "installments", "obligations", "baseline", "funds",
     "budgets", "goals", "recurring", "spending-controls", "forecast/variance",
-    "planning/sufficiency", "categorization", "relationships", "overview",
+    "planning/sufficiency", "categorization", "relationships", "overview", "trips",
 )
 READ_POSTS = frozenset({"classification/preview", "categorization/impact", "categorization/derive-rule",
                         "rules/preview", "rules/compile", "rules/compile-combined",
@@ -452,6 +452,25 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
                     continue
                 parts = value_sources([plan_id, field], ((format_decimal(int(row[0]), int(row[1])), currency, row[2]) for row in rows))
                 combine([*path, "progress", field, "value"], [(part, Fraction(1)) for part in parts])
+
+    if resource.startswith("trips"):
+        summaries = [(item, path) for _, item, path in each(native.get("trips"), ["trips"])]
+        if isinstance(native.get("trip"), dict):
+            summaries.append((native["trip"], ["trip"]))
+        for summary, path in summaries:
+            parts = summary.get("cost_parts") or []
+            for currency in summary.get("totals_by_currency") or {}:
+                totals: Path = [*path, "totals_by_currency", currency]
+                for field, kind in (("gross_cost", "cost"), ("refunds", "refund")):
+                    combine([*totals, field], [([*path, "cost_parts", index, "amount"], Fraction(1))
+                                             for index, part in enumerate(parts)
+                                             if part.get("currency") == currency and part.get("kind") == kind])
+                combine([*totals, "net_cost"], [([*totals, "gross_cost"], Fraction(1)), ([*totals, "refunds"], Fraction(-1))])
+        contributors = native.get("contributors") or []
+        for index, row in enumerate(native.get("by_category") or []):
+            combine(["by_category", index, "cost_amount"], [
+                (["contributors", j, "cost_amount"], Fraction(1)) for j, member in enumerate(contributors)
+                if member.get("currency") == row.get("currency") and member.get("category_key") == row.get("category_key")])
 
     for _, budget, path in each(native.get("budgets"), ["budgets"]):
         if budget.get("remaining") is not None:

@@ -5938,6 +5938,125 @@
         }
       }
     },
+    "/api/v1/trips": {
+      "get": {
+        "summary": "Trips",
+        "operationId": "trips_api_v1_trips_get",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Trips Api V1 Trips Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/trips/{trip_id}": {
+      "get": {
+        "summary": "Trip",
+        "operationId": "trip_api_v1_trips__trip_id__get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Trip Api V1 Trips  Trip Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/countries": {
+      "get": {
+        "summary": "Countries",
+        "operationId": "countries_api_v1_countries_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Countries Api V1 Countries Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/workspaces/baseline/readiness": {
       "get": {
         "summary": "Reported Workspace Baseline Readiness Read",
@@ -8640,6 +8759,107 @@
         }
       }
     },
+    "/api/v1/reporting/workspaces/trips": {
+      "get": {
+        "summary": "Reported Workspace Trips",
+        "operationId": "reported_workspace_trips_api_v1_reporting_workspaces_trips_get",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportedWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reporting/workspaces/trips/{trip_id}": {
+      "get": {
+        "summary": "Reported Workspace Trip",
+        "operationId": "reported_workspace_trip_api_v1_reporting_workspaces_trips__trip_id__get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportedWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/": {
       "get": {
         "summary": "Index",
@@ -8904,7 +9124,13 @@
               "INBOUND_RULE_RETIRE",
               "PERSONAL_DEBT_OPEN",
               "PERSONAL_DEBT_EVENT_SET",
-              "ENTRY_RESIDUAL_SET"
+              "ENTRY_RESIDUAL_SET",
+              "ENTRY_COUNTRY_SET",
+              "ENTRY_COUNTRY_RETIRE",
+              "TRIP_SET",
+              "TRIP_RETIRE",
+              "ENTRY_TRIP_SET",
+              "ENTRY_TRIP_RETIRE"
             ],
             "title": "Kind"
           },
@@ -10140,7 +10366,13 @@
               "FORECAST_MATCH_RETIRE",
               "SINKING_FUND_ALLOCATION_SET",
               "SINKING_FUND_ALLOCATION_RETIRE",
-              "RESERVE_POLICY_SET"
+              "RESERVE_POLICY_SET",
+              "ENTRY_COUNTRY_SET",
+              "ENTRY_COUNTRY_RETIRE",
+              "TRIP_SET",
+              "TRIP_RETIRE",
+              "ENTRY_TRIP_SET",
+              "ENTRY_TRIP_RETIRE"
             ],
             "title": "Kind"
           },
