@@ -147,6 +147,32 @@ class CardFacilityTests(unittest.TestCase):
                 {"reason": "closing the account"},
             )
 
+    # -- repayment plan ----------------------------------------------------- #
+
+    def test_a_repayment_plan_is_declared_shown_and_removed(self) -> None:
+        from fincl.cards.queries import card_detail
+
+        self._record("CARD_REPAYMENT_PLAN_SET", {"account": self.account_id},
+                     {"rule": "pay_in_full", "reason": "I clear the card each month now"})
+        refresh_ledger(self.database)
+        plan = card_detail(self.database, self.account_id, as_of="2026-08-01")["repayment_plan"]
+        self.assertEqual((plan["rule"], plan["reason"]), ("pay_in_full", "I clear the card each month now"))
+
+        self._record("CARD_REPAYMENT_PLAN_RETIRE", {"account": self.account_id}, {"reason": "Changed my mind"})
+        refresh_ledger(self.database)
+        self.assertIsNone(card_detail(self.database, self.account_id, as_of="2026-08-01")["repayment_plan"])
+        with self.assertRaises(FinCLError):
+            self._record("CARD_REPAYMENT_PLAN_RETIRE", {"account": self.account_id}, {"reason": "again"})
+
+    def test_a_repayment_plan_is_refused_for_a_bad_rule_or_a_non_card_account(self) -> None:
+        for anchors, payload in (
+            ({"account": self.account_id}, {"rule": "minimum_only", "reason": "x"}),
+            ({"account": self.account_id}, {"rule": "pay_in_full"}),
+            ({"account": "not-a-card"}, {"rule": "pay_in_full", "reason": "x"}),
+        ):
+            with self.subTest(anchors=anchors, payload=payload), self.assertRaises(FinCLError):
+                self._record("CARD_REPAYMENT_PLAN_SET", anchors, payload)
+
     # -- utilization view -------------------------------------------------- #
 
     def test_card_detail_reports_dated_limit_basis_and_utilization(self) -> None:

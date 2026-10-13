@@ -26,6 +26,12 @@ CARD_LIMIT_OBSERVATION_SET = "CARD_LIMIT_OBSERVATION_SET"
 CARD_LIMIT_OBSERVATION_RETIRE = "CARD_LIMIT_OBSERVATION_RETIRE"
 CARD_PAYMENT_ALLOCATION_SET = "CARD_PAYMENT_ALLOCATION_SET"
 CARD_PAYMENT_ALLOCATION_RETIRE = "CARD_PAYMENT_ALLOCATION_RETIRE"
+# How the operator says a card is repaid, when the ledger cannot show it (a
+# revolving balance). `pay_in_full` is the only rule: each statement is paid in
+# full by its due date from now on. Anchored to the card account.
+CARD_REPAYMENT_PLAN_SET = "CARD_REPAYMENT_PLAN_SET"
+CARD_REPAYMENT_PLAN_RETIRE = "CARD_REPAYMENT_PLAN_RETIRE"
+REPAYMENT_RULES = ("pay_in_full",)
 
 CARD_DECISION_KINDS = frozenset(
     {
@@ -35,6 +41,8 @@ CARD_DECISION_KINDS = frozenset(
         CARD_LIMIT_OBSERVATION_RETIRE,
         CARD_PAYMENT_ALLOCATION_SET,
         CARD_PAYMENT_ALLOCATION_RETIRE,
+        CARD_REPAYMENT_PLAN_SET,
+        CARD_REPAYMENT_PLAN_RETIRE,
     }
 )
 

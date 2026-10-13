@@ -224,6 +224,34 @@ def statement_cycle_geometry(
 
 
 def repayment_behaviour(
+    observations: list[dict[str, Any]], *, as_of: str, declared: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """What the ledger evidences about repayment, or what the operator declared.
+
+    A declared rule (``CARD_REPAYMENT_PLAN_SET``) is used only because the
+    operator stated it; the evidenced pattern is still reported beside it, so
+    a declared "pays in full" never reads as observed.
+    """
+    evidenced = _evidenced_behaviour(observations, as_of=as_of)
+    if declared is None or declared.get("rule") != "pay_in_full":
+        return evidenced
+    return {
+        "pattern": "declared_pays_in_full",
+        "supports_settlement_schedule": True,
+        "observed_statements": evidenced["observed_statements"],
+        "observations": evidenced["observations"],
+        "evidenced_pattern": evidenced["pattern"],
+        "declared": declared,
+        "unresolved": [],
+        "basis": (
+            "you said each statement is paid in full by its due date from now on; "
+            "the latest statement's balance already carries anything left unpaid "
+            "before it, so only that statement is settled"
+        ),
+    }
+
+
+def _evidenced_behaviour(
     observations: list[dict[str, Any]], *, as_of: str
 ) -> dict[str, Any]:
     """What the ledger evidences about how this card is actually repaid.
@@ -481,7 +509,7 @@ def settlement_plan(
                 "settle_on": str(due_on),
                 "amount": _money(Decimal(str(item["amount"]))),
                 "currency": currency,
-                "basis": "evidenced_statement_due_date",
+                "basis": item.get("settle_basis", "evidenced_statement_due_date"),
             }
         )
 
@@ -1183,6 +1211,25 @@ def _one_card(
         covered=covered,
     )
 
+    declared = card_projection.repayment_plan(connection, account_id)
+    if declared is not None and declared["rule"] == "pay_in_full":
+        # The latest issued statement already carries every earlier unpaid
+        # amount, so settling each older one as well would pay the same money
+        # twice. An overdue balance is paid the day after the as-of date: the
+        # declared rule cannot move cash into the past.
+        latest = next((item for item in reversed(issued) if item["due"] is not None), None)
+        billed = []
+        if latest is not None and Decimal(latest["due"]) - Decimal(latest["paid"]) > 0:
+            due_on = latest["payment_due_date"]
+            overdue = due_on is not None and str(due_on) <= as_of
+            billed = [{
+                "id": f"card_statement:{latest['statement_id']}:{pocket}",
+                "statement_id": latest["statement_id"],
+                "amount": _money(Decimal(latest["due"]) - Decimal(latest["paid"])),
+                "due_on": (_day(as_of) + timedelta(days=1)).isoformat() if overdue else due_on,
+                "settle_basis": "declared_plan_overdue_paid_next_day" if overdue else "declared_plan_statement_due_date",
+            }]
+
     start = _day(as_of)
     horizon_end = _add_months(start, horizon_months, start.day).isoformat()
     project_until = max(
@@ -1190,7 +1237,7 @@ def _one_card(
     )
     geometry = statement_cycle_geometry(issued, as_of=as_of, project_until=project_until)
     behaviour = repayment_behaviour(
-        [item for item in issued if item["due"] is not None], as_of=as_of
+        [item for item in issued if item["due"] is not None], as_of=as_of, declared=declared
     )
     partitions = partition_card_liability(
         billed=billed,

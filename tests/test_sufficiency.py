@@ -524,6 +524,7 @@ class CombinedAnswerTests(unittest.TestCase):
             {"output": "obligation_timing", "origin": "personal_debt", "label": "Loan from Alex"},
             {"output": "obligation_timing", "origin": "installment_plan", "label": "Phone"},
             {"output": "reserve", "currency": "SGD"},
+            {"output": "card_settlement", "detail": "card c SGD has no reconciled exactly-once settlement plan"},
         ]
         answer = self._answer(
             _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, items),
@@ -540,3 +541,17 @@ class CombinedAnswerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CardPlanTodoTests(unittest.TestCase):
+    def _keys(self, detail: str) -> list[str]:
+        timeline = _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))},
+                             [{"output": "card_settlement", "detail": detail}])
+        answer = combined_answer(timeline, rates={"SGD": Fraction(1)}, reporting_currency="SGD", scale=2)
+        return [todo["key"] for todo in answer["todos"]]
+
+    def test_an_unknown_repayment_asks_how_the_card_is_paid(self) -> None:
+        self.assertIn("card-plan", self._keys("at least one evidenced statement was not settled in full, so the balance revolves"))
+
+    def test_a_declared_plan_leaves_only_the_missing_statement(self) -> None:
+        self.assertNotIn("card-plan", self._keys("card c SGD has no reconciled exactly-once settlement plan"))

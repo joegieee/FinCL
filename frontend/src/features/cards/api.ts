@@ -129,6 +129,8 @@ export type CardDetail = {
     source_ref: string | null
     source_kind: string
   } | null
+  /** How you said this card is repaid; null when nothing is declared. */
+  repayment_plan?: { rule: 'pay_in_full'; reason: string; journal_seq: number } | null
   utilization: Utilization
   latest_statement: LatestStatement | null
   statement_activity: StatementView[]

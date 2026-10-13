@@ -110,3 +110,33 @@ export function RetireForm({ detail, target, generation, onSaved, onCancel }: {
     <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
   </div>
 }
+
+/**
+ * How this card is repaid, when its statements can't show it. Only one rule
+ * exists: each statement paid in full by its due date. With it, the forecast
+ * settles the latest statement's balance on its due date (which already
+ * carries anything left unpaid before it).
+ */
+export function RepaymentPlanForm({ detail, generation, onSaved, onCancel }: {
+  detail: CardDetail; generation: string; onSaved: Saved; onCancel: () => void
+}) {
+  const current = detail.repayment_plan
+  const [reason, setReason] = useState('')
+  const account = detail.account.account_id
+  const draft: Draft = current
+    ? { kind: 'CARD_REPAYMENT_PLAN_RETIRE', anchors: { account }, payload: { reason: reason.trim() } }
+    : { kind: 'CARD_REPAYMENT_PLAN_SET', anchors: { account }, payload: { rule: 'pay_in_full', reason: reason.trim() } }
+  return <div className="card-form">
+    <h3>{current ? 'Stop using this repayment plan' : 'I pay each statement in full by its due date'}</h3>
+    <p className="muted-note">{current
+      ? 'The forecast will go back to leaving this card’s repayments out until they can be read from your statements.'
+      : 'From now on, the forecast pays this card’s latest statement balance on its due date (or tomorrow, if that date has passed). What your statements show is still listed separately.'}</p>
+    <div className="form-grid"><label>Reason<input value={reason} placeholder={current ? 'Why stop' : 'e.g. I clear it every month'} onChange={e => setReason(e.target.value)}/></label></div>
+    <Confirm draft={draft} ready={Boolean(reason.trim())} generation={generation} onSaved={onSaved}
+      label={current ? 'Remove plan' : 'Save plan'}
+      summary={current
+        ? `Removes the “pay in full” plan for ${detail.account.display_name}.`
+        : `Records that ${detail.account.display_name} is paid in full by each due date. Nothing about your statements changes.`}/>
+    <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+  </div>
+}

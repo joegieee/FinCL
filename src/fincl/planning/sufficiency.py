@@ -455,12 +455,17 @@ def _todos(
                 "detail": f"Card spending between {window.group(1)} and {window.group(2)} is unknown, "
                           "so it is not counted.",
             })
-    if any(i.get("output") == "card_settlement" and "covering" not in str(i.get("detail", "")) for i in items):
+    # Only when how the card is repaid is the unknown: a missing statement is
+    # its own to-do above, and the generic "no settlement plan" line is just
+    # the consequence of one of the two.
+    repayment_unknown = ("revolves", "no repayment schedule is assumed")
+    if any(i.get("output") == "card_settlement" and any(m in str(i.get("detail", "")) for m in repayment_unknown)
+           for i in items):
         todos.append({
             "key": "card-plan", "page": _FIX_PAGE["cards"],
             "title": "Say how your credit card is being paid off",
-            "detail": "A balance is being carried over, so when and how much you pay can't be read "
-                      "from the statements. Until it is set, card repayments are not counted.",
+            "detail": "Your card repayments aren't matched to its statements, so when and how much you "
+                      "pay can't be read from them. Until you say, card repayments are not counted.",
         })
 
     undated = [i for i in items if i.get("output") == "obligation_timing"]

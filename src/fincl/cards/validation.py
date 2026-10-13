@@ -21,6 +21,9 @@ from .models import (
     CARD_LIMIT_OBSERVATION_SET,
     CARD_PAYMENT_ALLOCATION_RETIRE,
     CARD_PAYMENT_ALLOCATION_SET,
+    CARD_REPAYMENT_PLAN_RETIRE,
+    CARD_REPAYMENT_PLAN_SET,
+    REPAYMENT_RULES,
 )
 
 _UUID_RE = re.compile(
@@ -181,6 +184,19 @@ def _validate_payment_allocation_retire(
     _reason(payload)
 
 
+def _validate_repayment_plan(kind: str, anchors: dict[str, str], payload: dict[str, Any]) -> None:
+    if set(anchors) != {"account"} or not isinstance(anchors["account"], str) or not anchors["account"]:
+        raise FinCLError(f"{kind} is anchored to one card account")
+    if kind == CARD_REPAYMENT_PLAN_SET:
+        if set(payload) != {"rule", "reason"}:
+            raise FinCLError("CARD_REPAYMENT_PLAN_SET payload is exactly {rule, reason}")
+        if payload["rule"] not in REPAYMENT_RULES:
+            raise FinCLError(f"the repayment rule is one of {', '.join(REPAYMENT_RULES)}")
+    elif set(payload) != {"reason"}:
+        raise FinCLError("CARD_REPAYMENT_PLAN_RETIRE payload is exactly {reason}")
+    _reason(payload)
+
+
 def validate_card_payload(
     kind: str, anchors: dict[str, str], payload: dict[str, Any]
 ) -> None:
@@ -196,5 +212,7 @@ def validate_card_payload(
         _validate_payment_allocation(anchors, payload)
     elif kind == CARD_PAYMENT_ALLOCATION_RETIRE:
         _validate_payment_allocation_retire(anchors, payload)
+    elif kind in (CARD_REPAYMENT_PLAN_SET, CARD_REPAYMENT_PLAN_RETIRE):
+        _validate_repayment_plan(kind, anchors, payload)
     else:  # pragma: no cover - guarded by the dispatcher
         raise FinCLError(f"{kind} is not a credit-card decision")

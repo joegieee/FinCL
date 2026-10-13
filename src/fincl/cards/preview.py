@@ -22,6 +22,8 @@ from .models import (
     CARD_LIMIT_OBSERVATION_SET,
     CARD_PAYMENT_ALLOCATION_RETIRE,
     CARD_PAYMENT_ALLOCATION_SET,
+    CARD_REPAYMENT_PLAN_RETIRE,
+    CARD_REPAYMENT_PLAN_SET,
 )
 from .projection import _is_card_account, apply_card, resolve_cards
 from .validation import validate_card_payload
@@ -38,6 +40,13 @@ def preview_card(
     resolve_anchor: Any,
 ) -> None:
     validate_card_payload(decision_kind, anchors, payload)
+
+    if decision_kind == CARD_REPAYMENT_PLAN_SET and not _is_card_account(connection, anchors["account"]):
+        raise FinCLError("a repayment plan belongs to a credit-card account")
+    if decision_kind == CARD_REPAYMENT_PLAN_RETIRE and not connection.execute(
+        "SELECT 1 FROM card_repayment_plans WHERE account_id = ?", (anchors["account"],)
+    ).fetchone():
+        raise FinCLError("this card has no repayment plan to remove")
 
     facility_exists = bool(
         "facility" in anchors

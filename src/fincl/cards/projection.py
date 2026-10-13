@@ -25,6 +25,8 @@ from .models import (
     CARD_LIMIT_OBSERVATION_SET,
     CARD_PAYMENT_ALLOCATION_RETIRE,
     CARD_PAYMENT_ALLOCATION_SET,
+    CARD_REPAYMENT_PLAN_RETIRE,
+    CARD_REPAYMENT_PLAN_SET,
     CARD_SOURCE_TYPES,
     DATE_ROLES,
     ROLE_CLOSING_LIABILITY,
@@ -550,6 +552,17 @@ def apply_card(
         )
         return
 
+    if decision_kind == CARD_REPAYMENT_PLAN_SET:
+        connection.execute(
+            "INSERT OR REPLACE INTO card_repayment_plans(account_id, rule, reason, journal_seq) VALUES (?, ?, ?, ?)",
+            (anchors["account"], payload["rule"], payload["reason"], journal_seq),
+        )
+        return
+
+    if decision_kind == CARD_REPAYMENT_PLAN_RETIRE:
+        connection.execute("DELETE FROM card_repayment_plans WHERE account_id = ?", (anchors["account"],))
+        return
+
     if decision_kind == CARD_LIMIT_OBSERVATION_RETIRE:
         connection.execute(
             "DELETE FROM card_limit_observations WHERE facility_id = ? AND observation_id = ?",
@@ -811,3 +824,13 @@ __all__ = [
     "ROLE_PERIOD_START",
     "ROLE_PERIOD_END",
 ]
+
+
+def repayment_plan(connection: sqlite3.Connection, account_id: str) -> dict[str, Any] | None:
+    """The operator's declared repayment rule for a card, if any."""
+    row = connection.execute(
+        "SELECT rule, reason, journal_seq FROM card_repayment_plans WHERE account_id = ?", (account_id,)
+    ).fetchone()
+    if row is None:
+        return None
+    return {"rule": str(row["rule"]), "reason": str(row["reason"]), "journal_seq": int(row["journal_seq"])}

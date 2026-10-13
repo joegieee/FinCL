@@ -301,6 +301,8 @@ def card_detail(
             "facility": facility,
             "limit_basis": limit_basis,
             "limit_observation": limit_observation,
+            # How you said this card is repaid; None when nothing is declared.
+            "repayment_plan": projection.repayment_plan(connection, account_id),
             "utilization": util,
             "latest_statement": summary,
             "statement_activity": views,

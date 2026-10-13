@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
 import { SourceComparison } from './SourceComparison'
-import { FacilityForm, LimitForm, RetireForm } from './FacilityForms'
+import { FacilityForm, LimitForm, RepaymentPlanForm, RetireForm } from './FacilityForms'
 import {
   type CardAccount,
   RECONCILIATION_LABEL,
@@ -101,6 +101,28 @@ function LimitAndFacility({ detail, cards, generation, onSaved }: {
   )
 }
 
+function RepaymentPlan({ detail, generation, onSaved }: {
+  detail: CardDetail; generation: string; onSaved: (status: string) => void | Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const plan = detail.repayment_plan
+  return (
+    <section className="card-limit-section">
+      <h3>How you pay this card</h3>
+      <p className="muted-note">
+        {plan
+          ? `You said each statement is paid in full by its due date (“${plan.reason}”). The forecast uses this.`
+          : 'Not set. If your repayments can’t be matched to statements, the forecast leaves this card’s repayments out.'}
+      </p>
+      {!editing && <div className="row-actions">
+        <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{plan ? 'Remove plan' : 'I pay it in full each month'}</Button>
+      </div>}
+      {editing && <RepaymentPlanForm detail={detail} generation={generation}
+        onSaved={async status => { setEditing(false); await onSaved(status) }} onCancel={() => setEditing(false)} />}
+    </section>
+  )
+}
+
 function CardDetailView({
   detail, cards, generation, onSaved, onBack,
 }: { detail: CardDetail; cards: CardAccount[]; generation: string; onSaved: (status: string) => void | Promise<void>; onBack: () => void }) {
@@ -129,6 +151,7 @@ function CardDetailView({
       </div>
       <Utilization detail={detail} />
       <LimitAndFacility detail={detail} cards={cards} generation={generation} onSaved={onSaved} />
+      <RepaymentPlan detail={detail} generation={generation} onSaved={onSaved} />
       {detail.coverage_gaps.map((g) => (
         <p key={g.from} className="debt-event-error">
           Missing statement period {g.from} … {g.to}

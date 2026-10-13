@@ -68,7 +68,7 @@ def _minor(amount: str) -> int:
     return int(Decimal(amount).scaleb(2))
 
 
-def _build_ledger(root: Path) -> Path:
+def _build_ledger(root: Path, statements: tuple[tuple[str, ...], ...] = _STATEMENTS) -> Path:
     """A card with three statements, unbilled postings and a projected generation.
 
     Built directly against the schema rather than through a PDF import: the
@@ -84,7 +84,7 @@ def _build_ledger(root: Path) -> Path:
             "INSERT INTO accounts(id, institution, source_type, display_name, "
             "masked_identifier) VALUES ('card-1','Mari','MARI_CARD','Mari Card','**1234')"
         )
-        for blob in [item[0] for item in _STATEMENTS] + ["csv"]:
+        for blob in [item[0] for item in statements] + ["csv"]:
             connection.execute(
                 "INSERT INTO source_content(sha256, byte_size, media_type, evidence_key, "
                 "storage_kind, original_path, last_observed_path, first_seen_at, "
@@ -93,7 +93,7 @@ def _build_ledger(root: Path) -> Path:
                 "'VERIFIED')",
                 (_evidence(blob), f"key-{blob}", f"{blob}.pdf", f"{blob}.pdf"),
             )
-        for index, item in enumerate(_STATEMENTS):
+        for index, item in enumerate(statements):
             statement_id, start, end, statement_date, due_date, due, paid = item
             run = f"run-{index}"
             connection.execute(
@@ -490,3 +490,62 @@ class UnresolvedSettlementTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeclaredRepaymentPlanTests(unittest.TestCase):
+    """A revolving card is scheduled only once its owner says how it is repaid.
+
+    stmt-b was part-paid (100 of 400), so the balance revolves; stmt-c's 600
+    already carries what stmt-b left unpaid. Settling both would pay the same
+    300 twice.
+    """
+
+    _REVOLVING = (
+        ("stmt-a", "2026-03-29", "2026-04-28", "2026-04-28", "2026-05-13", "500.00", "500.00"),
+        ("stmt-b", "2026-04-29", "2026-05-28", "2026-05-28", "2026-06-13", "400.00", "100.00"),
+        ("stmt-c", "2026-05-29", "2026-06-28", "2026-06-28", "2026-07-13", "600.00", "0.00"),
+    )
+
+    def setUp(self) -> None:
+        self.database = _build_ledger(Path(tempfile.mkdtemp()), self._REVOLVING)
+
+    def _card(self, as_of: str = AS_OF) -> dict:
+        return card_cash_conversion(self.database, as_of=as_of)["cards"][0]
+
+    def _declare(self) -> None:
+        connection = connect_sqlite(self.database)
+        try:
+            connection.execute(
+                "INSERT INTO card_repayment_plans(account_id, rule, reason, journal_seq) "
+                "VALUES ('card-1', 'pay_in_full', 'I clear it each month now', 1)"
+            )
+            connection.commit()
+        finally:
+            connection.close()
+
+    def test_without_a_plan_a_revolving_card_has_no_schedule(self) -> None:
+        card = self._card()
+        self.assertEqual(card["repayment_behaviour"]["pattern"], "partial_or_revolving")
+        self.assertFalse(card["plan"]["available"])
+
+    def test_a_declared_plan_settles_the_latest_statement_once(self) -> None:
+        self._declare()
+        card = self._card()
+        behaviour = card["repayment_behaviour"]
+        self.assertEqual(behaviour["pattern"], "declared_pays_in_full")
+        # What the ledger shows is still reported beside what was declared.
+        self.assertEqual(behaviour["evidenced_pattern"], "partial_or_revolving")
+        billed = [row for row in card["plan"]["settlements"] if row["partition"] == PARTITION_UNPAID_BILLED]
+        self.assertEqual([(row["amount"], row["settle_on"], row["basis"]) for row in billed],
+                         [("600.00", "2026-07-13", "declared_plan_statement_due_date")])
+        self.assertTrue(card["plan"]["available"], card["plan"]["unresolved"])
+        self.assertTrue(card["reconciliation"]["reconciled"], card["reconciliation"])
+        self.assertEqual(card["reconciliation"]["duplicated_source_ids"], [])
+
+    def test_an_overdue_balance_is_paid_the_next_day_never_in_the_past(self) -> None:
+        self._declare()
+        billed = next(item for item in self._card("2026-07-20")["partitions"]["partitions"]
+                      if item["partition"] == PARTITION_UNPAID_BILLED)
+        [item] = billed["items"]
+        self.assertEqual((item["amount"], item["due_on"], item["settle_basis"]),
+                         ("600.00", "2026-07-21", "declared_plan_overdue_paid_next_day"))
