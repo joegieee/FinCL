@@ -63,7 +63,7 @@ test('monthly routine: import, review what it created, and read the answer', asy
   await expect(page.getByRole('heading', { name: 'What needs a decision.' })).toBeVisible()
 
   await openTab(page, 'Will I have enough')
-  await expect(page.getByText('WILL I HAVE ENOUGH? · SGD')).toBeVisible()
+  await expect(page.getByText('WILL I HAVE ENOUGH?', { exact: true })).toBeVisible()
   await expect(page.getByText('Not enough evidence to say')).toHaveCount(0)
 })
 
@@ -97,5 +97,5 @@ test('commitments: a recorded debt reaches everything owed and the answer', asyn
 
   // Whatever the verdict, the answer names this debt among what it counted.
   await openTab(page, 'Will I have enough')
-  await expect(page.getByText(/Jordan \(e2e loan\) \(2026-12-15\)/).first()).toBeVisible()
+  await expect(page.getByText(/Jordan \(e2e loan\) · 15 Dec 2026/).first()).toBeVisible()
 })

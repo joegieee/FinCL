@@ -1,14 +1,13 @@
-import { WorkspaceReportingDetails, reportedMoney } from '@/lib/workspaceReporting'
+import { WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { AsyncView } from '@/components/AsyncView'
 import { money } from '@/lib/api'
 import { readerLimitations } from '@/lib/limitations'
 import { ReservePolicyForm } from './ReservePolicyForm'
-import { loadSufficiency, type SufficiencyCase, type SufficiencyCurrency, type SufficiencyDriver, type SufficiencyPage } from './api'
+import { loadSufficiency, type CombinedAnswer, type SufficiencyCase, type SufficiencyDestination, type SufficiencyPage } from './api'
 
 const TONE: Record<SufficiencyCase['verdict'], string> = {
   enough: 'is-enough',
@@ -24,26 +23,48 @@ function VerdictIcon({ verdict }: { verdict: SufficiencyCase['verdict'] }) {
   return <ShieldCheck size={22} />
 }
 
+const DAY = 86_400_000
+function dayOf(iso: string) { return Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) }
+
+/** "16 Sep 2026 (in 3 days)" — the date itself, then how far it is from today. */
+export function when(iso: string | null | undefined, today: string): string {
+  if (!iso) return 'an unknown date'
+  const label = new Date(dayOf(iso)).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+  const days = Math.round((dayOf(iso) - dayOf(today)) / DAY)
+  if (days === 0) return `${label} (today)`
+  const size = Math.abs(days)
+  const span = size < 14 ? `${size} day${size === 1 ? '' : 's'}` : size < 60 ? `${Math.round(size / 7)} weeks` : `${Math.round(size / 30)} months`
+  return `${label} (${days > 0 ? `in ${span}` : `${span} ago`})`
+}
+
+/** ISO dates inside a sentence, written the way the rest of the page writes them. */
+function plainDates(text: string): string {
+  return text.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, iso =>
+    new Date(dayOf(iso)).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }))
+}
+
 /**
- * The plain answer: will there be enough money, and if not, how short.
+ * Will I have enough money? One answer, across every pocket.
  *
- * Every figure here is copied from the forecast that produced it, so this view
- * can never disagree with the Forecast tab. What it adds is the answer itself —
- * a verdict, a date, an amount and the obligations behind it — which previously
- * had to be assembled by reading a monthly table.
+ * The money in each currency is one pool for one purpose, so the page asks the
+ * question once, in the reporting currency, using the same calendar-day sum
+ * the Forecast tab uses. There are no per-currency verdicts and no transfer
+ * suggestions.
  *
  * Guardrails this view must keep:
- * - Running out of cash and dipping into the reserve stay separate verdicts with
- *   separate amounts. Merging them would call spending a buffer a failure.
- * - The headline is the base case, with the conservative case stated beside it.
- *   "Enough unless spending runs high" is its own finding and must stay visible.
- * - A currency whose forecast could not be built shows its reasons and no
- *   verdict. It must never render as a yes.
+ * - Running out of cash and dipping into the reserve stay separate answers.
+ * - The cautious case is stated beside the main one, never merged into it.
+ * - A pocket that could not be counted is named beside the answer; a missing
+ *   answer never renders as a yes.
+ * - Every to-do points at the page that fixes it.
  */
 export function SufficiencyView({
-  generation, onSaved, onOpenObligations, onOpenCash,
+  generation, onSaved, onOpen, onOpenObligations, onOpenCash,
 }: {
-  generation: string; onSaved?: (status: string) => void | Promise<void>; onOpenObligations?: () => void
+  generation: string; onSaved?: (status: string) => void | Promise<void>
+  /** Where each "make this answer better" item is fixed. */
+  onOpen?: (destination: SufficiencyDestination) => void
+  onOpenObligations?: () => void
   /** Where a missing answer is fixed: the Cash page names, per pocket, the
    * account and date holding the shared cutoff back. */
   onOpenCash?: () => void
@@ -64,149 +85,203 @@ export function SufficiencyView({
       loadingLabel="Working out whether there is enough"
       errorTitle="We couldn’t work out whether there is enough."
     >
-      {page => (
-        <div className="sufficiency-view"><WorkspaceReportingDetails data={page}/>
-          <div className="scope-caption">
-            <span>Projected from the supported cash cutoff, on the same evidence as the Forecast tab.</span>
-            <Button variant="ghost" size="sm" onClick={load}><RefreshCw size={14} /> Refresh</Button>
-          </div>
-
-          {Object.values(page.by_currency).length === 0 && (
-            <Card className="controls-card">
-              <div className="panel-title"><div><p className="eyebrow">NO ANSWER YET</p><h2>No currency has a usable forecast</h2></div></div>
-              <ul className="issue-list">
-                {readerLimitations(page.limitations).map((reason, i) => <li key={i}><p>{reason}</p></li>)}
-              </ul>
-              {onOpenCash && <Button variant="outline" size="sm" onClick={onOpenCash}>See which account is holding this back</Button>}
-            </Card>
-          )}
-
-          {Object.values(page.by_currency).map(cell => (
-            <CurrencyAnswer key={cell.currency} cell={cell} onOpenObligations={onOpenObligations} onOpenCash={onOpenCash} />
-          ))}
-
-          <Card className="controls-card">
-            <div className="panel-title">
-              <div>
-                <p className="eyebrow">RESERVE POLICY</p>
-                <h2>{page.reserve_policy.months} months of essential spending held back</h2>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setEditingPolicy(true)}>
-                {page.reserve_policy.is_default ? 'Choose a policy' : 'Change policy'}
-              </Button>
+      {page => {
+        const combined = page.combined_answer
+        const counted = combined && combined.pockets.some(p => p.counted !== 'not_counted')
+        return (
+          <div className="sufficiency-view"><WorkspaceReportingDetails data={page}/>
+            <div className="scope-caption">
+              <span>An estimate from your imported statements, on the same evidence as the Forecast tab.</span>
+              <Button variant="ghost" size="sm" onClick={load}><RefreshCw size={14} /> Refresh</Button>
             </div>
-            <p className="muted-note">
-              {page.reserve_policy.is_default
-                ? page.reserve_policy.reason
-                : `Chosen on ${page.reserve_policy.decided_at?.slice(0, 10)}.`}
-              {' '}{page.reserve_policy.basis}.
-            </p>
-          </Card>
 
-          {editingPolicy && (
-            <ReservePolicyForm
-              months={page.reserve_policy.months}
-              generation={generation}
-              onCancel={() => setEditingPolicy(false)}
-              onSaved={async status => {
-                setEditingPolicy(false)
-                load()
-                await onSaved?.(status)
-              }}
-            />
-          )}
-        </div>
-      )}
+            {!counted && (
+              <Card className="controls-card">
+                <div className="panel-title"><div><p className="eyebrow">NO ANSWER YET</p><h2>There isn’t enough to go on yet</h2></div></div>
+                <ul className="issue-list">
+                  {readerLimitations(page.limitations).map((reason, i) => <li key={i}><p>{reason}</p></li>)}
+                </ul>
+                {onOpenCash && <Button variant="outline" size="sm" onClick={onOpenCash}>See which account is holding this back</Button>}
+              </Card>
+            )}
+
+            {counted && <Answer combined={combined} today={page.generated_for} />}
+            {counted && combined.todos.length > 0 && <Todos combined={combined} onOpen={onOpen} />}
+            {counted && <Assumptions combined={combined} today={page.generated_for} onOpenObligations={onOpenObligations} />}
+
+            <Card className="controls-card">
+              <div className="panel-title">
+                <div>
+                  <p className="eyebrow">SAFETY RESERVE</p>
+                  <h2>Keep {page.reserve_policy.months} months of essential spending untouched</h2>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setEditingPolicy(true)}>
+                  {page.reserve_policy.is_default ? 'Choose a policy' : 'Change policy'}
+                </Button>
+              </div>
+              <p className="muted-note">
+                {page.reserve_policy.is_default
+                  ? `You haven’t chosen this yet, so ${page.reserve_policy.months} months is used.`
+                  : `You chose this on ${when(page.reserve_policy.decided_at?.slice(0, 10), page.generated_for)}.`}
+                {' '}You choose the number of months; the monthly amount always comes from your own essential spending.
+              </p>
+            </Card>
+
+            {editingPolicy && (
+              <ReservePolicyForm
+                months={page.reserve_policy.months}
+                generation={generation}
+                onCancel={() => setEditingPolicy(false)}
+                onSaved={async status => {
+                  setEditingPolicy(false)
+                  load()
+                  await onSaved?.(status)
+                }}
+              />
+            )}
+          </div>
+        )
+      }}
     </AsyncView>
   )
 }
 
-function DriverList({ drivers, currency }: { drivers: SufficiencyDriver[]; currency: string }) {
-  return (
-    <ul className="driver-list">
-      {drivers.map(driver => (
-        <li key={driver.origin}>
-          <div className="driver-head">
-            <strong>{driver.label}</strong>
-            <span>{reportedMoney(driver, 'amount', currency)}</span>
-          </div>
-          {driver.items.length > 0 && (
-            <p className="muted-note">
-              {driver.items.map(item => `${item.label} (${item.on})`).join(' · ')}
-              {driver.item_count > driver.items.length && ` · and ${driver.item_count - driver.items.length} more`}
-            </p>
-          )}
-        </li>
-      ))}
-    </ul>
-  )
-}
-
-function CurrencyAnswer({ cell, onOpenObligations, onOpenCash }: { cell: SufficiencyCurrency; onOpenObligations?: () => void; onOpenCash?: () => void }) {
-  const base = cell.base
+function Answer({ combined, today }: { combined: CombinedAnswer; today: string }) {
+  const c = combined.reporting_currency
+  const base = combined.base
+  const cautious = combined.cautious
+  const missing = combined.pockets.filter(p => p.counted === 'not_counted')
   return (
     <Card className={`sufficiency-card ${TONE[base.verdict]}`}>
       <div className="panel-title">
         <div>
-          <p className="eyebrow">WILL I HAVE ENOUGH? · {cell.currency}</p>
-          <h2 className="sufficiency-answer"><VerdictIcon verdict={base.verdict} /> {cell.answer}</h2>
+          <p className="eyebrow">WILL I HAVE ENOUGH?</p>
+          <h2 className="sufficiency-answer"><VerdictIcon verdict={base.verdict} /> {combined.answer}</h2>
         </div>
-        {base.shortfall && (
-          <Badge variant="outline" className="review-badge">
-            short {reportedMoney(base, 'shortfall', cell.currency)}
-          </Badge>
-        )}
       </div>
 
       <p className="sufficiency-headline">
-        {base.headline}
-        {base.shortfall && base.shortfall_on && (
-          <> The worst point is {reportedMoney(base, 'shortfall', cell.currency)} on {base.shortfall_on}.</>
-        )}
+        {base.verdict === 'enough' && <>Your money lasts until {when(combined.ends_on, today)}, all accounts and currencies together.</>}
+        {base.verdict === 'short' && <>You run out around {when(base.first_short_on, today)}. At the worst point, around {when(base.shortfall_on, today)}, you’d be {money(base.shortfall, c)} short.</>}
+        {base.verdict === 'below_reserve' && <>You don’t run out, but you dip into your safety reserve around {when(base.first_short_on, today)}, by up to {money(base.shortfall, c)}.</>}
       </p>
 
-      {base.verdict === 'unavailable' && base.reasons.length > 0 && (
-        <ul className="issue-list">
-          {base.reasons.map((reason, i) => <li key={i}><p>{reason}</p></li>)}
-        </ul>
-      )}
-      {base.verdict === 'unavailable' && onOpenCash && (
-        <Button variant="outline" size="sm" onClick={onOpenCash}>See which account is holding this back</Button>
-      )}
+      <dl className="sufficiency-figures">
+        <div><dt>Starting with</dt><dd>{money(combined.starting_total, c)}<small>{when(combined.starts_on, today)}</small></dd></div>
+        <div><dt>Lowest point</dt><dd>{money(base.lowest, c)}<small>{when(base.lowest_on, today)}</small></dd></div>
+        <div><dt>Left at the end</dt><dd>{money(base.closing, c)}<small>{when(combined.ends_on, today)}</small></dd></div>
+      </dl>
 
-      {base.drivers.length > 0 && (
-        <>
-          <p className="eyebrow">WHAT DRIVES IT</p>
-          <DriverList drivers={base.drivers} currency={cell.currency} />
-        </>
-      )}
-
-      {base.verdict !== 'unavailable' && (base.accounted_for?.length ?? 0) > 0 && (
-        <>
-          <p className="eyebrow">EVERYTHING THIS ANSWER COUNTS</p>
-          <DriverList drivers={base.accounted_for} currency={cell.currency} />
-          {onOpenObligations && (
-            <Button variant="link" size="sm" onClick={onOpenObligations}>See everything owed</Button>
-          )}
-        </>
+      {missing.length > 0 && (
+        <p className="sufficiency-missing" role="note">
+          Not counted: {missing.map(p => `${p.starting_balance == null ? p.currency : money(p.starting_balance, p.currency)} (${p.why})`).join('; ')}.
+        </p>
       )}
 
       <div className="sufficiency-cases">
         <p className="muted-note">
-          <strong>If spending runs at its observed high:</strong> {cell.conservative.headline}
-          {cell.conservative.shortfall && ` Short ${reportedMoney(cell.conservative, 'shortfall', cell.currency)}.`}
+          <strong>Cautious case</strong> (likely income doesn’t arrive and spending runs at its highest month):{' '}
+          {cautious.verdict === 'enough' && 'you still have enough.'}
+          {cautious.verdict === 'short' && <>you’d run out around {when(cautious.first_short_on, today)}, up to {money(cautious.shortfall, c)} short.</>}
+          {cautious.verdict === 'below_reserve' && <>you’d dip into your reserve by up to {money(cautious.shortfall, c)}.</>}
+          {cautious.verdict === 'unavailable' && 'not enough evidence to say.'}
         </p>
-        {cell.only_safe_in_the_base_case && (
-          <p className="muted-note">
-            This position holds only while spending stays near its average. It does not
-            survive a month like the dearest one already observed.
-          </p>
+        {combined.only_safe_in_the_base_case && (
+          <p className="muted-note">So the answer depends on that income arriving and spending staying near its usual level.</p>
         )}
-        <p className="muted-note">
-          Opening {reportedMoney(cell, 'starting_balance', cell.currency)} as of {cell.starting_balance_as_of}
-          {cell.horizon_end && `, projected through ${cell.horizon_end}`}. Estimate only.
-        </p>
       </div>
+    </Card>
+  )
+}
+
+function Todos({ combined, onOpen }: { combined: CombinedAnswer; onOpen?: (destination: SufficiencyDestination) => void }) {
+  return (
+    <Card className="controls-card">
+      <div className="panel-title"><div><p className="eyebrow">MAKE THIS ANSWER BETTER</p><h2>{combined.todos.length} thing{combined.todos.length === 1 ? '' : 's'} to fix, most useful first</h2></div></div>
+      <ol className="todo-list">
+        {combined.todos.map(todo => (
+          <li key={todo.key}>
+            <div>
+              <strong>{todo.title}</strong>
+              <p className="muted-note">{plainDates(todo.detail)}</p>
+            </div>
+            {onOpen && (
+              <Button variant="outline" size="sm" onClick={() => onOpen(todo.page)} aria-label={`${todo.title}: open ${todo.page}`}>
+                Open {todo.page} <ArrowRight size={14} />
+              </Button>
+            )}
+          </li>
+        ))}
+      </ol>
+    </Card>
+  )
+}
+
+function Assumptions({ combined, today, onOpenObligations }: { combined: CombinedAnswer; today: string; onOpenObligations?: () => void }) {
+  const c = combined.reporting_currency
+  const monthly = combined.where_it_goes.reduce((sum, row) => sum + Number(row.monthly), 0)
+  return (
+    <Card className="controls-card">
+      <div className="panel-title"><div><p className="eyebrow">WHAT THIS ASSUMES</p><h2>What the answer is built on</h2></div></div>
+
+      <h3 className="assumption-heading">Starting money</h3>
+      <p className="muted-note">
+        {money(combined.starting_total, c)} across your accounts on {when(combined.starts_on, today)}, the last day your statements cover.
+      </p>
+      <ul className="assumption-list">
+        {combined.pockets.map(p => (
+          <li key={p.currency}>
+            <span>{p.starting_balance == null ? `${p.currency} —` : money(p.starting_balance, p.currency)}</span>
+            <span>
+              {p.counted === 'not_counted' ? 'not counted'
+                : p.rate_display ? `${money(p.starting_balance_reported, c)} at 1 ${p.currency} = ${p.rate_display} ${c}`
+                : 'counted as it is'}
+              {p.counted === 'held_as_is' && ' · kept as it is, nothing projected'}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <h3 className="assumption-heading">Money coming in</h3>
+      {combined.income.length === 0
+        ? <p className="muted-note">No income is counted.</p>
+        : (
+          <ul className="assumption-list">
+            {combined.income.map(row => (
+              <li key={`${row.currency}:${row.label}`}>
+                <span>{row.label} · {row.count} payment{row.count === 1 ? '' : 's'}, next {when(row.next_on, today)}</span>
+                <span>
+                  {money(row.total, c)}{row.currency !== c && ` (${money(row.native_total, row.currency)})`}
+                  {' · '}{row.in_cautious_case ? 'counted in both cases' : 'likely, so left out of the cautious case'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+      <h3 className="assumption-heading">Money going out · about {money(monthly.toFixed(2), c)} a month</h3>
+      <ul className="driver-list">
+        {combined.where_it_goes.map(row => (
+          <li key={row.origin}>
+            <div className="driver-head">
+              <strong>{row.label}</strong>
+              <span>{money(row.total, c)}</span>
+            </div>
+            {row.origin === 'baseline_spending' && <p className="muted-note">Based on what you usually spend, about {money(row.monthly, c)} a month.</p>}
+            {row.items.length > 0 && (
+              <p className="muted-note">{row.items.map(item => `${item.label} · ${when(item.on, today)}`).join(' · ')}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+      {onOpenObligations && <Button variant="link" size="sm" onClick={onOpenObligations}>See everything owed</Button>}
+
+      <h3 className="assumption-heading">Safety reserve</h3>
+      <p className="muted-note">
+        {combined.reserve.available
+          ? `${money(combined.reserve.target, c)} is kept aside; dipping below it is reported separately from running out.`
+          : 'Not checked yet, because essential spending hasn’t been marked.'}
+      </p>
     </Card>
   )
 }

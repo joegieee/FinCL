@@ -81,6 +81,29 @@ class CashTimelineTrapTests(unittest.TestCase):
             "cash", "income", "obligation_timing", "card_settlement",
         })
 
+    def test_action_items_carry_the_account_and_obligation_they_name(self) -> None:
+        """The answer groups and routes fixes by these; a label alone cannot."""
+        manifest = _manifest()
+        manifest["cash"]["by_currency"]["SGD"]["missing_intervals"] = [{
+            "account_id": "everyday", "start": "2026-02-01", "end": "2026-02-14",
+            "reason": "statement coverage is missing",
+        }]
+        manifest["unresolved_items"] = {"ambiguous_obligations": [{
+            "obligation_id": "debt:1", "origin": "personal_debt", "label": "Loan",
+            "currency": "SGD", "reasons": ["date basis is 'no_stated_date'"],
+        }]}
+
+        items = {item["output"]: item for item in _action_items(manifest)}
+
+        self.assertEqual(
+            (items["cash"]["account_id"], items["cash"]["start"], items["cash"]["end"]),
+            ("everyday", "2026-02-01", "2026-02-14"),
+        )
+        self.assertEqual(
+            (items["obligation_timing"]["origin"], items["obligation_timing"]["label"]),
+            ("personal_debt", "Loan"),
+        )
+
     def test_residual_spending_is_not_gated_by_allowance_readiness(self) -> None:
         manifest = _manifest()
         manifest["reserve_and_allowance"]["by_currency"]["SGD"]["allowance"] = {

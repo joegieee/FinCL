@@ -37,6 +37,53 @@ export type SufficiencyCurrency = {
   only_safe_in_the_base_case: boolean
 }
 
+/** The tabs a "make this answer better" item can send someone to. */
+export type SufficiencyDestination = 'Setup' | 'Cards' | 'Debts' | 'Installments' | 'Obligations' | 'Income' | 'Categorization' | 'Cash'
+
+export type CombinedCase = {
+  verdict: SufficiencyCase['verdict']
+  lowest: string | null
+  lowest_on: string | null
+  closing: string | null
+  first_short_on: string | null
+  shortfall: string | null
+  shortfall_on: string | null
+}
+
+/** One answer across every pocket, already in the reporting currency. */
+export type CombinedAnswer = {
+  reporting_currency: string
+  answer: string
+  verdict: SufficiencyCase['verdict']
+  /** False when a pocket could not be counted; it is named in `pockets`. */
+  complete: boolean
+  starts_on: string | null
+  ends_on: string | null
+  starting_total: string | null
+  base: CombinedCase
+  cautious: CombinedCase
+  only_safe_in_the_base_case: boolean
+  reserve: { available: boolean; target: string | null }
+  pockets: {
+    currency: string
+    counted: 'projected' | 'held_as_is' | 'not_counted'
+    why: string | null
+    starting_balance: string | null
+    starting_balance_reported: string | null
+    rate: string | null
+    rate_display: string | null
+  }[]
+  income: {
+    label: string; currency: string; count: number; next_on: string; confidence: string
+    native_total: string; total: string; in_cautious_case: boolean
+  }[]
+  where_it_goes: {
+    origin: string; label: string; total: string; monthly: string
+    items: { label: string; on: string; amount: string; conditional: boolean; currency: string }[]
+  }[]
+  todos: { key: string; page: SufficiencyDestination; title: string; detail: string }[]
+}
+
 export type SufficiencyPage = {
   version: string
   generated_for: string
@@ -47,6 +94,7 @@ export type SufficiencyPage = {
     reason: string | null
     basis: string
   }
+  combined_answer: CombinedAnswer
   by_currency: Record<string, SufficiencyCurrency>
   limitations: string[]
   semantics: Record<string, string>

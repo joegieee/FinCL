@@ -77,7 +77,8 @@ NATIVE_ONLY_UNDER = {"match_suggestions": frozenset(["outstanding", "amount_diff
 # Subtrees no retained screen renders from these reads. Forecast cases have
 # their own reported Forecast workspace; per-day rows and allocation metadata
 # are model internals. Reconciliation checks are native statement equations.
-SKIPPED_SUBTREES = frozenset(["forecast_cases", "days", "allocation_metadata"])
+# The combined "will I have enough" answer is already in the reporting currency.
+SKIPPED_SUBTREES = frozenset(["forecast_cases", "days", "allocation_metadata", "combined_answer"])
 
 # Totals spanning several dates. If one is not composed from dated parts and
 # its currency differs from the reporting currency, it is reported unavailable.

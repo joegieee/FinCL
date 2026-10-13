@@ -1354,6 +1354,7 @@ def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> 
                 "kind": "missing_evidence", "output": "cash", "currency": currency,
                 "rank": 100, "action": "Import the missing cash-movement interval",
                 "detail": f"{start} to {end}: {interval.get('reason', 'movement coverage is missing')}",
+                "account_id": interval.get("account_id"), "start": start, "end": end,
             })
 
     income_gap = manifest.get("income", {}).get("gap")
@@ -1371,6 +1372,8 @@ def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> 
             "action": "Resolve the obligation amount or settlement date",
             "detail": f"{obligation.get('label', obligation.get('obligation_id'))}: "
                       + "; ".join(obligation.get("reasons", [])),
+            "obligation_id": obligation.get("obligation_id"), "origin": obligation.get("origin"),
+            "label": obligation.get("label"),
         })
 
     for task in manifest.get("unresolved_items", {}).get("evidence_gaps", []):

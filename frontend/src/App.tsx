@@ -143,7 +143,7 @@ export default function App(){
    {tab==='Cash'&&<CashView generation={data.generation} onSaved={saved}/>}
    {tab==='Forecast'&&<ForecastView/>}
    {tab==='Controls'&&<AllControlsView initialMonth={(end || new Date().toISOString().slice(0, 7)).slice(0, 7)}/>}
-   {tab==='Will I have enough'&&<SufficiencyView generation={data.generation} onSaved={saved} onOpenObligations={()=>setTab('Obligations')} onOpenCash={()=>setTab('Cash')}/>}
+   {tab==='Will I have enough'&&<SufficiencyView generation={data.generation} onSaved={saved} onOpen={setTab} onOpenObligations={()=>setTab('Obligations')} onOpenCash={()=>setTab('Cash')}/>}
    {tab==='Annual funds'&&<FundsView onSaved={saved}/>}
    {tab==='Variance'&&<VarianceView generation={data.generation} currency="SGD" currencies={data.currencies} onSaved={saved}/>}
    {tab==='Maintenance'&&<MaintenanceView/>}

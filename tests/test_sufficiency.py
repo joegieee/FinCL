@@ -25,6 +25,7 @@ import tempfile
 import unittest
 import uuid
 from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 
 from fincl.decision_journal import append_decision, default_journal_path
@@ -32,6 +33,9 @@ from fincl.decisions import replay_journal
 from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
 from fincl.planning.sufficiency import (
+    COUNTED_AS_IS,
+    COUNTED_NOT,
+    COUNTED_PROJECTED,
     VERDICT_BELOW_RESERVE,
     VERDICT_ENOUGH,
     VERDICT_SHORT,
@@ -39,6 +43,7 @@ from fincl.planning.sufficiency import (
     _case,
     _driver_origin,
     _drivers,
+    combined_answer,
 )
 from fincl.refresh import refresh_ledger
 from fincl.reserve import (
@@ -349,6 +354,163 @@ class ReserveValidationTests(unittest.TestCase):
     def test_a_reason_is_required(self) -> None:
         with self.assertRaises(FinCLError):
             self._validate({"months": "6", "reason": "  "})
+
+
+def _days(*rows: tuple[str, str]) -> list[dict]:
+    return [{"date": on, "low_point": low, "closing": low} for on, low in rows]
+
+
+def _pocket(days: list[dict], *, events: list | None = None, available: bool = True,
+            balance: str = "100.00", reserve: str | None = None, cautious: list[dict] | None = None,
+            reason: str | None = None) -> dict:
+    case = {"days": days, "events": {"items": events or []}, "horizon": {"end": "2026-03-31"}}
+    return {
+        "available": available, "reason": reason, "scale": 2, "starting_balance": balance,
+        "reserve_readiness": {"available": reserve is not None, "target": reserve},
+        "base": case, "conservative": {**case, "days": cautious if cautious is not None else days},
+    }
+
+
+def _timeline(by_currency: dict, action_items: list | None = None) -> dict:
+    return {"by_currency": by_currency, "action_items": action_items or [],
+            "horizon": {"supported_cash_cutoff": "2026-01-31", "end": "2026-03-31"}}
+
+
+class CombinedAnswerTests(unittest.TestCase):
+    """All pockets are one pool for one purpose: one answer, in one currency."""
+
+    def _answer(self, timeline: dict, rates: dict, **kw) -> dict:
+        return combined_answer(timeline, rates=rates, reporting_currency="SGD", scale=2, **kw)
+
+    def test_a_short_pocket_covered_by_another_is_one_yes(self) -> None:
+        """SGD alone runs out; USD income more than covers it on the same days."""
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "50.00"), ("2026-02-02", "-200.00"))),
+            "USD": _pocket(_days(("2026-02-01", "300.00"), ("2026-02-02", "300.00"))),
+        }), {"SGD": Fraction(1), "USD": Fraction(13, 10)})
+
+        self.assertEqual(answer["verdict"], VERDICT_ENOUGH)
+        self.assertTrue(answer["complete"])
+        self.assertEqual(answer["base"]["lowest"], "190.00")  # -200 + 300 x 1.3
+        self.assertEqual(answer["base"]["lowest_on"], "2026-02-02")
+
+    def test_lows_are_summed_on_the_same_day_never_across_days(self) -> None:
+        """Each pocket's worst day differs; adding the two worsts would invent a breach."""
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "-100.00"), ("2026-02-02", "500.00"))),
+            "USD": _pocket(_days(("2026-02-01", "500.00"), ("2026-02-02", "-100.00"))),
+        }), {"SGD": Fraction(1), "USD": Fraction(1)})
+
+        self.assertEqual(answer["verdict"], VERDICT_ENOUGH)
+        self.assertEqual(answer["base"]["lowest"], "400.00")
+
+    def test_running_out_states_the_first_day_and_the_deepest_gap(self) -> None:
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "-10.00"), ("2026-02-02", "-80.00"),
+                                 ("2026-02-03", "-20.00"))),
+        }), {"SGD": Fraction(1)})
+
+        self.assertEqual(answer["verdict"], VERDICT_SHORT)
+        self.assertEqual(answer["base"]["first_short_on"], "2026-02-01")
+        self.assertEqual(answer["base"]["shortfall"], "80.00")
+        self.assertEqual(answer["base"]["shortfall_on"], "2026-02-02")
+
+    def test_the_reserve_is_stated_only_when_every_pocket_has_one(self) -> None:
+        days = _days(("2026-02-01", "100.00"))
+        partial = self._answer(_timeline({
+            "SGD": _pocket(days, reserve="500.00"), "USD": _pocket(days),
+        }), {"SGD": Fraction(1), "USD": Fraction(1)})
+        self.assertFalse(partial["reserve"]["available"])
+        self.assertEqual(partial["verdict"], VERDICT_ENOUGH)
+
+        full = self._answer(_timeline({
+            "SGD": _pocket(days, reserve="500.00"), "USD": _pocket(days, reserve="100.00"),
+        }), {"SGD": Fraction(1), "USD": Fraction(1)})
+        self.assertEqual(full["reserve"]["target"], "600.00")
+        self.assertEqual(full["verdict"], VERDICT_BELOW_RESERVE)
+        self.assertEqual(full["base"]["shortfall"], "400.00")
+
+    def test_a_pocket_with_no_rate_is_named_and_the_answer_is_incomplete(self) -> None:
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "100.00"))),
+            "THB": _pocket(_days(("2026-02-01", "0.50")), balance="0.50"),
+        }), {"SGD": Fraction(1), "THB": None})
+
+        self.assertFalse(answer["complete"])
+        thb = next(p for p in answer["pockets"] if p["currency"] == "THB")
+        self.assertEqual(thb["counted"], COUNTED_NOT)
+        self.assertIn("pocket-THB", [todo["key"] for todo in answer["todos"]])
+        self.assertEqual(answer["starting_total"], "100.00")
+
+    def test_a_quiet_pocket_with_no_history_is_held_as_it_stands(self) -> None:
+        """Nothing scheduled and nothing to project: its balance is simply there."""
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "100.00"))),
+            "THB": _pocket(_days(("2026-02-01", "10.00")), available=False, balance="10.00",
+                           reason="no spending history"),
+        }), {"SGD": Fraction(1), "THB": Fraction(1, 25)})
+
+        self.assertTrue(answer["complete"])
+        self.assertEqual(
+            {p["currency"]: p["counted"] for p in answer["pockets"]},
+            {"SGD": COUNTED_PROJECTED, "THB": COUNTED_AS_IS},
+        )
+        self.assertEqual(answer["base"]["lowest"], "100.40")
+
+    def test_an_unprojected_pocket_with_scheduled_money_is_not_counted(self) -> None:
+        """Counting only its known events would understate what leaves it."""
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "100.00"))),
+            "EUR": _pocket(_days(("2026-02-01", "10.00")), available=False,
+                           events=[_event(label="Rent", on="2026-02-01", amount="5.00")]),
+        }), {"SGD": Fraction(1), "EUR": Fraction(3, 2)})
+
+        self.assertFalse(answer["complete"])
+        self.assertEqual(answer["base"]["lowest"], "100.00")
+
+    def test_income_says_whether_the_cautious_case_counts_it(self) -> None:
+        salary = _event(label="Salary", on="2026-02-27", amount="1000.00", direction="inflow")
+        salary["provenance"] = {"confidence": "likely"}
+        answer = self._answer(_timeline({
+            "USD": _pocket(_days(("2026-02-01", "100.00")), events=[salary, {**salary, "on": "2026-03-27"}]),
+        }), {"USD": Fraction(13, 10)})
+
+        [income] = answer["income"]
+        self.assertEqual((income["count"], income["native_total"], income["total"]), (2, "2000.00", "2600.00"))
+        self.assertFalse(income["in_cautious_case"])
+
+    def test_where_the_money_goes_is_one_list_across_pockets(self) -> None:
+        answer = self._answer(_timeline({
+            "SGD": _pocket(_days(("2026-02-01", "100.00")), events=[
+                _event(label="Loan", on="2026-02-05", amount="60.00", origin="personal_debt")]),
+            "USD": _pocket(_days(("2026-02-01", "100.00")), events=[
+                _event(label="IOU", on="2026-02-06", amount="20.00", origin="personal_debt")]),
+        }), {"SGD": Fraction(1), "USD": Fraction(2)})
+
+        [debts] = answer["where_it_goes"]
+        self.assertEqual(debts["total"], "100.00")
+        self.assertEqual([item["label"] for item in debts["items"]], ["Loan", "IOU"])
+
+    def test_todos_group_one_fix_into_one_item_and_point_at_its_page(self) -> None:
+        items = [
+            {"output": "cash", "account_id": "a1", "start": "2026-02-01", "end": "2026-02-20"},
+            {"output": "cash", "account_id": "a2", "start": "2026-02-01", "end": "2026-02-20"},
+            {"output": "cash", "account_id": "a1", "start": "2025-08-31", "end": "2026-01-31"},
+            {"output": "obligation_timing", "origin": "personal_debt", "label": "Loan from Alex"},
+            {"output": "obligation_timing", "origin": "installment_plan", "label": "Phone"},
+            {"output": "reserve", "currency": "SGD"},
+        ]
+        answer = self._answer(
+            _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, items),
+            {"SGD": Fraction(1)}, account_names={"a1": "Everyday", "a2": "Savings"},
+        )
+
+        self.assertEqual(
+            [(todo["key"], todo["page"]) for todo in answer["todos"]],
+            [("recent-statements", "Setup"), ("debt-dates", "Debts"), ("plan-dates", "Installments"),
+             ("statement-gaps", "Setup"), ("essential", "Categorization")],
+        )
+        self.assertIn("Everyday, Savings", answer["todos"][0]["detail"])
 
 
 if __name__ == "__main__":

@@ -39,17 +39,29 @@ its own reasons and no verdict at all. A missing answer must never read as
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import date
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 from ..db import connect_readonly
-from ..forecast.engine import cash_timeline_from
+from ..forecast.engine import HORIZON_MONTHS, cash_timeline_from
 from ..money import ExactMoney, format_decimal
+from ..reporting_currency.models import CURRENCY_REGISTRY
+from ..reporting_currency.queries import reporting_policy
 from ..reserve import reserve_policy
+from ..valuation import (
+    FORWARD_MONTHLY_CLOSED_V1,
+    ValuationContext,
+    ValuationItem,
+    ValuationPurpose,
+    quantize,
+    value_one,
+)
 
-__all__ = ["sufficiency_page", "sufficiency_page_from"]
+__all__ = ["combined_answer", "sufficiency_page", "sufficiency_page_from"]
 
 SUFFICIENCY_VERSION = "sufficiency-v1"
 
@@ -234,11 +246,394 @@ _ANSWER = {
 }
 
 
+# --- The combined answer ----------------------------------------------------
+#
+# Every pocket is one pool of money for one purpose, so the question is asked
+# once, across all of them, in the reporting currency. Each pocket's own path
+# is copied from the forecast unchanged; the only new arithmetic is the same
+# calendar-day sum the Forecast tab's combined minimum already uses (each
+# pocket's low point that day, times its one held forecast rate), never a sum
+# of lows that happen on different days.
+#
+# A pocket is counted in one of three ways, and the answer says which:
+#   * projected — its forecast was built, so its day-by-day path is used;
+#   * held as it stands — its forecast could not be built only because it has
+#     no spending history, and nothing is scheduled in or out of it, so its
+#     path is its balance, flat. Nothing is projected for it;
+#   * not counted — anything else (no balance, no rate, scheduled money with no
+#     spending model). The answer is then marked incomplete and names it.
+
+COUNTED_PROJECTED = "projected"
+COUNTED_AS_IS = "held_as_is"
+COUNTED_NOT = "not_counted"
+_NO_RATE = "no exchange rate to the reporting currency is available"
+
+# Where each kind of fix is made, as the app's own tab name.
+_FIX_PAGE = {
+    "imports": "Setup",
+    "cards": "Cards",
+    "debts": "Debts",
+    "installments": "Installments",
+    "obligations": "Obligations",
+    "income": "Income",
+    "essential": "Categorization",
+}
+
+
+def _fraction(value: Any) -> Fraction:
+    money = ExactMoney.parse(str(value))
+    return Fraction(money.coefficient, 10**money.scale)
+
+
+def _quantized(value: Fraction, scale: int) -> str:
+    rounded = quantize(value, scale=scale)
+    return format_decimal(rounded.coefficient, rounded.scale)
+
+
+def _counting(cell: dict[str, Any], rate: Fraction | None) -> tuple[str, str | None]:
+    """How a pocket enters the combined answer, and why when it does not."""
+    if rate is None:
+        return COUNTED_NOT, _NO_RATE
+    if cell.get("available"):
+        return COUNTED_PROJECTED, None
+    base = cell.get("base") or {}
+    events = (base.get("events") or {}).get("items", [])
+    if base.get("days") and not events and cell.get("starting_balance") is not None:
+        return COUNTED_AS_IS, "it has no spending history and nothing is scheduled in or out of it"
+    return COUNTED_NOT, str(cell.get("reason") or "its forecast could not be built")
+
+
+def _combined_path(
+    cells: dict[str, dict[str, Any]], rates: dict[str, Fraction], *, name: str
+) -> list[tuple[str, Fraction, Fraction]]:
+    """(date, combined low point, combined closing) for every modelled day."""
+    by_day: dict[str, list[Fraction]] = {}
+    for currency, cell in cells.items():
+        for row in (cell.get(name) or {}).get("days", []):
+            totals = by_day.setdefault(row["date"], [Fraction(0), Fraction(0)])
+            totals[0] += _fraction(row["low_point"]) * rates[currency]
+            totals[1] += _fraction(row["closing"]) * rates[currency]
+    return [(day, low, closing) for day, (low, closing) in sorted(by_day.items())]
+
+
+def _combined_case(
+    path: list[tuple[str, Fraction, Fraction]], *, reserve: Fraction | None, scale: int
+) -> dict[str, Any]:
+    if not path:
+        return {"verdict": VERDICT_UNAVAILABLE, "first_short_on": None, "shortfall": None,
+                "shortfall_on": None, "lowest": None, "lowest_on": None, "closing": None}
+    lowest_on, lowest, _ = min(path, key=lambda row: row[1])
+    first_zero = next((day for day, low, _ in path if low <= 0), None)
+    below = [(day, reserve - low) for day, low, _ in path if reserve is not None and low < reserve]
+    result: dict[str, Any] = {
+        "lowest": _quantized(lowest, scale),
+        "lowest_on": lowest_on,
+        "closing": _quantized(path[-1][2], scale),
+    }
+    if first_zero is not None:
+        return {**result, "verdict": VERDICT_SHORT, "first_short_on": first_zero,
+                "shortfall": _quantized(-lowest, scale), "shortfall_on": lowest_on}
+    if below:
+        worst_day, worst_gap = max(below, key=lambda row: row[1])
+        return {**result, "verdict": VERDICT_BELOW_RESERVE, "first_short_on": below[0][0],
+                "shortfall": _quantized(worst_gap, scale), "shortfall_on": worst_day}
+    return {**result, "verdict": VERDICT_ENOUGH, "first_short_on": None,
+            "shortfall": None, "shortfall_on": None}
+
+
+def _where_it_goes(
+    cells: dict[str, dict[str, Any]], rates: dict[str, Fraction], *, scale: int
+) -> list[dict[str, Any]]:
+    """Every outflow family across the horizon, all pockets together.
+
+    One list replaces the old pair ("what drives it" for the breach month and
+    "everything this answer counts" for the horizon): the same families, the
+    same provenance, valued once in the reporting currency.
+    """
+    totals: dict[str, Fraction] = {}
+    examples: dict[str, list[dict[str, Any]]] = {}
+    for currency, cell in cells.items():
+        native_scale = int(cell.get("scale") or 2)
+        events = ((cell.get("base") or {}).get("events") or {}).get("items", [])
+        for row in _drivers(events, month=None, scale=native_scale):
+            origin = str(row["origin"])
+            totals[origin] = totals.get(origin, Fraction(0)) + (
+                Fraction(int(row["amount_minor"]), 10**native_scale) * rates[currency]
+            )
+            examples.setdefault(origin, []).extend(
+                {**item, "currency": currency} for item in row["items"]
+            )
+    rows = [
+        {
+            "origin": origin,
+            "label": _DRIVER_LABEL.get(origin, origin),
+            "total": _quantized(amount, scale),
+            "monthly": _quantized(amount / HORIZON_MONTHS, scale),
+            "items": sorted(examples.get(origin, []), key=lambda item: (item["on"], item["label"]))[:6],
+        }
+        for origin, amount in totals.items()
+        if amount
+    ]
+    rows.sort(key=lambda row: (-_fraction(row["total"]), _DRIVER_ORDER.get(str(row["origin"]), 99)))
+    return rows
+
+
+def _income(
+    cells: dict[str, dict[str, Any]], rates: dict[str, Fraction], *, scale: int
+) -> list[dict[str, Any]]:
+    """Each income source the main answer counts, and whether the cautious
+    case also counts it (Likely income is left out of the cautious case)."""
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    for currency, cell in cells.items():
+        for event in ((cell.get("base") or {}).get("events") or {}).get("items", []):
+            if event["direction"] != "inflow":
+                continue
+            key = (currency, str(event["label"]))
+            group = groups.setdefault(key, {
+                "label": event["label"], "currency": currency, "count": 0,
+                "native_total": Fraction(0), "next_on": event["on"],
+                "confidence": (event.get("provenance") or {}).get("confidence") or "confirmed",
+            })
+            group["count"] += 1
+            group["native_total"] += _fraction(event["amount"])
+            group["next_on"] = min(group["next_on"], event["on"])
+    rows = []
+    for (currency, _), group in sorted(groups.items()):
+        native_scale = int(cells[currency].get("scale") or 2)
+        rows.append({
+            "label": group["label"], "currency": currency, "count": group["count"],
+            "next_on": group["next_on"], "confidence": group["confidence"],
+            "native_total": _quantized(group["native_total"], native_scale),
+            "total": _quantized(group["native_total"] * rates[currency], scale),
+            "in_cautious_case": group["confidence"] != "likely",
+        })
+    return rows
+
+
+def _todos(
+    timeline: dict[str, Any], *, account_names: dict[str, str], cutoff: str | None,
+    pockets: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """What would make the answer better, most useful first, each pointing at
+    the page that fixes it. Grouped so one fix reads as one item, never as one
+    line per account per currency."""
+    items = list(timeline.get("action_items") or [])
+    todos: list[dict[str, Any]] = []
+
+    def name(account: str | None) -> str:
+        return account_names.get(account or "", account or "an account")
+
+    recent = sorted({name(i.get("account_id")) for i in items
+                     if i.get("output") == "cash" and cutoff and str(i.get("start", "")) > cutoff})
+    if recent:
+        todos.append({
+            "key": "recent-statements", "page": _FIX_PAGE["imports"],
+            "title": "Import your latest statements",
+            "detail": f"Nothing has been imported after {cutoff}, so the answer starts from that day. "
+                      f"Accounts: {', '.join(recent)}.",
+            "since": cutoff,
+        })
+
+    for item in items:
+        if item.get("output") != "card_settlement":
+            continue
+        detail = str(item.get("detail", ""))
+        window = re.search(r"covering (\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})", detail)
+        if window:
+            todos.append({
+                "key": "card-statement", "page": _FIX_PAGE["imports"],
+                "title": "Import the missing card statement",
+                "detail": f"Card spending between {window.group(1)} and {window.group(2)} is unknown, "
+                          "so it is not counted.",
+            })
+    if any(i.get("output") == "card_settlement" and "covering" not in str(i.get("detail", "")) for i in items):
+        todos.append({
+            "key": "card-plan", "page": _FIX_PAGE["cards"],
+            "title": "Say how your credit card is being paid off",
+            "detail": "A balance is being carried over, so when and how much you pay can't be read "
+                      "from the statements. Until it is set, card repayments are not counted.",
+        })
+
+    undated = [i for i in items if i.get("output") == "obligation_timing"]
+    debts = sorted({str(i.get("label")) for i in undated if i.get("origin") == "personal_debt"})
+    plans = sorted({str(i.get("label")) for i in undated if i.get("origin") == "installment_plan"})
+    others = sorted({str(i.get("label")) for i in undated
+                     if i.get("origin") not in ("personal_debt", "installment_plan")})
+    for key, labels, page, title in (
+        ("debt-dates", debts, "debts", "Give your debts a due date"),
+        ("plan-dates", plans, "installments", "Set the remaining due dates on your installment plans"),
+        ("obligation-dates", others, "obligations", "Give these bills a due date"),
+    ):
+        if labels:
+            todos.append({
+                "key": key, "page": _FIX_PAGE[page], "title": title,
+                "detail": f"Without a date they are not in the answer: {', '.join(labels)}.",
+            })
+
+    if any(i.get("output") == "income" for i in items):
+        todos.append({
+            "key": "income", "page": _FIX_PAGE["income"],
+            "title": "Review money coming in",
+            "detail": "Some incoming payments haven't been classified, so they may be missing as income.",
+        })
+
+    older = sorted({name(i.get("account_id")) for i in items
+                    if i.get("output") == "cash" and cutoff and str(i.get("end", "")) <= cutoff})
+    if older:
+        todos.append({
+            "key": "statement-gaps", "page": _FIX_PAGE["imports"],
+            "title": "Fill gaps in older statements",
+            "detail": "Some months are missing, so the starting balance can't be fully checked: "
+                      f"{', '.join(older)}.",
+        })
+
+    if any(i.get("output") == "reserve" for i in items):
+        todos.append({
+            "key": "essential", "page": _FIX_PAGE["essential"],
+            "title": "Mark which spending is essential",
+            "detail": "Your safety reserve is worked out from essential spending. Until that's marked, "
+                      "the answer can't tell you whether you dip into the reserve.",
+        })
+
+    for pocket in pockets:
+        if pocket["counted"] != COUNTED_NOT:
+            continue
+        currency, balance = pocket["currency"], pocket["starting_balance"]
+        held = f"Your {currency} balance{f' ({balance})' if balance is not None else ''}"
+        if pocket["why"] == _NO_RATE:
+            todos.append({
+                "key": f"pocket-{currency}", "page": _FIX_PAGE["imports"],
+                "title": f"Add an exchange rate for {currency}",
+                "detail": f"{held} isn't counted until it can be converted.",
+            })
+        else:
+            todos.append({
+                "key": f"pocket-{currency}", "page": _FIX_PAGE["imports"],
+                "title": f"Your {currency} money isn't counted",
+                "detail": f"{held} is left out because {pocket['why']}.",
+            })
+    return todos
+
+
+def combined_answer(
+    timeline: dict[str, Any], *, rates: dict[str, Fraction | None], reporting_currency: str,
+    scale: int, account_names: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """One answer across every pocket, in the reporting currency."""
+    by_currency: dict[str, Any] = timeline.get("by_currency") or {}
+    cutoff = (timeline.get("horizon") or {}).get("supported_cash_cutoff")
+    pockets: list[dict[str, Any]] = []
+    counted: dict[str, dict[str, Any]] = {}
+    held: dict[str, Fraction] = {}
+    for currency in sorted(by_currency):
+        cell = by_currency[currency]
+        rate = rates.get(currency)
+        how, why = _counting(cell, rate)
+        balance = cell.get("starting_balance")
+        pockets.append({
+            "currency": currency,
+            "counted": how,
+            "why": why,
+            "starting_balance": balance,
+            "starting_balance_reported": (
+                _quantized(_fraction(balance) * rate, scale)
+                if balance is not None and rate is not None else None
+            ),
+            "rate": str(rate) if rate is not None and currency != reporting_currency else None,
+            "rate_display": (
+                _quantized(rate, 4) if rate is not None and currency != reporting_currency else None
+            ),
+        })
+        if how != COUNTED_NOT and rate is not None:
+            counted[currency] = cell
+            held[currency] = rate
+
+    # The reserve is only stated when every projected pocket has one: half a
+    # reserve would read as a smaller, easier target.
+    projected = [c for c, cell in counted.items() if cell.get("available")]
+    targets = [(c, (counted[c].get("reserve_readiness") or {})) for c in projected]
+    reserve: Fraction | None = None
+    if projected and all(t.get("available") and t.get("target") is not None for _, t in targets):
+        reserve = sum(
+            (_fraction(t["target"]) * held[c] for c, t in targets),
+            start=Fraction(0),
+        )
+
+    base = _combined_case(_combined_path(counted, held, name="base"), reserve=reserve, scale=scale)
+    cautious = _combined_case(
+        _combined_path(counted, held, name="conservative"), reserve=reserve, scale=scale
+    )
+    complete = bool(counted) and len(counted) == len(by_currency)
+    first = next(iter(counted.values()), {})
+    return {
+        "reporting_currency": reporting_currency,
+        "answer": _ANSWER[base["verdict"]],
+        "verdict": base["verdict"],
+        "complete": complete,
+        "starts_on": cutoff,
+        "ends_on": ((first.get("base") or {}).get("horizon") or {}).get("end")
+        or (timeline.get("horizon") or {}).get("end"),
+        "starting_total": (
+            _quantized(sum((_fraction(p["starting_balance_reported"])
+                            for p in pockets if p["currency"] in counted), start=Fraction(0)), scale)
+            if counted else None
+        ),
+        "base": base,
+        "cautious": cautious,
+        "only_safe_in_the_base_case": (
+            base["verdict"] == VERDICT_ENOUGH
+            and cautious["verdict"] in (VERDICT_SHORT, VERDICT_BELOW_RESERVE)
+        ),
+        "reserve": (
+            {"available": True, "target": _quantized(reserve, scale)}
+            if reserve is not None else {"available": False, "target": None}
+        ),
+        "pockets": pockets,
+        "income": _income(counted, held, scale=scale),
+        "where_it_goes": _where_it_goes(counted, held, scale=scale),
+        "todos": _todos(timeline, account_names=account_names or {}, cutoff=cutoff, pockets=pockets),
+    }
+
+
+def _forecast_rates(
+    connection: sqlite3.Connection, currencies: list[str], *, reporting_currency: str, today: date
+) -> dict[str, Fraction | None]:
+    """One held forecast rate per pocket — the same rate the Forecast tab uses."""
+    context = ValuationContext(
+        reporting_currency=reporting_currency, purpose=ValuationPurpose.FORECAST,
+        valuation_as_of=today, rate_selection_policy=FORWARD_MONTHLY_CLOSED_V1,
+    )
+    rates: dict[str, Fraction | None] = {}
+    for currency in currencies:
+        valued = value_one(
+            connection,
+            ValuationItem(native=ExactMoney.parse("1"), native_currency=currency,
+                          purpose=ValuationPurpose.FORECAST),
+            context=context,
+        )
+        rates[currency] = valued.reported_exact if valued.unavailable is None else None
+    return rates
+
+
 def sufficiency_page_from(
     connection: sqlite3.Connection, *, today: date
 ) -> dict[str, Any]:
     timeline = cash_timeline_from(connection, today=today)
     policy = reserve_policy(connection)
+    reporting_currency = reporting_policy(connection).currency
+    definition = CURRENCY_REGISTRY.get(reporting_currency)
+    rates = _forecast_rates(
+        connection, sorted(timeline.get("by_currency") or {}),
+        reporting_currency=reporting_currency, today=today,
+    )
+    account_names = {
+        str(row[0]): str(row[1] or row[0])
+        for row in connection.execute("SELECT id, display_name FROM accounts")
+    }
+    combined = combined_answer(
+        timeline, rates=rates, reporting_currency=reporting_currency,
+        scale=definition.minor_unit_scale if definition else 2, account_names=account_names,
+    )
     by_currency: dict[str, Any] = {}
     for currency, cell in (timeline.get("by_currency") or {}).items():
         scale = int(cell.get("scale") or 2)
@@ -275,6 +670,7 @@ def sufficiency_page_from(
                 "is always the evidence-derived mean essential spend"
             ),
         },
+        "combined_answer": combined,
         "by_currency": by_currency,
         "limitations": list(timeline.get("limitations", [])),
         "semantics": {
