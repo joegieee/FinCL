@@ -71,6 +71,7 @@ from .reporting_currency import (
     apply_reporting_currency_decision,
     validate_reporting_currency_payload,
 )
+from .reports.definitions import REPORT_DECISION_KINDS, apply_report
 from .reserve.models import RESERVE_DECISION_KINDS
 from .reserve.projection import apply_reserve_policy_decision
 from .reserve.validation import validate_reserve_payload
@@ -132,6 +133,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | REPORTING_CURRENCY_DECISION_KINDS
     | RESERVE_DECISION_KINDS
     | CONTEXT_DECISION_KINDS
+    | REPORT_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -324,6 +326,7 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "entry_trips",
             "trips",
             "entry_countries",
+            "report_definitions",
         ):
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
@@ -498,6 +501,8 @@ def _apply_record(
         apply_financial_role(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq, resolve_anchor=lambda anchor: resolve_anchor(connection, anchor))
     elif record.decision_kind in INBOUND_RULE_DECISION_KINDS:
         apply_inbound_rule(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq)
+    elif record.decision_kind in REPORT_DECISION_KINDS:
+        apply_report(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq)
     elif record.decision_kind in CONTEXT_DECISION_KINDS:
         apply_context(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq, resolve_anchor=lambda anchor: resolve_anchor(connection, anchor))
     elif record.decision_kind in DEBT_DECISION_KINDS:

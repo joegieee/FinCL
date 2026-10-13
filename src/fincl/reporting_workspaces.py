@@ -98,9 +98,9 @@ FUTURE_PARTS = ("schedule", "planned_contributions", "capacity", "commitments", 
 READ_PREFIXES = (
     "debts", "cards", "installments", "obligations", "baseline", "funds",
     "budgets", "goals", "recurring", "spending-controls", "forecast/variance",
-    "planning/sufficiency", "categorization", "relationships", "overview", "trips",
+    "planning/sufficiency", "categorization", "relationships", "overview", "trips", "reports",
 )
-READ_POSTS = frozenset({"classification/preview", "categorization/impact", "categorization/derive-rule",
+READ_POSTS = frozenset({"reports/preview", "classification/preview", "categorization/impact", "categorization/derive-rule",
                         "rules/preview", "rules/compile", "rules/compile-combined",
                         "spending-controls/what-if"})
 
@@ -472,6 +472,20 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
             combine(["by_category", index, "cost_amount"], [
                 (["contributors", j, "cost_amount"], Fraction(1)) for j, member in enumerate(contributors)
                 if member.get("currency") == row.get("currency") and member.get("category_key") == row.get("category_key")])
+
+    if resource.startswith("reports"):
+        rows = native.get("rows") or []
+        for index, row in enumerate(rows):
+            path = ["rows", index]
+            for field, kind in (("gross_cost", "cost"), ("refunds", "refund")):
+                combine([*path, field], [([*path, "cost_parts", j, "amount"], Fraction(1))
+                                         for j, part in enumerate(row.get("cost_parts") or []) if part.get("kind") == kind])
+            combine([*path, "net_cost"], [([*path, "gross_cost"], Fraction(1)), ([*path, "refunds"], Fraction(-1))])
+        for currency in native.get("totals_by_currency") or {}:
+            report_totals: Path = ["totals_by_currency", currency]
+            for field in ("gross_cost", "refunds", "net_cost"):
+                combine([*report_totals, field], [(["rows", index, field], Fraction(1))
+                                           for index, row in enumerate(rows) if row.get("currency") == currency])
 
     for _, budget, path in each(native.get("budgets"), ["budgets"]):
         if budget.get("remaining") is not None:

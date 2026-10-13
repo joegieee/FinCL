@@ -102,6 +102,8 @@ _SINGLE_KINDS = Literal[
     # v0.7 country and trip context
     'ENTRY_COUNTRY_SET','ENTRY_COUNTRY_RETIRE','TRIP_SET','TRIP_RETIRE',
     'ENTRY_TRIP_SET','ENTRY_TRIP_RETIRE',
+    # v0.7 saved report definitions
+    'REPORT_DEFINITION_SET','REPORT_DEFINITION_RETIRE',
 ]
 
 _CONTEXT_KINDS = frozenset({
@@ -751,6 +753,9 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         elif command.kind in {'INBOUND_RULE_SET','INBOUND_RULE_RETIRE'}:
             from .inbound_rules import validate_inbound_rule
             validate_inbound_rule(command.kind, dict(command.anchors), dict(command.payload))
+        elif command.kind in {'REPORT_DEFINITION_SET','REPORT_DEFINITION_RETIRE'}:
+            from .reports import check_report
+            check_report(connection, command.kind, dict(command.anchors), dict(command.payload))
         elif command.kind in _CONTEXT_KINDS:
             from .context import check_context_sequence
             check_context_sequence(connection, [(command.kind, dict(command.anchors), dict(command.payload))],
@@ -1892,6 +1897,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     policy = 'reporting-currency-v1'
                 elif command.kind in _CONTEXT_KINDS:
                     policy = 'trip-context-v1'
+                elif command.kind in {'REPORT_DEFINITION_SET','REPORT_DEFINITION_RETIRE'}:
+                    policy = 'report-definition-v1'
             receipt = record_decision(database,request_id=str(command.request_id),intent_hash=intent,decision_kind=kind,anchors=anchors,payload=payload,policy_version=policy,snapshot=f'{kind}: {payload}',writer=writer)
             return JSONResponse({**asdict(receipt),'status':'recorded_refresh_pending' if receipt.refresh_pending else 'applied'},status_code=202 if receipt.refresh_pending else 200)
 
@@ -2008,6 +2015,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     register_reporting_routes(app, database)
     from .api_trips import register_trip_routes
     register_trip_routes(app, database)
+    from .api_reports import register_report_routes
+    register_report_routes(app, database)
     from .reporting_workspaces import register_workspace_reports
     register_workspace_reports(app, database)
 

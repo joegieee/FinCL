@@ -17,6 +17,7 @@ import { AnalysisView } from '@/features/analysis'
 import { RelationshipEditor } from '@/features/review/RelationshipEditor'
 import { DebtsView } from '@/features/debts'
 import { TripsView } from '@/features/trips'
+import { ReportsView } from '@/features/reports'
 import { CardsView } from '@/features/cards'
 import { InstallmentsView } from '@/features/installments'
 import { ObligationsView } from '@/features/obligations'
@@ -44,7 +45,7 @@ import { FundsView } from '@/features/funds'
 import { VarianceView } from '@/features/variance'
 import { MaintenanceView } from '@/features/maintenance'
 
-const tabs=['Overview','Baseline','Cash','Forecast','Will I have enough','Annual funds','Variance','Controls','Cash Flow','Analysis','Trips','Transactions','Income','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
+const tabs=['Overview','Baseline','Cash','Forecast','Will I have enough','Annual funds','Variance','Controls','Cash Flow','Analysis','Trips','Reports','Transactions','Income','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
 type Tab=typeof tabs[number]
 function initialTab():Tab { const v=new URLSearchParams(location.search).get('view');return tabs.find(t=>t===v)||'Overview' }
 function pct(actual:string|null,target:string) { return actual===null?0:Math.max(0,Math.min(100,Number(actual)/Number(target)*100)) }
@@ -127,6 +128,7 @@ export default function App(){
    {tab==='Categorization'&&<CategorizationView generation={data.generation} freshness={data.freshness} categories={data.categories} accounts={data.accounts} currencies={data.currencies} onSaved={saved} onOpenRules={()=>setTab('Rules')} onOpenTransactions={()=>drill('','','')} onOpenNext={setTab}/>}
    {tab==='Income'&&<InflowsView generation={data.generation} freshness={data.freshness} categories={data.categories} onOpenTransactions={()=>drill('','','pending_review')} onSaved={saved}/>}
    {tab==='Trips'&&<TripsView generation={data.generation} onSaved={saved}/>}
+   {tab==='Reports'&&<ReportsView generation={data.generation} onSaved={saved} categories={data.categories} accounts={data.accounts} currencies={data.currencies}/>}
    {tab==='Debts'&&<><div className="explanation"><Wallet size={18}/><p>Informal money you owe or are owed. Payables and receivables are shown separately and never netted. Record borrowing, lending, repayments and shared-expense splits against the bank transactions that funded them; principal never counts as spending or income.</p></div><DebtsView generation={data.generation} categories={data.categories} onSaved={saved}/></>}
    {tab==='Cards'&&<><div className="explanation"><CreditCard size={18}/><p>Credit cards and their observed statements. Each figure is a fact at a statement period end using that issuer's verified source equation — never a timeless “current balance”. Missing statement periods and reconciliation status are shown before the picture is called complete.</p></div><CardsView generation={data.generation}/></>}
    {tab==='Installments'&&<><div className="explanation"><Layers3 size={18}/><p>Confirmed source-proven installment chains on your cards. Known and unknown principal are both shown; an unknown principal infers no remaining liability. The projected schedule stays distinct from the actual observed occurrences.</p></div><InstallmentsView generation={data.generation} onSaved={saved}/></>}

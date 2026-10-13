@@ -14,7 +14,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 27
+SCHEMA_VERSION = 28
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -567,6 +567,19 @@ CREATE TABLE IF NOT EXISTS entry_trips (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS entry_trips_by_trip ON entry_trips(trip_id);
+"""
+
+# Schema 28 (v0.7 slice 2): saved report definitions, projected from
+# REPORT_DEFINITION_SET/RETIRE. A definition is configuration only; results are
+# evaluated on read and never stored.
+SCHEMA_28_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS report_definitions (
+    report_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    definition_json TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL
+) STRICT;
 """
 
 
@@ -1181,6 +1194,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_25_TABLES_SQL
         + SCHEMA_26_TABLES_SQL
         + SCHEMA_27_TABLES_SQL
+        + SCHEMA_28_TABLES_SQL
     )
 
 

@@ -638,3 +638,31 @@ main{width:100%;min-width:0}
 .trip-retire{margin-top:16px}
 .trip-detail,.trip-form{padding-bottom:20px}
 .trip-detail>:not(.panel-title),.trip-form>:not(.panel-title){margin-inline:clamp(16px,3vw,25px)}
+/* Saved reports (v0.7 slice 2). */
+.reports-view{display:flex;flex-direction:column;gap:14px}
+.report-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.report-card{width:100%;text-align:left;display:flex;flex-direction:column;gap:6px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:inherit;cursor:pointer}
+.report-card strong{display:flex;align-items:center;gap:7px;font-size:13px}
+.report-card small{color:var(--muted);font-size:11px}
+.report-card.is-active{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.report-empty{margin:18px 25px}
+.report-panel,.report-form{padding-bottom:20px}
+.report-panel .panel-title{flex-wrap:wrap}
+.report-body{margin:14px clamp(16px,3vw,25px) 0;display:flex;flex-direction:column;gap:12px;min-width:0}
+.report-body .muted-note{margin:0}
+.report-body .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.report-body label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
+.report-body input,.report-body select{min-width:0;max-width:100%;height:34px;border:1px solid var(--border);background:var(--card);border-radius:7px;padding:0 8px;color:inherit}
+.report-body select[multiple]{height:110px;padding:4px}
+.report-choices{border:0;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px 14px}
+.report-choices legend{font-size:11px;color:var(--muted);margin-bottom:6px}
+.report-choices label{flex-direction:row;align-items:center;gap:6px;font-size:12px;color:inherit}
+.report-choices input{height:auto}
+.report-filters summary{cursor:pointer;font-size:12px;margin-bottom:8px}
+.report-delete{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px dashed var(--border);border-radius:8px}
+.report-warnings p{display:flex;gap:6px;align-items:center}
+.report-table{width:100%;border-collapse:collapse;font-size:12px}
+.report-table th,.report-table td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.report-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.report-table thead th{font-size:11px;color:var(--muted);font-weight:500}
+.report-table tfoot th,.report-table tfoot td{border-bottom:0}
