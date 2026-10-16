@@ -98,7 +98,7 @@ export type WhatIfDraft = {
 }
 
 export const loadSpendingControls = (month: string, currency: string) =>
-  reportedApi<SpendingControlsPage>(`spending-controls?${new URLSearchParams({ month, currency })}`)
+  reportedApi<SpendingControlsPage>(`spending-controls?${new URLSearchParams({ month, currency, include_forecast: 'false' })}`)
 
 export const runSpendingWhatIf = (draft: WhatIfDraft) =>
-  reportedApi<SpendingControlsPage>('spending-controls/what-if', draft)
+  reportedApi<SpendingControlsPage>('spending-controls/what-if?include_forecast=false', draft)

@@ -81,7 +81,11 @@ test('whole-framework journey derives amounts from evidence and survives backup 
 
   // Choose the evidence-derived reserve policy by reviewing the conservative
   // controls that apply it; no reserve amount is entered.
+  const controlsRead = page.waitForResponse(response => response.url().includes('/reporting/workspaces/spending-controls?'))
   await openTab(page, 'Controls')
+  const controlsResponse = await controlsRead
+  expect(controlsResponse.url()).toContain('include_forecast=false')
+  expect((await controlsResponse.json()).native).not.toHaveProperty('forecast_cases')
   await expect(page.getByText(/Minimum conservative unallocated, reserve-adjusted balance/)).toBeVisible()
 
   await openTab(page, 'Annual funds')
@@ -94,7 +98,11 @@ test('whole-framework journey derives amounts from evidence and survives backup 
   const category = page.getByLabel('Source-backed category')
   await category.selectOption({ index: 1 })
   await page.getByRole('button', { name: 'Use full observed amount' }).click()
+  const scenarioRead = page.waitForResponse(response => response.url().includes('/spending-controls/what-if?'))
   await page.getByRole('button', { name: 'Compare before and after' }).click()
+  const scenarioResponse = await scenarioRead
+  expect(scenarioResponse.url()).toContain('include_forecast=false')
+  expect((await scenarioResponse.json()).native.scenario).not.toHaveProperty('cases')
   await expect(page.locator('.scenario-result')).toContainText('Hypothetical result only')
 
   await openTab(page, 'Variance')

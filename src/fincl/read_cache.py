@@ -23,6 +23,8 @@ from contextvars import ContextVar
 from functools import wraps
 from typing import Any
 
+from .db import _BorrowedReadConnection
+
 _SCOPE: ContextVar[dict[tuple[Any, ...], Any] | None] = ContextVar("fincl_request_cache", default=None)
 
 @contextmanager
@@ -48,7 +50,11 @@ def per_request[F: Callable[..., Any]](fn: F) -> F:
         scope = _SCOPE.get()
         if scope is None or not connection.in_transaction:
             return fn(connection, *args, **kwargs)
-        key = (fn.__module__, fn.__qualname__, id(connection), args, tuple(sorted(kwargs.items())))
+        # Path-based readers borrow wrappers around the same snapshot. Key by
+        # the underlying connection, retaining it so its identity cannot be
+        # recycled if another reader opens a connection within this scope.
+        identity = connection.connection if isinstance(connection, _BorrowedReadConnection) else connection
+        key = (fn.__module__, fn.__qualname__, identity, args, tuple(sorted(kwargs.items())))
         try:
             hash(key)
         except TypeError:  # an unhashable argument: not worth guessing an identity for

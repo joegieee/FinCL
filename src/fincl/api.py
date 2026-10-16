@@ -1110,13 +1110,15 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
 
     @app.get('/api/v1/spending-controls')
     def spending_controls_read(
-        month: str | None = None, currency: str = Query('SGD', pattern=r'^[A-Z]{3}$')
+        month: str | None = None, currency: str = Query('SGD', pattern=r'^[A-Z]{3}$'),
+        include_forecast: bool = True,
     ) -> Any:
         from .controls import spending_controls_page
-        return spending_controls_page(database, month=month, currency=currency, today=clock.today())
+        return spending_controls_page(database, month=month, currency=currency, today=clock.today(),
+                                      include_forecast=include_forecast)
 
     @app.post('/api/v1/spending-controls/what-if')
-    def spending_controls_scenario(body: SpendingWhatIfDraft) -> Any:
+    def spending_controls_scenario(body: SpendingWhatIfDraft, include_forecast: bool = True) -> Any:
         from .controls import spending_controls_what_if
         return spending_controls_what_if(
             database,
@@ -1126,6 +1128,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             date_changes=[item.model_dump() for item in body.date_changes],
             hypothetical_income=[item.model_dump() for item in body.hypothetical_income],
             today=clock.today(),
+            include_forecast=include_forecast,
         )
 
     @app.get('/api/v1/position')

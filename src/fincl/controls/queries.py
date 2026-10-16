@@ -10,7 +10,7 @@ from typing import Any
 
 from ..baseline.estimators import baseline_estimate
 from ..baseline.roles import baseline_roles
-from ..db import connect_readonly
+from ..db import connect_readonly, read_snapshot
 from ..errors import FinCLError
 from ..forecast.engine import COLUMN_IRREGULAR, ResidualCategory, cash_timeline
 from ..funds.forecast import fund_forecast_events
@@ -19,6 +19,7 @@ from ..intervals import DateInterval
 from ..money import ExactMoney, format_decimal
 from ..obligations.queries import obligations_page
 from ..planning.queries import budgets_page
+from ..read_cache import request_cache
 from ..report import _coverage_contract
 from .models import (
     apply_what_if_case,
@@ -287,8 +288,29 @@ def spending_controls_page(
     month: str | None = None,
     currency: str = "SGD",
     today: date,
+    include_forecast: bool = True,
 ) -> dict[str, Any]:
     """§5.3: ``today`` is required — resolved once by the caller, never here."""
+    with read_snapshot(database) as connection, request_cache(connection):
+        page = _spending_controls_page(database, month=month, currency=currency, today=today)
+        return page if include_forecast else _without_forecast_paths(page)
+
+
+def _without_forecast_paths(page: dict[str, Any]) -> dict[str, Any]:
+    """UI summary; keep full paths available to existing API/reader clients.
+
+    Scenario construction still uses the complete cases on the server. Only
+    the response omits them; displayed comparisons and evidence stay intact.
+    """
+    summary = {key: value for key, value in page.items() if key != "forecast_cases"}
+    if page.get("scenario"):
+        summary["scenario"] = {key: value for key, value in page["scenario"].items() if key != "cases"}
+    return summary
+
+
+def _spending_controls_page(
+    database: Path, *, month: str | None, currency: str, today: date
+) -> dict[str, Any]:
     selected_month = _month(month, today)
     roles = baseline_roles(database, today=today)
     estimate = baseline_estimate(database, today=today)
@@ -313,7 +335,7 @@ def spending_controls_page(
         today=today,
         residual_categories=residuals,
         sourced_events=fund_events,
-    )
+    ) if fund_events else initial
     cell = forecast.get("by_currency", {}).get(currency)
     obligations = obligations_page(
         database,
@@ -463,6 +485,7 @@ def spending_controls_what_if(
     date_changes: list[dict[str, str]],
     hypothetical_income: list[dict[str, str]],
     today: date,
+    include_forecast: bool = True,
 ) -> dict[str, Any]:
     page = spending_controls_page(database, month=month, currency=currency, today=today)
     if not page.get("available"):
@@ -531,7 +554,7 @@ def spending_controls_what_if(
         "capacity_is_not_an_allowance": True,
     }
     page["unresolved"] = list(dict.fromkeys([*page["unresolved"], *scenario_unresolved]))
-    return page
+    return page if include_forecast else _without_forecast_paths(page)
 
 
 __all__ = ["spending_controls_page", "spending_controls_what_if"]

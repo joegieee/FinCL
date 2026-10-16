@@ -5491,6 +5491,7 @@ export interface operations {
             query?: {
                 month?: string | null;
                 currency?: string;
+                include_forecast?: boolean;
             };
             header?: never;
             path?: never;
@@ -5520,7 +5521,9 @@ export interface operations {
     };
     spending_controls_scenario_api_v1_spending_controls_what_if_post: {
         parameters: {
-            query?: never;
+            query?: {
+                include_forecast?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -8603,6 +8606,7 @@ export interface operations {
             query?: {
                 month?: string | null;
                 currency?: string;
+                include_forecast?: boolean;
             };
             header?: never;
             path?: never;
@@ -8632,7 +8636,9 @@ export interface operations {
     };
     reported_workspace_spending_controls_scenario_api_v1_reporting_workspaces_spending_controls_what_if_post: {
         parameters: {
-            query?: never;
+            query?: {
+                include_forecast?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;

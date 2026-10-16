@@ -751,6 +751,16 @@
               "default": "SGD",
               "title": "Currency"
             }
+          },
+          {
+            "name": "include_forecast",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Forecast"
+            }
           }
         ],
         "responses": {
@@ -781,15 +791,27 @@
       "post": {
         "summary": "Spending Controls Scenario",
         "operationId": "spending_controls_scenario_api_v1_spending_controls_what_if_post",
+        "parameters": [
+          {
+            "name": "include_forecast",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Forecast"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SpendingWhatIfDraft"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -6513,6 +6535,16 @@
               "default": "SGD",
               "title": "Currency"
             }
+          },
+          {
+            "name": "include_forecast",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Forecast"
+            }
           }
         ],
         "responses": {
@@ -6543,15 +6575,27 @@
       "post": {
         "summary": "Reported Workspace Spending Controls Scenario",
         "operationId": "reported_workspace_spending_controls_scenario_api_v1_reporting_workspaces_spending_controls_what_if_post",
+        "parameters": [
+          {
+            "name": "include_forecast",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Forecast"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SpendingWhatIfDraft"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {

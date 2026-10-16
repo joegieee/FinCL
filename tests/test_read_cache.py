@@ -4,7 +4,9 @@ from __future__ import annotations
 import sqlite3
 import unittest
 from datetime import date
+from typing import cast
 
+from fincl.db import _BorrowedReadConnection
 from fincl.read_cache import per_request, request_cache
 
 calls: list[tuple[str, date]] = []
@@ -56,6 +58,17 @@ class RequestCacheTests(unittest.TestCase):
             reader(self.connection, today=date(2026, 1, 1))
             reader(other, today=date(2026, 1, 1))
         self.assertEqual(len(calls), 2)
+
+    def test_borrowed_wrappers_share_the_underlying_snapshot_cache(self) -> None:
+        with request_cache(self.connection):
+            reader(self.connection, today=date(2026, 1, 1))
+            for _ in range(2):
+                borrowed = cast(sqlite3.Connection, _BorrowedReadConnection(self.connection))
+                result = reader(borrowed, today=date(2026, 1, 1))
+                result["rows"].append(99)
+                borrowed.close()
+            self.assertEqual(reader(self.connection, today=date(2026, 1, 1)), {"rows": [1, 2]})
+        self.assertEqual(len(calls), 1)
 
 
 if __name__ == "__main__":
