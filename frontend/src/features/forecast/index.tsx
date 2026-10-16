@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ChartFrame } from '@/components/ChartFrame'
+import { ChartGradient, ChartTooltip } from '@/components/ChartDetails'
 import { ApiError, money } from '@/lib/api'
-import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_SEMANTIC, CHART_TOOLTIP_STYLE, currencyTick } from '@/lib/chart-theme'
+import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_SEMANTIC, currencyTick } from '@/lib/chart-theme'
 import { ConsolidatedMoney, Money } from '@/components/Money'
 import type { ForecastCase, ForecastCurrency, ForecastPage, Milestone } from './api'
 import {
@@ -227,11 +228,13 @@ function MonthTable({ base, conservative }: { base: ReportedForecastScenarioOut;
 }
 
 function BalanceChart({ currency, base, conservative }: { currency: string; base: ReportedForecastScenarioOut; conservative: ReportedForecastScenarioOut }) {
+  const gradient = useId()
   // A conservative case shorter than the base case emits an explicit gap
   // (null), never NaN -- matching TrendChart's gap handling.
   const data = base.months.map((row, index) => {
     const conservativeRow = conservative.months[index]
-    return { month: monthLabel(row.month), base: chartValue(row.closing), conservative: conservativeRow ? chartValue(conservativeRow.closing) : null }
+    return { month: monthLabel(row.month), base: chartValue(row.closing), conservative: conservativeRow ? chartValue(conservativeRow.closing) : null,
+      baseExact: row.closing.reported?.value, conservativeExact: conservativeRow?.closing.reported?.value }
   })
   const shorterConservative = conservative.months.length < base.months.length
   return <ChartFrame
@@ -250,14 +253,23 @@ function BalanceChart({ currency, base, conservative }: { currency: string; base
   >
     <div className="forecast-chart">
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
-          <XAxis dataKey="month" tick={CHART_AXIS_TICK} axisLine={{ stroke: CHART_GRID_STROKE }} tickLine={false} />
-          <YAxis tick={CHART_AXIS_TICK} axisLine={{ stroke: CHART_GRID_STROKE }} tickLine={false} tickFormatter={currencyTick(currency)} />
-          <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(value, name) => [value === null ? 'Missing period' : money(String(value), currency), name === 'base' ? 'Base case' : 'Conservative case']} />
-          <Line type="monotone" dataKey="base" name="base" stroke={CHART_SEMANTIC.base} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
-          <Line type="monotone" dataKey="conservative" name="conservative" stroke={CHART_SEMANTIC.conservative} strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
-        </LineChart>
+        <ComposedChart data={data} margin={{ top: 18, right: 24, bottom: 10, left: 12 }}>
+          <ChartGradient id={gradient} color={CHART_SEMANTIC.base} area />
+          <CartesianGrid vertical={false} strokeDasharray="3 5" stroke={CHART_GRID_STROKE} strokeOpacity={0.65} />
+          <XAxis dataKey="month" tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} />
+          <YAxis tick={CHART_AXIS_TICK} axisLine={false} tickLine={false} width={85} tickFormatter={currencyTick(currency)} />
+          <ReferenceLine y={0} stroke={CHART_GRID_STROKE} />
+          <Tooltip content={({ active, label }) => {
+            const row = data.find(item => item.month === label)
+            return <ChartTooltip active={active} title={label} items={row ? [
+              { label: 'Base case', value: money(row.baseExact, currency), color: CHART_SEMANTIC.base },
+              { label: 'Conservative', value: money(row.conservativeExact, currency), color: CHART_SEMANTIC.conservative },
+            ] : []} note="Projected monthly closing balance" />
+          }} />
+          <Area type="linear" dataKey="base" fill={`url(#${gradient})`} stroke="none" tooltipType="none" isAnimationActive={false} connectNulls={false} />
+          <Line type="linear" dataKey="base" name="base" stroke={CHART_SEMANTIC.base} strokeWidth={2.5} dot={{ r: 3, strokeWidth: 2, fill: 'var(--card)' }} activeDot={{ r: 5, stroke: 'var(--card)', strokeWidth: 3 }} isAnimationActive={false} connectNulls={false} />
+          <Line type="linear" dataKey="conservative" name="conservative" stroke={CHART_SEMANTIC.conservative} strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={{ r: 4, stroke: 'var(--card)', strokeWidth: 3 }} isAnimationActive={false} connectNulls={false} />
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   </ChartFrame>

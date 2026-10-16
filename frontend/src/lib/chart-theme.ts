@@ -16,11 +16,15 @@ export const CHART_SEMANTIC = {
   income: CHART_CATEGORICAL[4],
   base: 'var(--chart-base)',
   conservative: 'var(--chart-conservative)',
+  previous: 'var(--chart-comparison)',
+  increase: 'var(--chart-increase)',
+  decrease: 'var(--chart-decrease)',
 } as const
 
 export const CHART_TOOLTIP_STYLE: Record<string, string | number> = {
-  background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
-  color: 'var(--foreground)', fontSize: 12, padding: '8px 11px',
+  background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
+  color: 'var(--foreground)', fontSize: 12, padding: '12px 16px',
+  boxShadow: '0 8px 30px var(--shadow-faint)',
 }
 
 export const CHART_AXIS_TICK = { fill: 'var(--muted)', fontSize: 11 } as const

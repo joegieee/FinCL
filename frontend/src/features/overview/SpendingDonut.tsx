@@ -2,6 +2,7 @@ import { ArrowRight, BarChart3, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { ChartFrame } from '@/components/ChartFrame'
+import { ChartTooltip } from '@/components/ChartDetails'
 import { money, shortCategory, type Dashboard } from '@/lib/api'
 import { CHART_CATEGORICAL, CHART_OTHER, CHART_TOOLTIP_STYLE, chartTint } from '@/lib/chart-theme'
 
@@ -33,7 +34,7 @@ function DonutTooltip({ active, payload, currency }: { active?: boolean; payload
       <ul>{item.members.map(m => <li key={m.name}><span>{shortCategory(m.name)}</span><span>{money(m.value, currency)}</span></li>)}</ul>
     </div>
   }
-  return <div style={CHART_TOOLTIP_STYLE}>{shortCategory(item.name)}: {money(item.value, currency)}</div>
+  return <ChartTooltip active title={shortCategory(item.name)} items={[{ label: 'Purchases', value: money(item.value, currency), color: item.color }]} />
 }
 
 export function SpendingDonut({ data, currency, spending, onOpenAnalysis, onDrill }: {
@@ -48,9 +49,9 @@ export function SpendingDonut({ data, currency, spending, onOpenAnalysis, onDril
   >
     {slices.length ? <div className="spending-layout">
       <div className="donut-wrap" role="img" aria-label="Spending by category; exact values follow in the category list">
-        <ResponsiveContainer width="100%" height={238}>
+        <ResponsiveContainer width="100%" height={270}>
           <PieChart>
-            <Pie data={slices} dataKey="plot" nameKey="name" innerRadius={76} outerRadius={100} paddingAngle={3} stroke="none" isAnimationActive={false}
+            <Pie data={slices} dataKey="plot" nameKey="name" innerRadius={88} outerRadius={112} paddingAngle={3} cornerRadius={5} stroke="none" isAnimationActive={false}
               onClick={(entry: unknown) => { const slice = entry as Slice; slice.other ? onOpenAnalysis() : onDrill(slice.name) }}>
               {slices.map(slice => <Cell key={slice.name} fill={slice.color} cursor="pointer" />)}
             </Pie>
@@ -62,7 +63,7 @@ export function SpendingDonut({ data, currency, spending, onOpenAnalysis, onDril
       <div className="category-list">
         {slices.map(slice => <button key={slice.name} onClick={() => slice.other ? onOpenAnalysis() : onDrill(slice.name)}>
           <span className="dot" style={{ background: slice.color }} />
-          <span>{shortCategory(slice.name)}<small>{slice.other ? `${slice.members?.length ?? 0} more categories` : `${data.category_totals.find(t => t.name === slice.name)?.count ?? 0} transactions`}</small></span>
+          <span>{shortCategory(slice.name)}<small>{slice.other ? `${slice.members?.length ?? 0} more categories` : `${data.category_totals.find(t => t.name === slice.name)?.count ?? 0} transactions`}</small><span className="category-share-track" aria-hidden="true"><i style={{ background: slice.color, width: `${Math.min(100, slice.plot / (slices.reduce((sum, s) => sum + s.plot, 0) || 1) * 100)}%` }} /></span></span>
           <strong>{money(slice.value, currency)}</strong><ChevronRight size={14} />
         </button>)}
       </div>

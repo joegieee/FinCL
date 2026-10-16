@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Card } from '@/components/ui/card'
+import { ChartNoAxesCombined, ChevronDown, Info, Table2 } from 'lucide-react'
 
 /**
  * The supporting pattern every chart shares: eyebrow/title, an optional
@@ -9,7 +10,7 @@ import { Card } from '@/components/ui/card'
  * with an adjacent, independently-focusable list).
  */
 export function ChartFrame({
-  eyebrow, title, action, caption, legend, ariaLabel, footer, table, children, className,
+  eyebrow, title, action, caption, legend, ariaLabel, footer, table, children, className, insight,
 }: {
   eyebrow?: string
   title: string
@@ -21,13 +22,15 @@ export function ChartFrame({
   table?: ReactNode
   children: ReactNode
   className?: string
+  insight?: ReactNode
 }) {
   return <Card className={`chart-card${className ? ` ${className}` : ''}`}>
-    <div className="panel-title"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2>{title}</h2></div>{action}</div>
+    <div className="panel-title chart-heading"><div className="chart-heading-main"><span className="chart-heading-icon" aria-hidden="true"><ChartNoAxesCombined size={18} /></span><div><p className="eyebrow">{eyebrow ?? 'FINANCIAL INSIGHTS'}</p><h2>{title}</h2></div></div>{action}</div>
     {caption && <p className="chart-caption">{caption}</p>}
+    {insight}
     {legend && <div className="legend">{legend}</div>}
     {ariaLabel ? <div role="img" aria-label={ariaLabel}>{children}</div> : children}
-    {table && <details className="chart-data"><summary>Exact values and coverage</summary>{table}</details>}
-    {footer && <div className="card-foot">{footer}</div>}
+    {table && <details className="chart-data"><summary><Table2 size={14} aria-hidden="true" />Exact values and coverage<ChevronDown size={14} aria-hidden="true" /></summary><div className="chart-table-scroll">{table}</div></details>}
+    {footer && <div className="card-foot"><Info size={13} aria-hidden="true" /><span>{footer}</span></div>}
   </Card>
 }

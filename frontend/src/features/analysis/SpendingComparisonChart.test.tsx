@@ -18,7 +18,7 @@ it('explains a fall and preserves server-provided amounts and percentages in the
   const row = screen.getByText('Feb 2026', { selector: 'td' }).closest('tr')!
   expect(within(row).getByText('−SGD 22.50')).toBeInTheDocument()
   expect(within(row).getByText('-45.0%')).toBeInTheDocument()
-  fireEvent.change(screen.getByLabelText('Spending chart view'), { target: { value: 'change' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Monthly change' }))
   expect(screen.getByRole('img', { name: 'Month-on-month spending change chart · SGD' })).toBeInTheDocument()
 })
 

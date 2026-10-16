@@ -1,7 +1,9 @@
+import { useId } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ChartFrame } from '@/components/ChartFrame'
+import { ChartGradient, ChartTooltip } from '@/components/ChartDetails'
 import { money } from '@/lib/api'
-import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_SEMANTIC, CHART_TOOLTIP_STYLE, currencyTick } from '@/lib/chart-theme'
+import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_SEMANTIC, currencyTick } from '@/lib/chart-theme'
 import type { TrendMonthOut } from './reportedApi'
 
 function cellValue(cell: TrendMonthOut['spending']): string | null {
@@ -24,6 +26,7 @@ export function TrendChart({
   currency: string
   range: '6' | '12' | 'all'
 }) {
+  const gradient = useId()
   const data = trend.map(t => ({
     month: t.month,
     spending: t.complete ? Number(cellValue(t.spending) ?? '0') : null,
@@ -67,7 +70,9 @@ export function TrendChart({
         <div style={{ minWidth: chartWidth }}>
           <ResponsiveContainer width="100%" height={270}>
           <BarChart data={data} barGap={3} accessibilityLayer>
-            <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} />
+            <ChartGradient id={`${gradient}-spending`} color={CHART_SEMANTIC.spending} />
+            <ChartGradient id={`${gradient}-income`} color={CHART_SEMANTIC.income} />
+            <CartesianGrid vertical={false} stroke={CHART_GRID_STROKE} strokeDasharray="3 5" strokeOpacity={0.65} />
             <XAxis
               dataKey="month"
               tickFormatter={m => new Date(m + '-01T12:00:00').toLocaleDateString('en', { month: 'short' })}
@@ -76,14 +81,17 @@ export function TrendChart({
               tick={CHART_AXIS_TICK}
             />
             <YAxis tickLine={false} axisLine={false} width={62} tick={CHART_AXIS_TICK} tickFormatter={currencyTick(currency)} />
-            <Tooltip
-              contentStyle={CHART_TOOLTIP_STYLE}
-              formatter={(value, name) => [money(String(value), currency), String(name)]}
-              labelFormatter={m => `${m}${data.find(d => d.month === m)?.complete ? '' : ' · missing coverage'}`}
-            />
-            <Bar dataKey="spending" name="Purchases" stackId="out" fill={CHART_SEMANTIC.spending} maxBarSize={30} isAnimationActive={false} />
-            <Bar dataKey="fees" name="Fees" stackId="out" fill={CHART_SEMANTIC.fees} maxBarSize={30} isAnimationActive={false} />
-            <Bar dataKey="income" name="Income" fill={CHART_SEMANTIC.income} radius={[4, 4, 0, 0]} maxBarSize={30} isAnimationActive={false} />
+            <Tooltip cursor={{ fill: 'var(--chart-hover)' }} content={({ active, label }) => {
+              const row = trend.find(item => item.month === label)
+              return <ChartTooltip active={active} title={label} items={row ? [
+                { label: 'Purchases', value: money(row.complete ? cellValue(row.spending) : null, currency), color: CHART_SEMANTIC.spending },
+                { label: 'Fees', value: money(row.complete ? cellValue(row.fees) : null, currency), color: CHART_SEMANTIC.fees },
+                { label: 'Income', value: money(row.complete ? cellValue(row.income) : null, currency), color: CHART_SEMANTIC.income },
+              ] : []} note={row && !row.complete ? 'This month has missing statement coverage.' : undefined} />
+            }} />
+            <Bar dataKey="spending" name="Purchases" stackId="out" fill={`url(#${gradient}-spending)`} maxBarSize={30} isAnimationActive={false} />
+            <Bar dataKey="fees" name="Fees" stackId="out" fill={CHART_SEMANTIC.fees} radius={[4, 4, 0, 0]} maxBarSize={30} isAnimationActive={false} />
+            <Bar dataKey="income" name="Income" fill={`url(#${gradient}-income)`} radius={[4, 4, 0, 0]} maxBarSize={30} isAnimationActive={false} />
           </BarChart>
           </ResponsiveContainer>
         </div>
