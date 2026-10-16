@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { ApiError, money } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
 import { ConsolidatedMoney, Money } from '@/components/Money'
+import { NetWorthCharts } from './NetWorthCharts'
 import {
   type NativeCurrencySummaryOut, type NetWorthComponentOut, type NetWorthPageOut,
   type NetWorthTotalsOut, type ReportingPolicySummary,
@@ -227,6 +228,8 @@ function NetWorthContent({
           <p className="muted-note">Pick an earlier date in “Compare with” to see the change in the tracked subtotal between two dated observations.</p>
         )}
       </Card>
+
+      <NetWorthCharts page={page} />
 
       {currencies.map(currency => (
         <NativeCurrencyCard key={currency} currency={currency} summary={page.per_currency[currency]} />

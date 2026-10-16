@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ReportChart } from './ReportChart'
 import { AlertTriangle, Download, FileBarChart, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { AsyncView } from '@/components/AsyncView'
 import { Button } from '@/components/ui/button'
@@ -147,6 +148,7 @@ export function ResultTable({ result, columns }: { result: ReportResult; columns
     {result.warnings.length > 0 && <ul className="issue-list report-warnings">
       {result.warnings.map((warning, i) => <li key={i}><p><AlertTriangle size={13}/> {warning}</p></li>)}
     </ul>}
+    <ReportChart result={result} columns={columns} />
     {result.rows.length === 0
       ? <p className="muted-note">Nothing matches this report.</p>
       : <div className="table-scroll"><table className="report-table">

@@ -35,6 +35,18 @@ function grouped(value: string): string {
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}${fraction === undefined ? '' : `.${fraction}`}`
 }
 
+/** Chart geometry uses the same dated annotation as the money label. A registered
+ * but unannotated field must never fall back to its native value. */
+export function reportedChartAmount(owner: object, field: string, currency: string): { value: string | null; currency: string } {
+  const annotation = fields.get(owner)?.get(field)
+  if (annotation) return { value: annotation.unavailable ? null : annotation.reported?.value ?? null, currency: annotation.reported?.currency ?? envelopes.get(owner)?.reporting_currency ?? currency }
+  return { value: fields.has(owner) ? null : (owner as Record<string, string>)[field] ?? null, currency }
+}
+
+export function workspaceReportingCurrency(data: object): string | null {
+  return envelopes.get(data)?.reporting_currency ?? null
+}
+
 /** No client-side conversions, sums or rounding. Lookup uses the owning
  * object and field, never amount equality (which loses date and provenance). */
 export function reportedMoney(owner: any, field: string, currency: string): string {

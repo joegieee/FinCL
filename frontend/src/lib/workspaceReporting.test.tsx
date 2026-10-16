@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { reportedApi, reportedMoney, WorkspaceReportingDetails } from './workspaceReporting'
+import { reportedApi, reportedMoney, reportedChartAmount, workspaceReportingCurrency, WorkspaceReportingDetails } from './workspaceReporting'
 
 const apiMock = vi.fn()
 vi.mock('./api', async original => ({ ...await original<typeof import('./api')>(), api: (...args: unknown[]) => apiMock(...args) }))
@@ -28,6 +28,9 @@ describe('workspace reporting', () => {
     const data = await reportedApi<typeof native>('debts')
     expect(reportedMoney(data.rows[0], 'amount', 'USD')).toBe('12.00 SGD')
     expect(reportedMoney(data.rows[1], 'amount', 'USD')).toBe('14.00 SGD')
+    expect(reportedChartAmount(data.rows[0], 'amount', 'USD')).toEqual({ value: '12.00', currency: 'SGD' })
+    expect(reportedChartAmount(data.rows[1], 'amount', 'USD')).toEqual({ value: '14.00', currency: 'SGD' })
+    expect(workspaceReportingCurrency(data)).toBe('SGD')
     expect(JSON.parse(JSON.stringify(data))).toEqual(native)
     expect(data.rows[0]).toEqual({ amount: '10.00', currency: 'USD' })
     expect(apiMock).toHaveBeenCalledWith('reporting/workspaces/debts')
@@ -46,6 +49,8 @@ describe('workspace reporting', () => {
     const data = await reportedApi<{rows: {amount: string}[]}>('cards')
     expect(data.rows).toHaveLength(1)
     expect(data.rows[0].amount).toBe('10.00')
+    expect(reportedChartAmount(data.rows[0], 'amount', 'SGD').value).toBeNull()
+    expect(reportedChartAmount(data.rows[0], 'unannotated', 'SGD').value).toBeNull()
     expect(reportedMoney(data.rows[0], 'amount', 'USD')).toContain('No January rate')
     expect(reportedMoney(data.rows[0], 'amount', 'USD')).toContain('Import the January rate.')
     // Unconverted is not unknown: the original amount stays on screen.
