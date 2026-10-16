@@ -4767,6 +4767,12 @@ export interface components {
             income: components["schemas"]["ConsolidatedValuationDTO"];
             /** Complete */
             complete: boolean;
+            previous_spending?: components["schemas"]["ConsolidatedValuationDTO"] | null;
+            spending_change?: components["schemas"]["MoneyDTO"] | null;
+            /** Spending Change Pct */
+            spending_change_pct?: string | null;
+            /** Spending Change Reason */
+            spending_change_reason?: string | null;
         };
         /** TrendPoint */
         TrendPoint: {

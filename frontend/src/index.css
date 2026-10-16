@@ -707,3 +707,4 @@ main{width:100%;min-width:0}
 .card-repayments small{display:block;color:var(--muted);font-size:10.5px}
 /* Money comparisons share the existing theme and keep long group lists scrollable. */
 .money-bar-scroll{overflow-x:auto;padding:12px 12px 0}.report-charts{min-width:0;margin-top:18px}.report-charts>label{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12px}.report-charts select{max-width:220px}.money-bar-scroll:focus-visible{outline:2px solid var(--primary)}
+.spending-change-summary{padding:12px 25px 0;font-size:13px;color:var(--foreground)}.spending-comparison-mode{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}.spending-comparison-mode select{max-width:170px;color:var(--foreground)}

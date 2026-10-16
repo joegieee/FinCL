@@ -14988,6 +14988,48 @@
           "complete": {
             "type": "boolean",
             "title": "Complete"
+          },
+          "previous_spending": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConsolidatedValuationDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spending_change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spending_change_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spending Change Pct"
+          },
+          "spending_change_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spending Change Reason"
           }
         },
         "additionalProperties": false,

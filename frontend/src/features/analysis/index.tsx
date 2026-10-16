@@ -11,6 +11,7 @@ import {
 import { ScopeBar } from './ScopeBar'
 import { ComparisonCards } from './ComparisonCards'
 import { TrendChart } from './TrendChart'
+import { SpendingComparisonChart } from './SpendingComparisonChart'
 import { ChangeRanking } from './ChangeRanking'
 import { ContributorTable } from './ContributorTable'
 
@@ -178,6 +179,7 @@ export function AnalysisView({
       {analysis && (
         <>
           <ComparisonCards analysis={analysis} />
+          <SpendingComparisonChart trend={analysis.trend} currency={reportingCurrency} />
           <TrendChart trend={analysis.trend} currency={reportingCurrency} range={filters.trendRange} />
           <div className="analysis-grid">
             <ChangeRanking

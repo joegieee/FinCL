@@ -172,6 +172,10 @@ class TrendMonthOut(_StrictModel):
     fees: ConsolidatedValuationDTO
     income: ConsolidatedValuationDTO
     complete: bool
+    previous_spending: ConsolidatedValuationDTO | None = None
+    spending_change: MoneyDTO | None = None
+    spending_change_pct: str | None = None
+    spending_change_reason: str | None = None
 
 
 class ReportedAnalysisOut(_StrictModel):
@@ -245,6 +249,10 @@ def _reported_analysis_out(result: ReportedAnalysisResult) -> ReportedAnalysisOu
             TrendMonthOut(
                 month=month.month, spending=_cv(month.spending), fees=_cv(month.fees),
                 income=_cv(month.income), complete=month.complete,
+                previous_spending=_cv(month.previous_spending) if month.previous_spending is not None else None,
+                spending_change=_delta_dto(month.spending_change),
+                spending_change_pct=month.spending_change_pct,
+                spending_change_reason=month.spending_change_reason,
             )
             for month in result.trend
         ],

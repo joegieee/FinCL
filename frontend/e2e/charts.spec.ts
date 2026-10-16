@@ -43,3 +43,38 @@ test('money charts render, switch metrics and fit narrow and dark screens', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.screenshot({ path: test.info().outputPath('networth-charts.png'), fullPage: true })
 })
+
+test('monthly spending compares adjacent months and explains increases and decreases', async ({ page }) => {
+  const cv = (value: string | null) => ({ total: value === null ? null : { value, currency: 'SGD' }, partial_total: null,
+    status: value === null ? 'unavailable' : 'available', unavailable_reasons: [], excluded_detail: [] })
+  const trend = [
+    { month: '2026-01', amount: '100.00', previous: '80.00', delta: '20.00', pct: '25.0' },
+    { month: '2026-02', amount: '150.00', previous: '100.00', delta: '50.00', pct: '50.0' },
+    { month: '2026-03', amount: null, previous: '150.00', delta: null, pct: null },
+    { month: '2026-04', amount: '200.00', previous: null, delta: null, pct: null },
+    { month: '2026-05', amount: '200.00', previous: '200.00', delta: '0.00', pct: '0.0' },
+    { month: '2026-06', amount: '150.00', previous: '200.00', delta: '-50.00', pct: '-25.0' },
+  ].map(row => ({ month: row.month, spending: cv(row.amount), fees: cv('0.00'), income: cv('0.00'), complete: row.amount !== null,
+    previous_spending: cv(row.previous), spending_change: row.delta === null ? null : { value: row.delta, currency: 'SGD' },
+    spending_change_pct: row.pct, spending_change_reason: row.delta === null ? 'Both months need full coverage.' : null }))
+  await page.route('**/api/v1/reporting/analysis?**', route => route.fulfill({ json: {
+    generation: 'demo', reporting_currency: 'SGD', covered: true, comparison_kind: 'none',
+    summary: { spending: { current: cv('150.00'), comparison_available: false } },
+    trend, category_ranking: [], merchant_ranking: [], contributors_handle: null,
+  } }))
+  await page.goto('/')
+  await openTab(page, 'Analysis')
+  const frame = page.locator('.chart-card').filter({ hasText: 'How has my spending changed?' })
+  await expect(frame.getByRole('status')).toContainText('Spending fell by SGD 50.00 (25.0%)')
+  await expect(frame.getByRole('img').locator('.recharts-bar-rectangle').first()).toBeVisible()
+  await frame.getByLabel('Spending chart view').selectOption('change')
+  // Zero change lies on the baseline and has no painted rectangle.
+  await expect(frame.getByRole('img', { name: 'Month-on-month spending change chart · SGD', exact: true }).locator('.recharts-bar-rectangle')).toHaveCount(3)
+  await frame.getByText('Exact values and coverage').click()
+  const march = frame.getByRole('row').filter({ hasText: 'Mar 2026' })
+  await expect(march).toContainText('Unavailable')
+  await expect(march).toContainText('Both months need full coverage.')
+  await expect(frame.getByRole('row').filter({ hasText: 'Jun 2026' })).toContainText('-25.0%')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({ path: test.info().outputPath('monthly-spending.png'), fullPage: true })
+})

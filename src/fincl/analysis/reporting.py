@@ -252,6 +252,10 @@ class TrendMonth:
     fees: ConsolidatedValuation
     income: ConsolidatedValuation
     complete: bool
+    previous_spending: ConsolidatedValuation | None = None
+    spending_change: Fraction | None = None
+    spending_change_pct: str | None = None
+    spending_change_reason: str | None = None
 
 
 _TREND_RANGES = ("6", "12", "all")
@@ -457,7 +461,10 @@ def _trend(
         months = int(trend_range)
 
     result: list[TrendMonth] = []
-    for offset in range(months - 1, -1, -1):
+    previous: ConsolidatedValuation | None = None
+    # Read one extra month so the first visible month can still be compared
+    # with its calendar predecessor, under exactly the same filters and rates.
+    for offset in range(months, -1, -1):
         year, month = divmod(anchor_index - offset, 12)
         month += 1
         ym = f"{year:04d}-{month:02d}"
@@ -473,7 +480,19 @@ def _trend(
             income = consolidate(connection, _bucket_items(rows, "income"), context=flow_context)
         else:
             spending = fees = income = _uncovered_result(flow_context)
-        result.append(TrendMonth(month=ym, spending=spending, fees=fees, income=income, complete=full))
+        delta, pct = _delta_and_pct(spending, previous)
+        reason = None
+        if delta is None:
+            reason = "Comparison unavailable: both calendar months need full statement coverage and complete currency valuation."
+        elif pct is None:
+            reason = "Previous month spending was zero; percentage change is undefined."
+        if offset < months:
+            result.append(TrendMonth(
+                month=ym, spending=spending, fees=fees, income=income, complete=full,
+                previous_spending=previous, spending_change=delta,
+                spending_change_pct=pct, spending_change_reason=reason,
+            ))
+        previous = spending
     return tuple(result)
 
 

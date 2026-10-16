@@ -248,6 +248,55 @@ class TrendTests(unittest.TestCase):
         self.assertEqual(by_month["2026-03"].spending.total, Fraction(300))
         # A refund does not reduce the spending trend cell either.
         self.assertEqual(by_month["2026-02"].income.total, Fraction(0))
+        self.assertEqual(by_month["2026-02"].spending_change, Fraction(100))
+        self.assertEqual(by_month["2026-02"].spending_change_pct, "100.0")
+        self.assertEqual(by_month["2026-03"].spending_change_pct, "50.0")
+        self.assertIsNone(by_month["2026-01"].spending_change)
+        self.assertIn("full statement coverage", by_month["2026-01"].spending_change_reason)
+
+    def test_monthly_changes_use_dated_fx_and_do_not_bridge_missing_valuation(self) -> None:
+        rows = [
+            ["Topup", "Current", "2026-01-01 09:00:00", "2026-01-01 09:00:01",
+             "Seed", "1000.00", "0.00", "USD", "COMPLETED", "1000.00"],
+            *[["Card Payment", "Current", f"2026-{month:02d}-15 10:00:00", f"2026-{month:02d}-15 10:00:01",
+               "Shop", "-10.00", "0.00", "USD", "COMPLETED", f"{1000 - month * 10}.00"] for month in (1, 2, 3)],
+            ["Topup", "Current", "2026-03-31 23:00:00", "2026-03-31 23:00:01",
+             "Marker", "0.01", "0.00", "USD", "COMPLETED", "970.01"],
+        ]
+        database = _ledger(rows)
+        _load_rate(database, "USD", "2026-01", "1.5000")
+        _load_rate(database, "USD", "2026-03", "1.2000", source_version="march")
+        result = _page(database, as_of=date(2026, 3, 31), history_start="2026-03-01", history_end="2026-03-31")
+        self.assertIsNone(result.trend[-1].spending_change)
+        self.assertIsNone(result.trend[-2].spending_change)
+        _load_rate(database, "USD", "2026-02", "1.2500", source_version="february")
+        result = _page(database, as_of=date(2026, 3, 31), history_start="2026-03-01", history_end="2026-03-31")
+        self.assertEqual(result.trend[-2].spending_change, Fraction(-5, 2))
+        self.assertEqual(result.trend[-2].spending_change_pct, "-16.7")
+        self.assertEqual(result.trend[-1].spending_change, Fraction(-1, 2))
+        self.assertEqual(result.trend[-1].spending_change_pct, "-4.0")
+
+    def test_zero_previous_spending_keeps_amount_change_but_has_no_percentage(self) -> None:
+        database = _ledger(self._ROWS)
+        # A merchant scope with no components is an evidenced zero in each
+        # covered month, not a coverage gap or a division by zero.
+        result = _page(database, as_of=date(2026, 3, 31), history_start="2026-03-01", history_end="2026-03-31", merchant="ABSENT")
+        self.assertEqual(result.trend[-1].spending_change, Fraction(0))
+        self.assertIsNone(result.trend[-1].spending_change_pct)
+        self.assertIn("zero", result.trend[-1].spending_change_reason)
+
+    def test_first_visible_month_still_compares_with_its_hidden_predecessor(self) -> None:
+        database = _ledger([
+            *self._ROWS,
+            ["Topup", "Current", "2026-07-31 23:00:00", "2026-07-31 23:00:01",
+             "Coverage marker", "0.01", "0.00", "SGD", "COMPLETED", "2449.02"],
+        ])
+        result = _page(database, as_of=date(2026, 7, 31), history_start="2026-07-01", history_end="2026-07-31")
+        first = result.trend[0]
+        self.assertEqual(first.month, "2026-02")
+        self.assertEqual(first.previous_spending.total, Fraction(100))
+        self.assertEqual(first.spending_change, Fraction(100))
+        self.assertEqual(first.spending_change_pct, "100.0")
 
     def test_trend_range_12_reaches_back_past_evidence_into_incomplete_months(self) -> None:
         database = _ledger(self._ROWS)
