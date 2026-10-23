@@ -8,10 +8,9 @@ text and a source-specific `raw_fields_json` blob (Trust's `fx` dict,
 Revolut's `fx_line`/`balance_delta`, …). Already-accepted rows can carry
 usable foreign-amount evidence in that raw text that the write-time parser
 could not turn into `source_currency`/`source_amount_*` — e.g. amounts
-printed with a `₹`
-symbol or as an integer/grouped VND figure, which the write-time tail-token
-match (two decimal places, a bare `S$`/`$` prefix or a three-letter code)
-does not accept.
+printed with a `₹` symbol or as an integer/grouped VND figure, which the
+write-time tail-token match (two decimal places, a bare `S$`/`$` prefix or a
+three-letter code) does not accept.
 
 This module is a pure read adapter over that already-preserved evidence: it
 performs no writes, never touches `ledger_entries`/`document_records`, never
@@ -128,7 +127,8 @@ class _DecodedOriginal:
 _MONEY_TOKEN_RE = re.compile(r"^(?P<symbol>S\$|\$|₹)?(?P<amount>\d[\d,]*(?:\.\d+)?)$")
 _MONEY_TOKEN = r"(?:S\$|\$|₹)?\d[\d,]*(?:\.\d+)?"
 
-# An example printed Revolut line (invented figures): `Revolut Rate S$1.00 = ₹60.00 (ECB rate* S$1.00 = ₹59.50) ₹1,000.00`
+# An example printed Revolut line (invented figures):
+# `Revolut Rate S$1.00 = ₹60.00 (ECB rate* S$1.00 = ₹59.50) ₹1,000.00`
 # — a 1-unit provider rate, a parenthesized ECB benchmark rate the provider
 # rate is compared against, and the original purchase amount printed last.
 # The ECB group is matched so it is never mistaken for the provider rate or
