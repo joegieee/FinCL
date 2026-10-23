@@ -33,10 +33,11 @@ from ..generation import current_generation
 from ..money import format_decimal
 
 # The final instalment of a chain absorbs the rounding remainder, so it is the
-# one occurrence permitted to differ from the fixed monthly amount (statements
-# print it as 33.33 x 2 then 33.34). Every
-# non-final occurrence must match exactly; a mid-chain change of amount starts a
-# new chain and is surfaced for the operator rather than absorbed silently.
+# one occurrence permitted to differ from the fixed monthly amount (real
+# statements print this shape; e.g. 100.00 over three is 33.33 x 2 then 33.34).
+# Every non-final occurrence must match exactly; a mid-chain change of amount
+# starts a new chain and is surfaced for the operator rather than absorbed
+# silently.
 _CANDIDATE_SOURCE = "mari-card-installment-block-v1"
 _LABEL_MAX = 200  # matches validation._LABEL_MAX for merchant_label
 
