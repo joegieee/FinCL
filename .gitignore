@@ -14,9 +14,24 @@ raw/
 *.sqlite3-shm
 *.sqlite3-wal
 node_modules/
+# Playwright failure artefacts
 frontend/test-results/
 frontend/playwright-report/
 src/fincl/static/
 
-# Playwright failure artefacts
-frontend/test-results/
+# Statements, ledgers, journals, evidence and backups
+*.pdf
+!tests/fixtures/*.pdf
+*.csv
+!frontend/e2e/fixtures/*.csv
+*.jsonl
+*.sqlite3-journal
+*.sqlite3.*bak*
+*.db
+evidence*/
+backup*/
+
+# Local tooling and secrets
+.env
+.env.*
+.pytest_cache/
