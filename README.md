@@ -1,126 +1,197 @@
 # FinCL
 
-FinCL is a local, evidence-backed financial statement ledger. The implemented
-vertical slices import Revolut CSV exports, DBS consolidated deposit statements,
-DBS PayLah! statements, MariBank savings statements, Mari credit-card
-statements, and Trust Bank Singapore savings statements without modifying the
-source files or sending financial data to external services.
+**Your bank statements, turned into a ledger you can check.**
 
-Coverage intervals, journal association, verified reconstruction, and backup/restore
-are implemented. The migration runner carries registered, checksummed upgrades
-for every schema step from 8 to the current 23; shared application operations
-(one ledger writer lock, request-id idempotency) and query generations are
-implemented. Current rebuild requires the source database's
-evidence inventory and FX inputs as well as the evidence vault and journal.
+FinCL is a local-first personal finance app for Singapore bank statements. Give
+it the PDFs your banks already send you (DBS, DBS PayLah!, MariBank, Mari credit
+card, Trust Bank and Revolut) and it builds one exact ledger: every figure
+traces back to a line on a statement, every statement must reconcile to its own
+printed balances, and nothing leaves your machine.
 
-## Implemented
+- **Evidence, not guesses.** A statement that does not balance to the cent is
+  quarantined, not imported. An ambiguous transfer is proposed for review,
+  never matched silently.
+- **Every decision is replayable.** Categories, confirmed transfers and
+  corrections go into a hash-chained decision journal, so the whole database
+  can be rebuilt from your statements plus that journal.
+- **Answers, not just transactions.** Cash position, a six-month forecast,
+  "Will I have enough?", debts, cards and instalments, budgets, sinking funds,
+  trips and net worth.
+- **Exact money.** Integer amounts, never floating point, and FX rates loaded
+  explicitly with their provenance.
 
-- Byte-identical, SHA-256-addressed local evidence copies with verification
-  before extraction.
-- Exact integer-coefficient monetary storage; money never uses binary floating
-  point or SQLite `REAL`.
-- One `ledger_entries` table for every processed flow regardless of source (CSV
-  export or parsed statement), with a `source_family` discriminator, exactly one
-  raw provenance link, a rebuild-stable `natural_anchor`, and typed nullable
-  source-specific columns. `transfer_links` carry real foreign keys into it.
-- Revolut lifecycle preservation and per-currency-pocket running balances.
-- DBS multi-currency PDF extraction with geometric anchors, rotated-text
-  filtering, multiline descriptions, and exact balance walks.
-- PayLah extraction for both observed layouts, missing-year inference bounded by
-  the statement period, row coverage, references, and exact statement balances.
-- Narrow deterministic DBS-to-PayLah, branded DBS-to-Revolut, DBS-to-MariBank
-  (PayNow reference token + amount), and MariBank-savings-to-Mari-card repayment
-  transfer links. DBS debit-card Revolut top-ups match on the real
-  card-transaction date parsed from the merchant line (DBS posts the debit
-  days later), not the posting date. Ambiguous matches are `PROPOSED` for
-  review rather than guessed, except a balanced same-day group of identical
-  DBS-to-PayLah top-ups (no shared reference, both legs owner-owned, every
-  pairing nets alike), which is auto-confirmed on one deterministic bijection.
-- MariBank savings extraction with two frozen interest profiles, daily-interest
-  rows kept supporting, the credited-interest line at `MONTH` precision, and
-  exact ending/summary/interest reconciliation.
-- Trust Bank Singapore savings extraction: the printed statement period, the
-  `Main Account` and `Savings` sub-account ledgers, balance-boundary rows kept
-  supporting, foreign-currency purchases with their FCY amount and applied
-  rate, and exact per-sub-account and printed-summary reconciliation.
-- Mari credit-card extraction: posted and transaction dates kept separate,
-  foreign amount/currency preserved with a magnitude-derived implied rate,
-  installment occurrences recorded as facts, and two-layer reconciliation
-  (section totals → the statement's own printed equation → current outstanding
-  → statement due).
-- An owner-only, fsync-durable hash-chained decision journal beside the database,
-  with rebuilt SQLite projections for reviewed links, repairs, invariant
-  escapes, inbound classifications, and categorization rules / aliases /
-  overrides. The kind vocabulary is closed — replay refuses an unrecognized
-  `decision_kind` rather than dropping it. Decisions whose anchor no longer
-  resolves are surfaced as `dangling_decisions` in `report` / `coverage` and as
-  a non-zero `rebuild` exit code.
-- One analytically selected extraction run per evidence blob
-  (`extraction_runs.selection_state`, a partial unique index), so a
-  parser-version bump cannot double-count the ledger or split an override's
-  binding; stale-only evidence is reported as `needs_reextraction`.
-- Deterministic categorization (`fincl categorize`): a frozen `taxonomy-2026-v1`
-  code constant, a versioned per-source field projection and merchant
-  normalization, journaled `fincl rules` / `review categorize` authoring, a
-  six-tier precedence engine (override → confirmed link / inbound →
-  direct then alias-resolved merchant rule → description / PayNow rule →
-  unclassified) with exact currency-qualified amount bands and an asymmetric
-  direction check, and a reproducible `categorization_runs` manifest whose id is
-  a hash of every input version. Unclassified / ambiguous / direction-conflict /
-  migrated / missing-description counts surface as warnings, never hard failures.
-- A local Categorization Inbox groups active unclassified records by merchant,
-  PayNow recipient, description, or missing-merchant fallback. It exposes
-  generation-pinned coverage, exact rule/alias impact previews, explicit
-  one-off/selected/reusable scopes, and journal-backed rule history.
-- `review escape-invariant` only downgrades a check with a live blocking
-  violation of that exact code; `review confirm-link` requires an explicit
-  `--link-kind` to record a pair automation never proposed.
-- Per-currency exact economic-flow reporting: six inbound buckets (income,
-  reimbursements, non-income inflow, other, pending review, self-transfer
-  excluded), confirmed internal links excluded, baselines filtered to the
-  fully cross-source-covered window, optional explicit `--start`/`--end` bounds
-  inside that window, and a consolidated SGD total once reference FX rates are
-  loaded (otherwise `null` with a status naming why).
-- Receipt-period refunds net positively in a separate bucket; explicit inbound
-  classifications and confirmed internal links take precedence. Purchase attribution
-  remains deferred.
-- Reference FX rates loaded explicitly (`import-fx-rates`), carried forward
-  verbatim by `rebuild`, and applied month by month with a single final
-  rounding to the cent. Rate versions are immutable; identical reimports write
-  nothing and retain selection timestamps. Changes require a new version. Reports
-  include exact selected FX inputs and their provenance.
-- Typer/Rich CLI output, plus stable `--plain` and machine-readable `--json`
-  modes.
+```mermaid
+flowchart LR
+  PDF["Bank statement PDFs"] --> V["Evidence vault<br/>SHA-256 copies"]
+  V --> P["Parsers<br/>+ reconciliation checks"]
+  P -->|balances to the cent| L[("Ledger entries")]
+  P -->|does not balance| Q["Quarantined"]
+  L --> T["Transfer linking<br/>+ categorisation rules"]
+  T --> R["Reports and API"]
+  R --> UI["Local web app"]
+  UI -->|"confirm, categorise, correct"| J["Hash-chained<br/>decision journal"]
+  J --> T
+  V -. rebuild .-> L
+  J -. replay .-> L
+```
 
-PDF parsing, evidence storage, SQLite, reports, and transfer matching all run
-locally. Encryption at rest remains deferred. The current evidence vault and
-database are plaintext stores protected by owner-only filesystem permissions;
-full-disk encryption is recommended.
+## Try the demo
 
-## Setup
-
-The project is managed with uv and pinned to Python 3.13 (`requires-python =
-">=3.13"`):
+The demo is an isolated ledger built from synthetic statements, so you can
+explore the app without any of your own data. It needs uv and Node.js:
 
 ```sh
 uv sync --locked
-uv run fincl --help
-uv run pytest
+npm ci --prefix frontend
+npm run build --prefix frontend
+uv run python scripts/create_demo.py /tmp/fincl-demo
+uv run fincl serve --database /tmp/fincl-demo/demo.sqlite3 --demo --open
 ```
 
-The committed `uv.lock` provides reproducible dependency versions. `.venv/` is
-generated locally and ignored.
+Edits persist in the demo ledger. See [frontend setup and scope](frontend/README.md)
+for more on the demo and the app's launch and session behaviour.
 
-### Checks
+## Use it with your own statements
+
+Keep the ledger and evidence outside the folder your statements live in; FinCL
+never modifies the source files. The first import creates the ledger, then the
+app takes over:
 
 ```sh
+uv run fincl import-dbs path/to/dbs-statement.pdf \
+  --database var/fincl.sqlite3 --evidence-dir var/evidence
+uv run fincl serve --database var/fincl.sqlite3 --evidence-dir var/evidence --open
+```
+
+From there, the app's Setup page uploads further PDFs (several banks at once,
+recognised automatically). The app opens only an existing ledger at the current
+schema and never migrates on startup; upgrade with `fincl migrate`.
+
+Everything runs locally: PDF parsing, evidence storage, SQLite, reports and
+transfer matching. Encryption at rest is not implemented yet. The evidence
+vault and database are plaintext stores protected by owner-only filesystem
+permissions, so full-disk encryption is recommended.
+
+## What's in the app
+
+The local web app has 28 destinations in six navigation-rail sections
+(`frontend/src/lib/tabs.ts` is the single source for the rail and the command
+palette):
+
+- **Overview**
+- **Money in & out:** Transactions, Analysis, Income, Categorization,
+  Categories, Rules, Review, Reports, Trips
+- **Commitments:** Obligations, Debts, Cards, Installments
+- **Planning:** Planning, Budgets, Recurring, Annual funds, Controls
+- **Position & forecast:** Will I have enough, Baseline, Cash, Forecast, Net
+  worth, Variance
+- **Setup & data:** Accounts, Setup, Maintenance
+
+`Cash Flow` and `Money Owed` are aliases for Analysis and Obligations, reachable
+by URL and the command palette but not rail rows of their own. The transaction
+list is paged and filtered by the backend (`GET /api/v1/transactions`, keyset
+cursor, generation-pinned). Every write goes through one application writer
+(one ledger lock, generation-checked preview, request-id idempotency), and the
+CLI sees the same journal decisions.
+
+Serving is key-free by default. Add `--require-access-key` to re-enable the
+one-use launch key and session gate.
+
+## How it works
+
+- **Evidence.** Each statement is copied byte for byte into a SHA-256-addressed
+  evidence vault and verified before extraction.
+- **Exact money.** Amounts are stored as integer coefficients; money never uses
+  binary floating point or SQLite `REAL`.
+- **One ledger table.** Every processed flow lands in `ledger_entries`
+  regardless of source, with a `source_family` discriminator, exactly one raw
+  provenance link, a rebuild-stable `natural_anchor`, and typed nullable
+  source-specific columns. `transfer_links` carry real foreign keys into it.
+- **Statement parsers.**
+  - DBS multi-currency PDFs: geometric anchors, rotated-text filtering,
+    multiline descriptions and exact balance walks.
+  - PayLah: both observed layouts, missing-year inference bounded by the
+    statement period, row coverage, references and exact statement balances.
+  - MariBank savings: two frozen interest profiles, daily-interest rows kept
+    supporting, the credited-interest line at `MONTH` precision, and exact
+    ending/summary/interest reconciliation.
+  - Mari credit card: posted and transaction dates kept separate, foreign
+    amount and currency preserved with a magnitude-derived implied rate,
+    instalment occurrences recorded as facts, and two-layer reconciliation
+    (section totals → the statement's own printed equation → current
+    outstanding → statement due).
+  - Trust Bank: the printed statement period, the `Main Account` and `Savings`
+    sub-account ledgers, foreign-currency purchases with their applied rate,
+    and exact per-sub-account and printed-summary reconciliation.
+  - Revolut PDFs: per-currency-pocket running balances and lifecycle
+    preservation.
+- **Transfer links.** Narrow deterministic DBS-to-PayLah, DBS-to-Revolut,
+  DBS-to-MariBank (PayNow reference token + amount) and MariBank-to-Mari-card
+  repayment links. DBS debit-card Revolut top-ups match on the card-transaction
+  date printed in the merchant line (DBS posts the debit days later), not the
+  posting date. Ambiguous matches are `PROPOSED` for review rather than
+  guessed, except a balanced same-day group of identical DBS-to-PayLah top-ups
+  (no shared reference, both legs owner-owned, every pairing nets alike), which
+  is auto-confirmed on one deterministic bijection.
+- **Decision journal.** An owner-only, fsync-durable, hash-chained journal
+  beside the database, with rebuilt SQLite projections for reviewed links,
+  repairs, invariant escapes, inbound classifications, and categorization
+  rules, aliases and overrides. The kind vocabulary is closed: replay refuses
+  an unrecognized `decision_kind` rather than dropping it. Decisions whose
+  anchor no longer resolves are surfaced as `dangling_decisions` in `report` /
+  `coverage` and as a non-zero `rebuild` exit code.
+- **Extraction runs.** One analytically selected extraction run per evidence
+  blob (`extraction_runs.selection_state`, a partial unique index), so a
+  parser-version bump cannot double-count the ledger or split an override's
+  binding; stale-only evidence is reported as `needs_reextraction`.
+- **Categorization.** A frozen `taxonomy-2026-v1` code constant, a versioned
+  per-source field projection and merchant normalization, journaled rule
+  authoring, and a six-tier precedence engine (override → confirmed link /
+  inbound → direct then alias-resolved merchant rule → description / PayNow
+  rule → unclassified) with exact currency-qualified amount bands and an
+  asymmetric direction check. Each run is recorded in a reproducible
+  `categorization_runs` manifest whose id is a hash of every input version.
+  Unclassified, ambiguous, direction-conflict, migrated and
+  missing-description counts surface as warnings, never hard failures.
+- **Economic flow.** Per-currency exact reporting with six inbound buckets
+  (income, reimbursements, non-income inflow, other, pending review,
+  self-transfer excluded), confirmed internal links excluded, baselines
+  filtered to the fully cross-source-covered window, and a consolidated SGD
+  total once reference FX rates are loaded (otherwise `null` with a status
+  naming why). Receipt-period refunds net positively in a separate bucket.
+- **FX rates.** Loaded explicitly (`import-fx-rates`), carried forward verbatim
+  by `rebuild`, and applied month by month with a single final rounding to the
+  cent. Rate versions are immutable; identical reimports write nothing, and
+  changes require a new version. Reports include the exact selected FX inputs
+  and their provenance.
+- **Planning.** Evidenced liquid balances and manual balance observations
+  (`position/`), expense-flexibility tiers (`financial_roles.py`),
+  minimum-reserve policy and spending controls (`controls/`), sinking funds
+  (`funds/`), a six-month forecast over a dated future-event ledger
+  (`forecast/`), and issued snapshots scored against actuals (`variance/`).
+  Refund allocation, personal borrowing and lending, credit cards with
+  instalment-plan chaining, and trips and country context are also in place.
+
+## Development
+
+The project is managed with uv and pinned to Python 3.13 (`requires-python =
+">=3.13"`). The committed `uv.lock` provides reproducible dependency versions;
+`.venv/` is generated locally and ignored.
+
+```sh
+uv sync --locked
 uv run ruff check .
 uv run mypy
 uv run pytest
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same three on every push and pull
-request.
+request. In `frontend/`: `npm run build` (TypeScript), `npm test` (Vitest), and
+`npm run test:browser` (Playwright, desktop + 1024px, needs `npm run build` and
+`npx playwright install chromium` first).
+
+Supported toolchain: Python 3.13, the committed `uv.lock`, and
+`frontend/package-lock.json`; other versions are unsupported.
 
 ### Database schema
 
@@ -129,7 +200,7 @@ the running build's; normal startup never migrates. The current schema is v23
 (9 added `projection_generation` and `command_receipts`; 10–12 the analysis
 component, relationship and bulk-action projections; 13 personal debts; 14–17
 card statement facts, facilities/limits, installments and manual bill
-allocation; 18 the v0.6 planning tables; 19 `balance_observations`; 20
+allocation; 18 the planning tables; 19 `balance_observations`; 20
 `component_provenance`; 21 the sinking-fund tables; 22 the forecast-snapshot and
 match tables; 23 the `reporting_policy` singleton). Each step from 19 on adds
 projection tables only, with no data rewrite: they stay empty until the next
@@ -141,13 +212,16 @@ older database needs a tested reader or the migration before recovery. Rebuild
 preserves the database inventory and FX inputs, re-imports verified evidence,
 and replays the journal.
 
+A backup taken after edits made in the app restores to a separate directory
+with its decisions and report values intact; `tests/test_mvp_backup_workflow.py`
+covers this.
+
 ## CLI
 
 **The CLI is deprecated for new features.** New functionality is built in the
-graphical app only — a FastAPI route plus a feature view (see "Graphical app"
-below). The CLI is feature-frozen, not removed: every command documented here
-keeps working and keeps being fixed, but it will not grow to match new UI
-capabilities, so the app is the more complete surface for day-to-day use.
+app only, as a FastAPI route plus a feature view. The CLI is feature-frozen, not
+removed: every command documented here keeps working and keeps being fixed, but
+it will not grow to match new app capabilities.
 
 Seven commands are not deprecated and remain the supported operations and
 recovery surface, because the app cannot perform them: `serve` (the only way to
@@ -157,7 +231,7 @@ schema), `backup`, `restore`, `rebuild`, `adopt-ledger` and `repair`.
 Use a database and evidence directory outside the read-only source folder:
 
 ```sh
-uv run fincl import-revolut path/to/export.csv \
+uv run fincl import-revolut-pdf path/to/revolut-statement.pdf \
   --database var/fincl.sqlite3 --evidence-dir var/evidence
 
 uv run fincl import-dbs path/to/dbs-statement.pdf \
@@ -194,7 +268,7 @@ uv run fincl import-fx-rates --file path/to/rates.json \
   --database var/fincl.sqlite3
 # ...or MAS's own "Exchange Rates (Weekly)" CSV, reduced to each month's last
 # end-of-period value:
-uv run fincl import-fx-rates --file "raw/MAS_fx/Exchange Rates.csv" \
+uv run fincl import-fx-rates --file "path/to/Exchange Rates.csv" \
   --mas-weekly-csv --source-version mas-weekly-2026-09 \
   --database var/fincl.sqlite3
 
@@ -240,7 +314,7 @@ uv run fincl rebuild --database var/fincl.sqlite3 --evidence-dir var/evidence \
 uv run fincl repair ext_... --database var/fincl.sqlite3 \
   --reason "retry after interrupted local import"
 
-# One-time for a ledger created before the journal association (F24):
+# One-time for a ledger created before the journal association existed:
 uv run fincl adopt-ledger --database var/fincl.sqlite3
 
 # Capture a verified backup bundle, then restore it into a new directory:
@@ -258,6 +332,8 @@ command provides those modes. A quarantined import exits with status 2; a
 `rebuild` that leaves journaled decisions unbound exits with status 3; an
 operational failure exits with status 1.
 
+### Operations: journal, rebuild, backup and restore
+
 `repair` first records an `EXTRACTION_REPAIR` decision in the durable journal.
 `rebuild` replays that journal into its SQLite projection and reports bound and
 dangling decisions. The legacy `recover-extraction` command remains available
@@ -265,8 +341,8 @@ for existing scripts.
 
 Each ledger database is bound to its decision journal by a `ledger_association`
 row and a `decision-journal.identity.json` file, with a sequence/hash checkpoint
-that detects removal of a complete journal tail (F24). A new ledger is bound on
-its first import; a ledger created before this must be bound once with
+that detects removal of a complete journal tail. A new ledger is bound on its
+first import; a ledger created before this must be bound once with
 `fincl adopt-ledger`. Opening a ledger whose journal is missing, shorter than
 its checkpoint, or from a different ledger is refused with a restore
 instruction. `rebuild` accepts only a same-directory output: it produces a
@@ -276,97 +352,32 @@ journal; relocation uses the verified backup/restore bundle.
 Reconstruction inventories every stored evidence blob independent of analytical
 selection, groups extraction history by blob and source family, and refuses a
 blob that dispatches to more than one family or has no supported extraction
-history — without deleting the bytes. It verifies every evidence object before
+history, without deleting the bytes. It verifies every evidence object before
 staging, checks the candidate for evidence-set and exact FX-row equality, and
 reopens it through the normal read path before a no-clobber publish. A source
 database whose schema version this build has no reader for is refused with the
 list of versions it does support.
 
-`fincl backup` captures a `backup-v1` bundle — the database (via SQLite's backup
-API), the journal and identity file at the checkpoint, every inventoried
-evidence object, and a manifest of checksums, FX versions, and a decision
-summary — under a backup writer lock, verified and published with no
-overwrite. `fincl restore` rejects symlinks and traversal, verifies every
-checksum, reopens the candidate through the normal read path, compares it to
-the manifest, and publishes a new ledger directory without switching the active
-one. Every mutating command — CLI writes, in-app writes, imports, refresh and
-migration — now takes that same ledger writer lock, so a backup serializes
-against concurrent imports and edits rather than racing them. Schema upgrades
-are explicit: `apply_pending_migrations` requires a verified backup, runs each
-step in one transaction with an integrity check, and
-stamps the new version only at commit; normal startup never migrates.
+`fincl backup` captures a `backup-v1` bundle (the database via SQLite's backup
+API, the journal and identity file at the checkpoint, every inventoried evidence
+object, and a manifest of checksums, FX versions and a decision summary) under a
+backup writer lock, verified and published with no overwrite. `fincl restore`
+rejects symlinks and traversal, verifies every checksum, reopens the candidate
+through the normal read path, compares it to the manifest, and publishes a new
+ledger directory without switching the active one. Every mutating command (CLI
+writes, in-app writes, imports, refresh and migration) takes the same ledger
+writer lock, so a backup serializes against concurrent imports and edits rather
+than racing them. Schema upgrades are explicit: `apply_pending_migrations`
+requires a verified backup, runs each step in one transaction with an integrity
+check, and stamps the new version only at commit.
 
 ## Current limits
 
-MariBank savings and Mari credit-card statements are extracted and reconciled
-(`import-maribank`, `import-mari-card`), and a card repayment now links back
-through the savings account to its funding DBS PayNow debit. Trust Bank
-Singapore savings statements are extracted and reconciled (`import-trust`),
-including foreign-currency purchases with their applied rate. Deterministic
-categorization is implemented (`fincl categorize`, `fincl rules`). Refund
-allocation (v0.2), personal borrowing and lending (v0.3), and credit cards with
-installment plan chaining (v0.4) have since landed. Country and trip dimensions,
-generalized transfer matching, and encryption at rest are not implemented yet.
-
-Forward-looking cash planning has since landed: evidenced liquid balances and
-manual balance observations (`position/`, Cash), expense-flexibility tiers
-(`financial_roles.py`, Baseline), minimum-reserve policy and spending controls
-(`controls/`, Controls), sinking funds (`funds/`, Annual funds), a six-month
-forecast over a dated future-event ledger (`forecast/`, Forecast), and issued
-snapshots scored against actuals (`variance/`, Variance).
-
-The graphical MVP is implemented and tested
-(see "Graphical app" below). MAS weekly-CSV reference rates can be loaded and month-by-month SGD
-consolidation is built. The conservative default withholds a total when entries
-fall outside the global covered intersection; an explicit `economic-flow`
-analysis window wholly inside that intersection produces the consolidated
-total. W4 is complete; per-flow coverage remains a future F22 refinement.
-
-
-## Graphical app
-
-The local shadcn interface presents 25 destinations in six navigation-rail
-sections (`frontend/src/lib/tabs.ts` is the single source for the rail and the
-command palette): Overview; Money in & out (Transactions, Analysis, Income,
-Categorization, Categories, Rules, Review); Commitments (Obligations, Debts,
-Cards, Installments); Planning (Planning, Budgets, Recurring, Annual funds,
-Controls); Position & forecast (Baseline, Cash, Forecast, Net worth, Variance);
-and Setup & data (Accounts, Setup, Maintenance). `Cash Flow` and `Money Owed`
-are aliases for Analysis and Obligations — reachable by URL and the command
-palette, but not rail rows of their own. It supports per-entry category
-overrides and inflow classification, confirm/reject of proposed same-currency
-transfers, category creation, monthly budgets, manually tracked savings goals,
-verified source downloads, and decision history. The transaction list is paged and
-filtered by the backend (`GET /api/v1/transactions`, keyset cursor,
-generation-pinned). Every write goes through the M1b application writer (one
-ledger lock, generation-checked preview, request-id idempotency); the CLI sees
-the same journal decisions.
-
-```bash
-uv sync
-npm ci --prefix frontend
-npm run build --prefix frontend
-uv run fincl serve --database var/fincl.sqlite3 --evidence-dir var/evidence --open
-```
-
-Serving is currently key-free by default. Add `--require-access-key` to re-enable
-the preserved one-use launch key and session gate.
-
-Use an existing current-schema ledger; startup does not migrate or create a
-replacement. See [frontend setup and scope](frontend/README.md) for an isolated
-synthetic demo, implementation boundaries, and launch/session behavior.
-
-### Supported versions and the MVP release gate
-
-- Python 3.13, the committed `uv.lock`, and `frontend/package-lock.json` are the
-  supported toolchain; other versions are unsupported for the release.
-- The app opens only a ledger at the current schema (v23). It refreshes an
-  existing supported ledger and refuses an absent or older one; upgrade with
-  `fincl migrate`, which captures and verifies a pre-upgrade backup first.
-- A backup taken after edits made in the app restores to a separate directory
-  with its decisions and report values intact — covered by
-  `tests/test_mvp_backup_workflow.py`.
-- Checks: `uv run pytest`, `uv run ruff check src tests`, `uv run mypy`, and in
-  `frontend/`: `npm run build` (TypeScript), `npm test` (Vitest), and
-  `npm run test:browser` (Playwright, desktop + 1024px, needs `npm run build`
-  and `npx playwright install chromium` first).
+- Encryption at rest is not implemented; use full-disk encryption.
+- Transfer matching covers the specific bank pairs listed above; generalized
+  transfer matching is not implemented yet.
+- The conservative default withholds a consolidated total when entries fall
+  outside the global covered intersection; an explicit `economic-flow` window
+  wholly inside that intersection produces the total. Per-flow coverage is a
+  future refinement.
+- Purchase attribution for refunds outside the receipt period is deferred.
