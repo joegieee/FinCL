@@ -5,10 +5,7 @@ import { COST_BEHAVIORS, NEEDS, INCOMING_TYPES, INCOMING_LABELS, label, type Fie
 /**
  * The shared category/spending-pattern/spending-need/incoming-type fields,
  * extracted from `BulkEditor` (Step 3) so grouped review (Step 5) can offer
- * the same grocery trio without a second copy of this markup
- * (docs/PLAN-unified-transaction-classification.md §4: "Use one shared
- * draft/preview/save implementation ... do not copy a separate editor per
- * page"). Purely controlled: the caller owns every value and decides which
+ * the same grocery trio without a second copy of this markup. Purely controlled: the caller owns every value and decides which
  * fields/policy to show.
  */
 export function ClassificationFieldsFieldset({

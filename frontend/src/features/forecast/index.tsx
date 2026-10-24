@@ -283,8 +283,8 @@ function AssumptionsAndSources({ native, reported, currency }: { native: Forecas
 }
 
 // Takes the already-fetched native page from OverviewActionPanel's own load
-// instead of issuing a second `loadForecast()` for the same data
-// (PLAN-ui-cohesion.md §1.5). Deliberately native, single-currency and
+// instead of issuing a second `loadForecast()` for the same data.
+// Deliberately native, single-currency and
 // unconverted -- an unrelated glance widget, not the Forecast workspace.
 export function ForecastEstimateSummary({ page, onOpen }: { page: ForecastPage | null; onOpen: () => void }) {
   if (!page) return null

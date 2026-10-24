@@ -463,7 +463,7 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .bulk-form label{margin-bottom:0;font-size:14px}
 .bulk-form label:nth-child(2){flex:1;min-width:200px}
 @media(max-width:700px){.bulk-form{flex-direction:column;align-items:stretch}}
-/* Step 3 — the shared bulk editor's field groups (PLAN-unified-transaction-classification.md) */
+/* Step 3 — the shared bulk editor's field groups */
 .bulk-field{display:flex;flex-direction:column;gap:3px;min-width:180px}
 .bulk-field .field-context{color:var(--muted);font-size:10px}
 .bulk-field label{margin-bottom:0;font-size:14px}
@@ -529,7 +529,7 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 /* Stage 3B — forecast presentation */
 .forecast-view{display:flex;flex-direction:column;gap:18px}.forecast-card,.forecast-gap{padding:20px!important}.forecast-gap{display:flex;align-items:flex-start;gap:10px;border-color:var(--danger-accent)!important}.forecast-gap svg,.forecast-breach>svg{color:var(--danger);flex:none}.forecast-gap p{font-size:12px;color:var(--muted);margin-top:3px}.forecast-breach{align-items:flex-start}.forecast-breach p{margin-top:5px}.forecast-table{min-width:920px}.forecast-table td{font-variant-numeric:tabular-nums}.forecast-chart{margin-top:12px}.forecast-card details summary{cursor:pointer;list-style:none}.forecast-card details summary::-webkit-details-marker{display:none}.forecast-card details summary h2{margin-top:3px}.forecast-drill{margin-top:16px;font-size:12px}.forecast-drill>p{margin:8px 0;color:var(--muted)}.forecast-drill strong{color:var(--foreground)}.forecast-drill h3{font-size:12px;margin-top:16px}.forecast-summary>span:last-child{font-size:11px;color:var(--primary);white-space:nowrap}.insight-grid:has(.forecast-summary){grid-template-columns:repeat(3,minmax(0,1fr))}@media(max-width:900px){.insight-grid:has(.forecast-summary){grid-template-columns:1fr 1fr}}@media(max-width:600px){.insight-grid:has(.forecast-summary){grid-template-columns:1fr}}
 
-/* Reporting-currency valuation seam — <Money> (PLAN-reporting-currency-and-money-flow.md §7.2) */
+/* Reporting-currency valuation seam — <Money> */
 .money{display:inline-flex;flex-wrap:wrap;align-items:center;gap:2px 6px;max-width:100%;font-variant-numeric:tabular-nums}
 .money-amount{white-space:nowrap}
 .money-forward .money-amount{font-style:italic}
@@ -554,7 +554,7 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .money-disclosure-panel dd{margin:0;text-align:right}
 .money-rounding-note{font-size:10px;color:var(--muted);margin-top:4px}
 
-/* Overview summary cards — money-flow (PLAN-reporting-currency-and-money-flow.md M3b.3 step 10) */
+/* Overview summary cards — money-flow */
 .money-flow-section{margin-bottom:22px}
 .money-flow-card{gap:8px!important}
 .money-flow-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px}

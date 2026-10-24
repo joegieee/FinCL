@@ -4,7 +4,7 @@ Reconstruction opens the source read-only and never calls the current
 ``initialize_schema``. A version this build has no reader for fails with the
 list of versions it does support; bumping a version integer in a test is not a
 historical fixture, so the registry only grows when a real prior layout is
-committed as a fixture. See ``docs/DESIGN-recovery-and-application.md`` §5.
+committed as a fixture.
 """
 
 from __future__ import annotations

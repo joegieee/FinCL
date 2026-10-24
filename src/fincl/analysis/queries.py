@@ -272,8 +272,8 @@ def analysis_page_from(
 
     # Receipt-period category cost: gross spending per category minus the
     # refund allocations whose refund was received inside the window,
-    # attributed to the refunded purchase's current category
-    # (DESIGN-relationships-and-cost.md §3). This can go negative for a
+    # attributed to the refunded purchase's current category.
+    # This can go negative for a
     # category with refunds but no purchases in the window.
     gross_by_cat = _grouped_spending(current_rows, "category_key") if covered else {}
     refunds_by_cat: dict[str, list[ExactMoney]] = {}

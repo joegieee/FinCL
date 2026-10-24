@@ -2,8 +2,7 @@
 
 Coverage is expressed as a set of inclusive ``[start, end]`` calendar-date
 intervals in Asia/Singapore.  A source family contributes one such set; the
-covered set is the intersection of every required family's set.  See
-``docs/DESIGN-recovery-and-application.md`` §2.
+covered set is the intersection of every required family's set.
 
 Every function here is pure and operates on ISO ``YYYY-MM-DD`` strings, which
 sort lexicographically in date order, so the arithmetic never needs a timezone.

@@ -7,8 +7,7 @@ import { useBatchCommand } from '@/lib/command'
 import { merchantMergePreview, searchMerchants, similarMerchants, type MerchantMergePreview, type MerchantRow } from './api'
 
 /**
- * "Same merchant as..." / multi-select "Merge" (PLAN-categorization-workflow.md
- * Step 4). One dialog serves both entry points: the categorization inbox opens
+ * "Same merchant as..." / multi-select "Merge". One dialog serves both entry points: the categorization inbox opens
  * it with one seed key (the group being reviewed) and offers suggestions plus
  * search to add more; the Rules page opens it with an already multi-selected
  * set of merchant keys and skips straight to naming a target. Either way the

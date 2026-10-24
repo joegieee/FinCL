@@ -1,4 +1,4 @@
-"""The single ledger-directory writer lock (DESIGN-application-contract.md §2)."""
+"""The single ledger-directory writer lock."""
 from __future__ import annotations
 
 import fcntl

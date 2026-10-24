@@ -1,7 +1,7 @@
 """M3a acceptance (§8): the snapshot-safe reader seam over the money-flow graph.
 
-No behaviour changed — every ``foo(database: Path, ...)`` in
-``docs/M3A-money-flow-call-graph.md`` became a three-line wrapper delegating to
+No behaviour changed — every ``foo(database: Path, ...)`` in the money-flow
+call graph became a three-line wrapper delegating to
 ``foo_from(connection, ...)``, and every reader that used to open its own
 `Path`-taking sub-reads now passes its own connection down instead. These
 tests discharge the four M3a-specific acceptance items that are not just

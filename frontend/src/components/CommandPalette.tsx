@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { commandDestinations, tabAliases, tabLabel } from '@/lib/tabs'
 
 // Every destination in two keystrokes (Cmd/Ctrl+K, then Enter), so the rail
-// never has to be tabbed through end to end (PLAN-ui-cohesion.md §2.4).
+// never has to be tabbed through end to end.
 export function CommandPalette({ open, onClose, onSelect }: {
   open: boolean; onClose: () => void; onSelect: (tab: string) => void
 }) {

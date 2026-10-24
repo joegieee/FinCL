@@ -72,7 +72,7 @@ ignore_missing_imports = true
 # rule. Default to one worker per core; `-n0` turns that off to debug one test.
 addopts = ["-n", "auto"]
 # A leaked SQLite connection under the ledger writer lock is a correctness bug,
-# not a warning (PLAN-mvp.md §4); fail on it. The starlette/httpx TestClient
+# not a warning; fail on it. The starlette/httpx TestClient
 # deprecation noise is third-party and not ours to fix here.
 filterwarnings = [
     "error::ResourceWarning",

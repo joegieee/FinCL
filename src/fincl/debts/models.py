@@ -1,7 +1,7 @@
 """Debt vocabulary: journal kinds, directions, and the event-kind tables.
 
 Single source of truth for which ``event_kind`` a debt of a given direction may
-carry and which way it moves principal (DESIGN-debts-and-context.md §1). The
+carry and which way it moves principal. The
 projection and validation both import from here so a kind can never be accepted
 by one and rejected by the other.
 """
@@ -50,7 +50,7 @@ RECEIVABLE_EVENTS: dict[str, int] = {
 
 # Events whose principal is not backed by a resolved bank movement: they carry an
 # empty ``entry_allocations`` list and are the only place an off-ledger amount
-# enters a debt (DESIGN-debts-and-context.md §1, §3).
+# enters a debt.
 #
 # ``EXPENSE_PAID_FOR_OTHER`` is *not* here: someone-else's-bill-I-paid is funded
 # by my own bank outflow, so it carries source allocations against that entry and

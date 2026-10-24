@@ -26,8 +26,8 @@ type RawFilters = {
 type Scope = { anchors: string[]; truncated: boolean }
 
 /**
- * Bulk classification through the shared editor
- * (PLAN-unified-transaction-classification.md Step 3). Replaces the old
+ * Bulk classification through the shared editor.
+ * Replaces the old
  * BulkAssign form: the same category/pattern/need/incoming-type fields, the
  * same Step 1 combined preview, and the same retry-safe batch lifecycle as
  * the single-transaction editor (Step 2), applied to a frozen selection

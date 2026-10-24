@@ -218,8 +218,7 @@ describe('InflowsView', () => {
 
     // The rule check failed, but the classification preview it was reviewed
     // alongside is not discarded -- and saving is held back rather than
-    // silently dropping the rule the user asked for (PLAN-unified-
-    // transaction-classification.md Step 7).
+    // silently dropping the rule the user asked for.
     await card.findByText(/This selection does not share a safe reusable predicate/)
     await card.findByText(/Ready to save 4 transactions/)
     expect((card.getByRole('button', { name: /Save/ }) as HTMLButtonElement).disabled).toBe(true)

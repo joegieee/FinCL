@@ -1,8 +1,8 @@
 import { reportedApi } from '@/lib/workspaceReporting'
 import { api } from '@/lib/api'
 
-// Shared unified-classification client types
-// (docs/PLAN-unified-transaction-classification.md Step 1/2). These mirror
+// Shared unified-classification client types.
+// These mirror
 // `fincl.classification`'s `ClassificationDraft`/`_summarize` shapes exactly;
 // the backend route returns `Any`, so there is no generated schema type to
 // import for the response.

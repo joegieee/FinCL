@@ -1,4 +1,4 @@
-"""Reporting-currency plan M1 (docs/PLAN-reporting-currency-and-money-flow.md §8).
+"""Reporting-currency plan M1.
 
 Covers: the currency registry, the journalled ``REPORTING_CURRENCY_SET``
 decision and its projection, the ``direct-or-inverse-v1`` rate path resolver,

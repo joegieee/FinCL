@@ -1,4 +1,4 @@
-"""Merchant duplicate-suggestion heuristic (PLAN-categorization-workflow.md Step 4).
+"""Merchant duplicate-suggestion heuristic.
 
 Suggestion-only: the caller always shows these as checkboxes for a human to
 confirm through the existing merge preview/batch path (§4). Nothing here ever

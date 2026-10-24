@@ -1,4 +1,4 @@
-"""Trip and country reads (v0.7, DESIGN-debts-and-context.md §5).
+"""Trip and country reads (v0.7).
 
 Trip cost reuses the recorded-flow economic components, so a trip total and
 the Analysis totals it is part of come from the same rows. This slice offers

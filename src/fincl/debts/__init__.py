@@ -1,4 +1,4 @@
-"""Personal debts and shared expenses (v0.3, DESIGN-debts-and-context.md §§1-3).
+"""Personal debts and shared expenses (v0.3).
 
 Informal payable/receivable principal tracked as decision-journal kinds. No
 bank-loan amortization, compound interest, or payment initiation. Slice 1 covers

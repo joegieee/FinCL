@@ -65,7 +65,7 @@ def read_snapshot(path: Path) -> Iterator[sqlite3.Connection]:
 # startup must not suggest evidence-only reconstruction of originating state.
 _MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {}
 
-# Schema 9 derived tables (MVP M1b, DESIGN-application-contract.md §3). Shared
+# Schema 9 derived tables (MVP M1b). Shared
 # verbatim between a fresh `initialize_schema` and the registered 8->9 migration
 # so a migrated ledger and a fresh one have byte-identical layout.
 SCHEMA_9_TABLES_SQL = """
@@ -285,8 +285,7 @@ CREATE TABLE IF NOT EXISTS recurring_occurrences (
 """
 
 
-# Schema 19 derived table (cash-flow framework Stage 1, docs/PLAN-cashflow-framework.md
-# §"Stage 1 — Liquid position"). One row per non-retired manual balance observation,
+# Schema 19 derived table (cash-flow framework Stage 1, liquid position). One row per non-retired manual balance observation,
 # anchored on the journal UUID. An observation is an absolute as-of balance for one
 # `(account_id, currency_pocket)`, never a delta — the same rule the savings-goal
 # observations follow. The as-of liquid position is computed on read in
@@ -699,8 +698,7 @@ ALTER TABLE category_overrides__s12 RENAME TO category_overrides;
 """
 
 
-# Schema 13 derived tables (v0.3 personal debts and shared expenses,
-# DESIGN-debts-and-context.md §§1-3). The disposable debt projection: identity
+# Schema 13 derived tables (v0.3 personal debts and shared expenses). The disposable debt projection: identity
 # and lifecycle in `personal_debts`, the dated principal timeline in
 # `personal_debt_events`, per-source component claims in
 # `personal_debt_allocations`, and the one-per-entry owner residual in
@@ -789,8 +787,7 @@ CREATE TABLE IF NOT EXISTS entry_residuals (
 """
 
 
-# Schema 14 derived table (v0.4 credit cards, slice 1;
-# docs/releases/v0.4-cards.md §0, §2). `card_statement_facts` is an
+# Schema 14 derived table (v0.4 credit cards, slice 1). `card_statement_facts` is an
 # extraction-derived projection — written in `document_service._persist_document`
 # alongside `document_records` / `document_reconciliation_checks` and rebuilt by
 # `fincl rebuild`, never a journal-replay projection. One row per
@@ -823,8 +820,7 @@ CREATE INDEX IF NOT EXISTS card_statement_facts_by_extraction
 """
 
 
-# Schema 15 derived tables (v0.4 credit cards slice 2; docs/releases/v0.4-cards.md
-# §2). The disposable card-facility projection replayed from the
+# Schema 15 derived tables (v0.4 credit cards slice 2). The disposable card-facility projection replayed from the
 # `CARD_FACILITY_*` / `CARD_LIMIT_OBSERVATION_*` decision kinds: an issuer's
 # explicit shared-limit scope in `card_facilities` (+ the account membership in
 # `card_facility_accounts`), and the dated limit timeline in
@@ -877,8 +873,7 @@ CREATE INDEX IF NOT EXISTS card_limit_observations_timeline
 """
 
 
-# Schema 16 derived tables (v0.4 credit cards slice 3; docs/releases/v0.4-cards.md
-# §3). The disposable installment projection replayed from the
+# Schema 16 derived tables (v0.4 credit cards slice 3). The disposable installment projection replayed from the
 # `INSTALLMENT_PLAN_SET` / `INSTALLMENT_ALLOCATION_SET` /
 # `INSTALLMENT_SETTLEMENT_SET` (+ RETIRE) kinds: plan identity and known/unknown
 # principal / term in `installment_plans`, the evidence-anchored source
@@ -996,8 +991,7 @@ CREATE INDEX IF NOT EXISTS installment_settlements_source
 """
 
 
-# Schema 17 derived table (v0.4 credit cards slice 4; docs/releases/v0.4-cards.md
-# §2). Optional operator-entered bill allocation: which observed statement(s) a
+# Schema 17 derived table (v0.4 credit cards slice 4). Optional operator-entered bill allocation: which observed statement(s) a
 # selected card repayment component was applied to. Replayed from
 # `CARD_PAYMENT_ALLOCATION_SET` / `_RETIRE`. Every row is manual by construction
 # — it annotates an observed repayment component only, never the bank and card
@@ -1338,8 +1332,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             value TEXT NOT NULL
         ) STRICT;
 
-        -- Binds this database to its decision journal (F24,
-        -- DESIGN-recovery-and-application.md §3). `verified_seq`/`verified_hash`
+        -- Binds this database to its decision journal (F24). `verified_seq`/`verified_hash`
         -- is a checkpoint an internally valid hash chain cannot supply: it is
         -- what detects removal of a complete journal tail. Added additively at
         -- schema 8 so an existing ledger keeps working and is bound explicitly
@@ -1353,7 +1346,7 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
             verified_hash TEXT NOT NULL
         ) STRICT;
 
-        -- Applied schema migrations (F27, DESIGN-recovery-and-application.md §5).
+        -- Applied schema migrations (F27).
         -- `from_version`, `to_version`, and `checksum` are immutable once
         -- written. Normal startup never migrates; `fincl` applies a migration
         -- only on explicit request and only after a verified backup.

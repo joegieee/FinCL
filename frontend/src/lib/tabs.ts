@@ -75,7 +75,7 @@ export const tabMeta: Record<string, TabMeta> = {
   Maintenance: { scope: 'none', title: 'Keep the ledger consistent.', subtitle: 'Housekeeping tasks for the underlying data model.', section: 'Setup & data', icon: Wrench },
 
   // Aliases: same content as a primary tab, reachable by URL and the command
-  // palette, but not a separate rail row (see PLAN-ui-cohesion.md §1.2, §2.1).
+  // palette, but not a separate rail row.
   'Cash Flow': { scope: 'range', title: 'Where the money moved.', subtitle: 'Spending and income grouped and compared across the selected period.' },
   'Money Owed': { scope: 'none', title: 'Everything owed, in one place.', subtitle: 'A read-only merge of debts, installments, card statement dues and recurring commitments, grouped by confidence.' },
 }

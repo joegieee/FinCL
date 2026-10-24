@@ -11,8 +11,7 @@ import { label } from './api'
 
 /**
  * Optional, explicitly disclosed reusable-rule creation for the shared
- * classification workflow (PLAN-unified-transaction-classification.md
- * Step 7). Reuses the same safe-predicate derivation
+ * classification workflow. Reuses the same safe-predicate derivation
  * (`categorization/derive-rule`) and rule compile/impact services grouped
  * categorization's own "rule" scope already uses -- this is a second call
  * site for the identical backend capability, not a new domain implementation.

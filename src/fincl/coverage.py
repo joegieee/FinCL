@@ -1,5 +1,4 @@
-"""Evidence coverage and dated reporting-currency requirements (F23; §4.3 of
-PLAN-reporting-currency-and-money-flow.md).
+"""Evidence coverage and dated reporting-currency requirements (F23).
 
 ``coverage_contract`` is the exact F23 interval-set intersection the MVP
 economic-flow report always used (moved here verbatim from ``report.py`` so

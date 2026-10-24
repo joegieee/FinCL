@@ -293,8 +293,7 @@ def _installment_owned(connection: sqlite3.Connection) -> dict[str, tuple[int, i
 
     An instalment repays plan principal and a conversion credit borrows it, so
     neither contributes an amount: the original purchases already carry the
-    spending, in their own categories (DESIGN-relationships-and-cost.md §4,
-    at-purchase view). A financing fee the plan schedules on an instalment is
+    spending, in their own categories (the at-purchase view). A financing fee the plan schedules on an instalment is
     not principal; it is returned so it still counts under ``fees``.
     """
     if not _table_exists(connection, "installment_conversions"):

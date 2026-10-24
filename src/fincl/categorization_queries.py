@@ -21,7 +21,7 @@ from .queries import DEBT_FULLY_ALLOCATED_ANCHORS
 
 CANDIDATE_GROUPING_VERSION = "categorization-candidates-2026-v2"
 
-# Quick discovery paths (PLAN-unified-transaction-classification.md Step 5).
+# Quick discovery paths.
 # "category" is the original, unchanged inbox (category still Unclassified).
 # The other three group by an *effective* dimension instead of raw category
 # text, reusing the same bucket/applicability/effective-role evaluator

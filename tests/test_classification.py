@@ -1,5 +1,4 @@
-"""Unified transaction classification (PLAN-unified-transaction-classification.md
-Step 1) — the shared typed draft, combined impact preview, and command
+"""Unified transaction classification — the shared typed draft, combined impact preview, and command
 generation in ``fincl.classification``.
 """
 from __future__ import annotations

@@ -31,7 +31,7 @@ function humanizeError(message:string):string {
 }
 // In-flight GET requests are shared by identical method+path+body key, so
 // switching tabs or re-rendering while a request is outstanding issues one
-// fetch instead of a duplicate (PLAN-ui-cohesion.md §1.5). This is dedup
+// fetch instead of a duplicate. This is dedup
 // only, not a time-based cache: a completed GET is not replayed for a later
 // call, since the right invalidation trigger (generation vs. coverage-only
 // changes from Setup imports and refresh) is still an open question there.

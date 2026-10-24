@@ -1,4 +1,4 @@
-"""v0.7 saved report definitions (releases/v0.5-v2-product-completion.md §3)."""
+"""v0.7 saved report definitions."""
 from __future__ import annotations
 
 import csv

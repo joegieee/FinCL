@@ -1,5 +1,5 @@
 """Unified transaction classification: shared draft, combined impact preview,
-and command generation (PLAN-unified-transaction-classification.md Step 1).
+and command generation.
 
 A :class:`ClassificationDraft` carries one explicit keep/set intent per field
 (category, spending pattern, spending need, incoming-money type) plus a bulk
@@ -8,8 +8,7 @@ resolves it against the current projection for a frozen anchor list and returns
 the exact commands a subsequent ``POST /api/v1/batch`` would submit, together
 with the per-field/per-currency impact a caller previews before committing.
 
-Applicability follows the resolved contract in
-``docs/PLAN-unified-transaction-classification.md`` §5.1: spending pattern/need
+Applicability follows the resolved contract: spending pattern/need
 apply only to the ``spending`` bucket; incoming type applies to every IN-direction
 bucket except a confirmed-relationship-linked internal movement; category applies
 everywhere except both kinds of ``internal`` row. This module never merges the
@@ -43,8 +42,8 @@ BulkPolicy = Literal["fill_missing", "replace"]
 FIELD_NAMES = ("category", "cost_behavior", "need", "incoming_type")
 
 # The batch cap (400) is exactly 2x the anchor cap (200): every transaction
-# generates at most one category-ish command and one role-or-incoming command
-# (PLAN-unified-transaction-classification.md §5.1's Step 0 finding). Enforcing
+# generates at most one category-ish command and one role-or-incoming command.
+# Enforcing
 # this here, not just at the anchor list length, keeps preview and commit
 # agreeing about what fits before the user invests in an oversized selection.
 _MAX_COMMANDS = 400

@@ -6,34 +6,12 @@ DBS PayLah! statements, MariBank savings statements, Mari credit-card
 statements, and Trust Bank Singapore savings statements without modifying the
 source files or sending financial data to external services.
 
-The authoritative design is [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-Superseded drafts are kept under [`docs/history/`](docs/history/) for reference
-only. The completed immediate recovery and application design is in
-[`docs/DESIGN-recovery-and-application.md`](docs/DESIGN-recovery-and-application.md).
 Coverage intervals, journal association, verified reconstruction, and backup/restore
 are implemented. The migration runner carries registered, checksummed upgrades
 for every schema step from 8 to the current 23; shared application operations
 (one ledger writer lock, request-id idempotency) and query generations are
 implemented. Current rebuild requires the source database's
 evidence inventory and FX inputs as well as the evidence vault and journal.
-
-The completed design set is indexed in [`docs/DESIGN-INDEX.md`](docs/DESIGN-INDEX.md),
-covering the dashboard, application/API, advanced models and operations. These
-contracts do not imply those features are implemented.
-
-## Primary implementation plan
-
-[`docs/PLAN.md`](docs/PLAN.md) is the single list of what is done and what
-remains, in priority order, with links to each item's detailed specification.
-
-[The cash flow framework plan](docs/PLAN-cashflow-framework.md) keeps the
-financial contract all product work follows. Deliver basic coverage of the complete personal-finance framework
-first, using imported actual data: evidence readiness and baseline discovery,
-cash position and connected obligations, six-month forecast, sinking funds and
-spending controls, variance and tracked net worth. Do not require the user to
-guess starting cash, salary or baseline spending. Add depth afterward.
-The plan contains stage dependencies, acceptance cases and implementation handoffs.
-[The MVP plan](docs/PLAN-mvp.md) retains historical delivery evidence.
 
 ## Implemented
 
@@ -211,7 +189,7 @@ uv run fincl economic-flow --database var/fincl.sqlite3 \
 uv run fincl link-transfers --database var/fincl.sqlite3
 
 # Load reference FX rates so economic-flow can produce a consolidated SGD total.
-# JSON (format in docs/ARCHITECTURE.md §9):
+# JSON:
 uv run fincl import-fx-rates --file path/to/rates.json \
   --database var/fincl.sqlite3
 # ...or MAS's own "Exchange Rates (Weekly)" CSV, reduced to each month's last
@@ -335,10 +313,7 @@ manual balance observations (`position/`, Cash), expense-flexibility tiers
 (`financial_roles.py`, Baseline), minimum-reserve policy and spending controls
 (`controls/`, Controls), sinking funds (`funds/`, Annual funds), a six-month
 forecast over a dated future-event ledger (`forecast/`, Forecast), and issued
-snapshots scored against actuals (`variance/`, Variance). Its acceptance
-evidence stays in
-[`docs/PLAN-cashflow-framework.md`](docs/PLAN-cashflow-framework.md); remaining
-work and its order are in [`docs/PLAN.md`](docs/PLAN.md).
+snapshots scored against actuals (`variance/`, Variance).
 
 The graphical MVP is implemented and tested
 (see "Graphical app" below). MAS weekly-CSV reference rates can be loaded and month-by-month SGD

@@ -344,7 +344,7 @@ class TransactionsEndpointTests(ApiTestBase):
         self.assertIn("Bookshop", searched["entries"][0]["merchant"].title())
 
     def test_entry_exposes_linked_and_classification_for_the_shared_editor(self) -> None:
-        """PLAN-unified-transaction-classification.md Step 2: the frontend's
+        """The frontend's
         shared single-transaction editor has no server round trip before first
         render, so it needs `linked`/`classification` on the plain `Entry`
         response to tell a confirmed-relationship internal row apart from an

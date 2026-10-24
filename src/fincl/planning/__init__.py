@@ -2,8 +2,7 @@
 
 Journal kinds live in per-concern modules; this package assembles the closed
 ``PLANNING_DECISION_KINDS`` set and the single ``apply_planning`` dispatch that
-``decisions._apply_record`` calls. Payloads are owned by
-``DESIGN-personal-finance.md`` §§5–7.
+``decisions._apply_record`` calls.
 """
 
 from __future__ import annotations

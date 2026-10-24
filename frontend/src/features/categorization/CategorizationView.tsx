@@ -30,7 +30,7 @@ type RuleOption = { label: string; match: Record<string, unknown> }
 type UndoEntry = { id: string; message: string; undo: () => Promise<void> }
 type RuleSuggestion = { merchant_key: string; category: string; occurrences: number; match: Record<string, unknown>; label: string }
 
-// Quick-discovery focuses (PLAN-unified-transaction-classification.md Step 5).
+// Quick-discovery focuses.
 // "category" is the original inbox; the others group by an authoritative
 // *effective* dimension computed server-side across the full result set, not
 // just the currently loaded page (`fincl.categorization_queries._focus_groups`).

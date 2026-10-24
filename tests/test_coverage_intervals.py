@@ -1,6 +1,6 @@
 """F23 gate R1: interval-set coverage contract.
 
-Covers the ``docs/DESIGN-recovery-and-application.md`` §2 interval table, date
+Covers the interval table, date
 validation, the monthly-precision boundary, a stale/quarantined required family,
 and the refusal to produce a numeric total across a coverage gap.
 """

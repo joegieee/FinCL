@@ -6,7 +6,7 @@ family, verifies every evidence object before staging, re-imports each unique
 dispatchable blob once with current code, carries forward reference FX rows
 exactly, replays the shared journal, then verifies the candidate through the
 normal read path before a no-clobber publish. It never activates the candidate
-or touches the source. See ``docs/DESIGN-recovery-and-application.md`` §5.
+or touches the source.
 """
 
 from __future__ import annotations

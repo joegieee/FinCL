@@ -87,7 +87,7 @@ WHERE (""" + _DEBT_ALLOCATION_SQL + """) = 'full'
 # from this so they can never disagree on what a row's bucket is.
 #
 # A movement a personal debt fully explains is bucket `debt`: principal is
-# neither spending nor income (DESIGN-debts-and-context.md §3), so it is not
+# neither spending nor income, so it is not
 # asked for a category, spending pattern/need or incoming type, and it is not
 # flagged for review. A partly allocated movement keeps its ordinary bucket --
 # the reports classify its unallocated remainder under the entry's own

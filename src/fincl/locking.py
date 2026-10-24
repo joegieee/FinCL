@@ -1,4 +1,4 @@
-"""The single ledger-directory writer lock (DESIGN-application-contract.md §2).
+"""The single ledger-directory writer lock.
 
 Every process that writes a ledger — import, backup, rebuild, migrate, FX load,
 rule/review/repair/adoption, and the startup refresh — serializes on one

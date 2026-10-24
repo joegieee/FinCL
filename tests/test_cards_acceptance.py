@@ -1,4 +1,4 @@
-"""v0.4 acceptance scenarios (docs/releases/v0.4-cards.md §5).
+"""v0.4 acceptance scenarios.
 
 Covers the cases not already pinned by the per-slice suites: final-cent schedule
 rounding, two similar independent plans, dated limit changes, credit / over-limit

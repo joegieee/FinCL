@@ -20,8 +20,7 @@ function summarize(fields: PresetFields): string {
 }
 
 /**
- * Named, browser-local classification presets (PLAN-unified-transaction-
- * classification.md Step 6). Applying a preset only fills the caller's own
+ * Named, browser-local classification presets. Applying a preset only fills the caller's own
  * draft fields via `onApply`; it never saves, never touches the bulk
  * fill-missing/replace policy, and stores no reason or transaction data.
  * Mounted once per editor (single-transaction, bulk, grouped review) so all

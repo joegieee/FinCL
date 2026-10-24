@@ -1,4 +1,4 @@
-"""Credit-card installment plans (v0.4 slice 3, DESIGN-relationships-and-cost.md §4).
+"""Credit-card installment plans (v0.4 slice 3).
 
 Confirmed source-proven chains of card statement occurrences, with known or
 explicitly-unknown principal and term. Occurrence identity is an evidence

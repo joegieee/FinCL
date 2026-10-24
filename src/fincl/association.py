@@ -4,8 +4,7 @@ A SQLite ``ledger_association`` row and a companion journal identity file
 together prove that this database and this journal belong to the same ledger,
 and record a sequence/hash checkpoint. The checkpoint is evidence an internally
 valid hash chain cannot provide on its own: a chain that is intact end to end
-still cannot show that a complete tail of records was removed. See
-``docs/DESIGN-recovery-and-application.md`` §3.
+still cannot show that a complete tail of records was removed.
 
 This is the first F24 implementation. It validates identity and the checkpoint
 before any projection is deleted, bootstraps a brand-new ledger, adopts a legacy

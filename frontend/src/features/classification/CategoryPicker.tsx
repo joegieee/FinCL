@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 // The one recent-category list, shared by every picker in the app: grouped
 // review used to keep a second one behind its own combobox, which meant the
 // two disagreed about what you had just used (and the inbox's copy mislabelled
-// it "Suggested" -- docs/PLAN-unified-transaction-classification.md Step 0).
+// it "Suggested").
 const RECENT_KEY = 'fincl.classification.recentCategories'
 
 export function loadRecentCategories(): string[] {

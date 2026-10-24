@@ -66,8 +66,7 @@ export type BatchBody = {
  * `commands` a `classification/preview` call returned). Unlike the two-step
  * single-command lifecycle above, a batch's server-side preview already
  * happened out of band; this hook only owns the one property every direct
- * batch-save caller in the codebase currently lacks (PLAN-unified-
- * transaction-classification.md Step 0/1): the submitted request id and body
+ * batch-save caller in the codebase currently lacks: the submitted request id and body
  * are frozen on the first attempt and reused verbatim on every retry, so an
  * uncertain network failure can never turn into a duplicate write. A 409/422
  * is definitive and clears the frozen body so the next attempt re-submits a

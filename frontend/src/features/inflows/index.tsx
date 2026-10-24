@@ -206,8 +206,7 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
   const reportedByAnchor = Object.fromEntries((reported?.occurrences ?? []).map(o => [o.anchor, o]))
 
   // Reuses the exact combined preview and retry-safe batch lifecycle every
-  // other classification entry point uses (PLAN-unified-transaction-
-  // classification.md Step 4): confirming a candidate's history is a
+  // other classification entry point uses: confirming a candidate's history is a
   // multi-anchor classification draft, not a bespoke direct batch write.
   const batch = useBatchCommand(generation, async status => { await onSaved(status) })
   useEffect(() => { if (batch.error && !batch.submitted) setPreview(null) }, [batch.error, batch.submitted])
@@ -245,8 +244,7 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
       const result = await previewClassification(draft)
       setPreview(result)
       if (category) rememberCategory(category)
-      // The optional rule's own match impact (PLAN-unified-transaction-
-      // classification.md Step 7) is now checked and shown at the same
+      // The optional rule's own match impact is now checked and shown at the same
       // review step as the receipt classification, rather than compiled
       // silently right before commit with no chance to see it first. A rule
       // compile failure never discards the classification preview above --

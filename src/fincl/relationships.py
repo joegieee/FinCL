@@ -1,6 +1,6 @@
 """Manual relationship decisions: duplicates now, refund allocations next.
 
-These are decision-journal kinds (DESIGN-relationships-and-cost.md §§1-2). Replay
+These are decision-journal kinds. Replay
 projects each effective record into ``relationship_decisions`` (latest journal seq
 per identity wins; a RETIRE leaves no row), then :func:`resolve` folds the bound
 DUPLICATE confirmations into ``duplicate_suppressions`` with the global checks the

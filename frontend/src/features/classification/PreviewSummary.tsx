@@ -7,8 +7,7 @@ export const FIELD_LABELS: Record<FieldName, string> = {
 }
 
 /**
- * Shared multi-anchor preview summary (PLAN-unified-transaction-
- * classification.md Steps 3/4): every entry point that previews a
+ * Shared multi-anchor preview summary: every entry point that previews a
  * `ClassificationDraftBody` over more than one anchor -- bulk selection,
  * income receipt confirmation -- renders the exact same combined-impact
  * disclosure, computed once by `evaluate_classification_draft` and never

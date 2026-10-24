@@ -1,4 +1,4 @@
-"""Cross-source transfer reconciliation (DESIGN-application-contract.md §1).
+"""Cross-source transfer reconciliation.
 
 Automatic transfer links are a *projection*, not decision history: every row for
 an automatic method is discarded and rebuilt from the currently selected

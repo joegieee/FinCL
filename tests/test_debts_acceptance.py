@@ -1,5 +1,5 @@
 """v0.3 acceptance scenarios spanning slices: multi-debt entries, fee pools,
-cross-domain conflicts (DESIGN-debts-and-context.md §§2-3, v0.3-debts.md §4)."""
+cross-domain conflicts."""
 
 from __future__ import annotations
 

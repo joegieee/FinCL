@@ -1,7 +1,7 @@
 """Reusable inbound-classification rules (cash-flow usability M5).
 
 An inbound rule is the "save for future matches" half of the income-candidate
-workflow (PLAN-cashflow-usability.md §3.3). Confirming a candidate's history is
+workflow. Confirming a candidate's history is
 one atomic batch of ``INBOUND_CLASSIFICATION`` records; a rule is the optional,
 separately journalled decision that a *future* inflow matching the same closed
 predicate should carry the same classification.

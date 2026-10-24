@@ -17,7 +17,7 @@ from .common import canonical_json, resolve_category
 from .errors import FinCLError
 
 # Decision kinds this track introduces. ``CATEGORY_OVERRIDE`` keeps its
-# REBUILD_STATE.md shape; the other four are new.
+# original shape; the other four are new.
 MERCHANT_ALIAS_SET = "MERCHANT_ALIAS_SET"
 MERCHANT_ALIAS_RETIRE = "MERCHANT_ALIAS_RETIRE"
 CATEGORY_RULE_SET = "CATEGORY_RULE_SET"

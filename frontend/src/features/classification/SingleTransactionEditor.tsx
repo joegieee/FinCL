@@ -41,8 +41,7 @@ function natureOf(bucket: string): Nature {
 }
 
 /**
- * The unified single-transaction editor (PLAN-unified-transaction-
- * classification.md Step 2). Category, spending pattern, spending need and
+ * The unified single-transaction editor. Category, spending pattern, spending need and
  * (when applicable) incoming type are shown together and saved as one
  * reviewed batch through the Step 1 combined preview and retry-safe
  * lifecycle, replacing the old category/roles/inflow mode switch.

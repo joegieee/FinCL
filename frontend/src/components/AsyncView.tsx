@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 
 // One loading/error/ready wrapper, replacing the load/error/retry/skeleton
 // blocks that were hand-copied into ~12 views with drifting wording and
-// markup (PLAN-ui-cohesion.md §1.4). `data` doubles as the readiness gate:
+// markup. `data` doubles as the readiness gate:
 // while it is null the view shows a skeleton (loading) or a retry prompt
 // (error), and `children` only runs once there is something to render, so
 // call sites keep full type narrowing instead of a nullable prop.

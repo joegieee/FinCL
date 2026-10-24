@@ -64,8 +64,7 @@ export const compileRoleRule = (
 
 /** A closed, safe-predicate suggestion derived from a frozen anchor selection
  * -- shared by grouped categorization and any other selection that wants to
- * offer "save this as a reusable rule" (PLAN-unified-transaction-
- * classification.md Step 7). Never auto-widens beyond what the backend's
+ * offer "save this as a reusable rule". Never auto-widens beyond what the backend's
  * `derive_rule_options` finds; `unavailable_reason` is non-null exactly when
  * `options` is empty. */
 export type RuleOption = { label: string; match: Record<string, unknown> }
@@ -74,8 +73,8 @@ export const deriveRuleOptions = (generation: string, anchors: string[]) =>
   api<RuleOptionsPage>('categorization/derive-rule', { generation, anchors })
 
 /** A rename changes only the display name a merchant is shown under; the
- * canonical it matches against never changes, so every rule keeps matching
- * (PLAN-categorization-workflow.md Step 2, fixing F2.1-F2.4). Read-only: the
+ * canonical it matches against never changes, so every rule keeps matching.
+ * Read-only: the
  * caller submits the returned `commands` through the existing `/batch`. */
 export type MerchantRenamePreview = {
   generation: string; merchant_key: string; display_name: string
@@ -88,7 +87,7 @@ export const merchantRenamePreview = (generation: string, merchantKey: string, d
   })
 
 /** One row per `rule_id`, joining whichever of category/role/inbound rules
- * share a match predicate (PLAN-categorization-workflow.md Step 3, §0.1) --
+ * share a match predicate --
  * the grouped read model behind the combined rule form and the Rules page. */
 export type GroupedRuleRow = {
   rule_id: string
@@ -128,8 +127,8 @@ export type CombinedRetirePreview = { rule_id: string; commands: CombinedRuleCom
 export const retireCombinedPreview = (ruleId: string, generation: string, reason: string) =>
   reportedApi<CombinedRetirePreview>(`rules/${encodeURIComponent(ruleId)}/retire-combined/preview`, { generation, reason })
 
-/** One observed merchant identity, aggregated across all-time ledger history
- * (PLAN-categorization-workflow.md Step 4) -- the row shape shared by search
+/** One observed merchant identity, aggregated across all-time ledger history --
+ * the row shape shared by search
  * results and similarity suggestions. */
 export type MerchantRow = {
   merchant_key: string

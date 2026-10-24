@@ -1,8 +1,7 @@
 import { useId } from 'react'
 import type { components } from '@/lib/api'
 
-// Generated wire shapes (PLAN-reporting-currency-and-money-flow.md §3.3, §4.1,
-// §7.2), now that step 04 exposes them through real routes
+// Generated wire shapes, now that step 04 exposes them through real routes
 // (`GET /api/v1/reporting/analysis`, `GET /api/v1/reporting/contributors/{handle}`).
 // These replace the hand-typed duplicates M3b.1 step 03 carried temporarily.
 export type RateInputDTO = components['schemas']['RateInputDTO']

@@ -82,7 +82,7 @@ function RulesContent({ page, generation, categories, disabled, loading, load, a
 
 /**
  * One row per `rule_id`, joining whichever of category/role/inbound rules
- * share a match predicate (PLAN-categorization-workflow.md Step 3, §0.1).
+ * share a match predicate.
  * Edit reopens the same four-field form with the scope fixed to this match;
  * Retire acts on every kind the row carries in one atomic batch.
  */

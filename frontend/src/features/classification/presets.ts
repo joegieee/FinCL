@@ -1,7 +1,6 @@
 import { COST_BEHAVIORS, INCOMING_TYPES, NEEDS, type FieldName } from './api'
 
-// Browser-local classification presets (PLAN-unified-transaction-
-// classification.md Step 6, §3.5). A preset is a named, user-created bundle
+// Browser-local classification presets. A preset is a named, user-created bundle
 // of explicit field VALUES ("Everyday groceries" = Groceries / Variable
 // routine / Essential) that fills the shared draft on demand. It never saves
 // anything itself, never changes the fill-missing/replace policy, and is

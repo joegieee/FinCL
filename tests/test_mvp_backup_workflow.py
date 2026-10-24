@@ -3,8 +3,7 @@ and report values intact.
 
 The write path here is ``application.record_decision`` — the exact call the HTTP
 ``/commands`` endpoint makes — so this proves the M1b application writer and the
-F27 backup bundle are compatible, the open item PLAN-mvp.md §2 flagged for the
-release gate.
+F27 backup bundle are compatible, an open item flagged for the release gate.
 """
 from __future__ import annotations
 

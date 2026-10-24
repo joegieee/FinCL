@@ -1,4 +1,4 @@
-"""v0.7 country and trip context (DESIGN-debts-and-context.md §§4-5)."""
+"""v0.7 country and trip context."""
 from __future__ import annotations
 
 import sqlite3

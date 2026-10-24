@@ -1,4 +1,4 @@
-"""Country and trip decisions (v0.7, DESIGN-debts-and-context.md §§4-5).
+"""Country and trip decisions (v0.7).
 
 Six journal kinds, each a SET/RETIRE pair:
 

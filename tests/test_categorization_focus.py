@@ -1,5 +1,5 @@
 """Grouped review's quick-discovery focuses and combined-completeness
-measure (PLAN-unified-transaction-classification.md Step 5).
+measure.
 
 Reuses the synthetic ledger and command helpers already built for
 ``fincl.classification`` (Step 1) so these tests exercise the same evaluator

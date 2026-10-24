@@ -98,8 +98,7 @@ V05_DECISION_KINDS = frozenset(
     }
 )
 
-# The decision-journal kind vocabulary is closed (Confirmed 32, ARCHITECTURE.md
-# §14.2). Replay refuses an ``decision_kind`` it does not recognize rather than
+# The decision-journal kind vocabulary is closed (Confirmed 32). Replay refuses an ``decision_kind`` it does not recognize rather than
 # skipping it: a silent skip would let this build read a journal written by a
 # newer FinCL, drop every record of a kind it has not learned yet, and report a
 # confident but different projection — the §3.4 silent-wrong-number failure. Add
@@ -223,8 +222,8 @@ def invariant_violation_is_live(
 ) -> bool:
     """True when ``code`` is a currently-raised BLOCKING issue on one of these entries.
 
-    An ``INVARIANT_ESCAPE`` may only downgrade a check that is failing right now
-    (ARCHITECTURE.md §17.1). A violation is anchored through the offending raw
+    An ``INVARIANT_ESCAPE`` may only downgrade a check that is failing right now.
+    A violation is anchored through the offending raw
     record, so the escape's entry anchors must map back to a raw record that
     carries a live ``BLOCKING`` ``extraction_issues`` row for that exact code.
     """

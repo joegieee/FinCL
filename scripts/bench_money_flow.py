@@ -6,8 +6,7 @@ Measures two readers, run as::
 
 1. :func:`fincl.forecast.cash_timeline` — the reader §5.5 names as "the
    expensive input" and the widest fan-out in the money-flow call graph
-   (``docs/M3A-money-flow-call-graph.md`` §4.2: 160 of the 200 enumerated
-   functions are reachable from it). M3a's acceptance required this be
+   (160 of the 200 enumerated functions are reachable from it). M3a's acceptance required this be
    measured "before the UI exists and while the reader seam is the only
    variable" — kept here as the original M3a evidence.
 2. :func:`fincl.money_flow.money_flow_page` — the actual composite Overview

@@ -1,4 +1,4 @@
-"""Credit cards and observed statements (v0.4, docs/releases/v0.4-cards.md).
+"""Credit cards and observed statements (v0.4).
 
 Slice 1 is read-only: the selected card statement facts
 (`card_statement_facts`), the printed source equation and its reconciliation
