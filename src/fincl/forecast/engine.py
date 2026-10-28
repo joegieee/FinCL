@@ -1983,6 +1983,46 @@ def _candidate_income_events(
     return events, limitations
 
 
+def _installment_card_purchases(
+    connection: sqlite3.Connection, obligations: dict[str, Any], *, cutoff: str, end: str
+) -> list[dict[str, Any]]:
+    """Each remaining installment row of a confirmed card plan, as a card charge.
+
+    The card statement already holds every row it has shown; the rows after the
+    cutoff are charges the card will make, so they are modelled as card
+    purchases and settle on the card's projected cycles like any other. They
+    stand in for no routine spending: the plan's cost was recognised when it
+    opened.
+    """
+    plans = {
+        str(row["plan_id"]): row
+        for row in connection.execute(
+            "SELECT plan_id, card_account_id, status FROM installment_plans"
+        )
+    }
+    purchases: list[dict[str, Any]] = []
+    for obligation in obligations.get("obligations", []):
+        if obligation["origin"] != "installment_plan" or not obligation.get("stays_visible", True):
+            continue
+        plan = plans.get(str(obligation["source"]["id"]))
+        if plan is None or plan["card_account_id"] is None or plan["status"] != "CONFIRMED":
+            continue
+        for row in obligation.get("schedule") or []:
+            if not cutoff < str(row["due_on"]) <= end:
+                continue
+            purchases.append({
+                "id": f"installment:{plan['plan_id']}:{row['schedule_index']}",
+                "account_id": str(plan["card_account_id"]),
+                "currency": str(obligation["currency"]),
+                "on": str(row["due_on"]),
+                "amount": str(row["amount"]),
+                "label": f"{obligation['label']} (installment)",
+                "origin": "installment_plan",
+                "removes_from_residual": False,
+            })
+    return purchases
+
+
 def _card_events(
     conversion: dict[str, Any], *, prospective: Sequence[dict[str, Any]]
 ) -> tuple[list[ForecastEvent], list[str], list[dict[str, Any]]]:
@@ -2021,6 +2061,9 @@ def _card_events(
             source_id = str(row["source_id"])
             inferred = row.get("basis") == "projected_cycle_due_date"
             purchase = prospective_by_id.get(source_id)
+            # A modelled purchase may name what it is (an installment, a planned
+            # item) and whether it stands in for routine spending.
+            removes = purchase is not None and bool(purchase.get("removes_from_residual", True))
             events.append(
                 ForecastEvent(
                     event_id=f"card_cash:{card['account_id']}:{source_id}",
@@ -2029,20 +2072,20 @@ def _card_events(
                     amount=str(row["amount"]),
                     column=COLUMN_DEBT_CARD,
                     direction=DIRECTION_OUT,
-                    label=str(card["label"]),
+                    label=str(purchase.get("label") or card["label"]) if purchase else str(card["label"]),
                     on=str(row["settle_on"]),
                     timing_basis=TIMING_INFERRED if inferred else TIMING_KNOWN,
                     window_earliest=str(row["settle_on"]),
                     window_latest=str(row["settle_on"]),
                     confidence=CONFIDENCE_CONFIRMED,
                     residual_category=(
-                        f"manifest:routine:{row['currency']}" if purchase else None
+                        f"manifest:routine:{row['currency']}" if removes else None
                     ),
-                    residual_on=str(row.get("purchased_on")) if purchase else None,
-                    residual_amount=str(row["amount"]) if purchase else None,
-                    removes_from_residual=purchase is not None,
+                    residual_on=str(row.get("purchased_on")) if removes else None,
+                    residual_amount=str(row["amount"]) if removes else None,
+                    removes_from_residual=removes,
                     provenance={
-                        "origin": "card_statement",
+                        "origin": str(purchase.get("origin") or "card_statement") if purchase else "card_statement",
                         "contract": conversion.get("contract_version"),
                         "partition": row.get("partition"),
                         "basis": row.get("basis"),
@@ -2141,6 +2184,10 @@ def _cash_timeline(
         recurring, start=str(cutoff), end=end
     )
     prospective = list(prospective_card_purchases)
+    installment_purchases = _installment_card_purchases(
+        connection, obligations, cutoff=str(cutoff), end=end
+    )
+    prospective.extend(installment_purchases)
     cards = card_cash_conversion_from(
         connection,
         as_of=str(cutoff),
@@ -2178,6 +2225,14 @@ def _cash_timeline(
             prospective_purchases=prospective,
         )
         card_events, card_limits, missing_cards = _card_events(cards, prospective=prospective)
+
+    tracked = {(str(card["account_id"]), str(card["currency"])) for card in cards.get("cards", [])}
+    untracked_installments = sorted({
+        f"{purchase['label']} ({purchase['currency']}): the card it is charged to isn't tracked, "
+        "so its remaining payments aren't counted."
+        for purchase in installment_purchases
+        if (purchase["account_id"], purchase["currency"]) not in tracked
+    })
 
     reported = {
         "manifest": manifest.get("generation"),
@@ -2231,7 +2286,7 @@ def _cash_timeline(
         estimate=estimate,
     )
     adapter_limits = [
-        *obligation_limits, *income_limits, *card_limits,
+        *obligation_limits, *income_limits, *card_limits, *untracked_installments,
         *(limit for source in extra for limit in source.limitations),
     ]
     result["answer_gaps"].extend(
@@ -2242,6 +2297,7 @@ def _cash_timeline(
         and obligation.get("cash_effect") not in ("bank_withdrawal", None, "via_card_statement")
     )
     result["answer_gaps"].extend(limit for source in extra for limit in source.limitations)
+    result["answer_gaps"].extend(untracked_installments)
     result["limitations"].extend(adapter_limits)
     for card in missing_cards:
         cell = result["by_currency"].get(str(card["currency"]))
