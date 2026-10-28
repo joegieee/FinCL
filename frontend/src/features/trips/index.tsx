@@ -176,6 +176,9 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
   </Card>
 }
 
+// Amounts stay exact decimal text from the server; this only reads whether one is zero.
+const isZero = (amount: string) => /^[+-]?0*(\.0*)?$/.test(amount)
+
 const BASIS: Record<string, string> = { automatic: 'Automatic', manual: 'Chosen by hand', excluded: 'Excluded', ambiguous: 'Several trips', none: 'Not in a trip' }
 
 function RowSection({ title, rows, checked, onToggle, empty, note }: { title: string; rows: ContextRow[]; checked: Set<string>; onToggle: (anchor: string) => void; empty: string; note?: string }) {
@@ -190,7 +193,7 @@ function RowSection({ title, rows, checked, onToggle, empty, note }: { title: st
         <td>{row.merchant}<small>{row.category_key}</small></td>
         <td>{row.country ? `${row.country} · ${countryName(row.country)}` : row.country_basis === 'operator' ? 'Unknown (set)' : 'Unknown'}</td>
         <td>{BASIS[row.assignment]}{row.outside_window && <small>outside the trip dates</small>}</td>
-        <td>{Number(row.cost_amount) !== 0 && reportedMoney(row, 'cost_amount', row.currency)}{Number(row.refund_amount) !== 0 && <small>refund {reportedMoney(row, 'refund_amount', row.currency)}</small>}</td>
+        <td>{!isZero(row.cost_amount) && reportedMoney(row, 'cost_amount', row.currency)}{!isZero(row.refund_amount) && <small>refund {reportedMoney(row, 'refund_amount', row.currency)}</small>}</td>
       </tr>)}</tbody></table></div>}
   </section>
 }
