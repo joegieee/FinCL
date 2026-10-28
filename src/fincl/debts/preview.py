@@ -90,11 +90,14 @@ def check_references(
     *,
     resolve_anchor: Any,
 ) -> None:
-    """What the decision names exists in the current projection.
+    """What the decision names exists in the current projection, and suits it.
 
     Replay would accept a retire of something that is not there as a no-op, so
-    this is the only place a mistyped or stale reference is refused. A batch
-    calls it per item against the state its earlier items left behind.
+    this is the only place a mistyped or stale reference is refused. It also
+    holds new decisions to rules replay does not enforce on old journals: a
+    sensible due date, no source still called an own-account transfer, and an
+    owner share that fits what the other claims leave. A batch calls it per
+    item against the state its earlier items left behind.
     """
     debt = (
         connection.execute(
@@ -119,6 +122,17 @@ def check_references(
         (anchors["debt"], anchors["event"]),
     ).fetchone() is None:
         raise FinCLError("that debt event does not exist")
+    if decision_kind == PERSONAL_DEBT_EVENT_SET:
+        for item in payload["entry_allocations"]:
+            if connection.execute(
+                "SELECT 1 FROM inbound_classifications WHERE anchor = ? AND bound = 1 "
+                "AND classification = 'self_transfer'",
+                (item["entry_anchor"],),
+            ).fetchone():
+                raise FinCLError(
+                    "a source is recorded as a transfer between your own accounts, which "
+                    "would hide this debt; clear its incoming type in the same change"
+                )
     if decision_kind == ENTRY_RESIDUAL_SET:
         if resolve_anchor(anchors["entry"]) is None:
             raise FinCLError("the source transaction does not resolve to one selected entry")

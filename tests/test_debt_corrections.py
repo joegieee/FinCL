@@ -169,6 +169,16 @@ class InboundClassificationRetireTests(DebtCorrectionBase):
         self.command("PERSONAL_DEBT_OPEN", {"debt": self.debt},
                      {"direction": "PAYABLE", "currency": "SGD", "counterparty_label": "Alex",
                       "opened_on": "2026-01-01", "due_on": None, "reason": "Loan from Alex"})
+        offered = self.client.get(
+            f"/api/v1/debts/allocation-candidates?debt={self.debt}&event_kind=BORROWED&anchor={self.seed}")
+        self.assertEqual([c["incoming_type"] for c in offered.json()["candidates"]], ["self_transfer"])
+
+        journal = self.journal_len()
+        alone = self.batch([self.event(str(uuid.uuid4()), "BORROWED", "500.00", "2026-01-01", [_alloc(self.seed, "500.00")])])
+        self.assertEqual(alone.status_code, 422, alone.text)
+        self.assertIn("clear its incoming type", alone.json()["detail"])
+        self.assertEqual(self.journal_len(), journal)
+
         response = self.batch([
             {"kind": "INBOUND_CLASSIFICATION_RETIRE", "anchors": {"entry": self.seed},
              "payload": {"reason": "Alex lent this, it is not my own money"}},

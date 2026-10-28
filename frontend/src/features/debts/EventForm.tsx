@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CategoryPicker, rememberCategory } from '@/features/classification/CategoryPicker'
+import { INCOMING_LABELS } from '@/features/classification/api'
 import { AllocationTable, emptyAllocation } from './AllocationTable'
 import { DraftEffect, RecloseControl, useDebtDraft } from './Draft'
 import {
@@ -31,6 +32,10 @@ function isBlank(row: AllocationInput): boolean {
  * values, and saving retires it and records the corrected event in one batch.
  * On a closed debt that batch also reopens it and, unless the user says
  * otherwise, closes it again. What it claims of its sources is offered back.
+ *
+ * An inflow with a recorded incoming type keeps it unless it is cleared in the
+ * same change. One called an own-account transfer must be: that outranks the
+ * debt, so the debt would not count.
  *
  * `seed` is one source transaction handed over from the classification editor:
  * the form then offers only the event kinds that transaction's direction can
@@ -83,6 +88,10 @@ export function EventForm({
       : seed ? [{ ...emptyAllocation(seed.entry_anchor), principal_amount: seed.open_amount }] : [],
   )
   const [recloseOn, setRecloseOn] = useState<string | null>(debt.closed_on)
+  // Picked sources that carry an incoming type, and whether to clear it.
+  const [typed, setTyped] = useState<Record<string, AllocationCandidate>>(() =>
+    Object.fromEntries([seed, ...(replacing?.sources ?? [])].filter((c): c is AllocationCandidate => Boolean(c?.incoming_type)).map((c) => [c.entry_anchor, c])))
+  const [clearing, setClearing] = useState<Record<string, boolean>>({})
   const [reason, setReason] = useState('')
   const [problem, setProblem] = useState('')
   const draft = useDebtDraft(generation, async status => {
@@ -93,6 +102,8 @@ export function EventForm({
   const offLedger = spec.offLedger || (spec.opening && openingBalance)
   const needsCategory = spec.kind === 'EXPENSE_PAID_FOR_ME'
   const filledRows = rows.filter((r) => !isBlank(r))
+  const typedSources = offLedger ? [] : filledRows.flatMap((r) => typed[r.entry_anchor] ? [typed[r.entry_anchor]] : [])
+  const clears = (source: AllocationCandidate) => source.incoming_type === 'self_transfer' || Boolean(clearing[source.entry_anchor])
 
   function edit(change: () => void) { change(); setProblem(''); draft.invalidate() }
 
@@ -111,6 +122,7 @@ export function EventForm({
   function updateRows(next: AllocationInput[], picked?: AllocationCandidate) {
     edit(() => {
       setRows(next)
+      if (picked?.incoming_type) setTyped((prev) => ({ ...prev, [picked.entry_anchor]: picked }))
       if (picked && dateAuto) {
         const day = picked.effective_at.slice(0, 10)
         const floor = day < debt.opened_on ? debt.opened_on : day
@@ -130,7 +142,9 @@ export function EventForm({
       : ''
     if (missing) { setProblem(missing); return }
     const retire = old ? [{ kind: 'PERSONAL_DEBT_EVENT_RETIRE', anchors: { debt: debt.debt_id, event: old.event_id }, payload: { reason: reason.trim() } }] : []
-    void draft.check(aroundClosed(debt, [...retire, {
+    const cleared = typedSources.filter(clears).map((source) => (
+      { kind: 'INBOUND_CLASSIFICATION_RETIRE', anchors: { entry: source.entry_anchor }, payload: { reason: reason.trim() } }))
+    void draft.check(aroundClosed(debt, [...cleared, ...retire, {
       kind: 'PERSONAL_DEBT_EVENT_SET',
       anchors: { debt: debt.debt_id, event: crypto.randomUUID() },
       payload: {
@@ -236,6 +250,19 @@ export function EventForm({
           replacing={old?.event_id}
         />
       )}
+
+      {typedSources.map((source) => (
+        <label key={source.entry_anchor} className="debt-event-check">
+          <input type="checkbox" checked={clears(source)} disabled={draft.busy || source.incoming_type === 'self_transfer'}
+            onChange={(e) => edit(() => setClearing((prev) => ({ ...prev, [source.entry_anchor]: e.target.checked })))} />
+          <span>
+            Clear its incoming type “{INCOMING_LABELS[source.incoming_type ?? ''] ?? source.incoming_type}” ({source.description?.trim() || 'this transaction'})
+            <small>{source.incoming_type === 'self_transfer'
+              ? 'A transfer between your own accounts would hide this debt, so it is cleared with this event.'
+              : 'Any part the debt does not explain goes back to needing an incoming type.'}</small>
+          </span>
+        </label>
+      ))}
 
       <label className="debt-event-reason">
         Reason

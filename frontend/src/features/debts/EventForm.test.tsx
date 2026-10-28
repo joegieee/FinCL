@@ -177,4 +177,30 @@ describe('EventForm', () => {
     await checkThenSave()
     expect(saved()).toMatchObject({ event_kind: 'EXPENSE_PAID_FOR_ME', expense_category: 'Food & Dining / Dining Out', entry_allocations: [] })
   })
+
+  it('clears an own-account transfer type on a borrowed inflow in the same change, and any other type only when asked', async () => {
+    const inflow = { entry_anchor: 'in-500', effective_at: '2026-03-02T09:00:00', economic_direction: 'IN', currency: 'SGD',
+      amount: '500.00', open_amount: '500.00', description: 'From Jo', incoming_type: 'self_transfer' }
+    const { EventForm } = await import('./EventForm')
+    const first = render(<EventForm detail={payableDetail as never} generation="sha256:abc" seed={inflow} onSaved={vi.fn()} onCancel={vi.fn()} />)
+    const forced = screen.getByRole('checkbox', { name: /Clear its incoming type “Own-account transfer”/ })
+    expect(forced).toBeChecked()
+    expect(forced).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Jo lent me this' } })
+    sourcesTotal = '500.00'
+    fireEvent.click(screen.getByText('Check event'))
+    await screen.findByText('Save event')
+    const items = (calls.find((c) => c.path === 'debts/preview')!.body as { items: Item[] }).items
+    expect(items.map((i) => i.kind)).toEqual(['INBOUND_CLASSIFICATION_RETIRE', 'PERSONAL_DEBT_EVENT_SET'])
+    expect(items[0]).toMatchObject({ anchors: { entry: 'in-500' }, payload: { reason: 'Jo lent me this' } })
+    first.unmount(); calls.length = 0
+
+    render(<EventForm detail={payableDetail as never} generation="sha256:abc" seed={{ ...inflow, incoming_type: 'income' }} onSaved={vi.fn()} onCancel={vi.fn()} />)
+    const optional = screen.getByRole('checkbox', { name: /Clear its incoming type “Income”/ })
+    expect(optional).not.toBeChecked()
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Jo lent me this' } })
+    fireEvent.click(screen.getByText('Check event'))
+    await screen.findByText('Save event')
+    expect((calls.find((c) => c.path === 'debts/preview')!.body as { items: Item[] }).items.map((i) => i.kind)).toEqual(['PERSONAL_DEBT_EVENT_SET'])
+  })
 })

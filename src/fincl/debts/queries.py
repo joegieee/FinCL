@@ -475,6 +475,10 @@ def _entry_candidates(
     """Selected, non-internal entries in one bank direction with an unclaimed
     amount left, newest first, keyset-paged by ``(effective_at, natural_anchor)``.
 
+    An inflow the user called an own-account transfer is internal only by that
+    say-so, so it is still offered: a debt may explain it, once that incoming
+    type is cleared in the same change (``incoming_type`` says it is there).
+
     ``without_owner_share`` leaves out entries whose owner share is already
     recorded (an ``ENTRY_RESIDUAL_SET``): an entry carries one owner share, so a
     second one would replace it rather than add to it.
@@ -507,7 +511,9 @@ def _entry_candidates(
         f"""
         SELECT e.natural_anchor, e.effective_at, e.economic_direction,
                e.amount_coefficient, e.amount_scale, e.currency_pocket,
-               COALESCE(r.description_raw, d.description_raw) AS description_raw
+               COALESCE(r.description_raw, d.description_raw) AS description_raw,
+               (SELECT ic.classification FROM inbound_classifications ic
+                WHERE ic.anchor = e.natural_anchor AND ic.bound = 1 LIMIT 1) AS incoming_type
         FROM ledger_entries e
         JOIN extraction_runs x
           ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED'
@@ -515,7 +521,12 @@ def _entry_candidates(
         LEFT JOIN document_records d ON d.id = e.document_record_id
         LEFT JOIN entry_categories c ON c.entry_id = e.id
         WHERE e.economic_direction = ?
-          AND (c.group_name IS NULL OR c.group_name != 'Internal'){clauses}
+          AND (c.group_name IS NULL OR c.group_name != 'Internal' OR (
+            EXISTS (SELECT 1 FROM inbound_classifications ic WHERE ic.anchor = e.natural_anchor
+                    AND ic.bound = 1 AND ic.classification = 'self_transfer')
+            AND NOT EXISTS (SELECT 1 FROM transfer_links t WHERE t.status = 'CONFIRMED'
+                            AND (t.left_entry_id = e.id OR t.right_entry_id = e.id))
+          )){clauses}
         ORDER BY e.effective_at DESC, e.natural_anchor ASC
         LIMIT ?
         """,
@@ -551,6 +562,7 @@ def _entry_candidates(
                 "amount": _decimal(magnitude, scale),
                 "open_amount": _decimal(remaining, scale),
                 "description": row["description_raw"],
+                "incoming_type": row["incoming_type"],
             }
         )
     return candidates, next_cursor

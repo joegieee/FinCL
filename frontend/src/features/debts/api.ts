@@ -102,6 +102,8 @@ export type AllocationCandidate = {
   amount: string
   open_amount: string
   description: string | null
+  /** An inflow's recorded incoming type, if any. */
+  incoming_type?: string | null
 }
 
 export type AllocationCandidatesPage = {
