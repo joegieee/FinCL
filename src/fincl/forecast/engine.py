@@ -1998,6 +1998,12 @@ def _card_events(
             source_id = str(row["source_id"])
             inferred = row.get("basis") == "projected_cycle_due_date"
             purchase = prospective_by_id.get(source_id)
+            # A modelled purchase may say what it replaces (None: it is extra)
+            # and where it came from; otherwise it is routine card spending.
+            residual = (
+                purchase.get("residual_category", f"manifest:routine:{row['currency']}")
+                if purchase else None
+            )
             events.append(
                 ForecastEvent(
                     event_id=f"card_cash:{card['account_id']}:{source_id}",
@@ -2006,20 +2012,19 @@ def _card_events(
                     amount=str(row["amount"]),
                     column=COLUMN_DEBT_CARD,
                     direction=DIRECTION_OUT,
-                    label=str(card["label"]),
+                    label=str((purchase or {}).get("label") or card["label"]),
                     on=str(row["settle_on"]),
                     timing_basis=TIMING_INFERRED if inferred else TIMING_KNOWN,
                     window_earliest=str(row["settle_on"]),
                     window_latest=str(row["settle_on"]),
                     confidence=CONFIDENCE_CONFIRMED,
-                    residual_category=(
-                        f"manifest:routine:{row['currency']}" if purchase else None
-                    ),
-                    residual_on=str(row.get("purchased_on")) if purchase else None,
-                    residual_amount=str(row["amount"]) if purchase else None,
-                    removes_from_residual=purchase is not None,
+                    residual_category=residual,
+                    residual_on=str(row.get("purchased_on")) if residual else None,
+                    residual_amount=str(row["amount"]) if residual else None,
+                    removes_from_residual=residual is not None,
                     provenance={
-                        "origin": "card_statement",
+                        **((purchase or {}).get("provenance") or {}),
+                        "origin": ((purchase or {}).get("provenance") or {}).get("origin", "card_statement"),
                         "contract": conversion.get("contract_version"),
                         "partition": row.get("partition"),
                         "basis": row.get("basis"),

@@ -169,7 +169,7 @@ class PlannedLedgerTests(_PlannedLedger):
         self.assertFalse(cells["a"]["in_forecast"])
         self.assertEqual(cells["b"]["forecast"]["placements"],
                          [{"earliest": "2026-01-21", "latest": "2026-01-21", "amount": "40.00",
-                           "cases": ["base", "cautious"], "overdue": True}])
+                           "cases": ["base", "cautious"], "overdue": True, "actual": False}])
         self.assertEqual(cells["a"]["matches"][0]["on"], "2026-01-02")
         self.assertEqual([item["occurrence"] for item in page["attention"]], ["b"])
         self.assertEqual(page["flows"][0]["remaining"], "340.00")
@@ -195,12 +195,24 @@ class LifecycleTests(unittest.TestCase):
 
     def test_overdue_spending_stays_and_overdue_income_leaves(self) -> None:
         due = Occurrence("a", "2026-01-10", "2026-01-31", Decimal("100"))
-        spending = self._assess("outflow", "maybe", due, [Slice("2026-01-12", Decimal("30"))])
+        spending = self._assess("outflow", "sure", due, [Slice("2026-01-12", Decimal("30"))])
         self.assertEqual((spending.state, spending.remaining), ("overdue", Decimal("70")))
         self.assertEqual([(p.earliest, p.amount, p.cases, p.overdue) for p in spending.placements],
                          [("2026-02-01", Decimal("70"), ("base", "cautious"), True)])
+        maybe = self._assess("outflow", "maybe", due)
+        self.assertEqual([p.cases for p in maybe.placements], [("cautious",)])
         income = self._assess("inflow", "sure", due)
         self.assertEqual((income.state, income.placements), ("overdue", ()))
+
+    def test_a_payment_after_the_cutoff_is_placed_on_its_own_date(self) -> None:
+        item = Occurrence("a", "2026-01-25", "2026-01-25", Decimal("100"))
+        partly = self._assess("outflow", "sure", item, [Slice("2026-01-30", Decimal("40")), Slice("2026-02-03", Decimal("10")),
+                                                        Slice("2026-02-03", Decimal("5")), Slice("2026-01-20", Decimal("15"))])
+        self.assertEqual([(p.earliest, p.amount, p.actual) for p in partly.placements],
+                         [("2026-02-01", Decimal("30"), False), ("2026-02-03", Decimal("15"), True)])
+        settled = self._assess("outflow", "sure", item, [Slice("2026-02-03", Decimal("100"))])
+        self.assertEqual((settled.state, [(p.earliest, p.amount, p.cases) for p in settled.placements]),
+                         ("matched", [("2026-02-03", Decimal("100"), ("base", "cautious"))]))
 
     def test_a_window_is_clipped_to_the_horizon_and_beyond_it_is_left_out(self) -> None:
         straddling = Occurrence("a", "2026-01-20", "2026-02-10", Decimal("50"))
@@ -227,6 +239,13 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(slices["apr"], [Slice("2026-02-03", Decimal("100"))])
         self.assertEqual(over, Decimal("30"))
 
+    def test_a_trip_refund_gives_back_spend_beyond_the_plan_first(self) -> None:
+        occurrences = [Occurrence("a", "2026-02-01", "2026-02-28", Decimal("100")), Occurrence("b", "2026-03-01", "2026-03-31", Decimal("100"))]
+        slices, over = envelope(occurrences, [Slice("2026-02-01", Decimal("230")), Slice("2026-02-05", Decimal("-50"))])
+        self.assertEqual(over, Decimal("0"))
+        self.assertEqual(sum(part.amount for part in slices["b"]), Decimal("80"))
+        self.assertEqual(sum(part.amount for part in slices["a"]), Decimal("100"))
+
 
 class PlannedValidationTests(unittest.TestCase):
     def test_payload_shape_is_closed(self) -> None:
@@ -241,6 +260,7 @@ class PlannedValidationTests(unittest.TestCase):
             ({"occurrences": [_occurrence("a", "2026-03-02", "0.00")]}, "greater than zero"),
             ({"link": {"kind": "debt", "id": "x"}}, "can link only to: trip"),
             ({"direction": "inflow", "link": {"kind": "trip", "id": "x"}}, "Only planned spending"),
+            ({"link": {"kind": "trip", "id": "x"}, "baseline_treatment": "irregular_allowance"}, "never the one-off allowance"),
         ]:
             with self.subTest(change=change), self.assertRaisesRegex(FinCLError, message):
                 validate_planned("PLANNED_FLOW_SET", flow, _flow(**change))

@@ -8,6 +8,9 @@ mirror annotates them like every other workspace read.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -92,6 +95,48 @@ def _match_rows(connection: sqlite3.Connection) -> dict[tuple[str, str], list[di
     return rows
 
 
+# A draft PLANNED_FLOW_SET (flow id, payload) read in place of the recorded
+# flow, so the impact of an edit can be computed before it is saved.
+_DRAFT: ContextVar[tuple[str, dict[str, Any]] | None] = ContextVar("planned_draft", default=None)
+
+
+@contextmanager
+def draft_overlay(flow: str, payload: dict[str, Any]) -> Iterator[None]:
+    token = _DRAFT.set((flow, payload))
+    try:
+        yield
+    finally:
+        _DRAFT.reset(token)
+
+
+def _flow_rows(connection: sqlite3.Connection) -> tuple[list[dict[str, Any]], dict[str, list[tuple[str, str, str, Decimal]]]]:
+    flows = [dict(row) for row in connection.execute("SELECT * FROM planned_flows ORDER BY name, flow")]
+    occurrences: dict[str, list[tuple[str, str, str, Decimal]]] = {}
+    for row in connection.execute("SELECT * FROM planned_occurrences ORDER BY earliest, position"):
+        occurrences.setdefault(str(row["flow"]), []).append(
+            (str(row["occurrence"]), str(row["earliest"]), str(row["latest"]),
+             _decimal(row["amount_coefficient"], row["amount_scale"]))
+        )
+    draft = _DRAFT.get()
+    if draft is not None:
+        flow_id, payload = draft
+        link = payload["link"]
+        row = {
+            "flow": flow_id, "name": payload["name"].strip(), "direction": payload["direction"],
+            "currency": payload["currency"], "account_id": payload["account_id"], "category": payload["category"],
+            "certainty": payload["certainty"], "baseline_treatment": payload["baseline_treatment"],
+            "link_kind": link["kind"] if link else None, "link_id": link["id"] if link else None,
+            "reason": payload["reason"], "journal_seq": None,
+        }
+        flows = [flow for flow in flows if flow["flow"] != flow_id] + [row]
+        occurrences[flow_id] = sorted(
+            ((str(item["key"]), str(item["earliest"]), str(item["latest"]), Decimal(str(item["amount"])))
+             for item in payload["occurrences"]),
+            key=lambda item: item[1],
+        )
+    return flows, occurrences
+
+
 def assessed(
     connection: sqlite3.Connection,
     horizon: Horizon,
@@ -100,28 +145,25 @@ def assessed(
     today: date,
 ) -> tuple[list[tuple[dict[str, Any], list[AssessedOccurrence], Decimal | None]], dict[tuple[str, str], list[dict[str, Any]]]]:
     """Every flow with its assessed occurrences; trip flows also report spend beyond the plan."""
-    flows = [dict(row) for row in connection.execute("SELECT * FROM planned_flows ORDER BY name, flow")]
+    flows, rows_by_flow = _flow_rows(connection)
     outcomes = {
         (str(row["flow"]), str(row["occurrence"])): (str(row["outcome"]), str(row["reason"]))
         for row in connection.execute("SELECT flow, occurrence, outcome, reason FROM planned_resolutions")
     }
+    trips = {str(row[0]) for row in connection.execute("SELECT trip_id FROM trips")}
     matches = _match_rows(connection)
     result: list[tuple[dict[str, Any], list[AssessedOccurrence], Decimal | None]] = []
     for flow in flows:
         occurrences = [
-            Occurrence(
-                str(row["occurrence"]), str(row["earliest"]), str(row["latest"]),
-                _decimal(row["amount_coefficient"], row["amount_scale"]),
-                outcomes.get((str(flow["flow"]), str(row["occurrence"])), (None, None))[0],
-            )
-            for row in connection.execute(
-                "SELECT * FROM planned_occurrences WHERE flow = ? ORDER BY earliest, position",
-                (flow["flow"],),
-            )
+            Occurrence(key, earliest, latest, planned, outcomes.get((str(flow["flow"]), key), (None, None))[0])
+            for key, earliest, latest, planned in rows_by_flow.get(str(flow["flow"]), [])
         ]
         over: Decimal | None = None
         if flow["link_kind"] == LINK_TRIP:
-            spend = trip_spend(connection, str(flow["link_id"]), str(flow["currency"]), today.isoformat())
+            spend = (
+                trip_spend(connection, str(flow["link_id"]), str(flow["currency"]), today.isoformat())
+                if str(flow["link_id"]) in trips else {}
+            )
             parts = [Slice(str(part["on"]), Decimal(str(part["amount"]))) for part in spend.get("parts", [])]
             by_key, over = envelope(occurrences, parts)
         else:
@@ -159,7 +201,7 @@ def _forecast_cell(assessment: Assessment) -> dict[str, Any] | None:
             {
                 "earliest": placement.earliest, "latest": placement.latest,
                 "amount": money(placement.amount), "cases": list(placement.cases),
-                "overdue": placement.overdue,
+                "overdue": placement.overdue, "actual": placement.actual,
             }
             for placement in assessment.placements
         ],

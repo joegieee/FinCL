@@ -54,7 +54,8 @@ class SourceResult:
 SourceAdapter = Callable[[sqlite3.Connection, SourceContext], SourceResult]
 
 from ..funds.forecast import funds_source  # noqa: E402
+from ..planned.forecast import planned_source  # noqa: E402
 
-EXTRA_SOURCES: list[SourceAdapter] = [funds_source]
+EXTRA_SOURCES: list[SourceAdapter] = [funds_source, planned_source]
 
 __all__ = ["EXTRA_SOURCES", "SourceAdapter", "SourceContext", "SourceResult"]
