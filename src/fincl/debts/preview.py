@@ -60,6 +60,12 @@ def preview_debt(
         raise FinCLError("that debt id is already open")
     if decision_kind in _needs_debt and not debt_exists:
         raise FinCLError("that debt does not exist")
+    if decision_kind == PERSONAL_DEBT_DETAILS_SET and payload["due_on"] is not None:
+        (opened_on,) = connection.execute(
+            "SELECT opened_on FROM personal_debts WHERE debt_id = ?", (anchors["debt"],)
+        ).fetchone()
+        if str(payload["due_on"]) < str(opened_on):
+            raise FinCLError("due_on may not precede opened_on")
 
     if decision_kind == ENTRY_RESIDUAL_SET and resolve_anchor(anchors["entry"]) is None:
         raise FinCLError("the source transaction does not resolve to one selected entry")
