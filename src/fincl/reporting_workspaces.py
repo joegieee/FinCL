@@ -224,7 +224,8 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
                 purpose = ValuationPurpose.POSITION if opening else ValuationPurpose.FLOW
             # Derived baseline estimates describe a monthly reference model,
             # not a new historical receipt. Dated observations remain FLOW.
-            if resource.startswith("baseline") and not any(part in path for part in ("months", "irregular_risk_entries", "occurrences", "reconciliation", "tasks")):
+            if resource.startswith("baseline") and not resource.startswith("baseline/contributors") \
+                    and not any(part in path for part in ("months", "irregular_risk_entries", "occurrences", "reconciliation", "tasks")):
                 purpose = ValuationPurpose.FORECAST
             if resource.startswith("obligations") and "baseline_component_effects" in path:
                 purpose = ValuationPurpose.FORECAST
@@ -316,17 +317,42 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
             return None
         return values.index(choose(values))
 
-    # Baseline: historical means value each month first.
+    # Baseline: historical means value each month first. Each figure is composed
+    # from the same terms the estimator adds natively (flat fixed cost plus the
+    # monthly partition), never from owner cost, which also carries the matched
+    # recurring cost and the receipt adjustments the model excludes.
     def baseline_estimate_cell(root: Path, cell: dict[str, Any]) -> None:
         rows = cell.get("months", [])
-        for name, components in {
-            "total_observed_monthly": [("owner_cost_recorded", 1)],
-            "net_received_income_monthly": [("income", 1)],
-            "historical_surplus_monthly": [("income", 1), ("owner_cost_recorded", -1)],
+        if not rows:
+            return
+
+        def mean(field: str) -> list[tuple[Path, Fraction]]:
+            return [([*root, "months", index, field], Fraction(1, len(rows))) for index in range(len(rows))]
+
+        fixed: list[tuple[Path, Fraction]] = [([*root, "fixed_recurring_monthly"], Fraction(1))]
+        routine = fixed + mean("routine_variable_residual")
+        total = routine + mean("unresolved_irregular")
+        for name, parts in {
+            "variable_residual_monthly": mean("routine_variable_residual"),
+            "irregular_allowance_monthly": mean("unresolved_irregular"),
+            "routine_lifestyle_baseline": routine,
+            "total_observed_monthly": total,
+            "net_received_income_monthly": mean("income"),
+            "historical_surplus_monthly": mean("income") + [(path, -weight) for path, weight in total],
         }.items():
-            if rows:
-                combine([*root, name], [([*root, "months", index, field], Fraction(sign, len(rows)))
-                                        for index in range(len(rows)) for field, sign in components])
+            combine([*root, name], parts)
+        months = {row.get("month"): index for index, row in enumerate(rows)}
+        for name, (fields, with_fixed) in {
+            "routine_lifestyle_baseline": (("routine_variable_residual",), True),
+            "irregular_allowance_monthly": (("unresolved_irregular",), False),
+            "total_observed_monthly": (("routine_variable_residual", "unresolved_irregular"), True),
+        }.items():
+            spread = (cell.get("observed_range") or {}).get(name) or {}
+            for bound in ("min", "max"):
+                index = months.get(spread.get(f"{bound}_month"))
+                if index is not None:
+                    combine([*root, "observed_range", name, f"{bound}_amount"],
+                            [([*root, "months", index, field], Fraction(1)) for field in fields] + (fixed if with_fixed else []))
 
     def roles_totals(root: Path, roles: dict[str, Any]) -> None:
         for field in ("essential", "discretionary", "unresolved", "total"):
@@ -386,6 +412,9 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
                          for index, month in enumerate(native.get("months", [])) if currency in month.get("by_currency", {})]
                 reconciliation_totals(cells, ["reconciliation", currency])
         income_streams(native.get("income_streams"), ["income_streams"])
+        for _, part, path in each(native.get("parts"), ["parts"]):
+            combine([*path, "total"], [([*path, "contributors", index, "amount"], Fraction(1))
+                                       for index in range(len(part.get("contributors") or []))])
 
     if resource.startswith("forecast/variance"):
         events = native.get("events", [])

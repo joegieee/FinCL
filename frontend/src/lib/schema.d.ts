@@ -209,6 +209,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/baseline/contributors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Baseline Contributors Read */
+        get: operations["baseline_contributors_read_api_v1_baseline_contributors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/obligations": {
         parameters: {
             query?: never;
@@ -2215,6 +2232,23 @@ export interface paths {
         };
         /** Reported Workspace Baseline Estimate Read */
         get: operations["reported_workspace_baseline_estimate_read_api_v1_reporting_workspaces_baseline_estimate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reporting/workspaces/baseline/contributors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reported Workspace Baseline Contributors Read */
+        get: operations["reported_workspace_baseline_contributors_read_api_v1_reporting_workspaces_baseline_contributors_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5210,6 +5244,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    baseline_contributors_read_api_v1_baseline_contributors_get: {
+        parameters: {
+            query: {
+                currency: string;
+                month: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -8554,6 +8620,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportedWorkspace"];
+                };
+            };
+        };
+    };
+    reported_workspace_baseline_contributors_read_api_v1_reporting_workspaces_baseline_contributors_get: {
+        parameters: {
+            query: {
+                currency: string;
+                month: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportedWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

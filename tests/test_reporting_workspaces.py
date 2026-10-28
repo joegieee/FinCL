@@ -80,15 +80,19 @@ class WorkspaceValuationTests(ApiTestBase):
         self.assertEqual(values[("i_owe", 0, "principal_history", 1, "principal", "value")]["purpose"], "flow")
 
     def test_historical_baseline_mean_values_months_before_combining(self) -> None:
-        native = {"by_currency": {"USD": {"months": [{"month": "2026-01", "owner_cost_recorded": "10.00", "income": "0"},
-                                                               {"month": "2026-02", "owner_cost_recorded": "10.00", "income": "0"}],
-                                                      "total_observed_monthly": "10.00", "net_received_income_monthly": "0",
-                                                      "historical_surplus_monthly": "-10.00"}}}
+        months = [{"month": "2026-01", "owner_cost_recorded": "10.00", "routine_variable_residual": "10.00",
+                   "unresolved_irregular": "0", "income": "0"},
+                  {"month": "2026-02", "owner_cost_recorded": "10.00", "routine_variable_residual": "10.00",
+                   "unresolved_irregular": "0", "income": "0"}]
+        native = {"by_currency": {"USD": {"months": months, "fixed_recurring_monthly": "0",
+                                          "variable_residual_monthly": "10.00", "total_observed_monthly": "10.00",
+                                          "net_received_income_monthly": "0", "historical_surplus_monthly": "-10.00"}}}
         values = self.annotate(native, "baseline/estimate")
-        mean = values[("by_currency", "USD", "total_observed_monthly")]
-        self.assertEqual(mean["reported"]["value"], "13.00")
-        self.assertEqual(mean["purpose"], "flow")
-        self.assertIsNone(mean["rate_period"])
+        residual = values[("by_currency", "USD", "variable_residual_monthly")]
+        self.assertEqual(residual["reported"]["value"], "13.00")
+        self.assertEqual(residual["purpose"], "flow")
+        self.assertIsNone(residual["rate_period"])
+        self.assertEqual(values[("by_currency", "USD", "total_observed_monthly")]["reported"]["value"], "13.00")
         self.assertEqual(values[("by_currency", "USD", "historical_surplus_monthly")]["reported"]["value"], "-13.00")
 
     def test_zero_native_variance_values_actual_and_issued_operands_separately(self) -> None:

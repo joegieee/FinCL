@@ -100,7 +100,7 @@ export type CurrencyEstimate = {
   reserve:
     | { available: false; reason: string }
     | { available: true; months: string; essential_monthly: string; amount: string; basis: string }
-  irregular_risk_entries: { month: string; currency: string; category_key: string; amount: string; threshold: string; review_state: string }[]
+  irregular_risk_entries: { month: string; currency: string; category_key: string; amount: string; threshold: string; review_state: string; component_id: string; entry_anchor: string }[]
   regime: {
     warning: boolean
     reasons: string[]
@@ -119,7 +119,16 @@ export type CurrencyEstimate = {
         variable_residual_monthly: string
         routine_lifestyle_baseline: string
       }
+  observed_range: {
+    basis: string
+    not_a_probability: boolean
+    routine_lifestyle_baseline: ObservedRange
+    irregular_allowance_monthly: ObservedRange & { months_with_entries: number }
+    total_observed_monthly: ObservedRange
+  }
 }
+
+export type ObservedRange = { min_amount: string; min_month: string; max_amount: string; max_month: string }
 
 export type IncomeStream = {
   payer: string
@@ -151,3 +160,32 @@ export type BaselineEstimate =
     }
 
 export const loadBaselineEstimate = () => reportedApi<BaselineEstimate>('baseline/estimate')
+
+export type DecompositionPart = 'identified_recurring' | 'unresolved_irregular' | 'routine_variable_residual' | 'adjustments'
+
+export type BaselineContributor = {
+  component_id: string
+  entry_anchor: string
+  date: string
+  precision: string
+  merchant: string
+  category_key: string
+  bucket: string
+  account: string
+  amount: string
+}
+
+export type BaselineContributors =
+  | { available: false; reason: string; baseline_window: BaselineWindow }
+  | {
+      available: true
+      generation: string
+      currency: string
+      month: string
+      owner_cost_recorded: string
+      reconciles: boolean
+      parts: { part: DecompositionPart; total: string; reconciles: boolean; contributors: BaselineContributor[] }[]
+    }
+
+export const loadBaselineContributors = (currency: string, month: string) =>
+  reportedApi<BaselineContributors>(`baseline/contributors?${new URLSearchParams({ currency, month })}`)

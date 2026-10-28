@@ -6,7 +6,8 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AsyncView } from '@/components/AsyncView'
 import { money } from '@/lib/api'
-import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness, type Completeness, type CurrencyEstimate, type PocketReadiness, type Ratio } from './api'
+import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness, type Completeness, type CurrencyEstimate, type ObservedRange, type PocketReadiness, type Ratio } from './api'
+import { BaselineContributors } from './Contributors'
 
 const COMPLETENESS_LABEL: Record<Completeness, string> = {
   established: 'Established',
@@ -36,7 +37,7 @@ const TASK_LABEL: Record<string, string> = {
  * missing-evidence tasks. There is no "enter the baseline instead" control:
  * a baseline is discovered from imported actuals or it is withheld.
  */
-export function BaselineView() {
+export function BaselineView({ onOpenTransactionAnchor }: { onOpenTransactionAnchor?: (encodedAnchor: string) => Promise<void> } = {}) {
   const [page, setPage] = useState<BaselineReadiness | null>(null)
   const [estimate, setEstimate] = useState<BaselineEstimate | null>(null)
   const [error, setError] = useState('')
@@ -55,12 +56,12 @@ export function BaselineView() {
 
   return (
     <AsyncView loading={loading} error={error} data={page} onRetry={load} loadingLabel="Loading baseline readiness" errorTitle="We couldn’t load baseline readiness.">
-      {page => <BaselineContent page={page} estimate={estimate} loading={loading} load={load} />}
+      {page => <BaselineContent page={page} estimate={estimate} loading={loading} load={load} onOpenTransaction={onOpenTransactionAnchor} />}
     </AsyncView>
   )
 }
 
-function BaselineContent({ page, estimate, loading, load }: { page: BaselineReadiness; estimate: BaselineEstimate | null; loading: boolean; load: () => void }) {
+function BaselineContent({ page, estimate, loading, load, onOpenTransaction }: { page: BaselineReadiness; estimate: BaselineEstimate | null; loading: boolean; load: () => void; onOpenTransaction?: (encodedAnchor: string) => Promise<void> }) {
   const w = page.baseline_window
   const analysis = page.scope.analysis_window
 
@@ -90,7 +91,7 @@ function BaselineContent({ page, estimate, loading, load }: { page: BaselineRead
         )}
       </Card>
 
-      {estimate && <EstimateSection estimate={estimate} />}
+      {estimate && <EstimateSection estimate={estimate} onOpenTransaction={onOpenTransaction} />}
 
       <Card className="baseline-tasks-card">
         <div className="panel-title"><div><p className="eyebrow">BEFORE A BASELINE</p><h2>{page.tasks.length === 0 ? 'Nothing blocking' : `${page.tasks.length} evidence task${page.tasks.length === 1 ? '' : 's'}`}</h2></div></div>
@@ -155,7 +156,7 @@ function ratioText(ratio: Ratio): string {
   return ratio.available ? ratio.value : `Unavailable — ${ratio.reason}`
 }
 
-function EstimateSection({ estimate }: { estimate: BaselineEstimate }) {
+function EstimateSection({ estimate, onOpenTransaction }: { estimate: BaselineEstimate; onOpenTransaction?: (encodedAnchor: string) => Promise<void> }) {
   if (!estimate.available) {
     return (
       <Card className="baseline-window-card">
@@ -167,7 +168,7 @@ function EstimateSection({ estimate }: { estimate: BaselineEstimate }) {
   return (
     <>
       {estimate.currencies.map(currency => (
-        <EstimateCard key={currency} currency={currency} est={estimate.by_currency[currency]} quality={estimate.sample.quality} />
+        <EstimateCard key={currency} currency={currency} est={estimate.by_currency[currency]} quality={estimate.sample.quality} monthCount={estimate.sample.month_count} onOpenTransaction={onOpenTransaction} />
       ))}
       <Card className="baseline-tasks-card">
         <div className="panel-title"><div><p className="eyebrow">METHOD &amp; LIMITS</p><h2>{estimate.sample.method_version}</h2></div></div>
@@ -193,13 +194,22 @@ function EstimateSection({ estimate }: { estimate: BaselineEstimate }) {
   )
 }
 
-function EstimateCard({ currency, est, quality }: { currency: string; est: CurrencyEstimate; quality: string }) {
+function rangeText(range: ObservedRange, currency: string): string {
+  return `${reportedMoney(range, 'min_amount', currency)} (${range.min_month}) to ${reportedMoney(range, 'max_amount', currency)} (${range.max_month})`
+}
+
+function EstimateCard({ currency, est, quality, monthCount, onOpenTransaction }: { currency: string; est: CurrencyEstimate; quality: string; monthCount: number; onOpenTransaction?: (encodedAnchor: string) => Promise<void> }) {
+  const [drillMonth, setDrillMonth] = useState<string | null>(null)
+  const spread = est.observed_range
   return (
     <Card className="baseline-pocket-card">
       <div className="panel-title">
         <div><p className="eyebrow">WHAT YOUR NORMAL LIFE COSTS · {currency}</p><h2>{reportedMoney(est, 'routine_lifestyle_baseline', currency)} / month</h2></div>
         <Badge variant="outline" className={quality === 'normal' ? '' : 'review-badge'}>{QUALITY_LABEL[quality] ?? quality}</Badge>
       </div>
+      <p className="muted-note">
+        Observed months ran from {rangeText(spread.routine_lifestyle_baseline, currency)} across {monthCount} month{monthCount === 1 ? '' : 's'}. This is the spread of what happened, not a confidence interval.
+      </p>
       {est.regime.warning && (
         <p className="muted-note"><AlertTriangle size={13} /> Regime: {est.regime.reasons.join('; ')}.</p>
       )}
@@ -208,7 +218,9 @@ function EstimateCard({ currency, est, quality }: { currency: string; est: Curre
         <div><dt>Variable residual (mean)</dt><dd>{reportedMoney(est, 'variable_residual_monthly', currency)}</dd></div>
         <div><dt>· median / min / max</dt><dd>{reportedMoney(est, 'variable_residual_median', currency)} · {reportedMoney(est, 'variable_residual_min', currency)} · {reportedMoney(est, 'variable_residual_max', currency)}</dd></div>
         <div><dt>Irregular allowance (mean)</dt><dd>{reportedMoney(est, 'irregular_allowance_monthly', currency)}</dd></div>
+        <div><dt>· observed range</dt><dd>{rangeText(spread.irregular_allowance_monthly, currency)} · {spread.irregular_allowance_monthly.months_with_entries} of {monthCount} month{monthCount === 1 ? '' : 's'} with held-out entries</dd></div>
         <div><dt>Total observed monthly</dt><dd>{reportedMoney(est, 'total_observed_monthly', currency)}</dd></div>
+        <div><dt>· observed range</dt><dd>{rangeText(spread.total_observed_monthly, currency)}</dd></div>
         <div><dt>Net received income (mean)</dt><dd>{reportedMoney(est, 'net_received_income_monthly', currency)}</dd></div>
         <div><dt>Historical surplus</dt><dd>{reportedMoney(est, 'historical_surplus_monthly', currency)}</dd></div>
         <div><dt>Savings rate</dt><dd>{ratioText(est.savings_rate)}</dd></div>
@@ -233,7 +245,7 @@ function EstimateCard({ currency, est, quality }: { currency: string; est: Curre
         <tbody>{est.role_groups.map((group, i) => <tr key={`${group.category_key}:${group.cost_pattern}:${i}`}><td>{group.category_key}<small>{group.source_count} source row{group.source_count === 1 ? '' : 's'}</small></td><td>{group.cost_pattern.replaceAll('_', ' ')}</td><td>{group.essential_status}</td><td>{group.tier === null ? 'Unresolved' : `Tier ${group.tier}`}</td><td title={group.basis}>{group.review_status}</td><td>{reportedMoney(group, 'amount', currency)}</td></tr>)}</tbody>
       </table>}
       <table className="pocket-table">
-        <thead><tr><th>Month</th><th>Owner cost</th><th>Recurring</th><th>Irregular</th><th>Adjustments</th><th>Routine residual</th></tr></thead>
+        <thead><tr><th>Month</th><th>Owner cost</th><th>Recurring</th><th>Irregular</th><th>Adjustments</th><th>Routine residual</th><th>Contributors</th></tr></thead>
         <tbody>
           {est.months.map(row => (
             <tr key={row.month}>
@@ -243,10 +255,12 @@ function EstimateCard({ currency, est, quality }: { currency: string; est: Curre
               <td>{reportedMoney(row, 'unresolved_irregular', currency)}</td>
               <td>{reportedMoney(row, 'adjustments', currency)}</td>
               <td>{reportedMoney(row, 'routine_variable_residual', currency)}{!row.reconciles && <small className="form-error">does not reconcile</small>}</td>
+              <td><button className="linkish" aria-expanded={drillMonth === row.month} onClick={() => setDrillMonth(drillMonth === row.month ? null : row.month)}>{drillMonth === row.month ? 'Hide' : 'Show'} {row.month}</button></td>
             </tr>
           ))}
         </tbody>
       </table>
+      {drillMonth && <BaselineContributors currency={currency} month={drillMonth} onClose={() => setDrillMonth(null)} onOpenTransaction={onOpenTransaction} />}
       {est.irregular_risk_entries.length > 0 && (
         <p className="muted-note"><AlertTriangle size={13} /> {est.irregular_risk_entries.length} entr{est.irregular_risk_entries.length === 1 ? 'y' : 'ies'} held out as irregular risk (still in the historical total, out of the routine residual).</p>
       )}

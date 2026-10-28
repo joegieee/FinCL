@@ -395,6 +395,9 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .baseline-metrics dt{color:var(--muted)}
 .baseline-metrics dd{margin:0 0 0 auto;min-width:0;text-align:right;font-variant-numeric:tabular-nums}
 .baseline-pocket-card .pocket-table td small{color:var(--destructive,var(--danger-accent))}
+.baseline-contributors{margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+.baseline-contributors h3{font-size:13px}
+.baseline-contributor-part h4{margin:14px 0 0;font-size:12px;font-weight:600}
 .alias-section{padding:20px!important}
 
 /* Stage 2B — read-only unified obligations surface */

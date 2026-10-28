@@ -141,7 +141,7 @@ export default function App(){
    {tab==='Categories'&&<><div className="explanation"><Layers3 size={18}/><p>Categories describe what money was for. Changing a category keeps the original transaction and its cash-flow classification intact. Custom categories are saved in the ledger’s decision history.</p></div><CustomCategoryManager freshness={data.freshness} onSaved={saved}/><div className="category-grid">{Array.from(new Set(data.categories.map(c=>c.split(' / ')[0]))).map((group,i)=><Card key={group} className="category-group"><div className="category-group-header"><span className="group-icon" style={categoryIconColor(i)}><Layers3 size={18}/></span><h2>{group}</h2></div>{data.categories.filter(c=>c.startsWith(group+' / ')).map(c=><button key={c} onClick={()=>drill(c)}><span>{shortCategory(c)}</span>{data.custom_categories.includes(c)&&<Badge variant="outline">Custom</Badge>}<ChevronRight size={13}/></button>)}</Card>)}</div></>}
    {tab==='Rules'&&<RulesView generation={data.generation} freshness={data.freshness} categories={data.categories} onSaved={saved}/>}
    {tab==='Planning'&&<PlanningView generation={data.generation} freshness={data.freshness} categories={data.categories} onSaved={saved}/>}
-   {tab==='Baseline'&&<BaselineView/>}
+   {tab==='Baseline'&&<BaselineView onOpenTransactionAnchor={openReportedAnchor}/>}
    {tab==='Cash'&&<CashView generation={data.generation} onSaved={saved}/>}
    {tab==='Forecast'&&<ForecastView/>}
    {tab==='Controls'&&<AllControlsView initialMonth={(end || new Date().toISOString().slice(0, 7)).slice(0, 7)}/>}

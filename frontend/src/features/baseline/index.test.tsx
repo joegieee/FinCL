@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const loadBaselineReadiness = vi.fn()
 const loadBaselineEstimate = vi.fn()
+const loadBaselineContributors = vi.fn()
 vi.mock('./api', () => ({
   loadBaselineReadiness: () => loadBaselineReadiness(),
   loadBaselineEstimate: () => loadBaselineEstimate(),
+  loadBaselineContributors: (currency: string, month: string) => loadBaselineContributors(currency, month),
 }))
-vi.mock('@/lib/api', () => ({ money: (v: string, c = 'SGD') => `${c} ${v}` }))
+vi.mock('@/lib/api', () => ({ money: (v: string, c = 'SGD') => `${c} ${v}`, shortCategory: (v: string) => v.split(' / ').at(-1) }))
 
 const { BaselineView } = await import('./index')
 
@@ -33,6 +35,13 @@ function estimate(over: Record<string, unknown> = {}) {
         irregular_risk_entries: [{ month: '2026-03', currency: 'SGD', category_key: 'Unclassified / Unclassified', amount: '900.00', threshold: '180.00', review_state: 'suggested' }],
         regime: { warning: false, reasons: [], leading_empty_months: 0, earlier_mean_owner_cost: '0.00', recent_mean_owner_cost: '960.00' },
         sensitivity: { available: false, reason: 'a single-month window has nothing to exclude' },
+        observed_range: {
+          basis: 'lowest and highest complete month in the window',
+          not_a_probability: true,
+          routine_lifestyle_baseline: { min_amount: '40.00', min_month: '2026-02', max_amount: '60.00', max_month: '2026-03' },
+          irregular_allowance_monthly: { min_amount: '0.00', min_month: '2026-02', max_amount: '900.00', max_month: '2026-03', months_with_entries: 1 },
+          total_observed_monthly: { min_amount: '40.00', min_month: '2026-02', max_amount: '960.00', max_month: '2026-03' },
+        },
       },
     },
     income_streams: [],
@@ -110,6 +119,48 @@ describe('BaselineView', () => {
     render(<BaselineView />)
 
     expect(await screen.findByText(/Regime: activity begins in 2026-03/)).toBeInTheDocument()
+  })
+
+  it('shows the observed month-to-month range without calling it a confidence interval', async () => {
+    loadBaselineReadiness.mockResolvedValue(readiness())
+    loadBaselineEstimate.mockResolvedValue(estimate())
+    render(<BaselineView />)
+
+    expect(await screen.findByText(/Observed months ran from SGD 40.00 \(2026-02\) to SGD 60.00 \(2026-03\) across 1 month\. .*not a confidence interval/)).toBeInTheDocument()
+    expect(screen.getByText(/SGD 0.00 \(2026-02\) to SGD 900.00 \(2026-03\) · 1 of 1 month with held-out entries/)).toBeInTheDocument()
+    expect(screen.getByText('SGD 40.00 (2026-02) to SGD 960.00 (2026-03)')).toBeInTheDocument()
+  })
+
+  it('drills a decomposition month into its contributors and opens a transaction', async () => {
+    loadBaselineReadiness.mockResolvedValue(readiness())
+    loadBaselineEstimate.mockResolvedValue(estimate())
+    loadBaselineContributors.mockResolvedValue({
+      available: true, generation: 'g1', currency: 'SGD', month: '2026-03', owner_cost_recorded: '960.00', reconciles: true,
+      parts: [
+        { part: 'identified_recurring', total: '0.00', reconciles: true, contributors: [] },
+        { part: 'unresolved_irregular', total: '900.00', reconciles: true, contributors: [
+          { component_id: 'c1', entry_anchor: 'anchor-1', date: '2026-03-20', precision: 'DAY', merchant: 'CORNER SHOP', category_key: 'Unclassified / Unclassified', bucket: 'spending', account: 'acc-1', amount: '900.00' },
+        ] },
+        { part: 'routine_variable_residual', total: '60.00', reconciles: true, contributors: [
+          { component_id: 'c2', entry_anchor: 'anchor-2', date: '2026-03-05', precision: 'DAY', merchant: 'GROCER', category_key: 'Food & Dining / Groceries', bucket: 'spending', account: 'acc-1', amount: '60.00' },
+        ] },
+        { part: 'adjustments', total: '0.00', reconciles: true, contributors: [] },
+      ],
+    })
+    const onOpen = vi.fn().mockResolvedValue(undefined)
+    render(<BaselineView onOpenTransactionAnchor={onOpen} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Show 2026-03' }))
+    expect(loadBaselineContributors).toHaveBeenCalledWith('SGD', '2026-03')
+    expect(await screen.findByText('Irregular (held out for review) · SGD 900.00')).toBeInTheDocument()
+    expect(screen.getByText('Routine residual · SGD 60.00')).toBeInTheDocument()
+    expect(screen.getAllByText('None this month.')).toHaveLength(2)
+    expect(screen.getByText('Groceries')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: /Open transaction/ })[0])
+    expect(onOpen).toHaveBeenCalledWith(btoa('anchor-1'))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /Open transaction/ })).toHaveLength(2))
+    expect(screen.getByRole('button', { name: 'Hide 2026-03' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('reports a clean bill when there are no evidence tasks', async () => {

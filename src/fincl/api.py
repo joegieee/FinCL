@@ -971,6 +971,11 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         from .baseline import baseline_estimate
         return baseline_estimate(database, today=clock.today())
 
+    @app.get('/api/v1/baseline/contributors')
+    def baseline_contributors_read(currency: str, month: str) -> Any:
+        from .baseline import baseline_contributors
+        return baseline_contributors(database, today=clock.today(), currency=currency, month=month)
+
     @app.get('/api/v1/obligations')
     def obligations_read(as_of: str | None = None) -> Any:
         from .obligations import obligations_page

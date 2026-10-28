@@ -89,7 +89,7 @@ def _entry_spending_from(
 ) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
-        SELECT period, currency, category_key, origin_anchor,
+        SELECT component_id, period, currency, category_key, origin_anchor,
                signed_coefficient, scale
         FROM analysis_components
         WHERE generation_token = ? AND lens = 'recorded_flow'
@@ -100,6 +100,7 @@ def _entry_spending_from(
     ).fetchall()
     return [
         {
+            "component_id": row["component_id"],
             "month": row["period"],
             "currency": row["currency"],
             "category_key": row["category_key"],
@@ -183,6 +184,8 @@ def _irregular_by_month(
                     "amount": str(entry["amount"]),
                     "threshold": str(threshold),
                     "review_state": "suggested",
+                    "component_id": entry["component_id"],
+                    "entry_anchor": entry["origin_anchor"],
                 }
             )
     return irregular, flagged
@@ -277,6 +280,18 @@ def _sensitivity(
     }
 
 
+def _observed_range(months: list[str], values: list[Decimal]) -> dict[str, str]:
+    """The lowest and highest month of one monthly series, naming both months."""
+    low = min(range(len(values)), key=lambda i: values[i])
+    high = max(range(len(values)), key=lambda i: values[i])
+    return {
+        "min_amount": str(values[low].quantize(Decimal("0.01"))),
+        "min_month": months[low],
+        "max_amount": str(values[high].quantize(Decimal("0.01"))),
+        "max_month": months[high],
+    }
+
+
 def baseline_estimate(database: Path, *, today: date) -> dict[str, Any]:
     connection = connect_readonly(database)
     try:
@@ -347,6 +362,7 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
                 }
             )
 
+        routine_by_month = [fixed_flat + residual for residual in residuals]
         variable_residual_monthly = _mean(residuals, scale)
         irregular_allowance_monthly = _mean(irregulars, scale)
         income_monthly = _mean(incomes, scale)
@@ -424,6 +440,21 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
             "irregular_risk_entries": flagged,
             "regime": _regime(months, owner_costs),
             "sensitivity": _sensitivity(months, residuals, fixed_flat, scale),
+            # Each month's figure is built exactly like the headline (flat fixed
+            # cost + that month's residual, plus its irregular amount for the
+            # total), so the range brackets the headline on the same basis.
+            "observed_range": {
+                "basis": "lowest and highest complete month in the window",
+                "not_a_probability": True,
+                "routine_lifestyle_baseline": _observed_range(months, routine_by_month),
+                "irregular_allowance_monthly": {
+                    **_observed_range(months, irregulars),
+                    "months_with_entries": sum(1 for value in irregulars if value),
+                },
+                "total_observed_monthly": _observed_range(
+                    months, [routine + extra for routine, extra in zip(routine_by_month, irregulars, strict=True)]
+                ),
+            },
         }
 
     limitations = [
