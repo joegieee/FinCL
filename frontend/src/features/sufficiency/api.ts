@@ -82,6 +82,8 @@ export type CombinedAnswer = {
   }[]
   /** Money that may come in (owed back, uncertain). Listed, never counted. */
   upside: { label: string; currency: string; amount: string; on: string | null }[]
+  /** Every outflow family's horizon total, per month, summed on the server. */
+  monthly_out: string
   where_it_goes: {
     origin: string; label: string; total: string; monthly: string
     items: { label: string; on: string; amount: string; conditional: boolean; currency: string }[]
@@ -93,7 +95,7 @@ export type CombinedAnswer = {
     total: string
     items: { label: string; origin: string; amount: string; native: { value: string; currency: string } }[]
     unconverted: { label: string; value: string; currency: string }[]
-    /** How far below zero the lowest point goes if it were all repaid now; null when nothing is missing. */
+    /** How far below zero the lowest point goes if it were all repaid now; null when it stays at or above zero. */
     short_if_repaid_now: string | null
   }
 }

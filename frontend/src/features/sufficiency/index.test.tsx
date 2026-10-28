@@ -38,6 +38,7 @@ function combined(over: Record<string, unknown> = {}) {
     ],
     todos: [],
     upside: [],
+    monthly_out: '3333.33',
     ...over,
   }
 }
@@ -220,6 +221,7 @@ describe('SufficiencyView', () => {
     expect(screen.getByText(/at 1 USD = 1.25 SGD/)).toBeInTheDocument()
     expect(screen.getByText(/likely, so left out of the cautious case/)).toBeInTheDocument()
     expect(screen.getByText(/Alex · 15 Mar 2026/)).toBeInTheDocument()
+    expect(screen.getByText(/Money going out · about SGD 3333.33 a month/)).toBeInTheDocument()
     expect(screen.queryByText('WHAT DRIVES IT')).toBeNull()
     expect(screen.queryByText('EVERYTHING THIS ANSWER COUNTS')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'See everything owed' }))

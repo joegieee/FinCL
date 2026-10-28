@@ -152,7 +152,7 @@ function Answer({ combined, today }: { combined: CombinedAnswer; today: string }
   const cautious = combined.cautious
   const missing = combined.pockets.filter(p => p.counted === 'not_counted')
   const undated = combined.not_in_the_path
-  const shortIfRepaid = undated?.short_if_repaid_now && Number(undated.short_if_repaid_now) > 0 ? undated.short_if_repaid_now : null
+  const shortIfRepaid = undated?.short_if_repaid_now ?? null
   return (
     <Card className={`sufficiency-card ${TONE[base.verdict]}`}>
       <div className="panel-title">
@@ -235,7 +235,6 @@ function Todos({ combined, onOpen }: { combined: CombinedAnswer; onOpen?: (desti
 
 function Assumptions({ combined, today, onOpenObligations }: { combined: CombinedAnswer; today: string; onOpenObligations?: () => void }) {
   const c = combined.reporting_currency
-  const monthly = combined.where_it_goes.reduce((sum, row) => sum + Number(row.monthly), 0)
   return (
     <Card className="controls-card">
       <div className="panel-title"><div><p className="eyebrow">WHAT THIS ASSUMES</p><h2>What the answer is built on</h2></div></div>
@@ -290,7 +289,7 @@ function Assumptions({ combined, today, onOpenObligations }: { combined: Combine
         </>
       )}
 
-      <h3 className="assumption-heading">Money going out · about {money(monthly.toFixed(2), c)} a month</h3>
+      <h3 className="assumption-heading">Money going out · about {money(combined.monthly_out, c)} a month</h3>
       <ul className="driver-list">
         {combined.where_it_goes.map(row => (
           <li key={row.origin}>

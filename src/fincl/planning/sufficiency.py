@@ -609,12 +609,13 @@ def _not_in_the_path(
         items.append({"label": obligation["label"], "origin": obligation["origin"],
                       "amount": _quantized(value, scale), "native": amount})
     items.sort(key=lambda item: -_fraction(item["amount"]))
-    short_now = None if lowest is None or not items else max(Fraction(0), total - lowest)
+    short_now = None if lowest is None or not items or total <= lowest else total - lowest
     return {
         "total": _quantized(total, scale),
         "items": items,
         "unconverted": unconverted,
-        # Repaying it all on day one lowers every day by the same amount.
+        # Repaying it all on day one lowers every day by the same amount; None
+        # when the lowest point would stay at or above zero.
         "short_if_repaid_now": None if short_now is None else _quantized(short_now, scale),
     }
 
@@ -688,6 +689,7 @@ def combined_answer(
         # Bills the path never pays can't stand behind a plain yes.
         answer = "Yes, but not every bill is counted"
     first = next(iter(counted.values()), {})
+    where_it_goes = _where_it_goes(counted, held, scale=scale)
     return {
         "reporting_currency": reporting_currency,
         "answer": answer,
@@ -721,7 +723,13 @@ def combined_answer(
             for currency, cell in by_currency.items()
             for event in (cell.get("possible_income_upside") or {}).get("events", [])
         ],
-        "where_it_goes": _where_it_goes(counted, held, scale=scale),
+        "where_it_goes": where_it_goes,
+        # The monthly figure the page heads that list with; summed here so the
+        # page never adds money itself.
+        "monthly_out": _quantized(
+            sum((_fraction(row["total"]) for row in where_it_goes), start=Fraction(0)) / HORIZON_MONTHS,
+            scale,
+        ),
         "todos": _todos(timeline, account_names=account_names or {}, cutoff=cutoff, pockets=pockets),
         "not_in_the_path": {"as_of": cutoff, **_not_in_the_path(
             timeline, owed or [], {c: rates.get(c) for c in rates},

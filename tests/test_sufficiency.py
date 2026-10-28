@@ -515,6 +515,7 @@ class CombinedAnswerTests(unittest.TestCase):
         [debts] = answer["where_it_goes"]
         self.assertEqual(debts["total"], "100.00")
         self.assertEqual([item["label"] for item in debts["items"]], ["Loan", "IOU"])
+        self.assertEqual(answer["monthly_out"], "16.67")
 
     def test_todos_group_one_fix_into_one_item_and_point_at_its_page(self) -> None:
         items = [
@@ -665,6 +666,18 @@ class NotInThePathTests(unittest.TestCase):
         self.assertEqual([item["label"] for item in missing["items"]], ["A"])
         # Lowest point 40.00; repaying 65.00 now leaves it 25.00 below zero.
         self.assertEqual(missing["short_if_repaid_now"], "25.00")
+
+    def test_undated_debts_the_path_can_absorb_leave_nothing_short(self) -> None:
+        timeline = _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, [
+            {"output": "obligation_timing", "obligation_id": "debt:a", "origin": "personal_debt", "label": "A"},
+        ])
+        owed = [{"obligation_id": "debt:a", "origin": "personal_debt", "label": "A", "direction": "outflow",
+                 "remaining_amount": {"value": "30.00", "currency": "SGD"}}]
+
+        answer = combined_answer(timeline, rates={"SGD": Fraction(1)}, reporting_currency="SGD", scale=2, owed=owed)
+
+        self.assertEqual(answer["not_in_the_path"]["total"], "30.00")
+        self.assertIsNone(answer["not_in_the_path"]["short_if_repaid_now"])
 
     def test_nothing_undated_means_nothing_to_add(self) -> None:
         answer = combined_answer(_timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}),

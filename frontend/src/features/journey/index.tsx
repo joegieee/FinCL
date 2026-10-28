@@ -140,7 +140,7 @@ function ShortAnswer({ page, error, today }: { page: SufficiencyPage | null; err
   const c = answer.reporting_currency
   const base = answer.base
   const missing = answer.not_in_the_path
-  const shortIfRepaid = missing?.short_if_repaid_now && Number(missing.short_if_repaid_now) > 0 ? missing.short_if_repaid_now : null
+  const shortIfRepaid = missing?.short_if_repaid_now ?? null
   return <>
     {base.verdict === 'short' && <p className="journey-lead is-short"><strong>No — short by {money(base.shortfall, c)}</strong><small> around {when(base.shortfall_on, today)}</small></p>}
     {base.verdict === 'below_reserve' && <p className="journey-lead"><strong>Just — you dip into your reserve</strong><small> by up to {money(base.shortfall, c)}</small></p>}
