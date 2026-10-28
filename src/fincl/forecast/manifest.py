@@ -687,9 +687,13 @@ def _output(
 def _ambiguous_obligations(obligations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ambiguous: list[dict[str, Any]] = []
     for o in obligations:
-        # Settled debts need nothing, and money owed back is never relied on.
-        if not o.get("stays_visible", True) or (
-            o["origin"] == "personal_debt" and o.get("direction") == "inflow"
+        # Settled debts need nothing, money owed back is never relied on, and a
+        # recurring commitment is forecast from its schedule even when no
+        # occurrence falls in the next few weeks.
+        if (
+            not o.get("stays_visible", True)
+            or (o["origin"] == "personal_debt" and o.get("direction") == "inflow")
+            or (o["origin"] == "recurring_commitment" and o.get("date_basis", {}).get("schedule"))
         ):
             continue
         reasons: list[str] = []

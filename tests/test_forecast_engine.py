@@ -29,6 +29,7 @@ from fincl.forecast.engine import (
     build_cash_timeline,
     run_timeline,
 )
+from fincl.forecast.manifest import _ambiguous_obligations
 
 
 def _manifest(*, balance: str = "1000.00") -> dict:
@@ -139,6 +140,17 @@ class CashTimelineTrapTests(unittest.TestCase):
         self.assertEqual([e["source_id"] for e in cell["base"]["events"]["items"]], [])
         self.assertEqual([e["source_id"] for e in cell["conservative"]["events"]["items"]], ["repair"])
         self.assertTrue(cell["monotonicity"]["holds"])
+
+    def test_a_scheduled_commitment_is_never_an_undated_obligation(self) -> None:
+        annual = {
+            "obligation_id": "recurring:insurance", "origin": "recurring_commitment",
+            "label": "Insurance", "currency": "SGD", "amount_basis": "lump_sum_due",
+            "date_basis": {"kind": "no_scheduled_occurrence", "value": None,
+                           "schedule": {"kind": "interval_months", "months": 12, "day": 1,
+                                        "anchor_on": "2026-01-01"}},
+        }
+
+        self.assertEqual(_ambiguous_obligations([annual]), [])
 
     def test_a_dated_cost_beyond_its_residual_is_a_note_not_a_missing_case(self) -> None:
         bill = ForecastEvent(

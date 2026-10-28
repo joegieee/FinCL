@@ -1391,6 +1391,8 @@ def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> 
             "currency": task.get("currency_pocket"), "rank": 60,
             "action": "Import or confirm the named evidence interval",
             "detail": str(task.get("note") or task.get("detail") or task),
+            "task": task.get("kind"), "account_id": task.get("account_id"),
+            "account_name": task.get("display_name"),
         })
 
     unlinked = manifest.get("unresolved_items", {}).get("unlinked_recurring", [])
@@ -1515,6 +1517,9 @@ def build_cash_timeline(
     categories = list(residual_categories) or _manifest_categories(manifest, estimate)
     result_by_currency: dict[str, Any] = {}
     global_limits: list[str] = []
+    # Sentences for the reader: money that should be on the path but is not,
+    # for a reason no page can fix yet.
+    answer_gaps: list[str] = []
     spending_only = manifest.get("income", {}).get("classified_income_evidenced") is False
     possible_income = [
         event
@@ -1707,6 +1712,7 @@ def build_cash_timeline(
         },
         "provenance": manifest.get("sources", []),
         "limitations": [*manifest.get("limitations", []), *global_limits],
+        "answer_gaps": answer_gaps,
     }
 
 

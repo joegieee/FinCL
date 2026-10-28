@@ -38,7 +38,7 @@ export type SufficiencyCurrency = {
 }
 
 /** The tabs a "make this answer better" item can send someone to. */
-export type SufficiencyDestination = 'Setup' | 'Cards' | 'Debts' | 'Installments' | 'Obligations' | 'Income' | 'Categorization' | 'Cash' | 'Planning'
+export type SufficiencyDestination = 'Setup' | 'Cards' | 'Debts' | 'Income' | 'Categorization' | 'Cash' | 'Planning'
 
 export type CombinedCase = {
   verdict: SufficiencyCase['verdict']

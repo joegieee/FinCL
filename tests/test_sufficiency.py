@@ -533,10 +533,47 @@ class CombinedAnswerTests(unittest.TestCase):
 
         self.assertEqual(
             [(todo["key"], todo["page"]) for todo in answer["todos"]],
-            [("recent-statements", "Setup"), ("debt-dates", "Debts"), ("plan-dates", "Installments"),
+            [("recent-statements", "Setup"), ("debt-dates", "Debts"),
              ("statement-gaps", "Setup"), ("essential", "Categorization")],
         )
         self.assertIn("Everyday, Savings", answer["todos"][0]["detail"])
+        # No page can set an installment plan's remaining dates, so it is named instead.
+        self.assertIn("Phone: its remaining due dates aren't known, so it isn't counted.",
+                      answer["incomplete_because"])
+
+    def test_evidence_gaps_go_to_the_import_page_or_beside_the_answer(self) -> None:
+        items = [
+            {"output": "baseline", "task": "import-missing", "account_name": "Everyday", "detail": "x"},
+            {"output": "baseline", "task": "confirm-export-period", "account_name": "Wallet", "detail": "y"},
+            {"output": "baseline", "task": "resolve-reconciliation", "account_name": "Savings",
+             "detail": "1 of 4 reconciliation checks fail for Savings"},
+        ]
+        answer = self._answer(
+            _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, items), {"SGD": Fraction(1)},
+        )
+
+        self.assertEqual([(t["key"], t["page"]) for t in answer["todos"]],
+                         [("statement-gaps", "Setup"), ("export-period", "Setup")])
+        self.assertIn("Everyday", answer["todos"][0]["detail"])
+        self.assertIn("Wallet", answer["todos"][1]["detail"])
+        self.assertEqual(answer["incomplete_because"], [
+            "1 of 4 reconciliation checks fail for Savings, so your usual spending may be off.",
+        ])
+        self.assertEqual(answer["answer"], "Yes")
+        self.assertFalse(answer["complete"])
+
+    def test_a_pocket_left_out_for_an_engine_reason_asks_nothing_of_setup(self) -> None:
+        timeline = _timeline({
+            "SGD": _pocket(_days(("2026-02-01", "100.00"))),
+            "USD": _pocket(_days(("2026-02-01", "50.00")), available=False,
+                           events=[{"direction": "outflow", "on": "2026-02-01", "amount": "5.00", "label": "x"}],
+                           reason="USD has no supported residual-spending input"),
+        })
+
+        answer = self._answer(timeline, {"SGD": Fraction(1), "USD": Fraction(1)})
+
+        self.assertEqual(answer["todos"], [])
+        self.assertEqual([p["counted"] for p in answer["pockets"]], ["projected", "not_counted"])
 
     def test_an_action_item_can_name_its_own_fix_and_shares_it_by_key(self) -> None:
         fix = {"key": "fund-due", "page": "Annual funds", "title": "Did it happen?"}
