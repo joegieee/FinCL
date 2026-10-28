@@ -8,6 +8,7 @@ import { dateLabel } from '@/lib/format'
 import { useBatchCommand } from '@/lib/command'
 import { StatementDetailPanel } from '@/features/transactions'
 import { OwnerShareForm } from '@/features/debts/OwnerShareForm'
+import { EntryContextSection } from '@/features/trips/EntryContext'
 import type { TransactionRowOut } from '@/features/transactions/reportedApi'
 import { CategoryPicker, rememberCategory } from './CategoryPicker'
 import { DebtHandoff, InstallmentHandoff, TransferHandoff, handoffTarget, movementDirection } from './Handoffs'
@@ -312,6 +313,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
         category={categoryChanged ? category : ''} costBehavior={costBehaviorChanged ? costBehavior : ''} need={needChanged ? need : ''}
         reason={reason} disabled={disabled || batch.busy} onSaved={onSaved}/>
       </>}
+      {bucket !== 'excluded' && <EntryContextSection anchor={e.anchor} generation={data.generation} disabled={disabled} onSaved={refreshKeepingOpen}/>}
     </DialogContent>
   </Dialog>
 }

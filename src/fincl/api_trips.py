@@ -41,6 +41,15 @@ def register_trip_routes(app: FastAPI, database: Path) -> None:
         except FinCLError as exc:
             raise _map_error(exc) from exc
 
+    @app.get("/api/v1/entry-context")
+    def entry_context(anchor: str, generation: str | None = None) -> Any:
+        from .context.queries import entry_context as _entry_context
+
+        try:
+            return _entry_context(database, anchor, expected=generation)
+        except FinCLError as exc:
+            raise _map_error(exc) from exc
+
     @app.get("/api/v1/countries")
     def countries() -> Any:
         from .context.queries import country_list

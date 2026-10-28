@@ -244,6 +244,42 @@ def _manual_assignments(
     ]
 
 
+def entry_context_from(connection: sqlite3.Connection, anchor: str, *, expected: str | None = None) -> dict[str, Any]:
+    """One transaction's country and trip, with the trips it could be assigned to.
+
+    A transaction outside the cost view (income, a transfer) keeps its country
+    and any manual decision, but it never counts as trip cost, so it is not
+    offered a new trip.
+    """
+    from ..decisions import resolve_anchor
+
+    state = _load(connection, expected)
+    entry_id = resolve_anchor(connection, anchor)
+    if entry_id is None:
+        raise FinCLError("that transaction does not exist")
+    entry = state["entries"].get(entry_id)
+    if entry is not None:
+        country, basis, trip, assignment = entry["country"], entry["country_basis"], entry["trip"], entry["assignment"]
+        candidates, in_windows, on, end = entry["candidates"], entry["in_windows"], entry["on"], entry["end"]
+    else:
+        set_country = connection.execute("SELECT country FROM entry_countries WHERE entry_id=?", (entry_id,)).fetchone()
+        country, basis = (None, "unknown") if set_country is None else (set_country[0], "operator")
+        manual = connection.execute("SELECT trip_id FROM entry_trips WHERE entry_id=?", (entry_id,)).fetchone()
+        trip = None if manual is None else manual[0]
+        assignment = "none" if manual is None else "manual" if trip else "excluded"
+        candidates, in_windows, on, end = [], [], None, None
+    return {
+        "generation": state["token"], "anchor": anchor, "counted_as_cost": entry is not None,
+        "on": on, "end": end, "country": country, "country_basis": basis,
+        "trip": trip, "assignment": assignment, "candidates": candidates,
+        "trips": [
+            {"trip_id": t["trip_id"], "name": t["name"], "start_on": t["start_on"], "end_on": t["end_on"],
+             "countries": t["countries"], "in_window": t["trip_id"] in in_windows}
+            for t in state["trips"].values()
+        ],
+    }
+
+
 def trips_page(database: Path, *, expected: str | None = None) -> dict[str, Any]:
     connection = connect_readonly(database)
     try:
@@ -316,6 +352,14 @@ def trip_spend_to_date(connection: sqlite3.Connection, trip_id: str, currency: s
         "trip_id": trip_id, "currency": currency, "as_of": as_of,
         "actual": quantize(total, scale=scale).text, "parts": parts, "unvalued": unvalued,
     }
+
+
+def entry_context(database: Path, anchor: str, *, expected: str | None = None) -> dict[str, Any]:
+    connection = connect_readonly(database)
+    try:
+        return entry_context_from(connection, anchor, expected=expected)
+    finally:
+        connection.close()
 
 
 def country_list() -> dict[str, Any]:

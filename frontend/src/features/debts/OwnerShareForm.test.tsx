@@ -79,7 +79,8 @@ describe('OwnerShareForm', () => {
     expect(screen.queryByLabelText('Remove my recorded share')).not.toBeInTheDocument()
   })
   it('opens for a fully allocated shared bill from the transaction dialog', async () => {
-    apiMock.mockImplementation((path: string) => Promise.resolve(path.startsWith('debts/entry-residual?') ? source : { categories: [] }))
+    apiMock.mockImplementation((path: string) => path.startsWith('entry-context?') ? Promise.reject(new Error('not under test'))
+      : Promise.resolve(path.startsWith('debts/entry-residual?') ? source : { categories: [] }))
     const entry = { anchor: 'bill', id: 'bill-id', amount: '-120.00', currency: 'USD', fee: '0.00', date: '2026-01-20', precision: 'DAY', merchant: 'Shared meal', category: categories[0], bucket: 'debt', debt_allocation: 'full', basis: 'source', account: 'Card', description: 'Shared meal', cost_behavior: 'N/A', need: 'N/A', role_review_state: 'N/A' } as Entry
     render(<EntryDialog entry={entry} data={{ generation: 'g1', freshness: 'current', categories } as Dashboard} onClose={vi.fn()} onSaved={vi.fn()}/> )
     fireEvent.click(screen.getByRole('button', { name: 'Review my expense share' }))

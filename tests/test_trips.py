@@ -303,6 +303,22 @@ class TripTests(unittest.TestCase):
         with self.assertRaises(FinCLError):
             self.spend(str(uuid.uuid4()), "SGD", "2026-01-15")
 
+    def test_one_transactions_context_names_its_trip_and_the_trips_it_could_join(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        later = self.trip("Trip B", "2026-02-01", "2026-02-05", ["JP"])
+        meal = self.anchor("Meal")
+        context = self.client.get("/api/v1/entry-context", params={"anchor": meal}).json()
+        self.assertEqual((context["country"], context["assignment"], context["counted_as_cost"]), (None, "none", True))
+        self.assertEqual({t["trip_id"]: t["in_window"] for t in context["trips"]}, {trip_a: True, later: False})
+        self.country("Meal", "FR")
+        context = self.client.get("/api/v1/entry-context", params={"anchor": meal}).json()
+        self.assertEqual((context["country"], context["trip"], context["assignment"]), ("FR", trip_a, "automatic"))
+        seed = self.anchor("Seed", inflow=True)
+        self.command("ENTRY_TRIP_SET", {"entry": seed}, {"trip": None, "reason": "Not travel"})
+        context = self.client.get("/api/v1/entry-context", params={"anchor": seed}).json()
+        self.assertEqual((context["counted_as_cost"], context["assignment"]), (False, "excluded"))
+        self.assertEqual(self.client.get("/api/v1/entry-context", params={"anchor": "nope"}).status_code, 404)
+
     def test_invalid_context_decisions_are_refused(self) -> None:
         trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
         meal = {"entry": self.anchor("Meal")}

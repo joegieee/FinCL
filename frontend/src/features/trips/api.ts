@@ -57,6 +57,21 @@ export const loadTrips = () => reportedApi<TripsPage>('trips')
 export const loadTrip = (tripId: string) => reportedApi<TripDetail>(`trips/${encodeURIComponent(tripId)}`)
 export const loadCountries = () => api<{ version: string; codes: string[] }>('countries')
 
+export type EntryContext = {
+  generation: string
+  anchor: string
+  counted_as_cost: boolean
+  on: string | null
+  end: string | null
+  country: string | null
+  country_basis: 'operator' | 'unknown'
+  trip: string | null
+  assignment: Assignment
+  candidates: string[]
+  trips: { trip_id: string; name: string; start_on: string; end_on: string; countries: string[]; in_window: boolean }[]
+}
+export const loadEntryContext = (anchor: string) => api<EntryContext>(`entry-context?anchor=${encodeURIComponent(anchor)}`)
+
 export type TripDraft = { name: string; start_on: string; end_on: string; countries: string[]; reason: string }
 
 export const tripSet = (trip: string, draft: TripDraft): BatchItem => ({ kind: 'TRIP_SET', anchors: { trip }, payload: { ...draft } })
