@@ -10,6 +10,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from fincl import clock
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import entry_anchor, replay_journal
@@ -238,6 +239,16 @@ class OccurrenceAmountReaderTests(unittest.TestCase):
         self.assertEqual(rows["2026-02-15"]["amount_reason"], "bill notice")
         self.assertEqual(rows["2026-03-15"]["expected_amount"], "14.99")
         self.assertIsNone(rows["2026-03-15"]["amount_reason"])
+
+    def test_a_pinned_clock_decides_which_occurrences_are_still_upcoming(self) -> None:
+        clock.pin(date(2026, 2, 1))
+        self.addCleanup(clock.pin, None)
+
+        page = recurring_occurrences(self.database, self.commitment, start="2026-01-01", end="2026-03-31")
+
+        states = {o["scheduled_on"]: o["state"] for o in page["occurrences"]}
+        self.assertEqual(states["2026-01-15"], "observed")
+        self.assertEqual(states["2026-02-15"], "upcoming_estimate")
 
     def test_the_obligation_and_forecast_use_each_occurrence_amount(self) -> None:
         page = obligations_page(self.database, as_of="2026-07-20", today=date(2026, 7, 20))
