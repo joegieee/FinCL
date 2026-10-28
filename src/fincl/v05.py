@@ -186,19 +186,52 @@ def imports_page(database: Path) -> dict[str, Any]:
         rows = connection.execute(
             """SELECT i.id,i.started_at,i.completed_at,i.status,i.evidence_sha256,
                       i.extraction_run_id,i.extraction_reused,i.error_message,
+                      i.source_path,
                       s.byte_size,s.media_type,x.status AS extraction_status,
                       x.selection_state,x.source_profile_version,x.parser_version,
+                      x.canonical_entry_count AS transaction_count,
+                      st.account_id,a.display_name AS account_display_name,
+                      st.period_start,st.period_end,
+                      st.selection_state AS statement_state,st.conflict_state,
                       coalesce((SELECT count(*) FROM extraction_issues q
                                 WHERE q.extraction_run_id=i.extraction_run_id
-                                  AND q.severity='BLOCKING'),0) AS blockers
+                                  AND q.severity='BLOCKING'),0) AS blockers,
+                      (SELECT json_extract(q.context_json,'$.period') FROM extraction_issues q
+                        WHERE q.extraction_run_id=i.extraction_run_id
+                          AND q.code='STATEMENT_SUPERSEDED'
+                        ORDER BY q.id DESC LIMIT 1) AS superseded_by
                FROM import_runs i
                LEFT JOIN source_content s ON s.sha256=i.evidence_sha256
                LEFT JOIN extraction_runs x ON x.id=i.extraction_run_id
+               LEFT JOIN statements st ON st.extraction_run_id=i.extraction_run_id
+               LEFT JOIN accounts a ON a.id=st.account_id
                ORDER BY i.started_at DESC,i.id DESC LIMIT 200"""
         ).fetchall()
-        return {"generation": generation_of(database), "imports": [dict(row) for row in rows]}
+        imports = []
+        for row in rows:
+            item = dict(row)
+            source = item.pop("source_path")
+            item["filename"] = Path(source).name if source else None
+            item["outcome"] = _outcome(item)
+            if item["statement_state"] == "SELECTED":
+                item["superseded_by"] = None
+            imports.append(item)
+        return {"generation": generation_of(database), "imports": imports}
     finally:
         connection.close()
+
+
+def _outcome(item: dict[str, Any]) -> str:
+    """What the import did to the ledger, in one word the history can show."""
+    if item["status"] != "SUCCEEDED":
+        return item["status"]
+    if item["conflict_state"] == "CONFLICT":
+        return "CONFLICT"
+    if item["extraction_status"] != "ACCEPTED":
+        return "QUARANTINED"
+    if item["statement_state"] == "CANDIDATE":
+        return "ALREADY_IMPORTED"
+    return "ACCEPTED"
 
 
 def import_detail(database: Path, import_id: str) -> dict[str, Any]:
@@ -215,6 +248,30 @@ def import_detail(database: Path, import_id: str) -> dict[str, Any]:
         ).fetchall()
         item["issues"] = [
             {**dict(row), "context": json.loads(row["context_json"])} for row in issues
+        ]
+        # A conflict is two different files for one statement; name both so the
+        # reader can tell which copies are involved.
+        conflicting = connection.execute(
+            """SELECT o.period_start,o.period_end,o.evidence_sha256,o.selection_state,
+                      (SELECT i.source_path FROM import_runs i
+                        WHERE i.evidence_sha256=o.evidence_sha256
+                        ORDER BY i.started_at LIMIT 1) AS source_path,
+                      (SELECT min(i.started_at) FROM import_runs i
+                        WHERE i.evidence_sha256=o.evidence_sha256) AS imported_at
+               FROM statements s JOIN statements o ON o.statement_identity=s.statement_identity
+               WHERE s.extraction_run_id=? AND s.conflict_state='CONFLICT'
+               ORDER BY imported_at,o.evidence_sha256""",
+            (item["extraction_run_id"],),
+        ).fetchall()
+        item["conflict_with"] = [
+            {
+                "period_start": row["period_start"], "period_end": row["period_end"],
+                "evidence_sha256": row["evidence_sha256"],
+                "filename": Path(row["source_path"]).name if row["source_path"] else None,
+                "imported_at": row["imported_at"],
+                "this_import": row["evidence_sha256"] == item["evidence_sha256"],
+            }
+            for row in conflicting
         ]
         return item
     finally:

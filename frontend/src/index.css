@@ -391,6 +391,7 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .import-table th{background:var(--background);font-size:10px;text-align:left}
 .import-table td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:top}
 .import-table td small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+.evidence-through{margin:6px 0 0;padding-left:18px;color:var(--muted)}
 
 /* v0.5 slice 2 — account inventory and coverage */
 .accounts-view{display:flex;flex-direction:column;gap:18px}

@@ -152,6 +152,55 @@ describe('SetupView', () => {
     expect(refreshImports).not.toHaveBeenCalled()
   })
 
+  it('does not count a quarantined file as accepted and says what each file did', async () => {
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [] })
+    submitImport.mockResolvedValue({
+      accepted: 1, quarantined: 1,
+      evidence_through: [{ account_id: 'acct_revolut_current', display_name: 'Revolut Current', through: '2026-05-31' }],
+      results: [
+        { filename: 'may.pdf', adapter: 'REVOLUT_PDF', status: 'ACCEPTED', account_display_name: 'Revolut Current', period_start: '2026-05-01', period_end: '2026-05-31', transaction_count: 9, superseded_by: null, supersedes: ['2026-05-01..2026-05-15'] },
+        { filename: 'trust.pdf', adapter: 'TRUST_SAVINGS', status: 'QUARANTINED', blocking_issue_count: 2 },
+      ],
+    })
+    render(<SetupView onImported={() => {}} />)
+    await screen.findByText('ledger.sqlite3')
+    fireEvent.change(screen.getByLabelText('Statement files'), { target: { files: [new File(['%PDF'], 'may.pdf'), new File(['%PDF'], 'trust.pdf')] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Upload statements' }))
+
+    expect(await screen.findByText(/1 of 2 files accepted\. 1 could not be added\./)).toBeInTheDocument()
+    expect(screen.getByText('Revolut Current · 1 May 2026 – 31 May 2026 · 9 rows')).toBeInTheDocument()
+    expect(screen.getByText(/Replaces the shorter statement for 1 May 2026 – 15 May 2026/)).toBeInTheDocument()
+    expect(screen.getByText('Revolut Current: statements now reach 31 May 2026')).toBeInTheDocument()
+    await waitFor(() => expect(refreshImports).toHaveBeenCalledOnce())
+  })
+
+  it('lists each import with its file and account, and names both copies of a conflict', async () => {
+    const run = {
+      id: 'imp_1', started_at: '2026-09-20T01:00:00+00:00', completed_at: null, status: 'SUCCEEDED',
+      evidence_sha256: 'b'.repeat(64), extraction_run_id: 'ext_1', extraction_reused: 0, error_message: null,
+      byte_size: 2048, media_type: 'application/pdf', extraction_status: 'QUARANTINED', selection_state: 'SELECTED',
+      source_profile_version: 'p', parser_version: 'v', blockers: 1, filename: 'corrected.pdf', transaction_count: 4,
+      account_id: 'acct_revolut_current', account_display_name: 'Revolut Current', period_start: '2026-01-01',
+      period_end: '2026-01-20', statement_state: 'CANDIDATE', conflict_state: 'CONFLICT', superseded_by: null, outcome: 'CONFLICT',
+    }
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [run] })
+    loadImportDetail.mockResolvedValue({ ...run, issues: [], conflict_with: [
+      { period_start: '2026-01-01', period_end: '2026-01-20', evidence_sha256: 'a'.repeat(64), filename: 'january.pdf', imported_at: '2026-09-01T01:00:00+00:00', this_import: false },
+      { period_start: '2026-01-01', period_end: '2026-01-20', evidence_sha256: 'b'.repeat(64), filename: 'corrected.pdf', imported_at: '2026-09-20T01:00:00+00:00', this_import: true },
+    ] })
+    render(<SetupView onImported={() => {}} />)
+
+    const row = within((await screen.findByText('corrected.pdf')).closest('tr') as HTMLElement)
+    expect(row.getByText('Revolut Current')).toBeInTheDocument()
+    expect(row.getByText('Conflicting copy')).toBeInTheDocument()
+    fireEvent.click(row.getByRole('button', { name: 'Open' }))
+    expect(await screen.findByText('Two different files claim to be the same statement.')).toBeInTheDocument()
+    expect(screen.getByText('january.pdf')).toBeInTheDocument()
+    expect(screen.getByText(/\(this import\)/)).toBeInTheDocument()
+  })
+
   it('loads FX rates from a JSON document', async () => {
     loadSetup.mockResolvedValue(SETUP)
     loadImports.mockResolvedValue({ generation: 'g1', imports: [] })

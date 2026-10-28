@@ -490,6 +490,72 @@ class V05ReadTests(ApiTestBase):
         self.assertEqual(response.json()["accepted"], 1)
         self.assertTrue(response.json()["results"][0]["evidence_reused"])
 
+    def upload(self, *files: tuple[str, bytes]) -> dict:
+        response = self.client.post(
+            "/api/v1/imports",
+            files=[("files", (name, io.BytesIO(data), "application/pdf")) for name, data in files],
+            headers={"origin": _ORIGIN, "x-csrf-token": self.csrf},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
+    def test_an_upload_names_its_account_period_rows_and_evidence_reach(self) -> None:
+        later = [["Topup", "Current", "2026-01-21 10:00:00", "2026-01-21 10:00:01",
+                  "Seed", "10.00", "0.00", "SGD", "COMPLETED", "435.75"],
+                 ["Card Payment", "Current", "2026-01-31 10:00:00", "2026-01-31 10:00:01",
+                  "Grocer", "-5.75", "0.00", "SGD", "COMPLETED", "430.00"]]
+        body = self.upload(("late-january.pdf", csv_bytes(later)))
+
+        (result,) = body["results"]
+        self.assertEqual(
+            (result["account_id"], result["period_start"], result["period_end"],
+             result["transaction_count"]),
+            ("acct_revolut_current", "2026-01-21", "2026-01-31", 2),
+        )
+        self.assertEqual((body["accepted"], body["quarantined"]), (1, 0))
+        self.assertEqual(body["evidence_through"], [
+            {"account_id": "acct_revolut_current", "display_name": "Revolut Current",
+             "through": "2026-01-31"}])
+        history = self.client.get("/api/v1/imports").json()["imports"][0]
+        self.assertEqual(
+            (history["filename"], history["outcome"], history["account_display_name"],
+             history["period_end"], history["transaction_count"]),
+            ("late-january.pdf", "ACCEPTED", "Revolut Current", "2026-01-31", 2),
+        )
+
+    def test_a_quarantined_upload_is_not_counted_as_accepted(self) -> None:
+        unbalanced = (Path(__file__).parent / "fixtures" / "trust_savings_unbalanced.pdf").read_bytes()
+        body = self.upload(("trust.pdf", unbalanced))
+
+        self.assertEqual((body["accepted"], body["quarantined"]), (0, 1))
+        history = self.client.get("/api/v1/imports").json()["imports"][0]
+        self.assertEqual((history["filename"], history["outcome"]), ("trust.pdf", "QUARANTINED"))
+
+    def test_a_redownloaded_statement_reads_as_already_imported(self) -> None:
+        body = self.upload(("again.pdf", csv_bytes(_ROWS) + b"\n% downloaded again\n"))
+
+        self.assertEqual(body["results"][0]["superseded_by"], "2026-01-01..2026-01-20")
+        history = self.client.get("/api/v1/imports").json()["imports"][0]
+        self.assertEqual(
+            (history["outcome"], history["superseded_by"]),
+            ("ALREADY_IMPORTED", "2026-01-01..2026-01-20"),
+        )
+
+    def test_a_conflicting_statement_names_both_files(self) -> None:
+        changed = [*_ROWS[:3], ["Card Payment", "Current", "2026-01-20 10:00:00",
+                                "2026-01-20 10:00:01", "Grocer", "-52.25", "0.00", "SGD",
+                                "COMPLETED", "424.75"]]
+        body = self.upload(("corrected.pdf", csv_bytes(changed)))
+
+        self.assertEqual((body["accepted"], body["quarantined"]), (0, 1))
+        history = self.client.get("/api/v1/imports").json()["imports"][0]
+        self.assertEqual(history["outcome"], "CONFLICT")
+        detail = self.client.get(f"/api/v1/imports/{history['id']}").json()
+        self.assertEqual(
+            sorted((row["filename"], row["this_import"]) for row in detail["conflict_with"]),
+            [("corrected.pdf", True), ("revolut.csv", False)],
+        )
+
     def test_an_upload_without_a_type_is_recognised_by_its_parser(self) -> None:
         mari = (Path(__file__).parent / "fixtures" / "mari_card.pdf").read_bytes()
         response = self.client.post(

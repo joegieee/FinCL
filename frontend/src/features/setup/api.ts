@@ -25,10 +25,29 @@ export type ImportRun = {
   source_profile_version: string | null
   parser_version: string | null
   blockers: number
+  filename: string | null
+  transaction_count: number | null
+  account_id: string | null
+  account_display_name: string | null
+  period_start: string | null
+  period_end: string | null
+  statement_state: string | null
+  conflict_state: string | null
+  /** The period of the statement that already carries every row of this one. */
+  superseded_by: string | null
+  outcome: 'ACCEPTED' | 'ALREADY_IMPORTED' | 'QUARANTINED' | 'CONFLICT' | 'FAILED' | 'RUNNING' | string
 }
 
 export type ImportIssue = { severity: string; code: string; message: string; context: unknown }
-export type ImportDetail = ImportRun & { issues: ImportIssue[] }
+export type ConflictingStatement = {
+  period_start: string | null
+  period_end: string | null
+  evidence_sha256: string
+  filename: string | null
+  imported_at: string | null
+  this_import: boolean
+}
+export type ImportDetail = ImportRun & { issues: ImportIssue[]; conflict_with: ConflictingStatement[] }
 
 export type ImportsPage = { generation: string; imports: ImportRun[] }
 
@@ -42,8 +61,21 @@ export type UploadOutcome = {
   evidence_reused?: boolean
   error?: string
   blocking_issue_count?: number
+  account_id?: string
+  account_display_name?: string
+  period_start?: string | null
+  period_end?: string | null
+  transaction_count?: number
+  superseded_by?: string | null
+  supersedes?: string[]
 }
-export type UploadResult = { results: UploadOutcome[]; accepted: number }
+export type EvidenceThrough = { account_id: string; display_name: string; through: string | null }
+export type UploadResult = {
+  results: UploadOutcome[]
+  accepted: number
+  quarantined?: number
+  evidence_through?: EvidenceThrough[]
+}
 
 // Closed adapter identifiers. Selection is an ID, never a free-text format name.
 export const ADAPTERS: { id: string; label: string }[] = [

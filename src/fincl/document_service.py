@@ -78,6 +78,10 @@ class DocumentImportResult:
     # `supersedes` names the statements this one replaced.
     superseded_by: str | None = None
     supersedes: tuple[str, ...] = ()
+    account_id: str = ""
+    account_display_name: str = ""
+    period_start: str | None = None
+    period_end: str | None = None
 
 
 class DocumentImportService:
@@ -98,59 +102,69 @@ class DocumentImportService:
         return cls(database_path, PlaintextEvidenceStore(evidence_directory))
 
     def import_dbs(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "DBS_CONSOLIDATED", writer=writer)
+        return self._import(source_path, "DBS_CONSOLIDATED", writer=writer, source_name=source_name)
 
     def import_paylah(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "DBS_PAYLAH", writer=writer)
+        return self._import(source_path, "DBS_PAYLAH", writer=writer, source_name=source_name)
 
     def import_maribank(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "MARI_SAVINGS", writer=writer)
+        return self._import(source_path, "MARI_SAVINGS", writer=writer, source_name=source_name)
 
     def import_mari_card(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "MARI_CARD", writer=writer)
+        return self._import(source_path, "MARI_CARD", writer=writer, source_name=source_name)
 
     def import_trust(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "TRUST_SAVINGS", writer=writer)
+        return self._import(source_path, "TRUST_SAVINGS", writer=writer, source_name=source_name)
 
     def import_revolut_pdf(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "REVOLUT_PDF", writer=writer)
+        return self._import(source_path, "REVOLUT_PDF", writer=writer, source_name=source_name)
 
     def _import(
-        self, source_path: Path, source_type: str, *, writer: WriterContext | None = None
+        self, source_path: Path, source_type: str, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
+        """``source_name`` replaces the recorded path when ``source_path`` is only
+        a spooled copy, so the import is recorded under the name it was given."""
         with ledger_writer(self.database_path, existing=writer):
             connection = self.connection_factory(self.database_path)
             try:
-                return self._run_import(connection, source_path, source_type)
+                return self._run_import(connection, source_path, source_type, source_name)
             finally:
                 connection.close()
 
     def _run_import(
-        self, connection: sqlite3.Connection, source_path: Path, source_type: str
+        self, connection: sqlite3.Connection, source_path: Path, source_type: str,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
         initialize_schema(connection)
         replay_journal(connection)
         import_run_id = "imp_" + uuid.uuid4().hex
         connection.execute(
             "INSERT INTO import_runs(id, started_at, status, source_path) VALUES (?, ?, 'RUNNING', ?)",
-            (import_run_id, _now(), str(Path(source_path).resolve())),
+            (import_run_id, _now(), source_name or str(Path(source_path).resolve())),
         )
         connection.commit()
         try:
             capture = self.evidence_store.capture(Path(source_path))
-            self._record_source(connection, capture)
+            self._record_source(connection, capture, source_name or capture.original_path)
             with self.evidence_store.open_verified(capture.sha256, capture.evidence_key) as evidence:
                 data = evidence.read()
             if hashlib.sha256(data).hexdigest() != capture.sha256:
@@ -238,7 +252,9 @@ class DocumentImportService:
             raise
 
     @staticmethod
-    def _record_source(connection: sqlite3.Connection, capture: EvidenceCapture) -> None:
+    def _record_source(
+        connection: sqlite3.Connection, capture: EvidenceCapture, recorded_path: str
+    ) -> None:
         now = _now()
         connection.execute(
             """
@@ -256,8 +272,8 @@ class DocumentImportService:
                 capture.byte_size,
                 capture.evidence_key,
                 capture.storage_kind,
-                capture.original_path,
-                capture.original_path,
+                recorded_path,
+                recorded_path,
                 now,
                 now,
             ),
@@ -580,6 +596,10 @@ class DocumentImportService:
             checks["total"] or 0,
             links_created,
             *_supersession(connection, extraction_run_id),
+            parsed.account_id,
+            parsed.account_display_name,
+            parsed.period_start,
+            parsed.period_end,
         )
 
 
