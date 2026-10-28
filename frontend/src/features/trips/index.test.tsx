@@ -13,7 +13,8 @@ const row = (anchor: string, merchant: string, assignment: string, country: stri
 function routes(path: string, body?: unknown) {
   if (path === 'reporting/workspaces/trips') return Promise.resolve({ ...envelope, trips: [trip] })
   if (path === `reporting/workspaces/trips/${trip.trip_id}`) return Promise.resolve({ ...envelope, trip, by_category: [{ currency: 'SGD', category_key: 'Travel', cost_amount: '30.00' }],
-    contributors: [row('a1', 'Meal', 'automatic', 'FR')], review: { missing_country: [row('a2', 'Lodging', 'none', null)], ambiguous: [], other_country: [], excluded: [] } })
+    contributors: [row('a1', 'Meal', 'automatic', 'FR')], review: { missing_country: [row('a2', 'Lodging', 'none', null)], ambiguous: [], other_country: [], excluded: [] },
+    manual_assignments: [{ anchor: 'a9', on: '2025-12-20', counted: false }] })
   if (path === 'countries') return Promise.resolve({ version: 'v1', codes: ['FR', 'DE', 'SG'] })
   if (path === 'preview' || path === 'commands' || path === 'batch') return Promise.resolve({ status: 'applied', body })
   return Promise.reject(new Error(`unexpected ${path}`))
@@ -62,5 +63,16 @@ describe('TripsView', () => {
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith('batch', expect.anything()))
     const body = apiMock.mock.calls.find(([path]) => path === 'batch')![1] as { items: unknown[] }
     expect(body.items).toEqual([{ kind: 'ENTRY_COUNTRY_SET', anchors: { entry: 'a2' }, payload: { country: 'FR', reason: 'Receipt shows the city' } }])
+  })
+
+  it('removes a trip together with every manual assignment the server lists, counted or not', async () => {
+    apiMock.mockImplementation(routes)
+    render(<TripsView generation="g1" onSaved={() => {}}/>)
+    fireEvent.click(await screen.findByRole('button', { name: /Trip A/ }))
+    expect(await screen.findByText(/including ones no longer counted as trip cost/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove trip' }))
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith('batch', expect.anything()))
+    const body = apiMock.mock.calls.find(([path]) => path === 'batch')![1] as { items: { kind: string; anchors: Record<string, string> }[] }
+    expect(body.items.map(item => [item.kind, item.anchors])).toEqual([['ENTRY_TRIP_RETIRE', { entry: 'a9' }], ['TRIP_RETIRE', { trip: trip.trip_id }]])
   })
 })

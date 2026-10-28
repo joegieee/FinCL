@@ -136,7 +136,7 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
   async function retireTrip() {
     if (!detail) return
     const why = reason.trim() || `Removed trip ${detail.trip.name}`
-    const manual = detail.contributors.filter(r => r.assignment === 'manual').map(r => tripAssignRetire(r.anchor, why))
+    const manual = detail.manual_assignments.map(r => tripAssignRetire(r.anchor, why))
     await batch.submit([...manual, tripRetire(tripId, why)], why)
     onClose()
   }
@@ -170,7 +170,7 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
         {reviewed && <div className="preview" role="status"><p>{ACTION_LABEL[action]}{action === 'country' ? ` to ${country ? `${country} (${countryName(country)})` : 'unknown'}` : ''} on {reviewed.length} transaction{reviewed.length === 1 ? '' : 's'}: {[...checked].map(a => rows.get(a)?.merchant).filter(Boolean).slice(0, 5).join(', ')}{checked.size > 5 ? '…' : ''}.</p>
           <Button disabled={batch.busy} onClick={() => void batch.submit(reviewed, reason.trim())}>{batch.busy ? 'Saving…' : `Save ${reviewed.length} change${reviewed.length === 1 ? '' : 's'}`}</Button></div>}
         {batch.error && <div className="alert error" role="alert"><p>{batch.error}</p>{batch.submitted && <Button variant="outline" onClick={() => void batch.retry()}>Retry same save</Button>}</div>}
-        <details className="trip-retire"><summary>Remove this trip</summary><p className="muted-note">Its {d.contributors.filter(r => r.assignment === 'manual').length} manual assignment(s) are retired in the same save; automatic ones simply stop matching. Transactions and countries are kept.</p><Button variant="outline" disabled={batch.busy} onClick={() => void retireTrip()}>Remove trip</Button></details>
+        <details className="trip-retire"><summary>Remove this trip</summary><p className="muted-note">Its {d.manual_assignments.length} manual assignment(s) are retired in the same save{d.manual_assignments.some(m => !m.counted) && ', including ones no longer counted as trip cost'}; automatic ones simply stop matching. Transactions and countries are kept.</p><Button variant="outline" disabled={batch.busy} onClick={() => void retireTrip()}>Remove trip</Button></details>
       </>}
     </AsyncView>
   </Card>

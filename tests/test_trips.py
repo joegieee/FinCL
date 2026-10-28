@@ -188,6 +188,21 @@ class TripTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/v1/trips").json()["trips"], [])
         self.assertEqual(self.client.get(f"/api/v1/trips/{trip_a}").status_code, 404)
 
+    def test_a_trip_retires_with_manual_assignments_that_left_the_cost_view(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        refund = self.anchor("Lodging", inflow=True)
+        self.command("ENTRY_TRIP_SET", {"entry": refund}, {"trip": trip_a, "reason": "Refund of the stay"})
+        self.command("INBOUND_CLASSIFICATION", {"entry": refund}, {"classification": "income", "reason": "Not a refund"})
+        detail = self.detail(trip_a)
+        self.assertEqual(detail["contributors"], [])
+        self.assertEqual(detail["manual_assignments"], [{"anchor": refund, "on": "2026-01-12", "counted": False}])
+        self.batch([
+            *({"kind": "ENTRY_TRIP_RETIRE", "anchors": {"entry": row["anchor"]}, "payload": {"reason": "Cancelled"}}
+              for row in detail["manual_assignments"]),
+            {"kind": "TRIP_RETIRE", "anchors": {"trip": trip_a}, "payload": {"reason": "Cancelled"}},
+        ])
+        self.assertEqual(self.client.get("/api/v1/trips").json()["trips"], [])
+
     def test_a_row_ambiguous_between_other_trips_is_another_country_here(self) -> None:
         self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
         self.trip("Trip B", "2026-01-10", "2026-01-15", ["FR"])

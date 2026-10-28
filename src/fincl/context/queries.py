@@ -201,7 +201,28 @@ def trip_detail_from(connection: sqlite3.Connection, trip_id: str, *, expected: 
             "other_country": [_row(e) for e in review if e["country"] is not None and trip_id not in e["candidates"]],
             "excluded": [_row(e) for e in in_window if e["assignment"] == "excluded"],
         },
+        "manual_assignments": _manual_assignments(connection, trip_id, entries),
     }
+
+
+def _manual_assignments(
+    connection: sqlite3.Connection, trip_id: str, entries: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Every manual assignment to this trip, including rows no longer counted as trip cost.
+
+    A transaction assigned by hand and later classified as income or a transfer
+    leaves the cost view but keeps its decision; retiring the trip has to retire
+    it too, so the list comes from the decisions, not from the contributors.
+    """
+    rows = connection.execute(
+        "SELECT t.entry_id, e.natural_anchor, substr(e.effective_at, 1, 10) AS on_day FROM entry_trips t "
+        "JOIN ledger_entries e ON e.id = t.entry_id WHERE t.trip_id = ? ORDER BY on_day, e.natural_anchor",
+        (trip_id,),
+    )
+    return [
+        {"anchor": str(row["natural_anchor"]), "on": str(row["on_day"]), "counted": str(row["entry_id"]) in entries}
+        for row in rows
+    ]
 
 
 def trips_page(database: Path, *, expected: str | None = None) -> dict[str, Any]:

@@ -40,6 +40,8 @@ export type ContextRow = {
   outside_window?: boolean
 }
 
+export type ManualAssignment = { anchor: string; on: string; counted: boolean }
+
 type Envelope = { generation: string; lens: string; lens_note: string; country_list_version: string }
 export type TripsPage = Envelope & { trips: TripSummary[] }
 export type TripDetail = Envelope & {
@@ -47,6 +49,7 @@ export type TripDetail = Envelope & {
   by_category: { currency: string; category_key: string; cost_amount: string }[]
   contributors: ContextRow[]
   review: { missing_country: ContextRow[]; ambiguous: ContextRow[]; other_country: ContextRow[]; excluded: ContextRow[] }
+  manual_assignments: ManualAssignment[]
 }
 
 export const loadTrips = () => reportedApi<TripsPage>('trips')
