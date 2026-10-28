@@ -2,7 +2,8 @@
 
 A re-download with different bytes, or a mid-month export inside the month's
 statement, is kept as evidence but never counted twice. Only rows that disagree
-are a conflict.
+are a conflict. Duplicates the user confirms by hand are bridged once in the
+cash position, so a duplicated row cannot leave a permanent gap.
 """
 
 from __future__ import annotations
@@ -10,9 +11,13 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+import uuid
+from datetime import date
 from pathlib import Path
 
+from fincl.application import record_decision
 from fincl.document_service import DocumentImportService
+from fincl.position import position_page
 from fincl.queries import relationships_review
 from fincl.refresh import refresh_ledger
 from tests.revolut_pdf import revolut_pdf_bytes
@@ -29,6 +34,11 @@ JANUARY = [
     _row("2026-01-10", "Grocer", "-40.00", "960.00"),
     _row("2026-01-20", "Bookshop", "-25.00", "935.00"),
     _row("2026-01-31", "Fee", "-5.00", "930.00"),
+]
+FEBRUARY = [
+    _row("2026-02-01", "Salary", "1000.00", "1930.00"),
+    _row("2026-02-05", "Cafe", "-12.00", "1918.00"),
+    _row("2026-02-28", "Fee", "-5.00", "1913.00"),
 ]
 
 
@@ -117,6 +127,31 @@ class StatementSupersessionTests(unittest.TestCase):
         self.assertEqual(result.status, "QUARANTINED")
         self.assertIsNone(result.superseded_by)
         self.assertEqual(self.states(), {"2026-01-01..2026-01-31": ("CANDIDATE", "CONFLICT")})
+
+    def test_confirmed_duplicates_are_bridged_once_in_the_cash_position(self) -> None:
+        self.upload("january.pdf", revolut_pdf_bytes(JANUARY))
+        self.upload("february.pdf", revolut_pdf_bytes(FEBRUARY))
+        # Straddles both months, so neither statement carries all of it.
+        self.upload("straddle.pdf", revolut_pdf_bytes([JANUARY[2], JANUARY[3], FEBRUARY[0]]))
+        refresh_ledger(self.database)
+        today = date(2026, 2, 28)
+
+        def unreconciled() -> list[dict]:
+            return [gap for gap in position_page(self.database, today=today)["missing_intervals"]
+                    if "reconcile" in gap["reason"]]
+
+        self.assertTrue(unreconciled())
+        for proposal in relationships_review(self.database)["proposals"]:
+            record_decision(
+                self.database, request_id=str(uuid.uuid4()), intent_hash=uuid.uuid4().hex,
+                decision_kind="DUPLICATE_CONFIRM",
+                anchors={"primary": proposal["primary"], "candidate": proposal["candidate"]},
+                payload={"reason": "printed twice"}, policy_version="dedupe-v1",
+                snapshot="DUPLICATE_CONFIRM: printed twice",
+            )
+        refresh_ledger(self.database)
+
+        self.assertEqual(unreconciled(), [])
 
 
 if __name__ == "__main__":

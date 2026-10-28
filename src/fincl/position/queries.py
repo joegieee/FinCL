@@ -513,6 +513,12 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
     )}
     entries = _selected_entries(connection)
     boundary_map = _boundaries(connection, entries)
+    # A confirmed duplicate is one movement printed twice. Balances read from
+    # either copy stay valid, but bridging between them counts it once.
+    suppressed = {row[0] for row in connection.execute(
+        "SELECT suppressed_anchor FROM duplicate_suppressions"
+    )}
+    movements = [row for row in entries if row["natural_anchor"] not in suppressed]
     scopes = set(boundary_map) | {
         (row["account_id"], row["currency_pocket"]) for row in entries
     }
@@ -541,7 +547,7 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
         liquid = key in liquid_scopes
         unavailable = None if chosen else "no supported balance boundary for this pocket"
         age = (today - date.fromisoformat(chosen["as_of"])).days if chosen else None
-        bridge = _bridge(key, boundaries, entries, paired, connection) if liquid else None
+        bridge = _bridge(key, boundaries, movements, paired, connection) if liquid else None
         if bridge:
             bridges.append(bridge)
             if not bridge["reconciled"]:
@@ -598,7 +604,7 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
             (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
                 (pocket["account_id"], pocket["currency_pocket"]), candidate,
                 boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
-                entries, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+                movements, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
             )
             for pocket in included
         }
@@ -609,7 +615,7 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
         (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
             (pocket["account_id"], pocket["currency_pocket"]), today.isoformat(),
             boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
-            entries, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+            movements, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
         )
         for pocket in included
     }
