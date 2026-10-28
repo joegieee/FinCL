@@ -1,30 +1,12 @@
 import { expect, test } from '@playwright/test'
-import { readFileSync } from 'node:fs'
 import { railSections, tabMeta } from '../src/lib/tabs'
+import { resetLedger } from './ledger'
 import { openTab } from './rail'
 
 // Prove that a normal URL works without a key or an existing session.
 test.use({ storageState: { cookies: [], origins: [] } })
-// The shared browser fixture starts empty. Seed only generated demo evidence;
-// importing the same document again is idempotent for later projects.
 test.beforeAll(async ({ request }) => {
-  const health = await request.get('/api/v1/health')
-  const state = await health.json()
-  expect(state.demo).toBe(true)
-  const origin = 'http://127.0.0.1:8799'
-  const imported = await request.post('/api/v1/imports', {
-    headers: { Origin: origin, 'X-CSRF-Token': state.csrf },
-    multipart: {
-      adapter: 'REVOLUT_PDF',
-      files: { name: 'reconciled-history.pdf', mimeType: 'application/pdf', buffer: readFileSync('/tmp/fincl-e2e-fixtures/reconciled-history.pdf') },
-    },
-  })
-  expect(imported.ok(), await imported.text()).toBe(true)
-  expect((await imported.json()).accepted).toBe(1)
-  const refreshed = await request.post('/api/v1/refresh', {
-    headers: { Origin: origin, 'X-CSRF-Token': state.csrf }, data: {},
-  })
-  expect(refreshed.ok()).toBe(true)
+  await resetLedger(request, 'reconciled-history')
 })
 
 for (const width of [320, 390, 768, 1280]) {
@@ -72,7 +54,7 @@ test('phone navigation and transaction dialog remain usable', async ({ page }) =
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844)
   await expect(dialog.getByLabel('Category')).toBeVisible()
-  await page.screenshot({ path: '/tmp/fincl-mobile-dialog.png' })
+  await page.screenshot({ path: test.info().outputPath('mobile-dialog.png') })
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   await page.reload()

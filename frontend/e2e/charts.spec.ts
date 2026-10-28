@@ -1,7 +1,12 @@
 import { expect, test } from '@playwright/test'
+import { resetLedger } from './ledger'
 import { openTab } from './rail'
 
-// Synthetic responses isolate chart behavior from the shared ledger's state.
+test.beforeAll(async ({ request }) => {
+  await resetLedger(request)
+})
+
+// Synthetic responses isolate chart behavior from the ledger's state.
 test('money charts render, switch metrics and fit narrow and dark screens', async ({ page }) => {
   const report = { report_id: 'chart-demo', name: 'Chart demo', lens: 'recorded_flow', reason: 'Synthetic chart check',
     group_by: ['category'], columns: ['gross_cost', 'refunds', 'net_cost'],

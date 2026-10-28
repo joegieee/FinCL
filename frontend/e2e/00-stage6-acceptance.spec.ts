@@ -1,11 +1,16 @@
 import { expect, test } from '@playwright/test'
+import { resetLedger, statement } from './ledger'
 import { openTab } from './rail'
 
 test.describe.configure({ mode: 'serial' })
 
+test.beforeAll(async ({ request }) => {
+  await resetLedger(request)
+})
+
 async function upload(page: import('@playwright/test').Page, fixture: string) {
   await openTab(page, 'Setup')
-  await page.getByLabel('Statement files').setInputFiles(`/tmp/fincl-e2e-fixtures/${fixture.replace(/\.csv$/, '.pdf')}`)
+  await page.getByLabel('Statement files').setInputFiles(statement(fixture.replace(/\.csv$/, '')))
   await page.getByRole('button', { name: 'Upload statements', exact: true }).click()
   await expect(page.locator('.upload-result')).toContainText('1 of 1 file accepted')
   const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh'))

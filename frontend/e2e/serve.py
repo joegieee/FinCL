@@ -1,19 +1,32 @@
 """Launch a throwaway demo ledger under the real HTTP app for Playwright.
 
 Playwright's ``webServer`` runs this. It builds an isolated synthetic ledger in a
-temp directory, then serves the normal key-free ``fincl.api`` on
-127.0.0.1:8799. Nothing here touches a real ledger.
+temp directory, then serves the normal key-free ``fincl.api`` on 127.0.0.1, port
+``FINCL_E2E_PORT`` (default 8799). Nothing here touches a real ledger.
+
+Two routes exist only on this server, never in ``fincl.api``:
+
+- ``POST /__e2e__/reset`` puts the app back on an untouched copy of the seeded
+  ledger, so each spec file starts from the same state whatever ran before it.
+- ``GET /__e2e__/ready?checkout=<path>`` answers 200 only to the checkout this
+  file lives in. Playwright polls it, so a server another checkout left on the
+  port is never mistaken for this one's and reused.
 """
 from __future__ import annotations
 
 import csv
+import os
+import shutil
 import sys
 import tempfile
 import uuid
 from datetime import date
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import uvicorn
+from fastapi import FastAPI
+from starlette.types import Receive, Scope, Send
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "src"))
@@ -29,12 +42,16 @@ from fincl.refresh import refresh_ledger  # noqa: E402
 sys.path.insert(0, str(REPO / "tests"))
 from revolut_pdf import revolut_pdf_bytes  # noqa: E402
 
+PORT = int(os.environ.get("FINCL_E2E_PORT", "8799"))
+# Keyed by port so that runs from several checkouts never rewrite a statement
+# another run is uploading. `e2e/ledger.ts` names the same path.
+GENERATED = Path(f"/tmp/fincl-e2e-fixtures-{PORT}")
+
 
 def fixture_pdf(csv_path: Path) -> Path:
     """Render a tracked synthetic CSV fixture as the PDF the current importer accepts."""
-    generated = Path("/tmp/fincl-e2e-fixtures")
-    generated.mkdir(parents=True, exist_ok=True)
-    output = generated / f"{csv_path.stem}.pdf"
+    GENERATED.mkdir(parents=True, exist_ok=True)
+    output = GENERATED / f"{csv_path.stem}.pdf"
     with csv_path.open(newline="") as source:
         rows = list(csv.reader(source))
     output.write_bytes(revolut_pdf_bytes(rows[1:]))
@@ -43,9 +60,8 @@ def fixture_pdf(csv_path: Path) -> Path:
 
 def generated_pdf(name: str, rows: list[list[str]]) -> Path:
     """Write an explicitly synthetic Revolut-like statement for UX acceptance."""
-    generated = Path("/tmp/fincl-e2e-fixtures")
-    generated.mkdir(parents=True, exist_ok=True)
-    output = generated / f"{name}.pdf"
+    GENERATED.mkdir(parents=True, exist_ok=True)
+    output = GENERATED / f"{name}.pdf"
     output.write_bytes(revolut_pdf_bytes(rows))
     return output
 
@@ -82,7 +98,9 @@ def classification_rows(currency: str = "SGD") -> list[list[str]]:
     return rows
 
 workdir = Path(tempfile.mkdtemp(prefix="fincl-e2e-"))
-database = workdir / "demo.sqlite3"
+seed = workdir / "seed"
+seed.mkdir()
+database = seed / "demo.sqlite3"
 
 # Compute stable natural anchors from the two statement fixtures, then start the
 # actual browser ledger empty. Salary classification can therefore resolve when
@@ -215,8 +233,44 @@ refresh_ledger(database)
 # 2026-09-30" already assumes it is. Move fixture dates and this moves with them.
 FIXTURE_TODAY = date(2026, 9, 30)
 
-app = create_app(
-    database, port=8799, bootstrap_secret="e2e-secret",
-    evidence_dir=workdir / "evidence", demo=True, today=FIXTURE_TODAY,
-)
-uvicorn.run(app, host="127.0.0.1", port=8799, log_level="warning")
+
+class ResettableApp:
+    """The real app, rebuilt over a fresh copy of the seed on every reset.
+
+    A reset copies the seed into a new directory and builds a new app for it
+    instead of rewriting the files under the running one, so no request can see
+    a half-restored ledger and no state cached by the old app survives.
+    """
+
+    def __init__(self) -> None:
+        self.resets = 0
+        self.ledger, self.app = self.fresh()
+
+    def fresh(self) -> tuple[Path, FastAPI]:
+        self.resets += 1
+        ledger = workdir / f"ledger-{self.resets}"
+        shutil.copytree(seed, ledger)
+        return ledger, create_app(
+            ledger / "demo.sqlite3", port=PORT, bootstrap_secret="e2e-secret",
+            evidence_dir=ledger / "evidence", demo=True, today=FIXTURE_TODAY,
+        )
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"] == "/__e2e__/reset" and scope["method"] == "POST":
+            previous = self.ledger
+            self.ledger, self.app = self.fresh()
+            shutil.rmtree(previous, ignore_errors=True)
+            await respond(send, 204)
+        elif scope["type"] == "http" and scope["path"] == "/__e2e__/ready":
+            checkout = parse_qs(scope["query_string"].decode()).get("checkout", [""])[0]
+            await respond(send, 200 if checkout == str(REPO) else 404)
+        else:
+            await self.app(scope, receive, send)
+
+
+async def respond(send: Send, status: int) -> None:
+    await send({"type": "http.response.start", "status": status, "headers": []})
+    await send({"type": "http.response.body", "body": b""})
+
+
+uvicorn.run(ResettableApp(), host="127.0.0.1", port=PORT, log_level="warning")

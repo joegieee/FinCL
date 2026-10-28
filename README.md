@@ -188,7 +188,9 @@ uv run pytest
 CI (`.github/workflows/ci.yml`) runs the same three on every push and pull
 request. In `frontend/`: `npm run build` (TypeScript), `npm test` (Vitest), and
 `npm run test:browser` (Playwright, desktop + 1024px, needs `npm run build` and
-`npx playwright install chromium` first).
+`npx playwright install chromium` first). The browser suite serves a synthetic
+ledger on port 8799; set `FINCL_E2E_PORT` to run it from several checkouts at
+once.
 
 Supported toolchain: Python 3.13, the committed `uv.lock`, and
 `frontend/package-lock.json`; other versions are unsupported.

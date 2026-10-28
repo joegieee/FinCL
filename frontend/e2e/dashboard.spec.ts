@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test'
+import { resetLedger } from './ledger'
 import { openTab } from './rail'
+
+test.beforeAll(async ({ request }) => {
+  await resetLedger(request, 'reconciled-history')
+})
 
 // Normal serving opens directly without a launch key.
 test.beforeEach(async ({ page }) => {

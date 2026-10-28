@@ -1,11 +1,18 @@
 import { expect, test, type Page } from '@playwright/test'
+import { resetLedger, statement } from './ledger'
 import { openTab } from './rail'
 
 test.describe.configure({ mode: 'serial' })
 
+// The desktop journey imports its statements through the UI as its first step;
+// the narrow test has no such step, so its ledger starts with them.
+test.beforeAll(async ({ request }, testInfo) => {
+  await resetLedger(request, ...(testInfo.project.name === 'narrow' ? ['classification-history'] : []))
+})
+
 async function upload(page: Page, ...names: string[]) {
   await openTab(page, 'Setup')
-  await page.getByLabel('Statement files').setInputFiles(names.map(name => `/tmp/fincl-e2e-fixtures/${name}.pdf`))
+  await page.getByLabel('Statement files').setInputFiles(names.map(statement))
   await page.getByRole('button', { name: 'Upload statements', exact: true }).click()
   // The result line singularises: "1 of 1 file accepted", "2 of 2 files accepted".
   await expect(page.locator('.upload-result')).toContainText(

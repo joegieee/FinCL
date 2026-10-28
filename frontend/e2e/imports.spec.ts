@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
+import { resetLedger } from './ledger'
 import { openTab } from './rail'
 
 const fixture = (name: string) => fileURLToPath(new URL(`../../tests/fixtures/${name}`, import.meta.url))
+
+test.beforeAll(async ({ request }) => {
+  await resetLedger(request)
+})
 
 test('statements from every bank upload together, recognised automatically, and refresh the ledger', async ({ page }) => {
   await page.goto('/?start=2026-01-01&end=2026-12-31')

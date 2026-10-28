@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { resetLedger, statement } from './ledger'
 import { openTab } from './rail'
 
 // Two end-to-end routines, each completed only through the UI and each ending
@@ -9,12 +10,16 @@ import { openTab } from './rail'
 // - Commitments: record a debt, find it among everything owed, and see it
 //   counted in that same answer.
 //
-// Both run against the shared demo ledger straight after 00-stage6, whose
-// imports the late-September statement continues without a gap. They run
-// before 01, whose 2025 and USD fixtures leave a pocket too stale to share a
-// cash cutoff, which withholds the answer this journey ends on. They assert on
-// what they themselves add rather than on totals.
+// The ledger starts with the history and later actuals that the late-September
+// statement continues without a gap. The classification fixtures stay out: their
+// 2025 and USD pockets are too stale to share a cash cutoff, which withholds the
+// answer this journey ends on. Both routines assert on what they themselves add
+// rather than on totals.
 test.describe.configure({ mode: 'serial' })
+
+test.beforeAll(async ({ request }) => {
+  await resetLedger(request, 'reconciled-history', 'later-actuals')
+})
 
 test.beforeEach(async () => {
   test.skip(test.info().project.name !== 'desktop')
@@ -24,7 +29,7 @@ test('monthly routine: import, review what it created, and read the answer', asy
   test.setTimeout(90_000)
   await page.goto('/')
   await openTab(page, 'Setup')
-  await page.getByLabel('Statement files').setInputFiles('/tmp/fincl-e2e-fixtures/monthly-late-september.pdf')
+  await page.getByLabel('Statement files').setInputFiles(statement('monthly-late-september'))
   const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/refresh') && response.request().method() === 'POST')
   await page.getByRole('button', { name: 'Upload statements', exact: true }).click()
   await expect(page.locator('.upload-result')).toContainText('1 of 1 file accepted')
