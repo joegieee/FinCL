@@ -538,6 +538,22 @@ class CombinedAnswerTests(unittest.TestCase):
         )
         self.assertIn("Everyday, Savings", answer["todos"][0]["detail"])
 
+    def test_an_action_item_can_name_its_own_fix_and_shares_it_by_key(self) -> None:
+        fix = {"key": "fund-due", "page": "Annual funds", "title": "Did it happen?"}
+        items = [
+            {"output": "planned", "todo": {**fix, "detail": "Boiler was due on 2026-01-10."}},
+            {"output": "planned", "todo": {**fix, "detail": "Roof was due on 2026-01-20."}},
+        ]
+        answer = self._answer(
+            _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, items), {"SGD": Fraction(1)},
+        )
+
+        self.assertEqual(
+            answer["todos"],
+            [{"key": "fund-due", "page": "Annual funds", "title": "Did it happen?",
+              "detail": "Boiler was due on 2026-01-10. Roof was due on 2026-01-20."}],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -83,6 +83,8 @@ _DRIVER_LABELS: tuple[tuple[str, str], ...] = (
     ("card_statement", "Card settlements"),
     ("recurring_commitment", "Recurring commitments"),
     ("sinking_fund", "Annual funds set aside"),
+    ("planned", "Planned spending"),
+    ("planned_income", "Planned income"),
     ("baseline_spending", "Baseline spending"),
     ("other", "Other committed outflows"),
 )
@@ -485,6 +487,22 @@ def _todos(
                 "key": key, "page": _FIX_PAGE[page], "title": title,
                 "detail": f"Without a date they are not in the answer: {', '.join(labels)}.",
             })
+
+    # An action item may name its own fix. Items sharing a key are one to-do.
+    own: dict[str, dict[str, Any]] = {}
+    for item in items:
+        todo = item.get("todo")
+        if not todo:
+            continue
+        if todo["key"] in own:
+            if todo["detail"] not in own[todo["key"]]["detail"]:
+                own[todo["key"]]["detail"] += f" {todo['detail']}"
+            continue
+        own[todo["key"]] = {
+            "key": str(todo["key"]), "page": str(todo["page"]),
+            "title": str(todo["title"]), "detail": str(todo["detail"]),
+        }
+    todos.extend(own.values())
 
     if any(i.get("output") == "income" for i in items):
         todos.append({
