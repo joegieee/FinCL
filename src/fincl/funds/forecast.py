@@ -8,10 +8,11 @@ the historical expense itself.  Counting it twice would show a month spending
 money it will only spend once.
 
 So identity does the work.  A fund names the future event it settles: either
-``linked_event_id``, the canonical ``source_id`` of an event some other adapter
-already emits, or — when no such event exists — ``fund:<fund>:due``, which the
-fund creates itself.  A fund whose linked event is already on the timeline
-contributes no event at all, and a fund that creates one removes its own amount
+``linked_event_id``, the obligation it was proposed from, or — when no such
+obligation exists — ``fund:<fund>:due``, which the fund creates itself.  An
+obligation emits one event per occurrence or schedule row under its own id
+(``recurring:<c>:<date>``, ``debt:<d>:schedule:<n>``), so a fund whose linked
+obligation already has any event on the timeline contributes no event at all, and a fund that creates one removes its own amount
 from the **irregular** allowance only, on its own due date.  The routine
 residual is untouched, because a once-a-year insurance bill was never part of
 the weekly groceries.
@@ -64,6 +65,10 @@ def fund_due_source_id(fund: dict[str, Any]) -> str:
     return str(linked) if linked else f"fund:{fund['fund']}:due"
 
 
+def _already_modelled(source_id: str, existing: set[str]) -> bool:
+    return source_id in existing or any(item.startswith(f"{source_id}:") for item in existing)
+
+
 def fund_forecast_events(
     page: dict[str, Any],
     *,
@@ -102,7 +107,7 @@ def fund_forecast_events(
         if end is not None and str(due_on) > end:
             continue
         source_id = fund_due_source_id(fund)
-        if source_id in existing:
+        if _already_modelled(source_id, existing):
             notes.append(
                 f"{fund['fund']} settles the existing future event {source_id}; "
                 "no duplicate event is created"

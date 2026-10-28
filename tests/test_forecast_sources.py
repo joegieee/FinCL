@@ -164,6 +164,18 @@ class FundSourceTests(unittest.TestCase):
 
         self.assertEqual(base_events(timeline, "fund:"), [("2026-08-05", "1200.00")])
 
+    def test_a_fund_linked_to_a_recurring_obligation_adds_no_second_payment(self) -> None:
+        database = rent_ledger()
+        self._fund(database, linked="recurring:rent")
+
+        timeline = cash_timeline(database, today=TODAY)
+
+        self.assertEqual(
+            [event for event in base_events(timeline, "") if event[0] == "2026-08-05"],
+            [("2026-08-05", "1200.00")],
+        )
+        self.assertEqual(base_events(timeline, "fund:"), [])
+
     def test_an_unreleased_fund_past_the_cutoff_is_named_not_dropped(self) -> None:
         database = rent_ledger()
         self._fund(database, linked=None, due_on="2026-06-01")
