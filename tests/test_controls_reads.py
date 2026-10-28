@@ -13,7 +13,7 @@ TODAY = date(2026, 2, 1)
 
 
 class ControlsReadTests(ApiTestBase):
-    def test_a_fund_due_event_still_builds_a_second_forecast_and_retains_its_gates(self) -> None:
+    def test_a_fund_due_event_reaches_the_one_forecast_controls_build(self) -> None:
         from fincl.controls.queries import cash_timeline
         from fincl.decision_journal import append_decision, default_journal_path
         from fincl.refresh import refresh_ledger
@@ -30,17 +30,15 @@ class ControlsReadTests(ApiTestBase):
         refresh_ledger(self.database)
         with (patch("fincl.db.sqlite3.connect", wraps=sqlite3.connect) as connections,
               patch("fincl.controls.queries.cash_timeline", wraps=cash_timeline) as timelines):
-            page = spending_controls_page(self.database, today=TODAY)
+            spending_controls_page(self.database, today=TODAY)
         self.assertEqual(connections.call_count, 1)
-        self.assertEqual(timelines.call_count, 2)
-        due = timelines.call_args.kwargs["sourced_events"]
-        self.assertEqual(len(due), 1)
-        self.assertEqual(due[0].source_id, "fund:insurance:due")
-        self.assertEqual(due[0].amount, "300.00")
-        # This fixture has no irregular spending to replace. The second
-        # forecast withholds its answer; reusing the initial available case
-        # would incorrectly hide that fund-induced limitation.
-        self.assertFalse(page["available"])
+        self.assertEqual(timelines.call_count, 1)
+        timeline = cash_timeline(self.database, today=TODAY)
+        sourced = [
+            event for event in timeline["by_currency"]["SGD"]["base"]["events"]["items"]
+            if event["source_id"] == "fund:insurance:due"
+        ]
+        self.assertEqual([(event["on"], event["amount"]) for event in sourced], [("2026-04-01", "300.00")])
 
     def test_controls_open_one_connection_and_build_one_forecast_without_funds(self) -> None:
         from fincl.controls.queries import cash_timeline

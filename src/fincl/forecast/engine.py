@@ -2058,28 +2058,6 @@ def _cash_timeline(
     estimate = baseline_estimate_from(connection, today=today)
     obligations = obligations_page_from(connection, as_of=str(cutoff), today=today)
     recurring = recurring_page_from(connection)
-    cards = card_cash_conversion_from(
-        connection,
-        as_of=str(cutoff),
-        horizon_months=HORIZON_MONTHS,
-        prospective_purchases=list(prospective_card_purchases),
-    )
-    reported = {
-        "manifest": manifest.get("generation"),
-        "baseline_estimate": estimate.get("generation"),
-        "obligations_page": obligations.get("generation"),
-        "recurring_page": recurring.get("generation"),
-        "card_cash_conversion": cards.get("generation"),
-    }
-    if len({token for token in reported.values() if token is not None}) != 1:
-        return {
-            "available": False,
-            "reason": "Stage 3B refused mixed-generation source adapters",
-            "generation": manifest.get("generation"),
-            "reported_generations": reported,
-            "by_currency": {},
-            "limitations": ["refresh the ledger and retry"],
-        }
     obligation_events, obligation_limits = _obligation_events(
         obligations,
         start=str(cutoff),
@@ -2091,9 +2069,82 @@ def _cash_timeline(
     income_events, income_limits = _candidate_income_events(
         recurring, start=str(cutoff), end=end
     )
-    card_events, card_limits = _card_events(
-        cards, prospective=prospective_card_purchases
+    prospective = list(prospective_card_purchases)
+    cards = card_cash_conversion_from(
+        connection,
+        as_of=str(cutoff),
+        horizon_months=HORIZON_MONTHS,
+        prospective_purchases=prospective,
     )
+    card_events, card_limits = _card_events(cards, prospective=prospective)
+
+    from .sources import EXTRA_SOURCES, SourceContext
+
+    context = SourceContext(
+        cutoff=str(cutoff),
+        start=(date.fromisoformat(str(cutoff)) + timedelta(days=1)).isoformat(),
+        end=end,
+        today=today.isoformat(),
+        residual_category_ids=frozenset(
+            category.category_id
+            for category in (
+                list(residual_categories) or _manifest_categories(manifest, estimate)
+            )
+        ),
+        existing_source_ids=frozenset(
+            event.source_id
+            for event in [*obligation_events, *income_events, *card_events, *sourced_events]
+        ),
+    )
+    extra = [adapter(connection, context) for adapter in EXTRA_SOURCES]
+    extra_prospective = [item for result in extra for item in result.prospective_card_purchases]
+    if extra_prospective:
+        prospective.extend(extra_prospective)
+        cards = card_cash_conversion_from(
+            connection,
+            as_of=str(cutoff),
+            horizon_months=HORIZON_MONTHS,
+            prospective_purchases=prospective,
+        )
+        card_events, card_limits = _card_events(cards, prospective=prospective)
+
+    reported = {
+        "manifest": manifest.get("generation"),
+        "baseline_estimate": estimate.get("generation"),
+        "obligations_page": obligations.get("generation"),
+        "recurring_page": recurring.get("generation"),
+        "card_cash_conversion": cards.get("generation"),
+        **{
+            str((result.manifest_source or {}).get("input") or f"source_{index}"): result.generation
+            for index, result in enumerate(extra)
+        },
+    }
+    if len({token for token in reported.values() if token is not None}) != 1:
+        return {
+            "available": False,
+            "reason": "Stage 3B refused mixed-generation source adapters",
+            "generation": manifest.get("generation"),
+            "reported_generations": reported,
+            "by_currency": {},
+            "limitations": ["refresh the ledger and retry"],
+        }
+    manifest = {
+        **manifest,
+        "sources": [
+            *manifest.get("sources", []),
+            *(
+                {
+                    **result.manifest_source,
+                    "matches_resolved_generation": (
+                        result.generation is None
+                        or result.generation == manifest.get("generation")
+                    ),
+                }
+                for result in extra
+                if result.manifest_source is not None
+            ),
+        ],
+    }
     result = build_cash_timeline(
         manifest,
         sourced_events=[
@@ -2101,15 +2152,22 @@ def _cash_timeline(
             *income_events,
             *card_events,
             *sourced_events,
+            *(event for source in extra for event in source.events),
         ],
         residual_categories=residual_categories,
         likely_income_policy=likely_income_policy,
         strong_income_interruption=strong_income_interruption,
         estimate=estimate,
     )
-    adapter_limits = [*obligation_limits, *income_limits, *card_limits]
+    adapter_limits = [
+        *obligation_limits, *income_limits, *card_limits,
+        *(limit for source in extra for limit in source.limitations),
+    ]
     result["limitations"].extend(adapter_limits)
-    result["action_items"] = _action_items(manifest, card_limits)
+    result["action_items"] = sorted(
+        [*_action_items(manifest, card_limits), *(item for source in extra for item in source.action_items)],
+        key=lambda item: (-item["rank"], item["output"], item["detail"]),
+    )
     result["source_contracts"] = {
         "obligations": obligations.get("rules", []),
         "card_cash_conversion": {

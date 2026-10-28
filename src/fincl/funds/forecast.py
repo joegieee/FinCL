@@ -25,8 +25,9 @@ answer rather than a limitation.
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..forecast.engine import (
     COLUMN_IRREGULAR,
@@ -35,6 +36,10 @@ from ..forecast.engine import (
     TIMING_KNOWN,
     ForecastEvent,
 )
+from .queries import _fund_rows, _generation
+
+if TYPE_CHECKING:
+    from ..forecast.sources import SourceContext, SourceResult
 
 CONTRIBUTIONS_ARE_NOT_CASH_EVENTS = (
     "a planned or recorded contribution is a movement inside liquid cash and "
@@ -141,9 +146,67 @@ def fund_forecast_events(
     return events, notes
 
 
+def funds_source(connection: sqlite3.Connection, context: SourceContext) -> SourceResult:
+    """Every sinking fund's due expense, for every reader of the cash timeline."""
+    from ..forecast.sources import SourceResult
+
+    page = {
+        "funds": [
+            {
+                "fund": row["fund"],
+                "name": row["name"],
+                "currency": row["currency"],
+                "status": "released" if row["release"] is not None else "open",
+                "linked_event_id": row["linked_event_id"],
+                "target": {
+                    "amount_due": row["amount_due"],
+                    "due_on": row["due_on"],
+                    "amount_basis": row["amount_basis"],
+                    "date_basis": row["date_basis"],
+                    "source_reference": row["source_reference"],
+                },
+            }
+            for row in _fund_rows(connection)
+        ]
+    }
+    events, _ = fund_forecast_events(
+        page,
+        existing_source_ids=context.existing_source_ids,
+        start=context.cutoff,
+        end=context.end,
+    )
+    overdue = [
+        f"{fund['name']} was due on {fund['target']['due_on']}, on or before the "
+        "supported cash cutoff, and its fund is not released; it is not modelled again"
+        for fund in page["funds"]
+        if fund["status"] != "released"
+        and fund["target"]["amount_due"] is not None
+        and fund["target"]["due_on"] is not None
+        and str(fund["target"]["due_on"]) <= context.cutoff
+    ]
+    generation = _generation(connection)
+    return SourceResult(
+        events=events,
+        action_items=[],
+        generation=generation,
+        manifest_source={
+            "input": "sinking_funds",
+            "module": "fincl.funds.forecast.funds_source",
+            "generation_pinned": True,
+            "reported_generation": generation,
+            "matches_resolved_generation": True,
+            "available": True,
+            "reason": None,
+            "consumed_by": ["known_irregular_costs"],
+        },
+        limitations=overdue,
+    )
+
+
 __all__ = [
     "CONTRIBUTIONS_ARE_NOT_CASH_EVENTS",
     "IRREGULAR_REPLACEMENT_RULE",
     "fund_due_source_id",
     "fund_forecast_events",
+    "funds_source",
 ]

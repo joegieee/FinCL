@@ -13,7 +13,6 @@ from ..baseline.roles import baseline_roles
 from ..db import connect_readonly, read_snapshot
 from ..errors import FinCLError
 from ..forecast.engine import COLUMN_IRREGULAR, ResidualCategory, cash_timeline
-from ..funds.forecast import fund_forecast_events
 from ..funds.queries import sinking_funds_page
 from ..intervals import DateInterval
 from ..money import ExactMoney, format_decimal
@@ -316,26 +315,7 @@ def _spending_controls_page(
     estimate = baseline_estimate(database, today=today)
     residuals, role_map, category_options = _role_inputs(roles, estimate, currency)
     funds = sinking_funds_page(database, as_of=today.isoformat(), today=today)
-    initial = cash_timeline(database, today=today, residual_categories=residuals)
-    horizon = initial.get("horizon") or {}
-    initial_cell = initial.get("by_currency", {}).get(currency)
-    existing_ids = {
-        str(event["source_id"])
-        for case_name in ("base", "conservative")
-        for event in ((initial_cell or {}).get(case_name, {}).get("events", {}).get("items", []))
-    }
-    fund_events, fund_notes = fund_forecast_events(
-        funds,
-        existing_source_ids=existing_ids,
-        start=horizon.get("supported_cash_cutoff"),
-        end=horizon.get("end"),
-    )
-    forecast = cash_timeline(
-        database,
-        today=today,
-        residual_categories=residuals,
-        sourced_events=fund_events,
-    ) if fund_events else initial
+    forecast = cash_timeline(database, today=today, residual_categories=residuals)
     cell = forecast.get("by_currency", {}).get(currency)
     obligations = obligations_page(
         database,
@@ -468,7 +448,6 @@ def _spending_controls_page(
         "forecast_cases": {"base": cell["base"], "conservative": cell["conservative"]},
         "scenario": None,
         "unresolved": unresolved,
-        "fund_event_notes": fund_notes,
         "disclosure": (
             "Only recorded evidence is in the default. A negative capacity is a funding need. "
             "Proposed changes are isolated and never become Confirmed."
