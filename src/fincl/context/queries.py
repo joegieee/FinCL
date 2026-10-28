@@ -18,13 +18,16 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import date
 from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
 from ..db import connect_readonly
 from ..errors import FinCLError
 from ..generation import current_generation
+from ..money import ExactMoney
 from .countries import COUNTRY_LIST_VERSION
 
 LENS = "recorded_flow"
@@ -255,6 +258,64 @@ def trip_detail(database: Path, trip_id: str, *, expected: str | None = None) ->
         return trip_detail_from(connection, trip_id, expected=expected)
     finally:
         connection.close()
+
+
+def trip_spend_to_date(connection: sqlite3.Connection, trip_id: str, currency: str, as_of: str) -> dict[str, Any]:
+    """Net trip-assigned cost through ``as_of``, in ``currency``, for matching a trip budget.
+
+    Every transaction assigned to the trip counts, a booking made before the
+    trip included; refunds reduce it. Each day's net in each pocket is valued
+    at that day as a flow, through the shared valuation seam, and the parts are
+    summed exactly and rounded once. A part with no rate is listed under
+    ``unvalued`` and left out of ``actual``, never guessed.
+    """
+    from ..reporting_currency.models import currency_definition
+    from ..valuation import (
+        FLOW_RATE_V1,
+        EntryPrecision,
+        ValuationContext,
+        ValuationItem,
+        ValuationPurpose,
+        quantize,
+        value_one,
+    )
+
+    state = _load(connection, None)
+    if trip_id not in state["trips"]:
+        raise FinCLError("that trip does not exist")
+    daily: dict[tuple[str, str], list[Any]] = {}
+    for entry in state["entries"].values():
+        if entry["trip"] != trip_id or entry["end"] > as_of:
+            continue
+        cell = daily.setdefault((entry["end"], entry["currency"]), [Decimal(0), 2])
+        cell[0] += entry["cost"] - entry["refund"]
+        cell[1] = max(cell[1], entry["scale"])
+    definition = currency_definition(currency)
+    scale = definition.minor_unit_scale if definition else 2
+    context = ValuationContext(reporting_currency=currency, purpose=ValuationPurpose.FLOW,
+                               valuation_as_of=date.fromisoformat(as_of), rate_selection_policy=FLOW_RATE_V1)
+    total = Fraction(0)
+    parts: list[dict[str, Any]] = []
+    unvalued: list[dict[str, Any]] = []
+    for (on, pocket), (value, native_scale) in sorted(daily.items()):
+        native = _text(value, native_scale)
+        valued = value_one(connection, ValuationItem(
+            native=ExactMoney.parse(native), native_currency=pocket, purpose=ValuationPurpose.FLOW,
+            precision=EntryPrecision.DAY, effective_on=date.fromisoformat(on),
+        ), context=context)
+        if valued.unavailable is not None or valued.reported_exact is None:
+            reason = valued.unavailable
+            unvalued.append({"on": on, "native_currency": pocket, "native_amount": native,
+                             "reason": reason.message if reason else "not valued",
+                             "remedy": reason.remedy if reason else ""})
+            continue
+        total += valued.reported_exact
+        parts.append({"on": on, "amount": quantize(valued.reported_exact, scale=scale).text,
+                      "native_currency": pocket, "native_amount": native})
+    return {
+        "trip_id": trip_id, "currency": currency, "as_of": as_of,
+        "actual": quantize(total, scale=scale).text, "parts": parts, "unvalued": unvalued,
+    }
 
 
 def country_list() -> dict[str, Any]:

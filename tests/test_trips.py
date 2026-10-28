@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from fincl.api import create_app
+from fincl.context.queries import trip_spend_to_date
+from fincl.db import connect_readonly, connect_sqlite
 from fincl.document_service import DocumentImportService
+from fincl.errors import FinCLError
+from fincl.fx import load_fx_rates
 from fincl.refresh import refresh_ledger
 from tests.asgi_client import ASGITestClient
 from tests.revolut_pdf import revolut_pdf_bytes
@@ -247,6 +251,57 @@ class TripTests(unittest.TestCase):
         review = self.detail(trip_c)["review"]
         self.assertEqual(review["ambiguous"], [])
         self.assertIn("taxi", self.merchants(review["other_country"]))
+
+    def spend(self, trip_id: str, currency: str, as_of: str) -> dict[str, Any]:
+        connection = connect_readonly(self.database)
+        try:
+            return trip_spend_to_date(connection, trip_id, currency, as_of)
+        finally:
+            connection.close()
+
+    def rates(self, quote: str, rates: list[dict[str, str]]) -> None:
+        connection = connect_sqlite(self.database)
+        load_fx_rates(connection, {"source": "Synthetic", "source_version": "trip-tests-v1", "quote_currency": quote,
+                                   "rates": rates})
+        connection.commit()
+        connection.close()
+        refresh_ledger(self.database)
+
+    def spending_trip(self) -> str:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        for description in ("Meal", "Lodging", "Taxi", "Diner"):
+            self.country(description, "FR")
+        self.country("Lodging", "FR", inflow=True)
+        self.command("ENTRY_TRIP_SET", {"entry": self.anchor("Advance booking")}, {"trip": trip_a, "reason": "Booked ahead"})
+        return trip_a
+
+    def test_trip_spend_nets_refunds_and_converts_other_pockets_through_as_of(self) -> None:
+        self.rates("SGD", [{"base_currency": "USD", "period": "2026-01", "rate": "1.20"}])
+        trip_a = self.spending_trip()
+        # 400 booking + 30 + 200 - 50 refund + 15 in SGD, and 20 USD at 1.20.
+        self.assertEqual(self.spend(trip_a, "SGD", "2026-01-15")["actual"], "619.00")
+        early = self.spend(trip_a, "SGD", "2026-01-11")
+        self.assertEqual(early["actual"], "654.00")
+        self.assertEqual([(p["on"], p["native_currency"], p["amount"]) for p in early["parts"]], [
+            ("2025-12-20", "SGD", "400.00"), ("2026-01-10", "SGD", "30.00"),
+            ("2026-01-11", "SGD", "200.00"), ("2026-01-11", "USD", "24.00")])
+        self.assertEqual(early["unvalued"], [])
+
+    def test_trip_spend_values_each_part_at_its_own_date(self) -> None:
+        self.rates("USD", [{"base_currency": "SGD", "period": "2025-12", "rate": "0.70"},
+                           {"base_currency": "SGD", "period": "2026-01", "rate": "0.75"}])
+        trip_a = self.spending_trip()
+        # 400 x 0.70 + (30 + 200) x 0.75 + 20 USD as itself.
+        self.assertEqual(self.spend(trip_a, "USD", "2026-01-11")["actual"], "472.50")
+
+    def test_trip_spend_lists_a_part_it_cannot_value_and_leaves_it_out(self) -> None:
+        trip_a = self.spending_trip()
+        spend = self.spend(trip_a, "SGD", "2026-01-15")
+        self.assertEqual(spend["actual"], "595.00")
+        self.assertEqual([(u["on"], u["native_currency"], u["native_amount"]) for u in spend["unvalued"]],
+                         [("2026-01-11", "USD", "20.00")])
+        with self.assertRaises(FinCLError):
+            self.spend(str(uuid.uuid4()), "SGD", "2026-01-15")
 
     def test_invalid_context_decisions_are_refused(self) -> None:
         trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
