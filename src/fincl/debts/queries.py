@@ -71,6 +71,42 @@ def entry_residual(database: Path, *, anchor: str, expected: str | None = None) 
         }
 
 
+def overlapping_commitments(connection: Any, debt_id: str | None = None) -> dict[str, list[dict[str, Any]]]:
+    """Active recurring commitments whose payments are this debt's movements.
+
+    A loan repaid monthly is easily confirmed as a recurring bill before its
+    payments are recorded against the debt. Both then project the same money:
+    the commitment every month, the debt as its remaining principal. A payment
+    counts here when it seeds the commitment or is bound to one of its
+    occurrences, and a debt allocation claims it. Nothing is retired; this only
+    names the overlap so it can be resolved.
+    """
+    rows = connection.execute(
+        """
+        WITH commitment_payments AS (
+          SELECT commitment, entry_anchor FROM recurring_occurrences
+          WHERE bound = 1 AND entry_anchor IS NOT NULL
+          UNION
+          SELECT rc.commitment, j.value FROM recurring_commitments rc, json_each(rc.seed_anchors_json) j
+        )
+        SELECT a.debt_id, rc.commitment, rc.name, count(DISTINCT a.entry_anchor) AS payments
+        FROM personal_debt_allocations a
+        JOIN commitment_payments cp ON cp.entry_anchor = a.entry_anchor
+        JOIN recurring_commitments rc ON rc.commitment = cp.commitment
+        WHERE a.bound = 1 AND rc.status = 'active' AND (? IS NULL OR a.debt_id = ?)
+        GROUP BY a.debt_id, rc.commitment
+        ORDER BY rc.name, rc.commitment
+        """,
+        (debt_id, debt_id),
+    ).fetchall()
+    found: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        found.setdefault(str(row["debt_id"]), []).append(
+            {"commitment": str(row["commitment"]), "name": str(row["name"]), "payments": int(row["payments"])}
+        )
+    return found
+
+
 def _decode_allocation_cursor(cursor: str | None) -> tuple[str, str] | None:
     if not cursor:
         return None
@@ -267,6 +303,7 @@ def debt_detail(
             )
         shape["principal_history"] = history
         shape["reason"] = str(debt["reason"])
+        shape["overlapping_commitments"] = overlapping_commitments(connection, debt_id).get(debt_id, [])
         return {"generation": token, "as_of": as_of, "debt": shape}
     finally:
         connection.close()

@@ -31,7 +31,7 @@ from ..cards import projection as card_projection
 from ..cards.cash_conversion import _statement_rows
 from ..cards.models import ROLE_PAYMENT_DUE, ROLE_PAYMENT_DUE_DATE
 from ..db import connect_readonly
-from ..debts.queries import _balance_minor
+from ..debts.queries import _balance_minor, overlapping_commitments
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..intervals import month_span
@@ -122,6 +122,7 @@ def _debt_obligations(connection: sqlite3.Connection, as_of: str) -> list[dict[s
     events, which is the only payment evidence this source has.
     """
     result: list[dict[str, Any]] = []
+    overlaps = overlapping_commitments(connection)
     for debt in connection.execute("SELECT * FROM personal_debts ORDER BY debt_id"):
         rows = connection.execute(
             "SELECT * FROM personal_debt_events WHERE debt_id = ? "
@@ -181,6 +182,9 @@ def _debt_obligations(connection: sqlite3.Connection, as_of: str) -> list[dict[s
                         "of the historical cost baseline"
                     ),
                 },
+                # Active recurring commitments projecting this debt's own
+                # payments a second time.
+                "overlapping_commitments": overlaps.get(str(debt["debt_id"]), []),
                 **basis,
                 **history_confidence(commitment_recorded=True),
                 **state,

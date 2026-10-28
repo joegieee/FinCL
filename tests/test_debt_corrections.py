@@ -299,3 +299,35 @@ class EventReadTests(DebtCorrectionBase):
         self.settled_and_closed()
         response = self.client.get(f"/api/v1/debts/{self.debt}/events/{uuid.uuid4()}")
         self.assertEqual(response.status_code, 404, response.text)
+
+
+class CommitmentOverlapTests(DebtCorrectionBase):
+    def commitment(self, *, status: str = "active") -> str:
+        commitment = str(uuid.uuid4())
+        self.command("RECURRING_COMMITMENT_SET", {"commitment": commitment}, {
+            "name": "Alex repayment", "currency": "SGD", "merchant_key": "Bookshop", "account_ids": [],
+            "seed_entry_anchors": [self.bookshop],
+            "schedule": {"kind": "monthly", "day": 3, "anchor_on": "2026-01-03"},
+            "expected_amount": "19.00", "amount_tolerance": "0.00",
+            "status": status, "ended_on": "2026-01-31" if status == "ended" else None,
+            "reason": "Confirmed as a monthly bill",
+        })
+        return commitment
+
+    def obligation(self) -> dict:
+        response = self.client.get("/api/v1/obligations")
+        self.assertEqual(response.status_code, 200, response.text)
+        return next(o for o in response.json()["obligations"] if o["obligation_id"] == f"debt:{self.debt}")
+
+    def test_a_commitment_repeating_the_debts_repayments_is_named_on_the_debt_and_its_obligation(self) -> None:
+        self.settled_and_closed()
+        self.assertEqual(self.detail()["overlapping_commitments"], [])
+        commitment = self.commitment()
+        expected = [{"commitment": commitment, "name": "Alex repayment", "payments": 1}]
+        self.assertEqual(self.detail()["overlapping_commitments"], expected)
+        self.assertEqual(self.obligation()["overlapping_commitments"], expected)
+
+    def test_an_ended_commitment_projects_nothing_and_is_not_named(self) -> None:
+        self.settled_and_closed()
+        self.commitment(status="ended")
+        self.assertEqual(self.detail()["overlapping_commitments"], [])

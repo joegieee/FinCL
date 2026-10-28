@@ -199,6 +199,13 @@ function DebtDetailView({
       <p className="debt-detail-status">
         {RECONCILIATION_LABEL[debt.reconciliation_status] ?? debt.reconciliation_status}
       </p>
+      {debt.overlapping_commitments?.length ? (
+        <p className="debt-event-error" role="note">
+          {debt.overlapping_commitments.length === 1 ? 'A recorded payment of this debt is also' : 'Recorded payments of this debt are also'} part of
+          {' '}{debt.overlapping_commitments.map((c) => `“${c.name}”`).join(', ')}, {debt.overlapping_commitments.length === 1 ? 'a confirmed recurring commitment' : 'confirmed recurring commitments'}.
+          {' '}The forecast projects the commitment and this debt’s remaining principal separately, so the same repayments are counted twice.
+        </p>
+      ) : null}
       {correcting && (correcting.remove
         ? <RemoveEventForm detail={detail} event={correcting.event} generation={generation}
             onCancel={() => setCorrecting(null)} onSaved={corrected} />

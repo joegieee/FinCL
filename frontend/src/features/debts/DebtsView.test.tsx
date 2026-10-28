@@ -109,3 +109,19 @@ describe('DebtsView paging', () => {
     expect(screen.getByText('Jo')).toBeInTheDocument()
   })
 })
+
+describe('DebtsView commitment overlap', () => {
+  it('warns when a recurring commitment repeats the debt’s repayments', async () => {
+    const original = apiMock.getMockImplementation()!
+    onTestFinished(() => { apiMock.mockImplementation(original) })
+    apiMock.mockImplementation(async (path: string) => {
+      if (path.startsWith('reporting/workspaces/debts?')) return page
+      if (path.startsWith('reporting/workspaces/debts/')) return { ...detail, debt: { ...detail.debt, overlapping_commitments: [{ commitment: 'c-1', name: 'Alex repayment', payments: 2 }] } }
+      throw new Error(`unmocked ${path}`)
+    })
+    await mount()
+    fireEvent.click(await screen.findByText('Alex'))
+    expect(await screen.findByRole('note')).toHaveTextContent('“Alex repayment”, a confirmed recurring commitment')
+    expect(screen.getByRole('note')).toHaveTextContent('counted twice')
+  })
+})

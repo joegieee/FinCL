@@ -42,10 +42,13 @@ export type DebtsPage = {
   next_cursor: string | null
 }
 
+/** An active recurring commitment whose payments are this debt's own movements. */
+export type OverlappingCommitment = { commitment: string; name: string; payments: number }
+
 export type DebtDetail = {
   generation: string
   as_of: string
-  debt: DebtCard & { principal_history: DebtEvent[]; reason: string }
+  debt: DebtCard & { principal_history: DebtEvent[]; reason: string; overlapping_commitments?: OverlappingCommitment[] }
 }
 
 /** Every debt, following the server's pages: the lists, the split form and the
