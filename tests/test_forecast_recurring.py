@@ -6,6 +6,7 @@ import unittest
 
 from fincl.baseline.estimators import baseline_estimate
 from fincl.forecast.engine import cash_timeline
+from fincl.obligations import obligations_page
 from fincl.planning.sufficiency import sufficiency_page
 from tests.test_forecast_sources import TODAY, base_events, decide, rent_ledger
 
@@ -71,6 +72,32 @@ class RecurringResidualTests(unittest.TestCase):
 
         self.assertEqual(estimate["by_currency"]["SGD"]["variable_residual_monthly"], "300.00")
         self.assertEqual(base_events(cash_timeline(database, today=TODAY), "recurring:rent:"), [])
+
+
+class SkippedOccurrenceTests(unittest.TestCase):
+    def test_a_future_date_marked_skipped_is_not_forecast(self) -> None:
+        database = rent_ledger()
+        decide(database, "RECURRING_OCCURRENCE_SET",
+               {"commitment": "rent", "scheduled_on": "2026-08-05"},
+               {"entry": None, "reason": "landlord waived August"})
+
+        rent = base_events(cash_timeline(database, today=TODAY), "recurring:rent:")
+
+        self.assertNotIn("2026-08-05", [on for on, _ in rent])
+        self.assertIn("2026-09-05", [on for on, _ in rent])
+
+    def test_a_past_date_marked_skipped_is_not_overdue(self) -> None:
+        database = rent_ledger()
+        decide(database, "RECURRING_OCCURRENCE_SET",
+               {"commitment": "rent", "scheduled_on": "2026-07-05"},
+               {"entry": None, "reason": "landlord waived July"})
+
+        page = obligations_page(database, as_of="2026-07-15", today=TODAY)
+
+        rent = next(item for item in page["obligations"] if item["obligation_id"] == "recurring:rent")
+        self.assertEqual(rent["unmatched_past_occurrences"], [])
+        self.assertFalse(rent["overdue"])
+        self.assertEqual(rent["date_basis"]["value"], "2026-08-05")
 
 
 class FixedRecurringMonthlyTests(unittest.TestCase):

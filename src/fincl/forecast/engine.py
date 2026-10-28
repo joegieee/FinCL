@@ -1753,8 +1753,11 @@ def _obligation_events(
                 str(cell["scheduled_on"]): str(cell["amount"])
                 for cell in obligation.get("occurrence_amounts", [])
             }
+            skipped = set(obligation.get("skipped_occurrences", []))
             for occurrence in scheduled:
                 iso = occurrence.isoformat()
+                if iso in skipped:
+                    continue
                 events.append(
                     ForecastEvent(
                         event_id=f"{obligation['obligation_id']}:{iso}",
