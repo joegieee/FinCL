@@ -9,8 +9,10 @@ import { useBatchCommand, useLedgerCommand, type BatchItem } from '@/lib/command
 import { reportedMoney, WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import {
   countryName, countrySet, loadCountries, loadTrip, loadTrips, tripAssign, tripAssignRetire, tripRetire,
-  type ContextRow, type TripDetail, type TripDraft, type TripSummary, type TripsPage,
+  type ContextRow, type TripDetail, type TripDraft, type TripStatus, type TripSummary, type TripsPage,
 } from './api'
+
+const STATUS: Record<TripStatus, string> = { upcoming: 'Upcoming', ongoing: 'Under way', past: 'Past' }
 
 type Saved = (status: string) => void | Promise<void>
 
@@ -46,7 +48,7 @@ export function TripsView({ generation, onSaved }: { generation: string; onSaved
         {data.trips.length === 0 && !editing && <Card className="controls-card"><p className="muted-note">No trips yet. Add one with its dates and the countries it covers; transactions then join it once their country is known.</p></Card>}
         <ul className="trip-list">{data.trips.map(trip => <li key={trip.trip_id}>
           <button className={`trip-card${selected === trip.trip_id ? ' is-active' : ''}`} onClick={() => setSelected(trip.trip_id)} aria-pressed={selected === trip.trip_id}>
-            <span className="trip-card-title"><strong>{trip.name}</strong>{trip.review_count > 0 && <Badge variant="outline" className="review-badge">{trip.review_count} to review</Badge>}</span>
+            <span className="trip-card-title"><strong>{trip.name}</strong><Badge variant="secondary">{STATUS[trip.status]}</Badge>{trip.review_count > 0 && <Badge variant="outline" className="review-badge">{trip.review_count} to review</Badge>}</span>
             <small>{dateLabel(trip.start_on)} – {dateLabel(trip.end_on)} · {trip.countries.length ? trip.countries.map(countryName).join(', ') : 'No countries listed'}</small>
             <span className="trip-card-totals">{Object.keys(trip.totals_by_currency).length
               ? Object.entries(trip.totals_by_currency).map(([currency, cell]) => <span key={currency}>{reportedMoney(cell, 'net_cost', currency)} <small>({currency} pocket)</small></span>)
@@ -136,7 +138,7 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
   async function retireTrip() {
     if (!detail) return
     const why = reason.trim() || `Removed trip ${detail.trip.name}`
-    const manual = detail.contributors.filter(r => r.assignment === 'manual').map(r => tripAssignRetire(r.anchor, why))
+    const manual = detail.manual_assignments.map(r => tripAssignRetire(r.anchor, why))
     await batch.submit([...manual, tripRetire(tripId, why)], why)
     onClose()
   }
@@ -145,11 +147,12 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
     <AsyncView loading={loading} error={error} data={detail} onRetry={load} errorTitle="We couldn’t load this trip.">
       {d => <>
         <WorkspaceReportingDetails data={d}/>
-        <div className="panel-title"><div><p className="eyebrow"><MapPinned size={12}/> TRIP · {dateLabel(d.trip.start_on)} – {dateLabel(d.trip.end_on)}</p><h2>{d.trip.name}</h2><p className="muted-note">{d.trip.countries.length ? d.trip.countries.map(countryName).join(', ') : 'No countries listed: nothing joins automatically.'}</p></div>
+        <div className="panel-title"><div><p className="eyebrow"><MapPinned size={12}/> TRIP · {dateLabel(d.trip.start_on)} – {dateLabel(d.trip.end_on)} · {STATUS[d.trip.status].toUpperCase()}</p><h2>{d.trip.name}</h2><p className="muted-note">{d.trip.countries.length ? d.trip.countries.map(countryName).join(', ') : 'No countries listed: nothing joins automatically.'}</p></div>
           <div className="row-actions"><Button variant="outline" size="sm" onClick={() => onEdit(d.trip)}>Edit</Button><Button variant="ghost" size="sm" onClick={onClose} aria-label="Close trip"><X size={15}/></Button></div></div>
         {Object.keys(d.trip.totals_by_currency).length > 0 ? <dl className="baseline-metrics">{Object.entries(d.trip.totals_by_currency).map(([currency, cell]) => <div key={currency}><dt>{currency} pocket · cost / refunds / net</dt><dd>{reportedMoney(cell, 'gross_cost', currency)} · {reportedMoney(cell, 'refunds', currency)} · <strong>{reportedMoney(cell, 'net_cost', currency)}</strong></dd></div>)}</dl>
           : <p className="muted-note">Nothing is assigned to this trip yet.</p>}
         <p className="muted-note">{d.lens_note}</p>
+        <section className="trip-budget" aria-label="Budget"><h3>Budget</h3><p className="muted-note">No budget for this trip yet.</p></section>
         {d.by_category.length > 0 && <div className="table-scroll"><table className="pocket-table"><thead><tr><th>Category</th><th>Pocket</th><th>Cost</th></tr></thead>
           <tbody>{d.by_category.map((row, i) => <tr key={i}><td>{row.category_key}</td><td>{row.currency}</td><td>{reportedMoney(row, 'cost_amount', row.currency)}</td></tr>)}</tbody></table></div>}
         <RowSection title="In this trip" rows={d.contributors} checked={checked} onToggle={toggle} empty="No transactions yet."/>
@@ -170,11 +173,14 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
         {reviewed && <div className="preview" role="status"><p>{ACTION_LABEL[action]}{action === 'country' ? ` to ${country ? `${country} (${countryName(country)})` : 'unknown'}` : ''} on {reviewed.length} transaction{reviewed.length === 1 ? '' : 's'}: {[...checked].map(a => rows.get(a)?.merchant).filter(Boolean).slice(0, 5).join(', ')}{checked.size > 5 ? '…' : ''}.</p>
           <Button disabled={batch.busy} onClick={() => void batch.submit(reviewed, reason.trim())}>{batch.busy ? 'Saving…' : `Save ${reviewed.length} change${reviewed.length === 1 ? '' : 's'}`}</Button></div>}
         {batch.error && <div className="alert error" role="alert"><p>{batch.error}</p>{batch.submitted && <Button variant="outline" onClick={() => void batch.retry()}>Retry same save</Button>}</div>}
-        <details className="trip-retire"><summary>Remove this trip</summary><p className="muted-note">Its {d.contributors.filter(r => r.assignment === 'manual').length} manual assignment(s) are retired in the same save; automatic ones simply stop matching. Transactions and countries are kept.</p><Button variant="outline" disabled={batch.busy} onClick={() => void retireTrip()}>Remove trip</Button></details>
+        <details className="trip-retire"><summary>Remove this trip</summary><p className="muted-note">Its {d.manual_assignments.length} manual assignment(s) are retired in the same save{d.manual_assignments.some(m => !m.counted) && ', including ones no longer counted as trip cost'}; automatic ones simply stop matching. Transactions and countries are kept.</p><Button variant="outline" disabled={batch.busy} onClick={() => void retireTrip()}>Remove trip</Button></details>
       </>}
     </AsyncView>
   </Card>
 }
+
+// Amounts stay exact decimal text from the server; this only reads whether one is zero.
+const isZero = (amount: string) => /^[+-]?0*(\.0*)?$/.test(amount)
 
 const BASIS: Record<string, string> = { automatic: 'Automatic', manual: 'Chosen by hand', excluded: 'Excluded', ambiguous: 'Several trips', none: 'Not in a trip' }
 
@@ -190,7 +196,7 @@ function RowSection({ title, rows, checked, onToggle, empty, note }: { title: st
         <td>{row.merchant}<small>{row.category_key}</small></td>
         <td>{row.country ? `${row.country} · ${countryName(row.country)}` : row.country_basis === 'operator' ? 'Unknown (set)' : 'Unknown'}</td>
         <td>{BASIS[row.assignment]}{row.outside_window && <small>outside the trip dates</small>}</td>
-        <td>{Number(row.cost_amount) !== 0 && reportedMoney(row, 'cost_amount', row.currency)}{Number(row.refund_amount) !== 0 && <small>refund {reportedMoney(row, 'refund_amount', row.currency)}</small>}</td>
+        <td>{!isZero(row.cost_amount) && reportedMoney(row, 'cost_amount', row.currency)}{!isZero(row.refund_amount) && <small>refund {reportedMoney(row, 'refund_amount', row.currency)}</small>}</td>
       </tr>)}</tbody></table></div>}
   </section>
 }

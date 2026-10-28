@@ -10,6 +10,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 
+from . import clock
 from .errors import FinCLError
 
 
@@ -28,7 +29,7 @@ def register_trip_routes(app: FastAPI, database: Path) -> None:
         from .context.queries import trips_page
 
         try:
-            return trips_page(database, expected=generation)
+            return trips_page(database, today=clock.today(), expected=generation)
         except FinCLError as exc:
             raise _map_error(exc) from exc
 
@@ -37,7 +38,16 @@ def register_trip_routes(app: FastAPI, database: Path) -> None:
         from .context.queries import trip_detail
 
         try:
-            return trip_detail(database, trip_id, expected=generation)
+            return trip_detail(database, trip_id, today=clock.today(), expected=generation)
+        except FinCLError as exc:
+            raise _map_error(exc) from exc
+
+    @app.get("/api/v1/entry-context")
+    def entry_context(anchor: str, generation: str | None = None) -> Any:
+        from .context.queries import entry_context as _entry_context
+
+        try:
+            return _entry_context(database, anchor, expected=generation)
         except FinCLError as exc:
             raise _map_error(exc) from exc
 

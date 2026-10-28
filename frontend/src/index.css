@@ -662,7 +662,7 @@ main{width:100%;min-width:0}
 .trip-card small,.trip-rows td small{color:var(--muted);display:block}
 .trip-form .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
 .trip-form label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
-.trip-rows{margin-top:14px}.trip-rows h3{font-size:13px;margin:0 0 6px}
+.trip-rows,.trip-budget{margin-top:14px}.trip-rows h3,.trip-budget h3{font-size:13px;margin:0 0 6px}
 .trip-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
 .trip-actions input,.trip-actions select{min-width:0;max-width:100%}
 .trip-retire{margin-top:16px}

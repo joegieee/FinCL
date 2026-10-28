@@ -214,8 +214,9 @@ class WorkspaceAuditTests(WorkspaceValuationTests):
                                           {"on": "2026-02-01", "currency": "USD", "kind": "cost", "amount": "10.00"},
                                           {"on": "2026-02-02", "currency": "USD", "kind": "refund", "amount": "10.00"}]},
                   "by_category": [{"currency": "USD", "category_key": "Travel", "cost_amount": "20.00"}],
-                  "contributors": [{"currency": "USD", "category_key": "Travel", "on": "2026-01-31", "cost_amount": "10.00"},
-                                   {"currency": "USD", "category_key": "Travel", "on": "2026-02-01", "cost_amount": "10.00"}]}
+                  "contributors": [{"currency": "USD", "category_key": "Travel", "on": day, "cost_amount": "10.00",
+                                    "categories": [{"category_key": "Travel", "cost_amount": "10.00"}]}
+                                   for day in ("2026-01-31", "2026-02-01")]}
         values = self.annotate(native, "trips/t")
         totals = ("trip", "totals_by_currency", "USD")
         self.assertEqual(values[(*totals, "gross_cost")]["reported"]["value"], "26.00")

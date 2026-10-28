@@ -10,11 +10,14 @@ export type Assignment = 'automatic' | 'manual' | 'excluded' | 'ambiguous' | 'no
 
 export type TripTotals = { gross_cost: string; refunds: string; net_cost: string; entry_count: number }
 
+export type TripStatus = 'upcoming' | 'ongoing' | 'past'
+
 export type TripSummary = {
   trip_id: string
   name: string
   start_on: string
   end_on: string
+  status: TripStatus
   countries: string[]
   reason: string
   entry_count: number
@@ -37,8 +40,11 @@ export type ContextRow = {
   country_basis: 'operator' | 'unknown'
   assignment: Assignment
   candidates: string[]
+  categories: { category_key: string; cost_amount: string; refund_amount: string }[]
   outside_window?: boolean
 }
+
+export type ManualAssignment = { anchor: string; on: string; counted: boolean }
 
 type Envelope = { generation: string; lens: string; lens_note: string; country_list_version: string }
 export type TripsPage = Envelope & { trips: TripSummary[] }
@@ -47,11 +53,27 @@ export type TripDetail = Envelope & {
   by_category: { currency: string; category_key: string; cost_amount: string }[]
   contributors: ContextRow[]
   review: { missing_country: ContextRow[]; ambiguous: ContextRow[]; other_country: ContextRow[]; excluded: ContextRow[] }
+  manual_assignments: ManualAssignment[]
 }
 
 export const loadTrips = () => reportedApi<TripsPage>('trips')
 export const loadTrip = (tripId: string) => reportedApi<TripDetail>(`trips/${encodeURIComponent(tripId)}`)
 export const loadCountries = () => api<{ version: string; codes: string[] }>('countries')
+
+export type EntryContext = {
+  generation: string
+  anchor: string
+  counted_as_cost: boolean
+  on: string | null
+  end: string | null
+  country: string | null
+  country_basis: 'operator' | 'unknown'
+  trip: string | null
+  assignment: Assignment
+  candidates: string[]
+  trips: { trip_id: string; name: string; start_on: string; end_on: string; countries: string[]; in_window: boolean }[]
+}
+export const loadEntryContext = (anchor: string) => api<EntryContext>(`entry-context?anchor=${encodeURIComponent(anchor)}`)
 
 export type TripDraft = { name: string; start_on: string; end_on: string; countries: string[]; reason: string }
 

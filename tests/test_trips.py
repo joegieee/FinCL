@@ -5,11 +5,17 @@ import sqlite3
 import tempfile
 import unittest
 import uuid
+from datetime import date
 from pathlib import Path
 from typing import Any
 
+from fincl import clock
 from fincl.api import create_app
+from fincl.context.queries import trip_spend_to_date
+from fincl.db import connect_readonly, connect_sqlite
 from fincl.document_service import DocumentImportService
+from fincl.errors import FinCLError
+from fincl.fx import load_fx_rates
 from fincl.refresh import refresh_ledger
 from tests.asgi_client import ASGITestClient
 from tests.revolut_pdf import revolut_pdf_bytes
@@ -187,6 +193,143 @@ class TripTests(unittest.TestCase):
         ])
         self.assertEqual(self.client.get("/api/v1/trips").json()["trips"], [])
         self.assertEqual(self.client.get(f"/api/v1/trips/{trip_a}").status_code, 404)
+
+    def test_a_trip_retires_with_manual_assignments_that_left_the_cost_view(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        refund = self.anchor("Lodging", inflow=True)
+        self.command("ENTRY_TRIP_SET", {"entry": refund}, {"trip": trip_a, "reason": "Refund of the stay"})
+        self.command("INBOUND_CLASSIFICATION", {"entry": refund}, {"classification": "income", "reason": "Not a refund"})
+        detail = self.detail(trip_a)
+        self.assertEqual(detail["contributors"], [])
+        self.assertEqual(detail["manual_assignments"], [{"anchor": refund, "on": "2026-01-12", "counted": False}])
+        self.batch([
+            *({"kind": "ENTRY_TRIP_RETIRE", "anchors": {"entry": row["anchor"]}, "payload": {"reason": "Cancelled"}}
+              for row in detail["manual_assignments"]),
+            {"kind": "TRIP_RETIRE", "anchors": {"trip": trip_a}, "payload": {"reason": "Cancelled"}},
+        ])
+        self.assertEqual(self.client.get("/api/v1/trips").json()["trips"], [])
+
+    def test_a_split_bills_own_share_counts_under_its_own_category(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        self.country("Meal", "FR")
+        meal, sam = self.anchor("Meal"), str(uuid.uuid4())
+        self.batch([
+            {"kind": "PERSONAL_DEBT_OPEN", "anchors": {"debt": sam},
+             "payload": {"direction": "RECEIVABLE", "currency": "SGD", "counterparty_label": "Sam",
+                         "opened_on": "2026-01-10", "due_on": None, "reason": "Split the meal"}},
+            {"kind": "PERSONAL_DEBT_EVENT_SET", "anchors": {"debt": sam, "event": str(uuid.uuid4())},
+             "payload": {"event_kind": "EXPENSE_PAID_FOR_OTHER", "direction": "RECEIVABLE",
+                         "principal_amount": "20.00", "effective_on": "2026-01-10",
+                         "entry_allocations": [{"entry_anchor": meal, "principal_amount": "20.00", "interest_amount": "0.00",
+                                                "fee_amount": "0.00", "separate_fee_amount": "0.00"}],
+                         "opening_balance": False, "expense_category": None, "reason": "Split the meal"}},
+            {"kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": meal},
+             "payload": {"expense_amount": "10.00", "expense_category": "Food & Dining / Dining Out",
+                         "reason": "Split the meal"}},
+        ])
+        detail = self.detail(trip_a)
+        self.assertEqual(detail["by_category"],
+                         [{"currency": "SGD", "category_key": "Food & Dining / Dining Out", "cost_amount": "10.00"}])
+        row = detail["contributors"][0]
+        self.assertEqual((row["anchor"], row["category_key"], row["cost_amount"]),
+                         (meal, "Food & Dining / Dining Out", "10.00"))
+        reported = self.client.get(f"/api/v1/reporting/workspaces/trips/{trip_a}").json()
+        values = {tuple(a["path"]): a["value"] for a in reported["amounts"]}
+        self.assertEqual(values[("by_category", 0, "cost_amount")]["reported"]["value"], "10.00")
+        report = self.client.post("/api/v1/reports/preview", headers=self._headers(), json={
+            "name": "By category", "lens": "recorded_flow", "group_by": ["category"], "columns": ["gross_cost"],
+            "scope": {"window": {"kind": "all"}, "currencies": [], "accounts": [], "trips": [trip_a], "countries": [],
+                      "categories": ["Food & Dining / Dining Out"]},
+        })
+        self.assertEqual(report.status_code, 200, report.text)
+        self.assertEqual([(r["group"][0]["value"], r["gross_cost"], r["entry_count"]) for r in report.json()["rows"]],
+                         [("Food & Dining / Dining Out", "10.00", 1)])
+
+    def test_a_row_ambiguous_between_other_trips_is_another_country_here(self) -> None:
+        self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        self.trip("Trip B", "2026-01-10", "2026-01-15", ["FR"])
+        trip_c = self.trip("Trip C", "2026-01-10", "2026-01-15", ["JP"])
+        self.country("Taxi", "FR")
+        review = self.detail(trip_c)["review"]
+        self.assertEqual(review["ambiguous"], [])
+        self.assertIn("taxi", self.merchants(review["other_country"]))
+
+    def spend(self, trip_id: str, currency: str, as_of: str) -> dict[str, Any]:
+        connection = connect_readonly(self.database)
+        try:
+            return trip_spend_to_date(connection, trip_id, currency, as_of)
+        finally:
+            connection.close()
+
+    def rates(self, quote: str, rates: list[dict[str, str]]) -> None:
+        connection = connect_sqlite(self.database)
+        load_fx_rates(connection, {"source": "Synthetic", "source_version": "trip-tests-v1", "quote_currency": quote,
+                                   "rates": rates})
+        connection.commit()
+        connection.close()
+        refresh_ledger(self.database)
+
+    def spending_trip(self) -> str:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        for description in ("Meal", "Lodging", "Taxi", "Diner"):
+            self.country(description, "FR")
+        self.country("Lodging", "FR", inflow=True)
+        self.command("ENTRY_TRIP_SET", {"entry": self.anchor("Advance booking")}, {"trip": trip_a, "reason": "Booked ahead"})
+        return trip_a
+
+    def test_trip_spend_nets_refunds_and_converts_other_pockets_through_as_of(self) -> None:
+        self.rates("SGD", [{"base_currency": "USD", "period": "2026-01", "rate": "1.20"}])
+        trip_a = self.spending_trip()
+        # 400 booking + 30 + 200 - 50 refund + 15 in SGD, and 20 USD at 1.20.
+        self.assertEqual(self.spend(trip_a, "SGD", "2026-01-15")["actual"], "619.00")
+        early = self.spend(trip_a, "SGD", "2026-01-11")
+        self.assertEqual(early["actual"], "654.00")
+        self.assertEqual([(p["on"], p["native_currency"], p["amount"]) for p in early["parts"]], [
+            ("2025-12-20", "SGD", "400.00"), ("2026-01-10", "SGD", "30.00"),
+            ("2026-01-11", "SGD", "200.00"), ("2026-01-11", "USD", "24.00")])
+        self.assertEqual(early["unvalued"], [])
+
+    def test_trip_spend_values_each_part_at_its_own_date(self) -> None:
+        self.rates("USD", [{"base_currency": "SGD", "period": "2025-12", "rate": "0.70"},
+                           {"base_currency": "SGD", "period": "2026-01", "rate": "0.75"}])
+        trip_a = self.spending_trip()
+        # 400 x 0.70 + (30 + 200) x 0.75 + 20 USD as itself.
+        self.assertEqual(self.spend(trip_a, "USD", "2026-01-11")["actual"], "472.50")
+
+    def test_trip_spend_lists_a_part_it_cannot_value_and_leaves_it_out(self) -> None:
+        trip_a = self.spending_trip()
+        spend = self.spend(trip_a, "SGD", "2026-01-15")
+        self.assertEqual(spend["actual"], "595.00")
+        self.assertEqual([(u["on"], u["native_currency"], u["native_amount"]) for u in spend["unvalued"]],
+                         [("2026-01-11", "USD", "20.00")])
+        with self.assertRaises(FinCLError):
+            self.spend(str(uuid.uuid4()), "SGD", "2026-01-15")
+
+    def test_one_transactions_context_names_its_trip_and_the_trips_it_could_join(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        later = self.trip("Trip B", "2026-02-01", "2026-02-05", ["JP"])
+        meal = self.anchor("Meal")
+        context = self.client.get("/api/v1/entry-context", params={"anchor": meal}).json()
+        self.assertEqual((context["country"], context["assignment"], context["counted_as_cost"]), (None, "none", True))
+        self.assertEqual({t["trip_id"]: t["in_window"] for t in context["trips"]}, {trip_a: True, later: False})
+        self.country("Meal", "FR")
+        context = self.client.get("/api/v1/entry-context", params={"anchor": meal}).json()
+        self.assertEqual((context["country"], context["trip"], context["assignment"]), ("FR", trip_a, "automatic"))
+        seed = self.anchor("Seed", inflow=True)
+        self.command("ENTRY_TRIP_SET", {"entry": seed}, {"trip": None, "reason": "Not travel"})
+        context = self.client.get("/api/v1/entry-context", params={"anchor": seed}).json()
+        self.assertEqual((context["counted_as_cost"], context["assignment"]), (False, "excluded"))
+        self.assertEqual(self.client.get("/api/v1/entry-context", params={"anchor": "nope"}).status_code, 404)
+
+    def test_a_trip_is_upcoming_ongoing_or_past_against_the_app_clock(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        self.addCleanup(clock.pin, None)
+        for today, status in (("2026-01-09", "upcoming"), ("2026-01-10", "ongoing"), ("2026-01-15", "ongoing"),
+                              ("2026-01-16", "past")):
+            clock.pin(date.fromisoformat(today))
+            with self.subTest(today=today):
+                self.assertEqual(self.client.get("/api/v1/trips").json()["trips"][0]["status"], status)
+                self.assertEqual(self.detail(trip_a)["trip"]["status"], status)
 
     def test_invalid_context_decisions_are_refused(self) -> None:
         trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])

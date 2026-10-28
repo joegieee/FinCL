@@ -7,13 +7,14 @@ vi.mock('@/lib/api', async original => ({ ...await original<typeof import('@/lib
 afterEach(() => { cleanup(); apiMock.mockReset() })
 
 const envelope = { generation: 'g1', lens: 'recorded_flow', lens_note: 'Recorded lens.', country_list_version: 'v1' }
-const trip = { trip_id: '11111111-1111-4111-8111-111111111111', name: 'Trip A', start_on: '2026-01-10', end_on: '2026-01-15', countries: ['FR'], reason: 'r', entry_count: 1, review_count: 1, totals_by_currency: { SGD: { gross_cost: '30.00', refunds: '0.00', net_cost: '30.00', entry_count: 1 } } }
-const row = (anchor: string, merchant: string, assignment: string, country: string | null) => ({ anchor, on: '2026-01-11', end: '2026-01-11', date_precision: 'DAY', merchant, category_key: 'Travel', account: 'a', currency: 'SGD', cost_amount: '30.00', refund_amount: '0.00', country, country_basis: country ? 'operator' : 'unknown', assignment, candidates: [] })
+const trip = { trip_id: '11111111-1111-4111-8111-111111111111', name: 'Trip A', start_on: '2026-01-10', end_on: '2026-01-15', status: 'past', countries: ['FR'], reason: 'r', entry_count: 1, review_count: 1, totals_by_currency: { SGD: { gross_cost: '30.00', refunds: '0.00', net_cost: '30.00', entry_count: 1 } } }
+const row = (anchor: string, merchant: string, assignment: string, country: string | null) => ({ anchor, on: '2026-01-11', end: '2026-01-11', date_precision: 'DAY', merchant, category_key: 'Travel', account: 'a', currency: 'SGD', cost_amount: '30.00', refund_amount: '0.00', country, country_basis: country ? 'operator' : 'unknown', assignment, candidates: [], categories: [{ category_key: 'Travel', cost_amount: '30.00', refund_amount: '0.00' }] })
 
 function routes(path: string, body?: unknown) {
   if (path === 'reporting/workspaces/trips') return Promise.resolve({ ...envelope, trips: [trip] })
   if (path === `reporting/workspaces/trips/${trip.trip_id}`) return Promise.resolve({ ...envelope, trip, by_category: [{ currency: 'SGD', category_key: 'Travel', cost_amount: '30.00' }],
-    contributors: [row('a1', 'Meal', 'automatic', 'FR')], review: { missing_country: [row('a2', 'Lodging', 'none', null)], ambiguous: [], other_country: [], excluded: [] } })
+    contributors: [row('a1', 'Meal', 'automatic', 'FR')], review: { missing_country: [row('a2', 'Lodging', 'none', null)], ambiguous: [], other_country: [], excluded: [] },
+    manual_assignments: [{ anchor: 'a9', on: '2025-12-20', counted: false }] })
   if (path === 'countries') return Promise.resolve({ version: 'v1', codes: ['FR', 'DE', 'SG'] })
   if (path === 'preview' || path === 'commands' || path === 'batch') return Promise.resolve({ status: 'applied', body })
   return Promise.reject(new Error(`unexpected ${path}`))
@@ -62,5 +63,25 @@ describe('TripsView', () => {
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith('batch', expect.anything()))
     const body = apiMock.mock.calls.find(([path]) => path === 'batch')![1] as { items: unknown[] }
     expect(body.items).toEqual([{ kind: 'ENTRY_COUNTRY_SET', anchors: { entry: 'a2' }, payload: { country: 'FR', reason: 'Receipt shows the city' } }])
+  })
+
+  it('removes a trip together with every manual assignment the server lists, counted or not', async () => {
+    apiMock.mockImplementation(routes)
+    render(<TripsView generation="g1" onSaved={() => {}}/>)
+    fireEvent.click(await screen.findByRole('button', { name: /Trip A/ }))
+    expect(await screen.findByText(/including ones no longer counted as trip cost/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove trip' }))
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith('batch', expect.anything()))
+    const body = apiMock.mock.calls.find(([path]) => path === 'batch')![1] as { items: { kind: string; anchors: Record<string, string> }[] }
+    expect(body.items.map(item => [item.kind, item.anchors])).toEqual([['ENTRY_TRIP_RETIRE', { entry: 'a9' }], ['TRIP_RETIRE', { trip: trip.trip_id }]])
+  })
+
+  it("shows each trip's status and an empty budget slot on the detail", async () => {
+    apiMock.mockImplementation(routes)
+    render(<TripsView generation="g1" onSaved={() => {}}/>)
+    expect(await screen.findByText('Past')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Trip A/ }))
+    expect(await screen.findByText(/· PAST/)).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Budget' })).toHaveTextContent('No budget for this trip yet.')
   })
 })

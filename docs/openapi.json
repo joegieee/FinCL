@@ -6183,6 +6183,61 @@
         }
       }
     },
+    "/api/v1/entry-context": {
+      "get": {
+        "summary": "Entry Context",
+        "operationId": "entry_context_api_v1_entry_context_get",
+        "parameters": [
+          {
+            "name": "anchor",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Anchor"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Entry Context Api V1 Entry Context Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/countries": {
       "get": {
         "summary": "Countries",
