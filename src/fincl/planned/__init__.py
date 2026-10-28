@@ -16,6 +16,7 @@ _LAZY = {
     "planned_page": "fincl.planned.queries",
     "planned_page_from": "fincl.planned.queries",
     "match_candidates": "fincl.planned.queries",
+    "planned_source": "fincl.planned.forecast",
 }
 
 
@@ -35,5 +36,6 @@ __all__ = [
     "match_candidates",
     "planned_page",
     "planned_page_from",
+    "planned_source",
     "validate_planned",
 ]
