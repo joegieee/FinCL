@@ -84,6 +84,13 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
     loadCashPosition().then(p => setPockets(p.pockets)).catch(() => setPockets([]))
   }, [])
   useEffect(() => { load() }, [load, reloadKey])
+  // A to-do that links here with the anchor lands on this card once it exists.
+  const shown = report !== null
+  useEffect(() => {
+    if (shown && window.location.hash === `#${SETUP_COVERAGE_ID}`) {
+      document.getElementById(SETUP_COVERAGE_ID)?.scrollIntoView?.({ block: 'start' })
+    }
+  }, [shown])
 
   if (!report) return null
   const accounts = rows(report, readiness)
