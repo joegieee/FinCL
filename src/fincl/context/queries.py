@@ -196,8 +196,9 @@ def trip_detail_from(connection: sqlite3.Connection, trip_id: str, *, expected: 
         "contributors": [_row(e, trip) for e in members],
         "review": {
             "missing_country": [_row(e) for e in review if e["country"] is None],
-            "ambiguous": [_row(e) for e in review if e["assignment"] == "ambiguous"],
-            "other_country": [_row(e) for e in review if e["country"] is not None and e["assignment"] == "none"],
+            # Ambiguous between other trips is, for this one, just another country.
+            "ambiguous": [_row(e) for e in review if trip_id in e["candidates"]],
+            "other_country": [_row(e) for e in review if e["country"] is not None and trip_id not in e["candidates"]],
             "excluded": [_row(e) for e in in_window if e["assignment"] == "excluded"],
         },
     }

@@ -188,6 +188,15 @@ class TripTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/v1/trips").json()["trips"], [])
         self.assertEqual(self.client.get(f"/api/v1/trips/{trip_a}").status_code, 404)
 
+    def test_a_row_ambiguous_between_other_trips_is_another_country_here(self) -> None:
+        self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        self.trip("Trip B", "2026-01-10", "2026-01-15", ["FR"])
+        trip_c = self.trip("Trip C", "2026-01-10", "2026-01-15", ["JP"])
+        self.country("Taxi", "FR")
+        review = self.detail(trip_c)["review"]
+        self.assertEqual(review["ambiguous"], [])
+        self.assertIn("taxi", self.merchants(review["other_country"]))
+
     def test_invalid_context_decisions_are_refused(self) -> None:
         trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
         meal = {"entry": self.anchor("Meal")}
