@@ -556,6 +556,21 @@ class V05ReadTests(ApiTestBase):
             [("corrected.pdf", True), ("revolut.csv", False)],
         )
 
+    def test_account_coverage_names_a_month_missing_between_statements(self) -> None:
+        march = [["Topup", "Current", "2026-03-01 10:00:00", "2026-03-01 10:00:01",
+                  "Seed", "10.00", "0.00", "SGD", "COMPLETED", "435.75"],
+                 ["Card Payment", "Current", "2026-03-31 10:00:00", "2026-03-31 10:00:01",
+                  "Grocer", "-5.75", "0.00", "SGD", "COMPLETED", "430.00"]]
+        self.upload(("march.pdf", csv_bytes(march)))
+        self.post("/api/v1/refresh", {}, self.csrf)
+
+        (pocket,) = self.client.get("/api/v1/accounts").json()["accounts"][0]["pockets"]
+
+        self.assertEqual(
+            (pocket["observed_start"], pocket["observed_end"], pocket["coverage_status"], pocket["gaps"]),
+            ("2026-01-01", "2026-03-31", "gap", [{"start": "2026-01-21", "end": "2026-02-28"}]),
+        )
+
     def test_an_upload_without_a_type_is_recognised_by_its_parser(self) -> None:
         mari = (Path(__file__).parent / "fixtures" / "mari_card.pdf").read_bytes()
         response = self.client.post(

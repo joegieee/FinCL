@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -294,6 +295,9 @@ def accounts_page(database: Path) -> dict[str, Any]:
                FROM accounts a LEFT JOIN ledger_entries e ON e.account_id=a.id
                GROUP BY a.id,e.currency_pocket ORDER BY a.institution,a.display_name,a.id"""
         ).fetchall()
+        from .coverage import account_statement_coverage
+
+        statement_coverage = account_statement_coverage(connection)
         by_account: dict[str, dict[str, Any]] = {}
         for row in rows:
             item = by_account.setdefault(
@@ -318,10 +322,18 @@ def accounts_page(database: Path) -> dict[str, Any]:
             scope = scopes.get((row["id"], pocket))
             expected_start = str(scope.payload["expected_start"]) if scope else ""
             expected_end = str(scope.payload["expected_end"]) if scope else ""
-            observed_start = str(row["observed_start"]) if row["observed_start"] else ""
-            observed_end = str(row["observed_end"]) if row["observed_end"] else ""
+            # Statement periods are the coverage; entry dates only stand in for
+            # an account whose statements print no period.
+            periods = statement_coverage.get(row["id"], [])
+            observed_start = periods[0].start if periods else str(row["observed_start"] or "")
+            observed_end = periods[-1].end if periods else str(row["observed_end"] or "")
+            gaps = [
+                {"start": _next_day(before.end), "end": _previous_day(after.start)}
+                for before, after in zip(periods, periods[1:], strict=False)
+            ]
             status = (
-                "unconfigured" if scope is None
+                "gap" if gaps
+                else "unconfigured" if scope is None
                 else "gap" if not observed_start or observed_start > expected_start
                 or (expected_end and observed_end < expected_end)
                 else "covered"
@@ -335,6 +347,7 @@ def accounts_page(database: Path) -> dict[str, Any]:
                     "observed_end": observed_end or None,
                     "entry_count": row["entry_count"] or 0,
                     "coverage_status": status,
+                    "gaps": gaps,
                 }
             )
         _RANK = {"gap": 0, "unconfigured": 1, "covered": 2}
@@ -363,6 +376,14 @@ def accounts_page(database: Path) -> dict[str, Any]:
         }
     finally:
         connection.close()
+
+
+def _next_day(day: str) -> str:
+    return (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+
+
+def _previous_day(day: str) -> str:
+    return (date.fromisoformat(day) - timedelta(days=1)).isoformat()
 
 
 def categories_page(database: Path) -> dict[str, Any]:

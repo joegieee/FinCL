@@ -119,7 +119,7 @@ function PocketRow({ account, pocket, generation, disabled, onSaved }: {
         <td>{pocket.pocket}</td>
         <td>{pocket.observed_start ? `${pocket.observed_start} → ${pocket.observed_end}` : '—'}<small>{pocket.entry_count} entries</small></td>
         <td>{pocket.expected_start ? `${pocket.expected_start} → ${pocket.expected_end || 'open'}` : '—'}</td>
-        <td><Badge variant="outline" className={pocket.coverage_status === 'gap' ? 'review-badge' : ''}>{STATUS_LABEL[pocket.coverage_status]}</Badge></td>
+        <td><Badge variant="outline" className={pocket.coverage_status === 'gap' ? 'review-badge' : ''}>{STATUS_LABEL[pocket.coverage_status]}</Badge>{pocket.gaps.length > 0 && <small>No statement for {pocket.gaps.map(g => `${g.start} → ${g.end}`).join(', ')}</small>}</td>
         <td><Button variant="ghost" size="sm" onClick={() => { setOpen(v => !v); cmd.reset() }}>{open ? 'Cancel' : 'Set window'}</Button></td>
       </tr>
       {open && (
