@@ -30,9 +30,10 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from ..coverage import account_statement_coverage
 from ..db import connect_readonly, database_path
 from ..decision_journal import default_journal_path, read_records
-from ..intervals import DateInterval, month_span, normalize
+from ..intervals import DateInterval, month_span
 from ..money import ExactMoney, exact_sum, format_decimal
 from ..read_cache import per_request
 from ..v05 import generation_of_from
@@ -84,10 +85,17 @@ def _prev_month(year_month: str) -> str:
 
 
 
-def _account_scopes_from(connection: sqlite3.Connection) -> dict[tuple[str, str], dict[str, str]]:
-    """Latest ``ACCOUNT_SCOPE_SET`` expected window per ``(account, pocket)``."""
+def _account_scopes_from(
+    connection: sqlite3.Connection,
+) -> tuple[dict[tuple[str, str], dict[str, str]], dict[str, str]]:
+    """Latest ``ACCOUNT_SCOPE_SET`` expected window per ``(account, pocket)``,
+    and the latest non-empty ``ACCOUNT_DETAILS_SET`` archive date per account."""
     scopes: dict[tuple[str, str], dict[str, str]] = {}
+    archived: dict[str, str] = {}
     for record in read_records(default_journal_path(database_path(connection))):
+        if record.decision_kind == "ACCOUNT_DETAILS_SET":
+            archived[record.anchors["account"]] = str(record.payload.get("archived_on") or "")
+            continue
         if record.decision_kind != "ACCOUNT_SCOPE_SET":
             continue
         key = (record.anchors["account"], record.anchors["pocket"])
@@ -95,29 +103,7 @@ def _account_scopes_from(connection: sqlite3.Connection) -> dict[tuple[str, str]
             "expected_start": str(record.payload["expected_start"]),
             "expected_end": str(record.payload["expected_end"]),
         }
-    return scopes
-
-
-def _statement_periods(
-    connection: sqlite3.Connection,
-) -> dict[str, list[DateInterval]]:
-    """Normalized SELECTED accepted statement periods per account."""
-    rows = connection.execute(
-        """
-        SELECT s.account_id AS account_id, s.period_start AS lo, s.period_end AS hi
-        FROM statements s
-        JOIN extraction_runs x ON x.id = s.extraction_run_id
-        WHERE x.status = 'ACCEPTED'
-          AND s.selection_state = 'SELECTED'
-          AND s.period_start IS NOT NULL AND s.period_end IS NOT NULL
-        """
-    ).fetchall()
-    by_account: dict[str, list[DateInterval]] = {}
-    for row in rows:
-        by_account.setdefault(row["account_id"], []).append(
-            DateInterval(row["lo"][:10], row["hi"][:10])
-        )
-    return {account: normalize(spans) for account, spans in by_account.items()}
+    return scopes, {account: day for account, day in archived.items() if day}
 
 
 def _pocket_rows(connection: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -261,9 +247,15 @@ def baseline_readiness_from(connection: sqlite3.Connection, *, today: date) -> d
     graph and must never consult the wall clock itself — the caller resolves
     one request date and threads it down.
     """
-    scopes = _account_scopes_from(connection)
-    periods_by_account = _statement_periods(connection)
+    scopes, archived = _account_scopes_from(connection)
+    periods_by_account = account_statement_coverage(connection)
     pocket_rows = _pocket_rows(connection)
+    # An account with no stated end is expected to stay active as long as any
+    # other account has evidence. Without this, an account whose statements
+    # stop simply leaves the grid, and later months look complete without it.
+    evidence_end = max(
+        (spans[-1].end for spans in periods_by_account.values() if spans), default=None
+    )
     pockets: list[dict[str, Any]] = []
     span_starts: list[str] = []
     span_ends: list[str] = []
@@ -290,13 +282,15 @@ def baseline_readiness_from(connection: sqlite3.Connection, *, today: date) -> d
                 ],
             )
         )
+        stated_end = (scope["expected_end"] if scope else "") or archived.get(account_id)
         span_end = max(
             filter(
                 None,
                 [
                     observed_end,
-                    scope["expected_end"] if scope else None,
+                    stated_end,
                     periods[-1].end if periods else None,
+                    None if stated_end else evidence_end,
                 ],
             )
         )

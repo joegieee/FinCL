@@ -77,7 +77,7 @@ def materialize_components(
                 "evidence_sha256": component.evidence_sha256,
                 "decision_seqs": json.dumps(list(component.decision_seqs)),
                 "nets": int(component.nets),
-                "eligible": 1,
+                "eligible": int(component.eligible),
             }
         )
         source_refs.append(
