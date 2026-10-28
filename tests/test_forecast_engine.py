@@ -390,6 +390,7 @@ class CashTimelineTrapTests(unittest.TestCase):
             [event.source_id for event in events],
             ["card_statement:stmt-1:SGD", "purchase:desk"],
         )
+        self.assertEqual({event.provenance["origin"] for event in events}, {"card_statement"})
         self.assertTrue(base["settlement"]["settled_exactly_once"])
         card_rows = [
             event

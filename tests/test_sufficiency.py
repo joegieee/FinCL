@@ -595,6 +595,12 @@ class CardPlanTodoTests(unittest.TestCase):
             "Rewards Card (SGD): its bills can't be dated or sized from the statements, so none are counted.",
         ])
 
+    def test_card_settlements_are_their_own_family(self) -> None:
+        self.assertEqual(
+            _driver_origin({"source_id": "posted_unbilled:2026-01-31", "provenance": {"origin": "card_statement"}}),
+            "card_statement",
+        )
+
     def test_a_declared_plan_leaves_only_the_missing_statement(self) -> None:
         self.assertNotIn("card-plan", self._keys("card c SGD has no reconciled exactly-once settlement plan"))
 

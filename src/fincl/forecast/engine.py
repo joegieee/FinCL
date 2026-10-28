@@ -1994,6 +1994,7 @@ def _card_events(
                     residual_amount=str(row["amount"]) if purchase else None,
                     removes_from_residual=purchase is not None,
                     provenance={
+                        "origin": "card_statement",
                         "contract": conversion.get("contract_version"),
                         "partition": row.get("partition"),
                         "basis": row.get("basis"),
