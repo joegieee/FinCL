@@ -158,6 +158,8 @@ def validate_planned(kind: str, anchors: dict[str, str], payload: dict[str, Any]
         if payload["direction"] == DIRECTION_INFLOW and payload["baseline_treatment"] != TREATMENT_EXTRA:
             raise FinCLError("Planned income is always extra: it never replaces spending")
         _link(payload["link"])
+        if payload["direction"] == DIRECTION_INFLOW and payload["link"] is not None:
+            raise FinCLError("Only planned spending can be part of a trip")
     elif kind == PLANNED_MATCH_SET:
         if set(payload) != {"amount", "reason"}:
             raise FinCLError("PLANNED_MATCH_SET payload is exactly {amount, reason}")

@@ -240,6 +240,7 @@ class PlannedValidationTests(unittest.TestCase):
             ({"occurrences": [_occurrence("a", "2026-03-02", "1.00")] * 2}, "used twice"),
             ({"occurrences": [_occurrence("a", "2026-03-02", "0.00")]}, "greater than zero"),
             ({"link": {"kind": "debt", "id": "x"}}, "can link only to: trip"),
+            ({"direction": "inflow", "link": {"kind": "trip", "id": "x"}}, "Only planned spending"),
         ]:
             with self.subTest(change=change), self.assertRaisesRegex(FinCLError, message):
                 validate_planned("PLANNED_FLOW_SET", flow, _flow(**change))
