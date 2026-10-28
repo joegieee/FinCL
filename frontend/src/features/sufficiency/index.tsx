@@ -1,6 +1,6 @@
 import { WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, ArrowRight, CheckCircle2, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, Plus, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { AsyncView } from '@/components/AsyncView'
@@ -59,7 +59,7 @@ function plainDates(text: string): string {
  * - Every to-do points at the page that fixes it.
  */
 export function SufficiencyView({
-  generation, onSaved, onOpen, onOpenObligations, onOpenCash,
+  generation, onSaved, onOpen, onOpenObligations, onOpenCash, onOpenPlanned,
 }: {
   generation: string; onSaved?: (status: string) => void | Promise<void>
   /** Where each "make this answer better" item is fixed. */
@@ -68,6 +68,8 @@ export function SufficiencyView({
   /** Where a missing answer is fixed: the Cash page names, per pocket, the
    * account and date holding the shared cutoff back. */
   onOpenCash?: () => void
+  /** Where known future money (a bill, a purchase, a trip, income) is added. */
+  onOpenPlanned?: () => void
 }) {
   const [page, setPage] = useState<SufficiencyPage | null>(null)
   const [error, setError] = useState('')
@@ -92,7 +94,10 @@ export function SufficiencyView({
           <div className="sufficiency-view"><WorkspaceReportingDetails data={page}/>
             <div className="scope-caption">
               <span>An estimate from your imported statements, on the same evidence as the Forecast tab.</span>
-              <Button variant="ghost" size="sm" onClick={load}><RefreshCw size={14} /> Refresh</Button>
+              <span>
+                {onOpenPlanned && <Button variant="outline" size="sm" onClick={onOpenPlanned}><Plus size={14} /> Add something you know is coming</Button>}
+                <Button variant="ghost" size="sm" onClick={load}><RefreshCw size={14} /> Refresh</Button>
+              </span>
             </div>
 
             {!counted && (

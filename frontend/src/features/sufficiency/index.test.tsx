@@ -150,6 +150,14 @@ describe('SufficiencyView', () => {
     expect(await screen.findByText(/^Everyday: proven through 10 Dec 2025/)).toHaveTextContent('out of date · holding the start back')
   })
 
+  it('offers a way in to add something you know is coming', async () => {
+    const onOpenPlanned = vi.fn()
+    render(<SufficiencyView generation="gen-1" onOpenPlanned={onOpenPlanned} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Add something you know is coming/ }))
+
+    expect(onOpenPlanned).toHaveBeenCalled()
+  })
+
   it('lands an import to-do on the coverage card', async () => {
     const onOpen = vi.fn()
     loadSufficiency.mockResolvedValue(page({ combined_answer: combined({ todos: [

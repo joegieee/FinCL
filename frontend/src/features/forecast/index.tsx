@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { AlertTriangle, Plus, RefreshCw } from 'lucide-react'
 import { Area, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -58,7 +58,8 @@ type StaleBanner = 'none' | 'same-scope' | 'refresh-required'
  * source events) is read straight through from the same response's
  * unchanged `native` field and is never recomputed here.
  */
-export function ForecastView() {
+/** `onOpenPlanned` opens the Planned tab, where known future money is entered. */
+export function ForecastView({ onOpenPlanned }: { onOpenPlanned?: () => void } = {}) {
   const [page, setPage] = useState<ForecastPageOut | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -119,7 +120,10 @@ export function ForecastView() {
   return <div className="forecast-view" aria-busy={loading}>
     <div className="scope-caption">
       <span>Reporting in {reportingCurrency}{native?.horizon ? ` · forecast from the supported cutoff ${native.horizon.supported_cash_cutoff} through ${native.horizon.end}` : ''} · estimates never enter recorded totals</span>
-      <Button variant="ghost" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</Button>
+      <span>
+        {onOpenPlanned && <Button variant="outline" size="sm" onClick={onOpenPlanned}><Plus size={14} /> Add something you know is coming</Button>}
+        <Button variant="ghost" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</Button>
+      </span>
     </div>
 
     {error && <div className="alert error" role="alert"><div><strong>We couldn’t load the forecast.</strong><p>{error}</p></div><Button variant="outline" onClick={load}>Try again</Button></div>}
