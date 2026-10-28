@@ -515,6 +515,7 @@ class CombinedAnswerTests(unittest.TestCase):
         [debts] = answer["where_it_goes"]
         self.assertEqual(debts["total"], "100.00")
         self.assertEqual([item["label"] for item in debts["items"]], ["Loan", "IOU"])
+        self.assertEqual(answer["monthly_out"], "16.67")
 
     def test_todos_group_one_fix_into_one_item_and_point_at_its_page(self) -> None:
         items = [
@@ -533,10 +534,63 @@ class CombinedAnswerTests(unittest.TestCase):
 
         self.assertEqual(
             [(todo["key"], todo["page"]) for todo in answer["todos"]],
-            [("recent-statements", "Setup"), ("debt-dates", "Debts"), ("plan-dates", "Installments"),
+            [("recent-statements", "Setup"), ("debt-dates", "Debts"),
              ("statement-gaps", "Setup"), ("essential", "Categorization")],
         )
         self.assertIn("Everyday, Savings", answer["todos"][0]["detail"])
+        # No page can set an installment plan's remaining dates, so it is named instead.
+        self.assertIn("Phone: its remaining due dates aren't known, so it isn't counted.",
+                      answer["incomplete_because"])
+
+    def test_evidence_gaps_go_to_the_import_page_or_beside_the_answer(self) -> None:
+        items = [
+            {"output": "baseline", "task": "import-missing", "account_name": "Everyday", "detail": "x"},
+            {"output": "baseline", "task": "confirm-export-period", "account_name": "Wallet", "detail": "y"},
+            {"output": "baseline", "task": "resolve-reconciliation", "account_name": "Savings",
+             "detail": "1 of 4 reconciliation checks fail for Savings"},
+        ]
+        answer = self._answer(
+            _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, items), {"SGD": Fraction(1)},
+        )
+
+        self.assertEqual([(t["key"], t["page"]) for t in answer["todos"]],
+                         [("statement-gaps", "Setup"), ("export-period", "Setup")])
+        self.assertIn("Everyday", answer["todos"][0]["detail"])
+        self.assertIn("Wallet", answer["todos"][1]["detail"])
+        self.assertEqual(answer["incomplete_because"], [
+            "1 of 4 reconciliation checks fail for Savings, so your usual spending may be off.",
+        ])
+        self.assertEqual(answer["answer"], "Yes")
+        self.assertFalse(answer["complete"])
+
+    def test_a_pocket_left_out_for_an_engine_reason_asks_nothing_of_setup(self) -> None:
+        timeline = _timeline({
+            "SGD": _pocket(_days(("2026-02-01", "100.00"))),
+            "USD": _pocket(_days(("2026-02-01", "50.00")), available=False,
+                           events=[{"direction": "outflow", "on": "2026-02-01", "amount": "5.00", "label": "x"}],
+                           reason="USD has no supported residual-spending input"),
+        })
+
+        answer = self._answer(timeline, {"SGD": Fraction(1), "USD": Fraction(1)})
+
+        self.assertEqual(answer["todos"], [])
+        self.assertEqual([p["counted"] for p in answer["pockets"]], ["projected", "not_counted"])
+
+    def test_an_action_item_can_name_its_own_fix_and_shares_it_by_key(self) -> None:
+        fix = {"key": "fund-due", "page": "Annual funds", "title": "Did it happen?"}
+        items = [
+            {"output": "planned", "todo": {**fix, "detail": "Boiler was due on 2026-01-10."}},
+            {"output": "planned", "todo": {**fix, "detail": "Roof was due on 2026-01-20."}},
+        ]
+        answer = self._answer(
+            _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, items), {"SGD": Fraction(1)},
+        )
+
+        self.assertEqual(
+            answer["todos"],
+            [{"key": "fund-due", "page": "Annual funds", "title": "Did it happen?",
+              "detail": "Boiler was due on 2026-01-10. Roof was due on 2026-01-20."}],
+        )
 
 
 if __name__ == "__main__":
@@ -552,6 +606,38 @@ class CardPlanTodoTests(unittest.TestCase):
 
     def test_an_unknown_repayment_asks_how_the_card_is_paid(self) -> None:
         self.assertIn("card-plan", self._keys("at least one evidenced statement was not settled in full, so the balance revolves"))
+
+    def test_a_card_with_one_statement_asks_for_another(self) -> None:
+        timeline = _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, [{
+            "output": "card_settlement", "requirement": "cycle_geometry_unevidenced",
+            "label": "Rewards Card", "detail": "1 statement(s) carry both a period end and a due date",
+        }])
+        answer = combined_answer(timeline, rates={"SGD": Fraction(1)}, reporting_currency="SGD", scale=2)
+
+        todo = next(todo for todo in answer["todos"] if todo["key"] == "card-history")
+        self.assertEqual(todo["page"], "Setup")
+        self.assertIn("Rewards Card", todo["detail"])
+
+    def test_missing_card_bills_keep_a_yes_from_being_plain(self) -> None:
+        pocket = _pocket(_days(("2026-02-01", "100.00")))
+        pocket["missing_outflows"] = [{
+            "kind": "card_statement", "account_id": "c1", "label": "Rewards Card",
+            "reason": "its bills can't be dated or sized from the statements, so none are counted",
+        }]
+        answer = combined_answer(_timeline({"SGD": pocket}), rates={"SGD": Fraction(1)},
+                                 reporting_currency="SGD", scale=2)
+
+        self.assertEqual((answer["verdict"], answer["answer"]), ("enough", "Yes, but not every bill is counted"))
+        self.assertFalse(answer["complete"])
+        self.assertEqual(answer["incomplete_because"], [
+            "Rewards Card (SGD): its bills can't be dated or sized from the statements, so none are counted.",
+        ])
+
+    def test_card_settlements_are_their_own_family(self) -> None:
+        self.assertEqual(
+            _driver_origin({"source_id": "posted_unbilled:2026-01-31", "provenance": {"origin": "card_statement"}}),
+            "card_statement",
+        )
 
     def test_a_declared_plan_leaves_only_the_missing_statement(self) -> None:
         self.assertNotIn("card-plan", self._keys("card c SGD has no reconciled exactly-once settlement plan"))
@@ -580,6 +666,18 @@ class NotInThePathTests(unittest.TestCase):
         self.assertEqual([item["label"] for item in missing["items"]], ["A"])
         # Lowest point 40.00; repaying 65.00 now leaves it 25.00 below zero.
         self.assertEqual(missing["short_if_repaid_now"], "25.00")
+
+    def test_undated_debts_the_path_can_absorb_leave_nothing_short(self) -> None:
+        timeline = _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, [
+            {"output": "obligation_timing", "obligation_id": "debt:a", "origin": "personal_debt", "label": "A"},
+        ])
+        owed = [{"obligation_id": "debt:a", "origin": "personal_debt", "label": "A", "direction": "outflow",
+                 "remaining_amount": {"value": "30.00", "currency": "SGD"}}]
+
+        answer = combined_answer(timeline, rates={"SGD": Fraction(1)}, reporting_currency="SGD", scale=2, owed=owed)
+
+        self.assertEqual(answer["not_in_the_path"]["total"], "30.00")
+        self.assertIsNone(answer["not_in_the_path"]["short_if_repaid_now"])
 
     def test_nothing_undated_means_nothing_to_add(self) -> None:
         answer = combined_answer(_timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}),

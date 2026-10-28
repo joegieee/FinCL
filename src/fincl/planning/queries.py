@@ -457,7 +457,7 @@ def recurring_occurrences(database: Path, commitment: str, *, start: str, end: s
         }
         usual = _money(row["expected_coefficient"] * 10 ** (2 - row["expected_scale"]))
         varied = occurrence_amounts(connection, commitment)
-        today = date.today().isoformat()
+        today = clock.today().isoformat()
         contract = _coverage_contract(connection)
         claimed = {r["entry_anchor"]: r["commitment"] for r in connection.execute(
             "SELECT commitment, entry_anchor FROM recurring_occurrences WHERE entry_anchor IS NOT NULL")}

@@ -16,6 +16,7 @@ from fincl.forecast.engine import (
     COLUMN_LIFESTYLE,
     CONFIDENCE_CONFIRMED,
     CONFIDENCE_LIKELY,
+    CONFIDENCE_POSSIBLE,
     DIRECTION_IN,
     DIRECTION_OUT,
     TIMING_INFERRED,
@@ -28,6 +29,7 @@ from fincl.forecast.engine import (
     build_cash_timeline,
     run_timeline,
 )
+from fincl.forecast.manifest import _ambiguous_obligations
 
 
 def _manifest(*, balance: str = "1000.00") -> dict:
@@ -103,6 +105,85 @@ class CashTimelineTrapTests(unittest.TestCase):
             (items["obligation_timing"]["origin"], items["obligation_timing"]["label"]),
             ("personal_debt", "Loan"),
         )
+
+    def test_a_card_without_a_plan_is_named_with_what_it_needs(self) -> None:
+        conversion = {"cards": [{
+            "account_id": "card-1", "currency": "SGD", "label": "Rewards Card",
+            "plan": {"available": False, "settlements": [], "unresolved": [{
+                "requirement": "cycle_geometry_unevidenced", "detail": "one statement only",
+            }]},
+            "reconciliation": {"reconciled": False},
+        }]}
+
+        events, limitations, missing = _card_events(conversion, prospective=[])
+
+        self.assertEqual(events, [])
+        self.assertIn("one statement only", limitations)
+        self.assertEqual(missing, [{
+            "account_id": "card-1", "currency": "SGD", "label": "Rewards Card",
+            "requirements": {"one statement only": "cycle_geometry_unevidenced"},
+        }])
+
+    def test_a_possible_cost_is_paid_in_the_cautious_case_only(self) -> None:
+        risk = ForecastEvent(
+            event_id="repair", source_id="repair", currency="SGD", amount="400.00",
+            column=COLUMN_IRREGULAR, direction=DIRECTION_OUT, label="Car repair",
+            on="2026-03-02", confidence=CONFIDENCE_POSSIBLE,
+        )
+        estimate = {"available": True, "by_currency": {"SGD": {
+            "variable_residual_monthly": "0.00", "variable_residual_max": "0.00",
+            "irregular_allowance_monthly": "0.00",
+        }}}
+
+        cell = build_cash_timeline(_manifest(), sourced_events=[risk], estimate=estimate)["by_currency"]["SGD"]
+
+        self.assertEqual([e["source_id"] for e in cell["base"]["events"]["items"]], [])
+        self.assertEqual([e["source_id"] for e in cell["conservative"]["events"]["items"]], ["repair"])
+        self.assertTrue(cell["monotonicity"]["holds"])
+
+    def test_money_in_a_currency_with_no_pocket_is_named_not_dropped(self) -> None:
+        fee = ForecastEvent(
+            event_id="visa", source_id="visa", currency="USD", amount="160.00",
+            column=COLUMN_IRREGULAR, direction=DIRECTION_OUT, label="Visa fee", on="2026-03-02",
+        )
+
+        result = build_cash_timeline(_manifest(), sourced_events=[fee])
+
+        self.assertNotIn("USD", result["by_currency"])
+        self.assertIn("Visa fee (USD): there is no USD account to pay it from or into, so it isn't counted.",
+                      result["answer_gaps"])
+        self.assertTrue(any("no USD cash pocket" in limit for limit in result["limitations"]))
+
+    def test_a_scheduled_commitment_is_never_an_undated_obligation(self) -> None:
+        annual = {
+            "obligation_id": "recurring:insurance", "origin": "recurring_commitment",
+            "label": "Insurance", "currency": "SGD", "amount_basis": "lump_sum_due",
+            "date_basis": {"kind": "no_scheduled_occurrence", "value": None,
+                           "schedule": {"kind": "interval_months", "months": 12, "day": 1,
+                                        "anchor_on": "2026-01-01"}},
+        }
+
+        self.assertEqual(_ambiguous_obligations([annual]), [])
+
+    def test_a_dated_cost_beyond_its_residual_is_a_note_not_a_missing_case(self) -> None:
+        bill = ForecastEvent(
+            event_id="boiler", source_id="boiler", currency="SGD", amount="500.00",
+            column=COLUMN_IRREGULAR, direction=DIRECTION_OUT, label="Boiler", on="2026-02-10",
+            residual_category="manifest:irregular:SGD", residual_on="2026-02-10",
+            residual_amount="500.00", removes_from_residual=True,
+        )
+        estimate = {"available": True, "by_currency": {"SGD": {
+            "variable_residual_monthly": "300.00", "variable_residual_max": "300.00",
+            "irregular_allowance_monthly": "50.00",
+        }}}
+
+        cell = build_cash_timeline(_manifest(), sourced_events=[bill], estimate=estimate)["by_currency"]["SGD"]
+
+        self.assertTrue(cell["available"])
+        self.assertEqual(cell["base"]["limitations"], [])
+        self.assertIn("450.00 SGD of dated cost in manifest:irregular:SGD during 2026-02", cell["base"]["notes"][0])
+        february = next(row for row in cell["base"]["months"] if row["month"] == "2026-02")
+        self.assertEqual(february["expense"], "800.00")
 
     def test_residual_spending_is_not_gated_by_allowance_readiness(self) -> None:
         manifest = _manifest()
@@ -319,7 +400,7 @@ class CashTimelineTrapTests(unittest.TestCase):
             ],
         }
 
-        events, limitations = _card_events(
+        events, limitations, _ = _card_events(
             conversion,
             prospective=[
                 {
@@ -352,6 +433,7 @@ class CashTimelineTrapTests(unittest.TestCase):
             [event.source_id for event in events],
             ["card_statement:stmt-1:SGD", "purchase:desk"],
         )
+        self.assertEqual({event.provenance["origin"] for event in events}, {"card_statement"})
         self.assertTrue(base["settlement"]["settled_exactly_once"])
         card_rows = [
             event

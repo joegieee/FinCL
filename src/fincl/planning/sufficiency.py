@@ -83,6 +83,8 @@ _DRIVER_LABELS: tuple[tuple[str, str], ...] = (
     ("card_statement", "Card settlements"),
     ("recurring_commitment", "Recurring commitments"),
     ("sinking_fund", "Annual funds set aside"),
+    ("planned", "Planned spending"),
+    ("planned_income", "Planned income"),
     ("baseline_spending", "Baseline spending"),
     ("other", "Other committed outflows"),
 )
@@ -281,8 +283,6 @@ _FIX_PAGE = {
     "imports": "Setup",
     "cards": "Cards",
     "debts": "Debts",
-    "installments": "Installments",
-    "obligations": "Obligations",
     "income": "Income",
     "essential": "Categorization",
 }
@@ -457,6 +457,15 @@ def _todos(
                 "detail": f"Card spending between {window.group(1)} and {window.group(2)} is unknown, "
                           "so it is not counted.",
             })
+    history = sorted({str(i.get("label")) for i in items
+                      if i.get("requirement") == "cycle_geometry_unevidenced"})
+    if history:
+        todos.append({
+            "key": "card-history", "page": _FIX_PAGE["imports"],
+            "title": "Import another statement for your card",
+            "detail": "Two statements with a due date are needed before the next card bill can be "
+                      f"dated, so these cards' bills aren't counted yet: {', '.join(history)}.",
+        })
     # Only when how the card is repaid is the unknown: a missing statement is
     # its own to-do above, and the generic "no settlement plan" line is just
     # the consequence of one of the two.
@@ -470,21 +479,29 @@ def _todos(
                       "pay can't be read from them. Until you say, card repayments are not counted.",
         })
 
-    undated = [i for i in items if i.get("output") == "obligation_timing"]
-    debts = sorted({str(i.get("label")) for i in undated if i.get("origin") == "personal_debt"})
-    plans = sorted({str(i.get("label")) for i in undated if i.get("origin") == "installment_plan"})
-    others = sorted({str(i.get("label")) for i in undated
-                     if i.get("origin") not in ("personal_debt", "installment_plan")})
-    for key, labels, page, title in (
-        ("debt-dates", debts, "debts", "Give your debts a due date"),
-        ("plan-dates", plans, "installments", "Set the remaining due dates on your installment plans"),
-        ("obligation-dates", others, "obligations", "Give these bills a due date"),
-    ):
-        if labels:
-            todos.append({
-                "key": key, "page": _FIX_PAGE[page], "title": title,
-                "detail": f"Without a date they are not in the answer: {', '.join(labels)}.",
-            })
+    debts = sorted({str(i.get("label")) for i in items
+                    if i.get("output") == "obligation_timing" and i.get("origin") == "personal_debt"})
+    if debts:
+        todos.append({
+            "key": "debt-dates", "page": _FIX_PAGE["debts"], "title": "Give your debts a due date",
+            "detail": f"Without a date they are not in the answer: {', '.join(debts)}.",
+        })
+
+    # An action item may name its own fix. Items sharing a key are one to-do.
+    own: dict[str, dict[str, Any]] = {}
+    for item in items:
+        todo = item.get("todo")
+        if not todo:
+            continue
+        if todo["key"] in own:
+            if todo["detail"] not in own[todo["key"]]["detail"]:
+                own[todo["key"]]["detail"] += f" {todo['detail']}"
+            continue
+        own[todo["key"]] = {
+            "key": str(todo["key"]), "page": str(todo["page"]),
+            "title": str(todo["title"]), "detail": str(todo["detail"]),
+        }
+    todos.extend(own.values())
 
     if any(i.get("output") == "income" for i in items):
         todos.append({
@@ -493,14 +510,28 @@ def _todos(
             "detail": "Some incoming payments haven't been classified, so they may be missing as income.",
         })
 
-    older = sorted({name(i.get("account_id")) for i in items
-                    if i.get("output") == "cash" and cutoff and str(i.get("end", "")) <= cutoff})
+    older = sorted(
+        {name(i.get("account_id")) for i in items
+         if i.get("output") == "cash" and cutoff and str(i.get("end", "")) <= cutoff}
+        | {str(i.get("account_name") or name(i.get("account_id"))) for i in items
+           if i.get("output") == "baseline" and i.get("task") == "import-missing"}
+    )
     if older:
         todos.append({
             "key": "statement-gaps", "page": _FIX_PAGE["imports"],
             "title": "Fill gaps in older statements",
-            "detail": "Some months are missing, so the starting balance can't be fully checked: "
-                      f"{', '.join(older)}.",
+            "detail": "Some months are missing, so the starting balance and your usual spending "
+                      f"can't be fully checked: {', '.join(older)}.",
+        })
+
+    observed = sorted({str(i.get("account_name") or name(i.get("account_id"))) for i in items
+                       if i.get("output") == "baseline" and i.get("task") == "confirm-export-period"})
+    if observed:
+        todos.append({
+            "key": "export-period", "page": _FIX_PAGE["imports"],
+            "title": "Import full statements for these accounts",
+            "detail": "Only individual transactions are imported for them, so their months can't be "
+                      f"confirmed complete: {', '.join(observed)}.",
         })
 
     if any(i.get("output") == "reserve" for i in items):
@@ -511,24 +542,42 @@ def _todos(
                       "the answer can't tell you whether you dip into the reserve.",
         })
 
+    # Only a missing rate is fixed on a page; any other reason a pocket is
+    # left out is named beside the answer instead.
     for pocket in pockets:
-        if pocket["counted"] != COUNTED_NOT:
-            continue
-        currency, balance = pocket["currency"], pocket["starting_balance"]
-        held = f"Your {currency} balance{f' ({balance})' if balance is not None else ''}"
-        if pocket["why"] == _NO_RATE:
+        if pocket["counted"] == COUNTED_NOT and pocket["why"] == _NO_RATE:
+            currency, balance = pocket["currency"], pocket["starting_balance"]
             todos.append({
                 "key": f"pocket-{currency}", "page": _FIX_PAGE["imports"],
                 "title": f"Add an exchange rate for {currency}",
-                "detail": f"{held} isn't counted until it can be converted.",
-            })
-        else:
-            todos.append({
-                "key": f"pocket-{currency}", "page": _FIX_PAGE["imports"],
-                "title": f"Your {currency} money isn't counted",
-                "detail": f"{held} is left out because {pocket['why']}.",
+                "detail": f"Your {currency} balance{f' ({balance})' if balance is not None else ''} "
+                          "isn't counted until it can be converted.",
             })
     return todos
+
+
+def _gaps(timeline: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Money the path leaves out, and evidence it can't vouch for, that no page
+    can fix yet, in the reader's words."""
+    items = list(timeline.get("action_items") or [])
+    gaps = [
+        f"{i.get('label')}: its remaining due dates aren't known, so it isn't counted."
+        for i in items
+        if i.get("output") == "obligation_timing" and i.get("origin") == "installment_plan"
+    ]
+    gaps.extend(
+        f"{i.get('label')}: it has no due date, so it isn't counted."
+        for i in items
+        if i.get("output") == "obligation_timing"
+        and i.get("origin") not in ("personal_debt", "installment_plan", "card_statement")
+    )
+    gaps.extend(timeline.get("answer_gaps") or [])
+    caveats = [
+        f"{i.get('detail')}, so your usual spending may be off."
+        for i in items
+        if i.get("output") == "baseline" and i.get("task") == "resolve-reconciliation"
+    ]
+    return gaps, caveats
 
 
 def _not_in_the_path(
@@ -560,12 +609,13 @@ def _not_in_the_path(
         items.append({"label": obligation["label"], "origin": obligation["origin"],
                       "amount": _quantized(value, scale), "native": amount})
     items.sort(key=lambda item: -_fraction(item["amount"]))
-    short_now = None if lowest is None or not items else max(Fraction(0), total - lowest)
+    short_now = None if lowest is None or not items or total <= lowest else total - lowest
     return {
         "total": _quantized(total, scale),
         "items": items,
         "unconverted": unconverted,
-        # Repaying it all on day one lowers every day by the same amount.
+        # Repaying it all on day one lowers every day by the same amount; None
+        # when the lowest point would stay at or above zero.
         "short_if_repaid_now": None if short_now is None else _quantized(short_now, scale),
     }
 
@@ -589,6 +639,10 @@ def combined_answer(
             "currency": currency,
             "counted": how,
             "why": why,
+            "missing": [
+                {"kind": item["kind"], "label": item["label"], "reason": item["reason"]}
+                for item in cell.get("missing_outflows", [])
+            ],
             "starting_balance": balance,
             "starting_balance_reported": (
                 _quantized(_fraction(balance) * rate, scale)
@@ -618,13 +672,30 @@ def combined_answer(
     cautious = _combined_case(
         _combined_path(counted, held, name="conservative"), reserve=reserve, scale=scale
     )
-    complete = bool(counted) and all(p["counted"] != COUNTED_NOT for p in pockets)
+    gaps, caveats = _gaps(timeline)
+    missing_money = [
+        f"{item['label']} ({pocket['currency']}): {item['reason']}."
+        for pocket in pockets if pocket["currency"] in counted
+        for item in pocket["missing"]
+    ] + gaps
+    incomplete_because = missing_money + caveats
+    complete = (
+        bool(counted)
+        and all(p["counted"] != COUNTED_NOT for p in pockets)
+        and not incomplete_because
+    )
+    answer = _ANSWER[base["verdict"]]
+    if base["verdict"] == VERDICT_ENOUGH and missing_money:
+        # Bills the path never pays can't stand behind a plain yes.
+        answer = "Yes, but not every bill is counted"
     first = next(iter(counted.values()), {})
+    where_it_goes = _where_it_goes(counted, held, scale=scale)
     return {
         "reporting_currency": reporting_currency,
-        "answer": _ANSWER[base["verdict"]],
+        "answer": answer,
         "verdict": base["verdict"],
         "complete": complete,
+        "incomplete_because": incomplete_because,
         "starts_on": cutoff,
         "ends_on": ((first.get("base") or {}).get("horizon") or {}).get("end")
         or (timeline.get("horizon") or {}).get("end"),
@@ -645,7 +716,20 @@ def combined_answer(
         ),
         "pockets": pockets,
         "income": _income(counted, held, scale=scale),
-        "where_it_goes": _where_it_goes(counted, held, scale=scale),
+        # Possible inflows: named so they are not forgotten, never counted.
+        "upside": [
+            {"label": event["label"], "currency": currency, "amount": event["amount"],
+             "on": event["timing"].get("on") or event["timing"].get("latest")}
+            for currency, cell in by_currency.items()
+            for event in (cell.get("possible_income_upside") or {}).get("events", [])
+        ],
+        "where_it_goes": where_it_goes,
+        # The monthly figure the page heads that list with; summed here so the
+        # page never adds money itself.
+        "monthly_out": _quantized(
+            sum((_fraction(row["total"]) for row in where_it_goes), start=Fraction(0)) / HORIZON_MONTHS,
+            scale,
+        ),
         "todos": _todos(timeline, account_names=account_names or {}, cutoff=cutoff, pockets=pockets),
         "not_in_the_path": {"as_of": cutoff, **_not_in_the_path(
             timeline, owed or [], {c: rates.get(c) for c in rates},

@@ -28,8 +28,9 @@ purchase or an unlinked receipt adjustment block a protective claim.
 
 from __future__ import annotations
 
+import json
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,8 @@ from typing import Any
 from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
+from ..planning.recurring import occurrence_amounts
+from ..planning.schedules import occurrences
 from ..read_cache import per_request
 from ..reserve import reserve_policy
 from .queries import cost_income_table_from
@@ -117,9 +120,11 @@ def _recurring_matched_from(
 ) -> tuple[dict[tuple[str, str], Decimal], set[str]]:
     """Confirmed recurring spend matched to the month it was recorded in.
 
-    A bound occurrence of an active commitment is deterministic evidence, so
-    its owner cost is lifted out of the routine residual for that month rather
-    than being left to inflate it (§5.5).  The matched anchors are also held
+    A bound occurrence is deterministic evidence, so its owner cost is lifted
+    out of the routine residual for that month rather than being left to
+    inflate it (§5.5). That holds whatever the commitment's status: an active
+    one is forecast on its own schedule, and a paused or ended one must not
+    keep being spent through the residual.  The matched anchors are also held
     back from the outlier scan: a scheduled annual premium is a known cost, not
     irregular risk.
     """
@@ -129,7 +134,6 @@ def _recurring_matched_from(
                ac.signed_coefficient, ac.scale
         FROM analysis_components ac
         JOIN recurring_occurrences o ON o.entry_anchor = ac.origin_anchor AND o.bound = 1
-        JOIN recurring_commitments c ON c.commitment = o.commitment AND c.status = 'active'
         WHERE ac.generation_token = ? AND ac.lens = 'recorded_flow'
           AND ac.bucket IN ('spending', 'fees')
           AND ac.represented_start >= ? AND ac.represented_end <= ?
@@ -192,16 +196,71 @@ def _irregular_by_month(
 
 
 
-def _confirmed_recurring_flat_from(connection: sqlite3.Connection) -> dict[str, Decimal]:
-    rows = connection.execute(
-        "SELECT currency, expected_coefficient, expected_scale "
-        "FROM recurring_commitments WHERE status = 'active'"
-    ).fetchall()
+def _confirmed_recurring_flat_from(
+    connection: sqlite3.Connection, today: date
+) -> dict[str, Decimal]:
+    """Each active commitment's monthly equivalent over the coming year.
+
+    A weekly bill costs about 4.3 of its amounts a month and a quarterly one a
+    third, so the year's scheduled occurrences, each at its own expected
+    amount, are summed and divided by twelve.
+    """
+    year_end = date(today.year + 1, today.month, 1) - timedelta(days=1)
+    first = date(today.year, today.month, 1)
     flat: dict[str, Decimal] = {}
-    for row in rows:
-        amount = Decimal(row["expected_coefficient"]).scaleb(-int(row["expected_scale"]))
-        flat[row["currency"]] = flat.get(row["currency"], Decimal(0)) + amount
+    for row in connection.execute(
+        "SELECT commitment, currency, schedule_json, expected_coefficient, expected_scale "
+        "FROM recurring_commitments WHERE status = 'active'"
+    ):
+        usual = Decimal(row["expected_coefficient"]).scaleb(-int(row["expected_scale"]))
+        varied = occurrence_amounts(connection, str(row["commitment"]))
+        year = sum(
+            (
+                Decimal(varied[day.isoformat()]["amount"]) if day.isoformat() in varied else usual
+                for day in occurrences(json.loads(row["schedule_json"]), first, year_end)
+            ),
+            Decimal(0),
+        )
+        flat[row["currency"]] = flat.get(row["currency"], Decimal(0)) + year / 12
     return flat
+
+
+def _unlinked_recurring_from(
+    connection: sqlite3.Connection, span_start: str, span_end: str
+) -> list[dict[str, Any]]:
+    """Scheduled dates in the window that no payment has been linked to or skipped.
+
+    Only a bound payment is lifted out of the routine residual, so an unlinked
+    one is counted in usual spending as well as on its own forecast date until
+    the user links it or marks the date skipped.
+    """
+    unlinked: list[dict[str, Any]] = []
+    for row in connection.execute(
+        "SELECT commitment, name, currency, schedule_json FROM recurring_commitments "
+        "WHERE status = 'active' ORDER BY name, commitment"
+    ):
+        schedule = json.loads(row["schedule_json"])
+        recorded = {
+            str(item["scheduled_on"])
+            for item in connection.execute(
+                "SELECT scheduled_on FROM recurring_occurrences WHERE commitment = ?",
+                (row["commitment"],),
+            )
+        }
+        first = max(date.fromisoformat(span_start), date.fromisoformat(schedule["anchor_on"]))
+        dates = [
+            day.isoformat()
+            for day in occurrences(schedule, first, date.fromisoformat(span_end))
+            if day.isoformat() not in recorded
+        ]
+        if dates:
+            unlinked.append({
+                "commitment": str(row["commitment"]),
+                "name": str(row["name"]),
+                "currency": str(row["currency"]),
+                "scheduled_on": dates,
+            })
+    return unlinked
 
 
 _REGIME_SHIFT_RATIO = Decimal("0.5")
@@ -320,7 +379,7 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
     generation = current_generation(connection)
     token = generation["generation_token"] if generation else ""
     entries = _entry_spending_from(connection, token, span_start, span_end)
-    recurring_flat = _confirmed_recurring_flat_from(connection)
+    recurring_flat = _confirmed_recurring_flat_from(connection, today)
     recurring_matched, recurring_anchors = _recurring_matched_from(connection, token, span_start, span_end)
     roles = baseline_roles_from(connection, today=today)
 
@@ -488,6 +547,7 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
         "reconciliation": table["reconciliation"],
         "limitations": limitations,
         "tasks": table["tasks"],
+        "unlinked_recurring": _unlinked_recurring_from(connection, span_start, span_end),
     }
 
 

@@ -23,7 +23,7 @@ function kase(over: Record<string, unknown> = {}) {
 
 function combined(over: Record<string, unknown> = {}) {
   return {
-    reporting_currency: 'SGD', answer: 'Yes', verdict: 'enough', complete: true,
+    reporting_currency: 'SGD', answer: 'Yes', verdict: 'enough', complete: true, incomplete_because: [],
     starts_on: '2025-12-10', ends_on: '2026-06-10', starting_total: '6650.00',
     base: kase(), cautious: kase(), only_safe_in_the_base_case: false,
     reserve: { available: false, target: null },
@@ -37,6 +37,8 @@ function combined(over: Record<string, unknown> = {}) {
       { origin: 'personal_debt', label: 'Debt repayments', total: '2000.00', monthly: '333.33', items: [{ label: 'Alex', on: '2026-03-15', amount: '2000.00', conditional: false, currency: 'SGD' }] },
     ],
     todos: [],
+    upside: [],
+    monthly_out: '3333.33',
     ...over,
   }
 }
@@ -129,6 +131,29 @@ describe('SufficiencyView', () => {
     expect(screen.getByText('not counted')).toBeInTheDocument()
   })
 
+  it('says beside a yes why it is incomplete', async () => {
+    loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
+      answer: 'Yes, but not every bill is counted', complete: false,
+      incomplete_because: ['Rewards Card (SGD): its bills can’t be dated or sized from the statements, so none are counted.'],
+    }) }))
+
+    render(<SufficiencyView generation="gen-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Yes, but not every bill is counted' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent('This answer is incomplete because:Rewards Card (SGD)')
+  })
+
+  it('lists money that may come back without counting it', async () => {
+    loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
+      upside: [{ label: 'Jo', currency: 'SGD', amount: '800.00', on: '2026-02-01' }],
+    }) }))
+
+    render(<SufficiencyView generation="gen-1" />)
+
+    expect(await screen.findByText('Not counted, in case it doesn’t come:')).toBeInTheDocument()
+    expect(screen.getByText(/^Jo ·/).closest('li')).toHaveTextContent('SGD 800.00')
+  })
+
   it('lists a pocket too small to matter as ignored, without flagging the answer', async () => {
     loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
       pockets: [
@@ -196,6 +221,7 @@ describe('SufficiencyView', () => {
     expect(screen.getByText(/at 1 USD = 1.25 SGD/)).toBeInTheDocument()
     expect(screen.getByText(/likely, so left out of the cautious case/)).toBeInTheDocument()
     expect(screen.getByText(/Alex · 15 Mar 2026/)).toBeInTheDocument()
+    expect(screen.getByText(/Money going out · about SGD 3333.33 a month/)).toBeInTheDocument()
     expect(screen.queryByText('WHAT DRIVES IT')).toBeNull()
     expect(screen.queryByText('EVERYTHING THIS ANSWER COUNTS')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'See everything owed' }))

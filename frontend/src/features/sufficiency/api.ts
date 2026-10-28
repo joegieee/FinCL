@@ -38,7 +38,7 @@ export type SufficiencyCurrency = {
 }
 
 /** The tabs a "make this answer better" item can send someone to. */
-export type SufficiencyDestination = 'Setup' | 'Cards' | 'Debts' | 'Installments' | 'Obligations' | 'Income' | 'Categorization' | 'Cash'
+export type SufficiencyDestination = 'Setup' | 'Cards' | 'Debts' | 'Income' | 'Categorization' | 'Cash' | 'Planning'
 
 export type CombinedCase = {
   verdict: SufficiencyCase['verdict']
@@ -55,8 +55,10 @@ export type CombinedAnswer = {
   reporting_currency: string
   answer: string
   verdict: SufficiencyCase['verdict']
-  /** False when a pocket could not be counted; it is named in `pockets`. */
+  /** False when a pocket could not be counted or a pocket's bills are missing. */
   complete: boolean
+  /** Why the answer is incomplete, already worded for the page. */
+  incomplete_because: string[]
   starts_on: string | null
   ends_on: string | null
   starting_total: string | null
@@ -68,6 +70,7 @@ export type CombinedAnswer = {
     currency: string
     counted: 'projected' | 'held_as_is' | 'not_counted' | 'ignored'
     why: string | null
+    missing: { kind: string; label: string; reason: string }[]
     starting_balance: string | null
     starting_balance_reported: string | null
     rate: string | null
@@ -77,6 +80,10 @@ export type CombinedAnswer = {
     label: string; currency: string; count: number; next_on: string; confidence: string
     native_total: string; total: string; in_cautious_case: boolean
   }[]
+  /** Money that may come in (owed back, uncertain). Listed, never counted. */
+  upside: { label: string; currency: string; amount: string; on: string | null }[]
+  /** Every outflow family's horizon total, per month, summed on the server. */
+  monthly_out: string
   where_it_goes: {
     origin: string; label: string; total: string; monthly: string
     items: { label: string; on: string; amount: string; conditional: boolean; currency: string }[]
@@ -88,7 +95,7 @@ export type CombinedAnswer = {
     total: string
     items: { label: string; origin: string; amount: string; native: { value: string; currency: string } }[]
     unconverted: { label: string; value: string; currency: string }[]
-    /** How far below zero the lowest point goes if it were all repaid now; null when nothing is missing. */
+    /** How far below zero the lowest point goes if it were all repaid now; null when it stays at or above zero. */
     short_if_repaid_now: string | null
   }
 }

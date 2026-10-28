@@ -476,11 +476,26 @@ def _recurring_obligations(
             for item in bound
             if str(item["scheduled_on"]) <= as_of
         ]
+        skipped = sorted(
+            str(item["scheduled_on"])
+            for item in connection.execute(
+                "SELECT scheduled_on FROM recurring_occurrences "
+                "WHERE commitment = ? AND bound = 1 AND entry_anchor IS NULL",
+                (commitment,),
+            )
+        )
         categories = _categories_for(connection, token, [item["entry_anchor"] for item in bound])
         schedule = json.loads(row["schedule_json"])
         today = date.fromisoformat(as_of)
-        upcoming = schedule_occurrences(schedule, today, date.fromordinal(today.toordinal() + 62))
-        matched = {str(item["scheduled_on"]) for item in bound}
+        upcoming = [
+            occurrence
+            for occurrence in schedule_occurrences(
+                schedule, today, date.fromordinal(today.toordinal() + 62)
+            )
+            if occurrence.isoformat() not in skipped
+        ]
+        # An explicitly skipped date is resolved: it is neither owed nor overdue.
+        matched = {str(item["scheduled_on"]) for item in bound} | set(skipped)
         overdue = [
             occurrence.isoformat()
             for occurrence in schedule_occurrences(
@@ -505,6 +520,7 @@ def _recurring_obligations(
                     "schedule": schedule,
                 },
                 "unmatched_past_occurrences": overdue,
+                "skipped_occurrences": skipped,
                 "expected_amount": expected,
                 "occurrence_amounts": [
                     {"scheduled_on": on, **cell} for on, cell in varied.items()

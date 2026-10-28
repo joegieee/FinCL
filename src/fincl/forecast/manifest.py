@@ -609,6 +609,7 @@ def forecast_input_manifest_from(
             "unclassified_spending": unclassified_spending,
             "evidence_gaps": evidence_gaps,
             "ambiguous_obligations": ambiguous_obligations,
+            "unlinked_recurring": estimate.get("unlinked_recurring", []),
             "unmatched_receipts": (
                 {
                     currency: table["reconciliation"][currency]["unmatched_receipts_total"]
@@ -686,15 +687,21 @@ def _output(
 def _ambiguous_obligations(obligations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ambiguous: list[dict[str, Any]] = []
     for o in obligations:
+        # Settled debts need nothing, money owed back is never relied on, and a
+        # recurring commitment is forecast from its schedule even when no
+        # occurrence falls in the next few weeks.
+        if (
+            not o.get("stays_visible", True)
+            or (o["origin"] == "personal_debt" and o.get("direction") == "inflow")
+            or (o["origin"] == "recurring_commitment" and o.get("date_basis", {}).get("schedule"))
+        ):
+            continue
         reasons: list[str] = []
         if o.get("amount_basis") == "unknown":
             reasons.append(o.get("remaining_unknown_reason") or "amount terms are unknown")
         date_kind = o.get("date_basis", {}).get("kind")
         if date_kind in _AMBIGUOUS_DATE_KINDS:
             reasons.append(f"date basis is '{date_kind}'")
-        link = o.get("baseline_link", {})
-        if o["origin"] == "recurring_commitment" and not link.get("available"):
-            reasons.append(link.get("reason") or "baseline component link is ambiguous")
         if reasons:
             ambiguous.append(
                 {

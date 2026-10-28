@@ -152,7 +152,7 @@ function Answer({ combined, today }: { combined: CombinedAnswer; today: string }
   const cautious = combined.cautious
   const missing = combined.pockets.filter(p => p.counted === 'not_counted')
   const undated = combined.not_in_the_path
-  const shortIfRepaid = undated?.short_if_repaid_now && Number(undated.short_if_repaid_now) > 0 ? undated.short_if_repaid_now : null
+  const shortIfRepaid = undated?.short_if_repaid_now ?? null
   return (
     <Card className={`sufficiency-card ${TONE[base.verdict]}`}>
       <div className="panel-title">
@@ -185,6 +185,13 @@ function Answer({ combined, today }: { combined: CombinedAnswer; today: string }
         <p className="sufficiency-missing" role="note">
           Not counted: {missing.map(p => `${p.starting_balance == null ? p.currency : money(p.starting_balance, p.currency)} (${p.why})`).join('; ')}.
         </p>
+      )}
+
+      {combined.incomplete_because.length > 0 && (
+        <div className="sufficiency-missing" role="note">
+          <p>This answer is incomplete because:</p>
+          <ul>{combined.incomplete_because.map(reason => <li key={reason}>{reason}</li>)}</ul>
+        </div>
       )}
 
       <div className="sufficiency-cases">
@@ -228,7 +235,6 @@ function Todos({ combined, onOpen }: { combined: CombinedAnswer; onOpen?: (desti
 
 function Assumptions({ combined, today, onOpenObligations }: { combined: CombinedAnswer; today: string; onOpenObligations?: () => void }) {
   const c = combined.reporting_currency
-  const monthly = combined.where_it_goes.reduce((sum, row) => sum + Number(row.monthly), 0)
   return (
     <Card className="controls-card">
       <div className="panel-title"><div><p className="eyebrow">WHAT THIS ASSUMES</p><h2>What the answer is built on</h2></div></div>
@@ -269,7 +275,21 @@ function Assumptions({ combined, today, onOpenObligations }: { combined: Combine
           </ul>
         )}
 
-      <h3 className="assumption-heading">Money going out · about {money(monthly.toFixed(2), c)} a month</h3>
+      {combined.upside.length > 0 && (
+        <>
+          <p className="muted-note">Not counted, in case it doesn’t come:</p>
+          <ul className="assumption-list">
+            {combined.upside.map(row => (
+              <li key={`${row.currency}:${row.label}:${row.on}`}>
+                <span>{row.label}{row.on && ` · ${when(row.on, today)}`}</span>
+                <span>{money(row.amount, row.currency)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      <h3 className="assumption-heading">Money going out · about {money(combined.monthly_out, c)} a month</h3>
       <ul className="driver-list">
         {combined.where_it_goes.map(row => (
           <li key={row.origin}>

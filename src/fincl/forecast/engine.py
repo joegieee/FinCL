@@ -967,10 +967,11 @@ def _included(
     likely_income_policy: str,
     strong_income_interruption: bool,
 ) -> bool:
+    if event.direction == DIRECTION_OUT:
+        # A possible cost is a risk, so only the cautious case pays it.
+        return event.confidence != CONFIDENCE_POSSIBLE or scenario == SCENARIO_CONSERVATIVE
     if event.confidence == CONFIDENCE_POSSIBLE:
         return False
-    if event.direction == DIRECTION_OUT:
-        return True
     if scenario == SCENARIO_BASE:
         return event.confidence in (CONFIDENCE_CONFIRMED, CONFIDENCE_LIKELY)
     if strong_income_interruption and event.recurring_salary:
@@ -1002,10 +1003,15 @@ def _residual_events(
     start: str,
     end: str,
 ) -> tuple[list[TimelineEvent], list[dict[str, Any]], list[str]]:
-    """Allocate every category independently and remove only matching costs."""
+    """Allocate every category independently and remove only matching costs.
+
+    The third value is notes, not limitations: a dated cost larger than its
+    matching residual empties that residual for the month and says so, but the
+    dated cost itself is fully counted, so the case stays available.
+    """
     result: list[TimelineEvent] = []
     allocations: list[dict[str, Any]] = []
-    limitations: list[str] = []
+    notes: list[str] = []
     resolved_by_event = {item.event_id: item for item in resolved}
     for category in categories:
         if category.currency != currency:
@@ -1040,7 +1046,7 @@ def _residual_events(
                     }
                 )
             if removed > prorated:
-                limitations.append(
+                notes.append(
                     f"{format_decimal(removed - prorated, scale)} {currency} of dated "
                     f"cost in {category.category_id} during {month} exceeds that "
                     "category's matching residual; the matching residual is reduced "
@@ -1091,7 +1097,7 @@ def _residual_events(
                     "assumption": DAILY_ALLOCATION_RULE,
                 }
             )
-    return result, allocations, limitations
+    return result, allocations, notes
 
 
 def _residual_dispersion(
@@ -1213,7 +1219,7 @@ def _scenario(
             )
         else:
             placed.append(resolved)
-    residual, allocations, allocation_limits = _residual_events(
+    residual, allocations, allocation_notes = _residual_events(
         categories=residual_categories,
         sourced=selected_sources,
         resolved=placed,
@@ -1223,7 +1229,6 @@ def _scenario(
         start=start,
         end=end,
     )
-    limitations.extend(allocation_limits)
     result = run_timeline(
         currency=currency,
         scale=scale,
@@ -1240,6 +1245,7 @@ def _scenario(
     result["case"] = name
     result["available"] = not limitations and result["settlement"]["settled_exactly_once"]
     result["limitations"] = limitations
+    result["notes"] = allocation_notes
     result["allocation_metadata"] = allocations
     result["policy"] = {
         "income": (
@@ -1385,6 +1391,28 @@ def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> 
             "currency": task.get("currency_pocket"), "rank": 60,
             "action": "Import or confirm the named evidence interval",
             "detail": str(task.get("note") or task.get("detail") or task),
+            "task": task.get("kind"), "account_id": task.get("account_id"),
+            "account_name": task.get("display_name"),
+        })
+
+    unlinked = manifest.get("unresolved_items", {}).get("unlinked_recurring", [])
+    for commitment in unlinked:
+        count = len(commitment["scheduled_on"])
+        items.append({
+            "kind": "needs_review", "output": "recurring_history",
+            "currency": commitment["currency"], "rank": 65,
+            "action": "Link or skip the past payments of this recurring bill",
+            "detail": f"{commitment['name']}: {count} past date(s) have no linked payment",
+            "commitment": commitment["commitment"], "scheduled_on": commitment["scheduled_on"],
+            "todo": {
+                "key": "recurring-history", "page": "Planning",
+                "title": "Link past payments to your recurring bills",
+                "detail": (
+                    f"{commitment['name']} has {count} past date{'s' if count != 1 else ''} with "
+                    "no payment linked or marked skipped. Until you do, those payments are "
+                    "counted in your usual spending as well as on their own dates."
+                ),
+            },
         })
 
     for limit in card_limits:
@@ -1489,6 +1517,20 @@ def build_cash_timeline(
     categories = list(residual_categories) or _manifest_categories(manifest, estimate)
     result_by_currency: dict[str, Any] = {}
     global_limits: list[str] = []
+    # Sentences for the reader: money that should be on the path but is not,
+    # for a reason no page can fix yet.
+    answer_gaps: list[str] = []
+    pockets = set(manifest.get("cash", {}).get("by_currency", {}))
+    for currency in sorted({event.currency for event in sourced_events} - pockets):
+        labels = sorted({event.label for event in sourced_events if event.currency == currency})
+        global_limits.append(
+            f"{len(labels)} sourced item(s) in {currency} have no {currency} cash pocket "
+            "to settle against and are not forecast"
+        )
+        answer_gaps.append(
+            f"{', '.join(labels)} ({currency}): there is no {currency} account to pay "
+            "it from or into, so it isn't counted."
+        )
     spending_only = manifest.get("income", {}).get("classified_income_evidenced") is False
     possible_income = [
         event
@@ -1681,6 +1723,7 @@ def build_cash_timeline(
         },
         "provenance": manifest.get("sources", []),
         "limitations": [*manifest.get("limitations", []), *global_limits],
+        "answer_gaps": answer_gaps,
     }
 
 
@@ -1689,7 +1732,6 @@ def _obligation_events(
     *,
     start: str,
     end: str,
-    residual_category_ids: frozenset[str] = frozenset(),
 ) -> tuple[list[ForecastEvent], list[str]]:
     events: list[ForecastEvent] = []
     limitations: list[str] = []
@@ -1721,23 +1763,16 @@ def _obligation_events(
             COLUMN_LIFESTYLE if origin == "recurring_commitment" else COLUMN_DEBT_CARD
         )
         confidence = str(obligation.get("confidence") or CONFIDENCE_LIKELY)
+        receivable = origin == "personal_debt" and direction == DIRECTION_IN
+        if receivable:
+            # Money someone owes back is upside until it arrives: it is listed,
+            # never relied on in either case.
+            confidence = CONFIDENCE_POSSIBLE
         date_basis = obligation.get("date_basis", {})
         link = obligation.get("baseline_link", {})
-        detailed_residual = (
-            f"role:{obligation['currency']}:{link.get('category_key')}"
-            if link.get("category_key")
-            else None
-        )
-        residual_category = (
-            detailed_residual
-            if detailed_residual in residual_category_ids
-            else f"manifest:routine:{obligation['currency']}"
-        )
-        residual_amount = (
-            str(link["monthly_baseline_portion"])
-            if link.get("available") and link.get("monthly_baseline_portion") is not None
-            else None
-        )
+        # A recurring event removes nothing from the residual: the estimator has
+        # already lifted every bound occurrence out of it, and history that is
+        # not bound yet is an action item rather than a guessed removal.
         if origin == "recurring_commitment" and date_basis.get("schedule"):
             scheduled = schedule_occurrences(date_basis["schedule"], first, last)
             # remaining_amount is only the next due occurrence's amount, which
@@ -1746,8 +1781,11 @@ def _obligation_events(
                 str(cell["scheduled_on"]): str(cell["amount"])
                 for cell in obligation.get("occurrence_amounts", [])
             }
+            skipped = set(obligation.get("skipped_occurrences", []))
             for occurrence in scheduled:
                 iso = occurrence.isoformat()
+                if iso in skipped:
+                    continue
                 events.append(
                     ForecastEvent(
                         event_id=f"{obligation['obligation_id']}:{iso}",
@@ -1759,10 +1797,6 @@ def _obligation_events(
                         label=str(obligation["label"]),
                         on=iso,
                         confidence=confidence,
-                        residual_category=residual_category if residual_amount else None,
-                        residual_on=iso,
-                        residual_amount=residual_amount,
-                        removes_from_residual=residual_amount is not None,
                         provenance={
                             # The obligation family this cash belongs to, so a shortfall can be
                             # attributed to debt repayment, an installment plan or a recurring
@@ -1812,6 +1846,8 @@ def _obligation_events(
                 )
             continue
         on = date_basis.get("value")
+        if on is None and receivable:
+            continue
         if on is None:
             limitations.append(
                 f"{obligation['obligation_id']} has no safe settlement date; "
@@ -1926,9 +1962,15 @@ def _candidate_income_events(
 
 def _card_events(
     conversion: dict[str, Any], *, prospective: Sequence[dict[str, Any]]
-) -> tuple[list[ForecastEvent], list[str]]:
+) -> tuple[list[ForecastEvent], list[str], list[dict[str, Any]]]:
+    """Card settlements, the limitations of cards without a plan, and those cards.
+
+    A card without a reconciled plan settles nothing in the forecast, so the
+    third value names it: its pocket's answer is missing that card's bills.
+    """
     events: list[ForecastEvent] = []
     limitations: list[str] = []
+    missing: list[dict[str, Any]] = []
     prospective_by_id = {str(item["id"]): item for item in prospective if item.get("id")}
     for card in conversion.get("cards", []):
         plan = card.get("plan", {})
@@ -1938,9 +1980,19 @@ def _card_events(
                 f"card {card.get('account_id')} {card.get('currency')} has no "
                 "reconciled exactly-once settlement plan"
             )
+            unresolved = [item for item in plan.get("unresolved", []) if isinstance(item, dict)]
             limitations.extend(
                 str(item.get("detail") or item) for item in plan.get("unresolved", [])
             )
+            missing.append({
+                "account_id": card.get("account_id"),
+                "currency": card.get("currency"),
+                "label": card.get("label") or card.get("account_id"),
+                "requirements": {
+                    str(item.get("detail")): str(item.get("requirement"))
+                    for item in unresolved
+                },
+            })
             continue
         for row in plan.get("settlements", []):
             source_id = str(row["source_id"])
@@ -1967,6 +2019,7 @@ def _card_events(
                     residual_amount=str(row["amount"]) if purchase else None,
                     removes_from_residual=purchase is not None,
                     provenance={
+                        "origin": "card_statement",
                         "contract": conversion.get("contract_version"),
                         "partition": row.get("partition"),
                         "basis": row.get("basis"),
@@ -1975,7 +2028,7 @@ def _card_events(
                     },
                 )
             )
-    return events, limitations
+    return events, limitations, missing
 
 
 def cash_timeline(
@@ -2058,18 +2111,61 @@ def _cash_timeline(
     estimate = baseline_estimate_from(connection, today=today)
     obligations = obligations_page_from(connection, as_of=str(cutoff), today=today)
     recurring = recurring_page_from(connection)
+    obligation_events, obligation_limits = _obligation_events(
+        obligations, start=str(cutoff), end=end
+    )
+    income_events, income_limits = _candidate_income_events(
+        recurring, start=str(cutoff), end=end
+    )
+    prospective = list(prospective_card_purchases)
     cards = card_cash_conversion_from(
         connection,
         as_of=str(cutoff),
         horizon_months=HORIZON_MONTHS,
-        prospective_purchases=list(prospective_card_purchases),
+        prospective_purchases=prospective,
     )
+    card_events, card_limits, missing_cards = _card_events(cards, prospective=prospective)
+
+    from .sources import EXTRA_SOURCES, SourceContext
+
+    context = SourceContext(
+        cutoff=str(cutoff),
+        start=(date.fromisoformat(str(cutoff)) + timedelta(days=1)).isoformat(),
+        end=end,
+        today=today.isoformat(),
+        residual_category_ids=frozenset(
+            category.category_id
+            for category in (
+                list(residual_categories) or _manifest_categories(manifest, estimate)
+            )
+        ),
+        existing_source_ids=frozenset(
+            event.source_id
+            for event in [*obligation_events, *income_events, *card_events, *sourced_events]
+        ),
+    )
+    extra = [adapter(connection, context) for adapter in EXTRA_SOURCES]
+    extra_prospective = [item for result in extra for item in result.prospective_card_purchases]
+    if extra_prospective:
+        prospective.extend(extra_prospective)
+        cards = card_cash_conversion_from(
+            connection,
+            as_of=str(cutoff),
+            horizon_months=HORIZON_MONTHS,
+            prospective_purchases=prospective,
+        )
+        card_events, card_limits, missing_cards = _card_events(cards, prospective=prospective)
+
     reported = {
         "manifest": manifest.get("generation"),
         "baseline_estimate": estimate.get("generation"),
         "obligations_page": obligations.get("generation"),
         "recurring_page": recurring.get("generation"),
         "card_cash_conversion": cards.get("generation"),
+        **{
+            str((result.manifest_source or {}).get("input") or f"source_{index}"): result.generation
+            for index, result in enumerate(extra)
+        },
     }
     if len({token for token in reported.values() if token is not None}) != 1:
         return {
@@ -2080,20 +2176,23 @@ def _cash_timeline(
             "by_currency": {},
             "limitations": ["refresh the ledger and retry"],
         }
-    obligation_events, obligation_limits = _obligation_events(
-        obligations,
-        start=str(cutoff),
-        end=end,
-        residual_category_ids=frozenset(
-            category.category_id for category in residual_categories
-        ),
-    )
-    income_events, income_limits = _candidate_income_events(
-        recurring, start=str(cutoff), end=end
-    )
-    card_events, card_limits = _card_events(
-        cards, prospective=prospective_card_purchases
-    )
+    manifest = {
+        **manifest,
+        "sources": [
+            *manifest.get("sources", []),
+            *(
+                {
+                    **result.manifest_source,
+                    "matches_resolved_generation": (
+                        result.generation is None
+                        or result.generation == manifest.get("generation")
+                    ),
+                }
+                for result in extra
+                if result.manifest_source is not None
+            ),
+        ],
+    }
     result = build_cash_timeline(
         manifest,
         sourced_events=[
@@ -2101,15 +2200,74 @@ def _cash_timeline(
             *income_events,
             *card_events,
             *sourced_events,
+            *(event for source in extra for event in source.events),
         ],
         residual_categories=residual_categories,
         likely_income_policy=likely_income_policy,
         strong_income_interruption=strong_income_interruption,
         estimate=estimate,
     )
-    adapter_limits = [*obligation_limits, *income_limits, *card_limits]
+    adapter_limits = [
+        *obligation_limits, *income_limits, *card_limits,
+        *(limit for source in extra for limit in source.limitations),
+    ]
+    result["answer_gaps"].extend(
+        f"{obligation['label']} ({obligation['currency']}): how it is paid isn't known, so it isn't counted."
+        for obligation in obligations.get("obligations", [])
+        if obligation.get("stays_visible", True) and obligation.get("direction") == "outflow"
+        and obligation["origin"] != "card_statement"
+        and obligation.get("cash_effect") not in ("bank_withdrawal", None, "via_card_statement")
+    )
+    result["answer_gaps"].extend(limit for source in extra for limit in source.limitations)
     result["limitations"].extend(adapter_limits)
-    result["action_items"] = _action_items(manifest, card_limits)
+    for card in missing_cards:
+        cell = result["by_currency"].get(str(card["currency"]))
+        if cell is not None:
+            cell.setdefault("missing_outflows", []).append({
+                "kind": "card_statement", "account_id": card["account_id"],
+                "label": card["label"],
+                "reason": "its bills can't be dated or sized from the statements, so none are counted",
+            })
+    receivables = [
+        obligation for obligation in obligations.get("obligations", [])
+        if obligation["origin"] == "personal_debt" and obligation.get("direction") == "inflow"
+        and obligation.get("stays_visible", True)
+        and (obligation.get("date_basis") or {}).get("value") is not None
+        and str(obligation["date_basis"]["value"]) <= str(cutoff)
+    ]
+    card_requirements = {
+        detail: (card, code)
+        for card in missing_cards
+        for detail, code in card["requirements"].items()
+    }
+    receivable_items = [
+        {
+            "kind": "needs_review", "output": "receivable", "currency": obligation["currency"],
+            "rank": 55, "action": "Record whether this money came back",
+            "detail": f"{obligation['label']} was due back on {obligation['date_basis']['value']}",
+            "obligation_id": obligation["obligation_id"],
+            "todo": {
+                "key": "receivable-overdue", "page": "Debts",
+                "title": "Did the money you're owed come back?",
+                "detail": (
+                    f"{obligation['label']} was due back on {obligation['date_basis']['value']}. "
+                    "Record the repayment if it came back, or give it a new date."
+                ),
+            },
+        }
+        for obligation in receivables
+    ]
+    result["action_items"] = sorted(
+        [
+            *_action_items(manifest, card_limits), *receivable_items,
+            *(item for source in extra for item in source.action_items),
+        ],
+        key=lambda item: (-item["rank"], item["output"], item["detail"]),
+    )
+    for item in result["action_items"]:
+        if item["output"] == "card_settlement" and item["detail"] in card_requirements:
+            card, code = card_requirements[item["detail"]]
+            item.update(requirement=code, account_id=card["account_id"], label=card["label"])
     result["source_contracts"] = {
         "obligations": obligations.get("rules", []),
         "card_cash_conversion": {
