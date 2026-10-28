@@ -668,6 +668,21 @@ main{width:100%;min-width:0}
 .trip-retire{margin-top:16px}
 .trip-detail,.trip-form{padding-bottom:20px}
 .trip-detail>:not(.panel-title),.trip-form>:not(.panel-title){margin-inline:clamp(16px,3vw,25px)}
+/* Planned spending and income. */
+.planned-view{display:flex;flex-direction:column;gap:14px}
+.planned-month>:not(.panel-title),.planned-attention>:not(.panel-title),.planned-form>:not(.panel-title){margin-inline:clamp(16px,3vw,25px)}
+.planned-month,.planned-attention{padding-bottom:12px}
+.planned-totals{display:flex;flex-direction:column;align-items:flex-end;gap:2px;color:var(--muted);font-variant-numeric:tabular-nums}
+.planned-choice{display:flex;flex-wrap:wrap;gap:4px 12px;border:0;padding:0;margin:0;font-size:11px;color:var(--muted)}
+.planned-choice legend{padding:0;margin-bottom:4px}
+.planned-choice label{flex-direction:row;align-items:center;gap:6px;color:var(--foreground)}
+.planned-actions{flex-wrap:wrap}
+.planned-rows input{min-width:0;max-width:100%}
+.planned-candidates{border:0;padding:0;margin:8px 0;display:flex;flex-direction:column;gap:6px}
+.planned-candidates legend{font-size:11px;color:var(--muted);margin-bottom:4px}
+.planned-candidate{display:flex;gap:8px;align-items:flex-start;font-size:12px}
+.planned-candidate small{display:block;color:var(--muted)}
+.planned-rules{margin:0;padding-left:18px}
 /* Saved reports (v0.7 slice 2). */
 .reports-view{display:flex;flex-direction:column;gap:14px}
 .report-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}

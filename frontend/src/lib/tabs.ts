@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  Banknote, Building2, CalendarRange, CircleHelp, CreditCard, FileBarChart, GitCompare,
+  Banknote, Building2, CalendarClock, CalendarRange, CircleHelp, CreditCard, FileBarChart, GitCompare,
   Gauge, HandCoins, Layers, LayoutDashboard, PiggyBank, Receipt, Repeat, Scale, SlidersHorizontal,
   Tag, Target, UploadCloud, Wallet, Wrench, ListChecks, MapPinned,
 } from 'lucide-react'
@@ -58,6 +58,7 @@ export const tabMeta: Record<string, TabMeta> = {
   Installments: { scope: 'none', title: 'Plans, split over time.', subtitle: 'Confirmed source-proven installment chains on your cards, with unknown principal shown rather than assumed.', section: 'Commitments', icon: Layers },
 
   Planning: { scope: 'none', title: 'Plan by the month.', subtitle: 'Dated budgets, savings observations and reviewed recurring schedules.', section: 'Planning', icon: CalendarRange },
+  Planned: { scope: 'none', title: 'What you know is coming.', subtitle: 'Purchases, bills, instalments and income you expect, counted in the forecast and checked against what was actually paid once each date passes.', section: 'Planning', icon: CalendarClock },
   Plans: { scope: 'none', label: 'Budgets', title: 'Give your spending some boundaries.', subtitle: 'Monthly budgets and savings goals, compared against covered ledger totals.', section: 'Planning', icon: Target },
   Recurring: { scope: 'none', title: 'What keeps repeating.', subtitle: 'Payment candidates detected from imported history, not yet confirmed as subscriptions.', section: 'Planning', icon: Repeat },
   'Annual funds': { scope: 'none', title: 'Spread across the year, set aside ahead of time.', subtitle: 'Recurring annual costs, saved toward ahead of the month they land in.', section: 'Planning', icon: PiggyBank },

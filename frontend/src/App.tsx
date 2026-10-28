@@ -42,10 +42,11 @@ import { SufficiencyView } from '@/features/sufficiency'
 import { OverviewView } from '@/features/overview'
 import { categoryIconColor } from '@/features/overview/SpendingDonut'
 import { FundsView } from '@/features/funds'
+import { PlannedView } from '@/features/planned'
 import { VarianceView } from '@/features/variance'
 import { MaintenanceView } from '@/features/maintenance'
 
-const tabs=['Overview','Baseline','Cash','Forecast','Will I have enough','Annual funds','Variance','Controls','Cash Flow','Analysis','Trips','Reports','Transactions','Income','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
+const tabs=['Overview','Baseline','Cash','Forecast','Will I have enough','Annual funds','Variance','Controls','Cash Flow','Analysis','Trips','Reports','Transactions','Income','Categorization','Debts','Cards','Installments','Money Owed','Obligations','Net worth','Review','Planning','Planned','Plans','Recurring','Categories','Rules','Accounts','Setup','Maintenance'] as const
 type Tab=typeof tabs[number]
 function initialTab():Tab { const v=new URLSearchParams(location.search).get('view');return tabs.find(t=>t===v)||'Overview' }
 function pct(actual:string|null,target:string) { return actual===null?0:Math.max(0,Math.min(100,Number(actual)/Number(target)*100)) }
@@ -147,6 +148,7 @@ export default function App(){
    {tab==='Controls'&&<AllControlsView initialMonth={(end || new Date().toISOString().slice(0, 7)).slice(0, 7)}/>}
    {tab==='Will I have enough'&&<SufficiencyView generation={data.generation} onSaved={saved} onOpen={setTab} onOpenObligations={()=>setTab('Obligations')} onOpenCash={()=>setTab('Cash')}/>}
    {tab==='Annual funds'&&<FundsView onSaved={saved}/>}
+   {tab==='Planned'&&<PlannedView generation={data.generation} currencies={data.currencies} categories={data.categories} onSaved={saved}/>}
    {tab==='Variance'&&<VarianceView generation={data.generation} currency="SGD" currencies={data.currencies} onSaved={saved}/>}
    {tab==='Maintenance'&&<MaintenanceView/>}
    {tab==='Accounts'&&<AccountsView freshness={data.freshness} onSaved={saved}/>}
