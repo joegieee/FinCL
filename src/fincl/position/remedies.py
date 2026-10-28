@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from ..db import connect_readonly
+from .freshness import account_freshness_from
 from .queries import position_page_from
 
 __all__ = [
@@ -152,6 +153,7 @@ def coverage_remedies_from(
         "supported_cutoff": page["supported_cutoff"],
         "current_position_supported": page["current_position_supported"],
         "remedies": remedies,
+        "freshness": account_freshness_from(connection, today=today)["accounts"],
     }
 
 
