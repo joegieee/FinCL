@@ -73,5 +73,19 @@ class RecurringResidualTests(unittest.TestCase):
         self.assertEqual(base_events(cash_timeline(database, today=TODAY), "recurring:rent:"), [])
 
 
+class FixedRecurringMonthlyTests(unittest.TestCase):
+    def test_the_monthly_equivalent_follows_the_schedule_and_varied_amounts(self) -> None:
+        database = rent_ledger()
+        decide(database, "RECURRING_COMMITMENT_SET", {"commitment": "insurance"}, _INSURANCE)
+        decide(database, "RECURRING_OCCURRENCE_AMOUNT_SET",
+               {"commitment": "insurance", "scheduled_on": "2026-10-15"},
+               {"amount": "600.00", "reason": "renewal premium"})
+
+        cell = baseline_estimate(database, today=TODAY)["by_currency"]["SGD"]
+
+        # Rent 1200 monthly, plus insurance (300 + 600 + 300 + 300) / 12.
+        self.assertEqual(cell["fixed_recurring_monthly"], "1325.00")
+
+
 if __name__ == "__main__":
     unittest.main()

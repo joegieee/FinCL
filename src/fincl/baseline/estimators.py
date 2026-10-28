@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
@@ -38,6 +38,7 @@ from typing import Any
 from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
+from ..planning.recurring import occurrence_amounts
 from ..planning.schedules import occurrences
 from ..read_cache import per_request
 from ..reserve import reserve_policy
@@ -195,15 +196,32 @@ def _irregular_by_month(
 
 
 
-def _confirmed_recurring_flat_from(connection: sqlite3.Connection) -> dict[str, Decimal]:
-    rows = connection.execute(
-        "SELECT currency, expected_coefficient, expected_scale "
-        "FROM recurring_commitments WHERE status = 'active'"
-    ).fetchall()
+def _confirmed_recurring_flat_from(
+    connection: sqlite3.Connection, today: date
+) -> dict[str, Decimal]:
+    """Each active commitment's monthly equivalent over the coming year.
+
+    A weekly bill costs about 4.3 of its amounts a month and a quarterly one a
+    third, so the year's scheduled occurrences, each at its own expected
+    amount, are summed and divided by twelve.
+    """
+    year_end = date(today.year + 1, today.month, 1) - timedelta(days=1)
+    first = date(today.year, today.month, 1)
     flat: dict[str, Decimal] = {}
-    for row in rows:
-        amount = Decimal(row["expected_coefficient"]).scaleb(-int(row["expected_scale"]))
-        flat[row["currency"]] = flat.get(row["currency"], Decimal(0)) + amount
+    for row in connection.execute(
+        "SELECT commitment, currency, schedule_json, expected_coefficient, expected_scale "
+        "FROM recurring_commitments WHERE status = 'active'"
+    ):
+        usual = Decimal(row["expected_coefficient"]).scaleb(-int(row["expected_scale"]))
+        varied = occurrence_amounts(connection, str(row["commitment"]))
+        year = sum(
+            (
+                Decimal(varied[day.isoformat()]["amount"]) if day.isoformat() in varied else usual
+                for day in occurrences(json.loads(row["schedule_json"]), first, year_end)
+            ),
+            Decimal(0),
+        )
+        flat[row["currency"]] = flat.get(row["currency"], Decimal(0)) + year / 12
     return flat
 
 
@@ -361,7 +379,7 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
     generation = current_generation(connection)
     token = generation["generation_token"] if generation else ""
     entries = _entry_spending_from(connection, token, span_start, span_end)
-    recurring_flat = _confirmed_recurring_flat_from(connection)
+    recurring_flat = _confirmed_recurring_flat_from(connection, today)
     recurring_matched, recurring_anchors = _recurring_matched_from(connection, token, span_start, span_end)
     roles = baseline_roles_from(connection, today=today)
 
