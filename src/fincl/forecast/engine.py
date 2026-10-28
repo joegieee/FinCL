@@ -1746,6 +1746,11 @@ def _obligation_events(
             COLUMN_LIFESTYLE if origin == "recurring_commitment" else COLUMN_DEBT_CARD
         )
         confidence = str(obligation.get("confidence") or CONFIDENCE_LIKELY)
+        receivable = origin == "personal_debt" and direction == DIRECTION_IN
+        if receivable:
+            # Money someone owes back is upside until it arrives: it is listed,
+            # never relied on in either case.
+            confidence = CONFIDENCE_POSSIBLE
         date_basis = obligation.get("date_basis", {})
         link = obligation.get("baseline_link", {})
         # A recurring event removes nothing from the residual: the estimator has
@@ -1824,6 +1829,8 @@ def _obligation_events(
                 )
             continue
         on = date_basis.get("value")
+        if on is None and receivable:
+            continue
         if on is None:
             limitations.append(
                 f"{obligation['obligation_id']} has no safe settlement date; "
@@ -2196,13 +2203,40 @@ def _cash_timeline(
                 "label": card["label"],
                 "reason": "its bills can't be dated or sized from the statements, so none are counted",
             })
+    receivables = [
+        obligation for obligation in obligations.get("obligations", [])
+        if obligation["origin"] == "personal_debt" and obligation.get("direction") == "inflow"
+        and obligation.get("stays_visible", True)
+        and (obligation.get("date_basis") or {}).get("value") is not None
+        and str(obligation["date_basis"]["value"]) <= str(cutoff)
+    ]
     card_requirements = {
         detail: (card, code)
         for card in missing_cards
         for detail, code in card["requirements"].items()
     }
+    receivable_items = [
+        {
+            "kind": "needs_review", "output": "receivable", "currency": obligation["currency"],
+            "rank": 55, "action": "Record whether this money came back",
+            "detail": f"{obligation['label']} was due back on {obligation['date_basis']['value']}",
+            "obligation_id": obligation["obligation_id"],
+            "todo": {
+                "key": "receivable-overdue", "page": "Debts",
+                "title": "Did the money you're owed come back?",
+                "detail": (
+                    f"{obligation['label']} was due back on {obligation['date_basis']['value']}. "
+                    "Record the repayment if it came back, or give it a new date."
+                ),
+            },
+        }
+        for obligation in receivables
+    ]
     result["action_items"] = sorted(
-        [*_action_items(manifest, card_limits), *(item for source in extra for item in source.action_items)],
+        [
+            *_action_items(manifest, card_limits), *receivable_items,
+            *(item for source in extra for item in source.action_items),
+        ],
         key=lambda item: (-item["rank"], item["output"], item["detail"]),
     )
     for item in result["action_items"]:

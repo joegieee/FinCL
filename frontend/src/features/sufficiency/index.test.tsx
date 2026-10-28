@@ -37,6 +37,7 @@ function combined(over: Record<string, unknown> = {}) {
       { origin: 'personal_debt', label: 'Debt repayments', total: '2000.00', monthly: '333.33', items: [{ label: 'Alex', on: '2026-03-15', amount: '2000.00', conditional: false, currency: 'SGD' }] },
     ],
     todos: [],
+    upside: [],
     ...over,
   }
 }
@@ -139,6 +140,17 @@ describe('SufficiencyView', () => {
 
     expect(await screen.findByRole('heading', { name: 'Yes, but not every bill is counted' })).toBeInTheDocument()
     expect(screen.getByRole('note')).toHaveTextContent('This answer is incomplete because:Rewards Card (SGD)')
+  })
+
+  it('lists money that may come back without counting it', async () => {
+    loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
+      upside: [{ label: 'Jo', currency: 'SGD', amount: '800.00', on: '2026-02-01' }],
+    }) }))
+
+    render(<SufficiencyView generation="gen-1" />)
+
+    expect(await screen.findByText('Not counted, in case it doesn’t come:')).toBeInTheDocument()
+    expect(screen.getByText(/^Jo ·/).closest('li')).toHaveTextContent('SGD 800.00')
   })
 
   it('lists a pocket too small to matter as ignored, without flagging the answer', async () => {

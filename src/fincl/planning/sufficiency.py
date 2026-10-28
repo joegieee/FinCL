@@ -690,6 +690,13 @@ def combined_answer(
         ),
         "pockets": pockets,
         "income": _income(counted, held, scale=scale),
+        # Possible inflows: named so they are not forgotten, never counted.
+        "upside": [
+            {"label": event["label"], "currency": currency, "amount": event["amount"],
+             "on": event["timing"].get("on") or event["timing"].get("latest")}
+            for currency, cell in by_currency.items()
+            for event in (cell.get("possible_income_upside") or {}).get("events", [])
+        ],
         "where_it_goes": _where_it_goes(counted, held, scale=scale),
         "todos": _todos(timeline, account_names=account_names or {}, cutoff=cutoff, pockets=pockets),
         "not_in_the_path": {"as_of": cutoff, **_not_in_the_path(

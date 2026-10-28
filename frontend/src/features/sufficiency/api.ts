@@ -80,6 +80,8 @@ export type CombinedAnswer = {
     label: string; currency: string; count: number; next_on: string; confidence: string
     native_total: string; total: string; in_cautious_case: boolean
   }[]
+  /** Money that may come in (owed back, uncertain). Listed, never counted. */
+  upside: { label: string; currency: string; amount: string; on: string | null }[]
   where_it_goes: {
     origin: string; label: string; total: string; monthly: string
     items: { label: string; on: string; amount: string; conditional: boolean; currency: string }[]

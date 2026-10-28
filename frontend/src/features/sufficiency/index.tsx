@@ -276,6 +276,20 @@ function Assumptions({ combined, today, onOpenObligations }: { combined: Combine
           </ul>
         )}
 
+      {combined.upside.length > 0 && (
+        <>
+          <p className="muted-note">Not counted, in case it doesn’t come:</p>
+          <ul className="assumption-list">
+            {combined.upside.map(row => (
+              <li key={`${row.currency}:${row.label}:${row.on}`}>
+                <span>{row.label}{row.on && ` · ${when(row.on, today)}`}</span>
+                <span>{money(row.amount, row.currency)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
       <h3 className="assumption-heading">Money going out · about {money(monthly.toFixed(2), c)} a month</h3>
       <ul className="driver-list">
         {combined.where_it_goes.map(row => (

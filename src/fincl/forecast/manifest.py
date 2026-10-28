@@ -687,6 +687,11 @@ def _output(
 def _ambiguous_obligations(obligations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ambiguous: list[dict[str, Any]] = []
     for o in obligations:
+        # Settled debts need nothing, and money owed back is never relied on.
+        if not o.get("stays_visible", True) or (
+            o["origin"] == "personal_debt" and o.get("direction") == "inflow"
+        ):
+            continue
         reasons: list[str] = []
         if o.get("amount_basis") == "unknown":
             reasons.append(o.get("remaining_unknown_reason") or "amount terms are unknown")
