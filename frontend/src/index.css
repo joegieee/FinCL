@@ -181,6 +181,10 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .debt-history .tag{display:inline-block;margin-left:6px;font-size:9px;padding:1px 5px;border:1px solid var(--border);border-radius:6px;color:var(--muted)}
 .debt-history .tag.warn{color:var(--danger-strong);border-color:var(--danger-border)}
 .debt-detail-foot{font-size:11px;color:var(--muted);margin:0}
+.debt-draft-effect{display:flex;flex-direction:column;gap:10px;border:1px solid var(--accent-border);background:var(--accent-surface);border-radius:8px;padding:10px 12px;overflow-x:auto}
+.debt-draft-effect p{margin:0;font-size:12px}
+.debt-draft-effect tr.is-changed td{font-weight:600}
+.debt-draft-effect tr.is-removed td{color:var(--muted)}
 
 /* slice 2: event form + allocation table */
 .debt-event-form{border:1px solid var(--border);border-radius:10px;background:var(--card);padding:18px;display:flex;flex-direction:column;gap:16px}

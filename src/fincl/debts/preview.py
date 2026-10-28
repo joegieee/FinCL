@@ -119,8 +119,16 @@ def check_references(
         (anchors["debt"], anchors["event"]),
     ).fetchone() is None:
         raise FinCLError("that debt event does not exist")
-    if decision_kind == ENTRY_RESIDUAL_SET and resolve_anchor(anchors["entry"]) is None:
-        raise FinCLError("the source transaction does not resolve to one selected entry")
+    if decision_kind == ENTRY_RESIDUAL_SET:
+        if resolve_anchor(anchors["entry"]) is None:
+            raise FinCLError("the source transaction does not resolve to one selected entry")
+        left, _, scale = _left_for_owner(connection, anchors["entry"])
+        share = ExactMoney.parse(str(payload["expense_amount"]))
+        if Fraction(share.coefficient, 10**share.scale) > left:
+            raise FinCLError(
+                f"your share is more than the {_exact_text(max(left, Fraction(0)), scale)} "
+                "other allocations leave of this transaction"
+            )
     if decision_kind == ENTRY_RESIDUAL_RETIRE and connection.execute(
         "SELECT 1 FROM entry_residuals WHERE entry_anchor = ?", (anchors["entry"],)
     ).fetchone() is None:
@@ -160,6 +168,28 @@ def _exact_text(value: Fraction, scale: int) -> str:
     raise FinCLError("the amount cannot be represented as exact money")
 
 
+def _left_for_owner(
+    connection: sqlite3.Connection, entry_anchor: str
+) -> tuple[Fraction, Fraction, int]:
+    """What every claim but the owner's own share leaves of a transaction, the
+    transaction's amount, and its scale. Negative when the other claims exceed it.
+    """
+    entry = _entry_row(connection, entry_anchor)
+    if entry is None:
+        raise FinCLError("the source transaction does not resolve to one selected entry")
+    gross = Fraction(abs(int(entry["amount_coefficient"])), 10 ** int(entry["amount_scale"]))
+    own = connection.execute(
+        "SELECT expense_coefficient, expense_scale FROM entry_residuals "
+        "WHERE entry_anchor = ? AND bound = 1",
+        (entry_anchor,),
+    ).fetchone()
+    others = claimed_amount(connection, entry_anchor) - (
+        Fraction(int(own["expense_coefficient"]), 10 ** int(own["expense_scale"]))
+        if own is not None else Fraction(0)
+    )
+    return gross - others, gross, int(entry["amount_scale"])
+
+
 def _complete(
     connection: sqlite3.Connection, kind: str, anchors: dict[str, str], payload: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -174,21 +204,7 @@ def _complete(
             raise FinCLError("every source needs a principal amount") from exc
         return {**payload, "principal_amount": format_decimal(*exact_sum(*parts))}
     if kind == ENTRY_RESIDUAL_SET and payload.get("expense_amount") is None:
-        entry = _entry_row(connection, anchors["entry"])
-        if entry is None:
-            raise FinCLError("the source transaction does not resolve to one selected entry")
-        gross = Fraction(abs(int(entry["amount_coefficient"])), 10 ** int(entry["amount_scale"]))
-        own = connection.execute(
-            "SELECT expense_coefficient, expense_scale FROM entry_residuals "
-            "WHERE entry_anchor = ? AND bound = 1",
-            (anchors["entry"],),
-        ).fetchone()
-        claimed = claimed_amount(connection, anchors["entry"]) - (
-            Fraction(int(own["expense_coefficient"]), 10 ** int(own["expense_scale"]))
-            if own is not None else Fraction(0)
-        )
-        left = gross - claimed
-        scale = int(entry["amount_scale"])
+        left, gross, scale = _left_for_owner(connection, anchors["entry"])
         if left < 0:
             raise FinCLError(
                 f"the shares come to {_exact_text(-left, scale)} more than the "

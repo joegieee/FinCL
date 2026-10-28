@@ -51,8 +51,11 @@ describe('CategorizationView — relationship discovery focuses', () => {
       })
       if (path.startsWith('reporting/workspaces/debts/d-alex')) return Promise.resolve({ generation: 'g1', as_of: '2026-03-31', debt: { ...alex, principal_history: [], reason: 'Loan' } })
       if (path.startsWith('reporting/workspaces/debts?')) return Promise.resolve({ generation: 'g1', as_of: '2026-03-31', i_owe: [], owed_to_me: [alex], next_cursor: null })
-      if (path === 'preview') return Promise.resolve({ status: 'previewed' })
-      if (path === 'commands') { saved = true; return Promise.resolve({ status: 'recorded' }) }
+      if (path === 'debts/preview') {
+        const items = (body as { items: Array<{ payload: Record<string, unknown> }> }).items
+        return Promise.resolve({ generation: 'g1', debts: [], items: items.map(i => ({ ...i, payload: { ...i.payload, principal_amount: '30.00' } })) })
+      }
+      if (path === 'batch') { saved = true; return Promise.resolve({ status: 'recorded' }) }
       return Promise.reject(new Error(`unexpected ${path} ${JSON.stringify(body)}`))
     })
     // The parent's refresh does not re-render this view with g2 in time: the
@@ -71,15 +74,16 @@ describe('CategorizationView — relationship discovery focuses', () => {
 
     // The suggested debt is pre-selected and the debt's own form is seeded.
     await waitFor(() => expect((within(panel).getByLabelText('Debt') as HTMLSelectElement).value).toBe('d-alex'))
-    expect(((await within(panel).findByLabelText('Event principal')) as HTMLInputElement).value).toBe('30.00')
+    expect(((await within(panel).findByLabelText('Allocation 1 principal')) as HTMLInputElement).value).toBe('30.00')
     fireEvent.change(within(panel).getByLabelText('Reason'), { target: { value: 'Lent Alex another 30' } })
-    fireEvent.click(within(panel).getByRole('button', { name: 'Preview and save' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Check event' }))
+    fireEvent.click(await within(panel).findByRole('button', { name: 'Save event' }))
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('recorded'))
     await waitFor(() => expect(apiMock.mock.calls.some(([path]) => String(path).startsWith('reporting/workspaces/categorization/candidates?') && String(path).includes('generation=g2'))).toBe(true))
     expect(screen.queryByText(/STALE_GENERATION/)).not.toBeInTheDocument()
-    const [, body] = apiMock.mock.calls.find(([path]) => path === 'commands')!
-    expect(body).toMatchObject({ kind: 'PERSONAL_DEBT_EVENT_SET', anchors: { debt: 'd-alex' }, payload: { entry_allocations: [expect.objectContaining({ entry_anchor: 'r-out' })] } })
+    const [, body] = apiMock.mock.calls.find(([path]) => path === 'batch')!
+    expect((body as { items: unknown[] }).items).toMatchObject([{ kind: 'PERSONAL_DEBT_EVENT_SET', anchors: { debt: 'd-alex' }, payload: { principal_amount: '30.00', entry_allocations: [expect.objectContaining({ entry_anchor: 'r-out' })] } }])
   })
 
   it('opens the installment plan confirmation for a proposed chain', async () => {

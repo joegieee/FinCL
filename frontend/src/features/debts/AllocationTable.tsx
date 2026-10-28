@@ -1,7 +1,7 @@
 import { reportedMoney } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Plus, Search, X } from 'lucide-react'
-import { ApiError, money } from '@/lib/api'
+import { ApiError } from '@/lib/api'
 import {
   loadAllocationCandidates,
   type AllocationCandidate,
@@ -18,16 +18,6 @@ export function emptyAllocation(anchor = ''): AllocationInput {
     fee_amount: ZERO,
     separate_fee_amount: ZERO,
   }
-}
-
-function toMinor(value: string): number {
-  const n = Number(value)
-  return Number.isFinite(n) ? Math.round(n * 100) : NaN
-}
-
-/** Sum of the allocation principals, or NaN if any field is unparseable. */
-export function principalTotalMinor(rows: AllocationInput[]): number {
-  return rows.reduce((acc, r) => acc + toMinor(r.principal_amount), 0)
 }
 
 const SEARCH_DEBOUNCE_MS = 250
@@ -208,8 +198,9 @@ function SourcePicker({
 const CHARGE_FIELDS = ['interest_amount', 'fee_amount', 'separate_fee_amount'] as const
 const CHARGE_LABEL = { interest_amount: 'Interest', fee_amount: 'Fee', separate_fee_amount: 'Separate fee' } as const
 
+/** Any non-zero digit: a charge was entered. The server checks the amounts. */
 function hasCharges(row: AllocationInput): boolean {
-  return CHARGE_FIELDS.some((f) => toMinor(row[f]) !== 0)
+  return CHARGE_FIELDS.some((f) => /[1-9]/.test(row[f]))
 }
 
 export function AllocationTable({
@@ -219,10 +210,9 @@ export function AllocationTable({
   currency,
   rows,
   onChange,
-  eventPrincipal,
   sourceDirection,
-  onUseTotal,
   known = [],
+  replacing,
 }: {
   debtId: string
   eventKind: string
@@ -231,15 +221,14 @@ export function AllocationTable({
   rows: AllocationInput[]
   /** `picked` is the transaction just chosen for a row, when that is what changed. */
   onChange: (rows: AllocationInput[], picked?: AllocationCandidate) => void
-  eventPrincipal: string
   /** Which way the backing bank movement runs, to say what to pick. */
   sourceDirection?: 'IN' | 'OUT'
-  /** Offered when the allocations do not match: adopt their total as the event principal. */
-  onUseTotal?: (total: string) => void
   /** Sources already resolved by the caller (a seeded transaction), offered
    * ahead of the newest-first page so a pre-picked row shows its label from
    * the first render instead of reading as an unknown anchor. */
   known?: AllocationCandidate[]
+  /** The event being corrected, whose own claims are offered back as open. */
+  replacing?: string
 }) {
   const [loaded, setLoaded] = useState<AllocationCandidate[]>([])
   const candidates = [...known, ...loaded.filter((c) => !known.some((k) => k.entry_anchor === c.entry_anchor))]
@@ -252,18 +241,18 @@ export function AllocationTable({
   useEffect(() => {
     let live = true
     setNote('')
-    loadAllocationCandidates({ debtId, eventKind, generation })
+    loadAllocationCandidates({ debtId, eventKind, generation, replacing })
       .then((p) => { if (live) setLoaded(p.candidates) })
       .catch((e) => {
         if (live) setNote(e instanceof ApiError ? e.message : 'Could not load source transactions.')
       })
     return () => { live = false }
-  }, [debtId, eventKind, generation])
+  }, [debtId, eventKind, generation, replacing])
 
   const search = useCallback(
     (query: string) =>
-      loadAllocationCandidates({ debtId, eventKind, generation, search: query, limit: 25 }).then((p) => p.candidates),
-    [debtId, eventKind, generation],
+      loadAllocationCandidates({ debtId, eventKind, generation, replacing, search: query, limit: 25 }).then((p) => p.candidates),
+    [debtId, eventKind, generation, replacing],
   )
 
   function patch(index: number, field: keyof AllocationInput, value: string) {
@@ -282,11 +271,6 @@ export function AllocationTable({
       candidate ?? undefined,
     )
   }
-
-  const totalMinor = principalTotalMinor(rows)
-  const wantMinor = toMinor(eventPrincipal)
-  const balanced = Number.isFinite(totalMinor) && totalMinor === wantMinor
-  const total = Number.isFinite(totalMinor) ? (totalMinor / 100).toFixed(2) : ''
 
   return (
     <div className="debt-alloc">
@@ -361,22 +345,6 @@ export function AllocationTable({
             </button>
           )}
         </div>
-        <span className={balanced ? 'ok' : 'warn'}>
-          {balanced && totalMinor === 0 ? (
-            <>Pick the transaction{rows.length > 1 ? 's' : ''} above</>
-          ) : balanced ? (
-            <>Allocated {money(total, currency)} · matches the event principal</>
-          ) : (
-            <>
-              Allocated {money(total || '0', currency)} of {money(eventPrincipal, currency)} — must match the event principal
-              {onUseTotal && totalMinor > 0 ? (
-                <button type="button" className="link" onClick={() => onUseTotal(total)}>
-                  Use {money(total, currency)}
-                </button>
-              ) : null}
-            </>
-          )}
-        </span>
       </div>
     </div>
   )

@@ -24,13 +24,26 @@ const candidates = {
   ],
 }
 
+type Item = { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }
 const calls: Array<{ path: string; body?: unknown }> = []
+// What the server makes of a principal left blank.
+let sourcesTotal = '120.00'
 const apiMock = vi.fn(async (path: string, body?: unknown) => {
   calls.push({ path, body })
   if (path.startsWith('reporting/workspaces/debts/allocation-candidates')) return candidates
   if (path === 'categories') return { categories: [{ key: 'Social / Retired Club', archived: true }] }
-  if (path === 'preview') return { valid: true }
-  if (path === 'commands') return { status: 'applied' }
+  if (path === 'debts/preview') {
+    const items = (body as { items: Item[] }).items.map((i) => i.payload.principal_amount === null
+      ? { ...i, payload: { ...i.payload, principal_amount: sourcesTotal } } : i)
+    return {
+      generation: 'sha256:abc', items,
+      debts: [{ debt_id: 'd-2', counterparty_label: 'Jo', direction: 'RECEIVABLE', currency: 'SGD',
+        before: { status: 'OPEN', closed_on: null, remaining: '0' }, after: { status: 'OPEN', closed_on: null, remaining: '500.00' },
+        events: [{ event_id: 'new', event_kind: 'LENT', effective_on: '2026-03-01', signed: 1, principal: '500.00', balance: '500.00', change: 'added', balance_before: null }],
+        removed: [] }],
+    }
+  }
+  if (path === 'batch') return { status: 'applied' }
   throw new Error(`unmocked ${path}`)
 })
 vi.mock('@/lib/api', async (importOriginal) => {
@@ -38,7 +51,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
   return { ...actual, api: (path: string, body?: unknown) => apiMock(path, body) }
 })
 
-afterEach(() => { cleanup(); apiMock.mockClear(); calls.length = 0 })
+afterEach(() => { cleanup(); apiMock.mockClear(); calls.length = 0; sourcesTotal = '120.00' })
 
 const payableDetail = {
   ...receivableDetail,
@@ -57,6 +70,14 @@ async function mount(detail: typeof receivableDetail = receivableDetail) {
   )
 }
 
+const saved = () => (calls.find((c) => c.path === 'batch')!.body as { items: Item[] }).items[0].payload
+
+async function checkThenSave() {
+  fireEvent.click(screen.getByText('Check event'))
+  fireEvent.click(await screen.findByText('Save event'))
+  await waitFor(() => expect(calls.some((c) => c.path === 'batch')).toBe(true))
+}
+
 describe('EventForm', () => {
   it('records an opening balance with no source allocations', async () => {
     await mount()
@@ -64,13 +85,14 @@ describe('EventForm', () => {
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '500.00' } })
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Opening balance lent to Jo' } })
-    fireEvent.click(screen.getByText('Preview and save'))
+    fireEvent.click(screen.getByText('Check event'))
 
-    await waitFor(() => expect(calls.some((c) => c.path === 'commands')).toBe(true))
-    const commit = calls.find((c) => c.path === 'commands')!.body as { payload: Record<string, unknown> }
-    expect(commit.payload.event_kind).toBe('LENT')
-    expect(commit.payload.opening_balance).toBe(true)
-    expect(commit.payload.entry_allocations).toEqual([])
+    // The check shows the balance after the event before anything is saved.
+    expect(await screen.findByText('new')).toBeInTheDocument()
+    expect(calls.some((c) => c.path === 'batch')).toBe(false)
+    fireEvent.click(screen.getByText('Save event'))
+    await waitFor(() => expect(calls.some((c) => c.path === 'batch')).toBe(true))
+    expect(saved()).toMatchObject({ event_kind: 'LENT', opening_balance: true, principal_amount: '500.00', entry_allocations: [] })
   })
 
   it('records a forgiveness with no allocations and no category', async () => {
@@ -78,40 +100,29 @@ describe('EventForm', () => {
     fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'RECEIVABLE_WRITTEN_OFF' } })
     fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '70.00' } })
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Jo will not repay' } })
-    fireEvent.click(screen.getByText('Preview and save'))
-
-    await waitFor(() => expect(calls.some((c) => c.path === 'commands')).toBe(true))
-    const commit = calls.find((c) => c.path === 'commands')!.body as { payload: Record<string, unknown> }
-    expect(commit.payload.event_kind).toBe('RECEIVABLE_WRITTEN_OFF')
-    expect(commit.payload.entry_allocations).toEqual([])
-    expect(commit.payload.expense_category).toBeNull()
+    await checkThenSave()
+    expect(saved()).toMatchObject({ event_kind: 'RECEIVABLE_WRITTEN_OFF', entry_allocations: [], expense_category: null })
   })
 
-  it('seeds an empty event principal from the first source picked', async () => {
-    await mount()
-    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
-
-    await screen.findByLabelText('Allocation 1 source')
-    fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'rent' } })
-    fireEvent.click(await screen.findByText('Flat rent March'))
-
-    await waitFor(() => expect(screen.getByLabelText('Event principal')).toHaveValue('120.00'))
-    expect(screen.queryByText(/must match the event principal/)).not.toBeInTheDocument()
-  })
-
-  it('keeps the event principal on the allocated total and the date on the source', async () => {
+  it('leaves the principal of a source-linked event to the server and shows its total', async () => {
     await mount({ ...receivableDetail, debt: { ...receivableDetail.debt, opened_on: '2026-01-01' } })
     fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
-
     await screen.findByLabelText('Allocation 1 source')
     fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'rent' } })
     fireEvent.click(await screen.findByText('Flat rent March'))
-    await waitFor(() => expect(screen.getByLabelText('Event principal')).toHaveValue('120.00'))
     expect(screen.getByLabelText('Effective date')).toHaveValue('2026-03-05')
-
     fireEvent.change(screen.getByLabelText('Allocation 1 principal'), { target: { value: '45.50' } })
-    expect(screen.getByLabelText('Event principal')).toHaveValue('45.50')
-    expect(screen.queryByText(/must match the event principal/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Event principal')).toHaveValue('')
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: "Jo's share of the flat" } })
+
+    sourcesTotal = '45.50'
+    await checkThenSave()
+    const draft = (calls.find((c) => c.path === 'debts/preview')!.body as { items: Item[] }).items[0].payload
+    expect(draft.principal_amount).toBeNull()
+    expect(saved()).toMatchObject({
+      principal_amount: '45.50',
+      entry_allocations: [{ entry_anchor: 'anchor-120', principal_amount: '45.50', interest_amount: '0.00', fee_amount: '0.00', separate_fee_amount: '0.00' }],
+    })
   })
 
   it('folds interest and fee columns away until asked for', async () => {
@@ -124,45 +135,22 @@ describe('EventForm', () => {
     expect(screen.getByLabelText('Allocation 1 interest')).toBeInTheDocument()
   })
 
-  it('leaves a principal the user already typed alone', async () => {
+  it('needs a source for a source-linked event and drops a stale check on any edit', async () => {
     await mount()
     fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
-    fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '80.00' } })
-
-    await screen.findByLabelText('Allocation 1 source')
-    fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'rent' } })
-    fireEvent.click(await screen.findByText('Flat rent March'))
-
-    await screen.findByText(/must match the event principal/)
-    expect(screen.getByLabelText('Event principal')).toHaveValue('80.00')
-
-    fireEvent.click(screen.getByRole('button', { name: /Use SGD/ }))
-    expect(screen.getByLabelText('Event principal')).toHaveValue('120.00')
-  })
-
-  it('requires the source allocations to sum to the event principal', async () => {
-    await mount()
-    fireEvent.change(screen.getByLabelText('Event kind'), { target: { value: 'EXPENSE_PAID_FOR_OTHER' } })
-    fireEvent.change(screen.getByLabelText('Event principal'), { target: { value: '80.00' } })
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: "Jo's share of the flat" } })
+    await screen.findByLabelText('Allocation 1 source')
+    fireEvent.click(screen.getByText('Check event'))
+    await screen.findByText(/Pick the transaction/)
+    expect(calls.some((c) => c.path === 'debts/preview')).toBe(false)
 
-    await screen.findByLabelText('Allocation 1 source')  // candidate list loaded
     fireEvent.change(screen.getByLabelText('Allocation 1 source'), { target: { value: 'rent' } })
     fireEvent.click(await screen.findByText('Flat rent March'))
-
-    // principal field still 0.00 -> unbalanced -> blocked
-    fireEvent.click(screen.getByText('Preview and save'))
-    await screen.findByText(/must sum to the event principal/)
-    expect(calls.some((c) => c.path === 'commands')).toBe(false)
-
+    fireEvent.click(screen.getByText('Check event'))
+    await screen.findByText('Save event')
     fireEvent.change(screen.getByLabelText('Allocation 1 principal'), { target: { value: '80.00' } })
-    fireEvent.click(screen.getByText('Preview and save'))
-    await waitFor(() => expect(calls.some((c) => c.path === 'commands')).toBe(true))
-    const commit = calls.find((c) => c.path === 'commands')!.body as { payload: Record<string, unknown> }
-    expect(commit.payload.entry_allocations).toEqual([
-      { entry_anchor: 'anchor-120', principal_amount: '80.00', interest_amount: '0.00',
-        fee_amount: '0.00', separate_fee_amount: '0.00' },
-    ])
+    expect(screen.queryByText('Save event')).not.toBeInTheDocument()
+    expect(screen.getByText('Check event')).toBeInTheDocument()
   })
 
   it('chooses an expense paid for me from the shared category list', async () => {
@@ -174,9 +162,9 @@ describe('EventForm', () => {
     // Free text that is not a category is not saved as one.
     const picker = screen.getByRole('combobox', { name: 'Expense category' })
     fireEvent.change(picker, { target: { value: 'Dining' } })
-    fireEvent.click(screen.getByText('Preview and save'))
+    fireEvent.click(screen.getByText('Check event'))
     await screen.findByText(/an expense category from the list/)
-    expect(calls.some((c) => c.path === 'preview')).toBe(false)
+    expect(calls.some((c) => c.path === 'debts/preview')).toBe(false)
 
     fireEvent.change(picker, { target: { value: '' } })
     await waitFor(() => expect(screen.queryByRole('option', { name: /Retired Club/ })).not.toBeInTheDocument())
@@ -186,9 +174,7 @@ describe('EventForm', () => {
 
     fireEvent.change(picker, { target: { value: 'dining' } })
     fireEvent.click(screen.getByRole('button', { name: 'Food & Dining / Dining Out' }))
-    fireEvent.click(screen.getByText('Preview and save'))
-    await waitFor(() => expect(calls.some((c) => c.path === 'commands')).toBe(true))
-    const commit = calls.find((c) => c.path === 'commands')!.body as { payload: Record<string, unknown> }
-    expect(commit.payload).toMatchObject({ event_kind: 'EXPENSE_PAID_FOR_ME', expense_category: 'Food & Dining / Dining Out', entry_allocations: [] })
+    await checkThenSave()
+    expect(saved()).toMatchObject({ event_kind: 'EXPENSE_PAID_FOR_ME', expense_category: 'Food & Dining / Dining Out', entry_allocations: [] })
   })
 })

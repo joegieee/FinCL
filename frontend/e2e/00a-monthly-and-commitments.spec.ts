@@ -91,7 +91,8 @@ test('commitments: a recorded debt reaches everything owed and the answer', asyn
   await page.getByLabel('Event principal').fill('1500.00')
   await page.getByLabel(/Opening balance/).check()
   await page.getByLabel('Reason').fill('Jordan paid the invoice directly')
-  await page.getByRole('button', { name: 'Preview and save' }).click()
+  await page.getByRole('button', { name: 'Check event' }).click()
+  await page.getByRole('button', { name: 'Save event' }).click()
 
   const row = page.locator('.debt-list, .debts-view').getByText('Jordan (e2e loan)')
   await expect(row).toBeVisible()

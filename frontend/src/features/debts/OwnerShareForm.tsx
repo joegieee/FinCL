@@ -14,13 +14,6 @@ type OwnerShare = {
   owner_share: { expense_amount: string; expense_category: string; reason: string } | null
 }
 
-// Compare native decimal inputs exactly, including amounts beyond JS's safe
-// integer range. The server remains the authority for the complete partition.
-function units(text: string): bigint | null {
-  const match = /^(\d+)(?:\.(\d{1,9}))?$/.exec(text.trim())
-  return match ? BigInt(match[1] + (match[2] ?? '').padEnd(9, '0')) : null
-}
-
 /** The owner share belongs to the source transaction, even when several debts
  * share it. Replacing it must not append a second expense or change principal. */
 export function OwnerShareForm({ anchor, generation, categories, onSaved, onCancel }: {
@@ -58,11 +51,9 @@ export function OwnerShareForm({ anchor, generation, categories, onSaved, onCanc
 
   function submit() {
     if (!source) return
-    const value = units(amount)
-    const limit = units(source.available_amount)
+    // Whether the share fits what other allocations leave is the server's check.
     const error = !reason.trim() ? 'A reason is required.'
-      : !removing && (value === null || value <= 0n) ? 'Enter your share as a positive amount with at most 9 decimals.'
-      : !removing && limit !== null && value !== null && value > limit ? 'Your share exceeds the amount left after other allocations.'
+      : !removing && !amount.trim() ? 'Enter your share.'
       : !removing && !category ? 'Choose a category for your share.' : ''
     if (error) { setProblem(error); return }
     void cmd.act({
