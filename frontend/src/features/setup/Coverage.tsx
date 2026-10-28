@@ -109,7 +109,7 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
                 : 'Your accounts don’t yet share a starting date'}
             </h2>
           </div>
-          <Button variant="outline" size="sm" onClick={scrollToImport}><UploadCloud size={14} /> Upload statements</Button>
+          <Button variant="outline" size="sm" onClick={scrollToImport}><UploadCloud size={14} /> Go to upload</Button>
         </div>
         <p className="muted-note">
           The forecast starts on the latest day every account can prove. An account behind the others holds that day back
