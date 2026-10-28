@@ -1002,10 +1002,15 @@ def _residual_events(
     start: str,
     end: str,
 ) -> tuple[list[TimelineEvent], list[dict[str, Any]], list[str]]:
-    """Allocate every category independently and remove only matching costs."""
+    """Allocate every category independently and remove only matching costs.
+
+    The third value is notes, not limitations: a dated cost larger than its
+    matching residual empties that residual for the month and says so, but the
+    dated cost itself is fully counted, so the case stays available.
+    """
     result: list[TimelineEvent] = []
     allocations: list[dict[str, Any]] = []
-    limitations: list[str] = []
+    notes: list[str] = []
     resolved_by_event = {item.event_id: item for item in resolved}
     for category in categories:
         if category.currency != currency:
@@ -1040,7 +1045,7 @@ def _residual_events(
                     }
                 )
             if removed > prorated:
-                limitations.append(
+                notes.append(
                     f"{format_decimal(removed - prorated, scale)} {currency} of dated "
                     f"cost in {category.category_id} during {month} exceeds that "
                     "category's matching residual; the matching residual is reduced "
@@ -1091,7 +1096,7 @@ def _residual_events(
                     "assumption": DAILY_ALLOCATION_RULE,
                 }
             )
-    return result, allocations, limitations
+    return result, allocations, notes
 
 
 def _residual_dispersion(
@@ -1213,7 +1218,7 @@ def _scenario(
             )
         else:
             placed.append(resolved)
-    residual, allocations, allocation_limits = _residual_events(
+    residual, allocations, allocation_notes = _residual_events(
         categories=residual_categories,
         sourced=selected_sources,
         resolved=placed,
@@ -1223,7 +1228,6 @@ def _scenario(
         start=start,
         end=end,
     )
-    limitations.extend(allocation_limits)
     result = run_timeline(
         currency=currency,
         scale=scale,
@@ -1240,6 +1244,7 @@ def _scenario(
     result["case"] = name
     result["available"] = not limitations and result["settlement"]["settled_exactly_once"]
     result["limitations"] = limitations
+    result["notes"] = allocation_notes
     result["allocation_metadata"] = allocations
     result["policy"] = {
         "income": (

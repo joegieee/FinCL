@@ -104,6 +104,26 @@ class CashTimelineTrapTests(unittest.TestCase):
             ("personal_debt", "Loan"),
         )
 
+    def test_a_dated_cost_beyond_its_residual_is_a_note_not_a_missing_case(self) -> None:
+        bill = ForecastEvent(
+            event_id="boiler", source_id="boiler", currency="SGD", amount="500.00",
+            column=COLUMN_IRREGULAR, direction=DIRECTION_OUT, label="Boiler", on="2026-02-10",
+            residual_category="manifest:irregular:SGD", residual_on="2026-02-10",
+            residual_amount="500.00", removes_from_residual=True,
+        )
+        estimate = {"available": True, "by_currency": {"SGD": {
+            "variable_residual_monthly": "300.00", "variable_residual_max": "300.00",
+            "irregular_allowance_monthly": "50.00",
+        }}}
+
+        cell = build_cash_timeline(_manifest(), sourced_events=[bill], estimate=estimate)["by_currency"]["SGD"]
+
+        self.assertTrue(cell["available"])
+        self.assertEqual(cell["base"]["limitations"], [])
+        self.assertIn("450.00 SGD of dated cost in manifest:irregular:SGD during 2026-02", cell["base"]["notes"][0])
+        february = next(row for row in cell["base"]["months"] if row["month"] == "2026-02")
+        self.assertEqual(february["expense"], "800.00")
+
     def test_residual_spending_is_not_gated_by_allowance_readiness(self) -> None:
         manifest = _manifest()
         manifest["reserve_and_allowance"]["by_currency"]["SGD"]["allowance"] = {
