@@ -122,9 +122,8 @@ def baseline_roles_from(connection: sqlite3.Connection, *, today: date) -> dict[
     ).fetchall()
     recurring = {
         row["entry_anchor"] for row in connection.execute(
-            """SELECT o.entry_anchor FROM recurring_occurrences o
-               JOIN recurring_commitments c ON c.commitment=o.commitment
-               WHERE o.bound=1 AND o.entry_anchor IS NOT NULL AND c.status='active'"""
+            """SELECT entry_anchor FROM recurring_occurrences
+               WHERE bound=1 AND entry_anchor IS NOT NULL"""
         )
     }
     purchase_categories = {

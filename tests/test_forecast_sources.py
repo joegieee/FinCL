@@ -171,8 +171,12 @@ class FundSourceTests(unittest.TestCase):
         timeline = cash_timeline(database, today=TODAY)
 
         self.assertEqual(
-            [event for event in base_events(timeline, "") if event[0] == "2026-08-05"],
-            [("2026-08-05", "1200.00")],
+            [
+                (event["source_id"], event["amount"])
+                for event in timeline["by_currency"]["SGD"]["base"]["events"]["items"]
+                if event["on"] == "2026-08-05" and not event["source_id"].startswith("residual:")
+            ],
+            [("recurring:rent:2026-08-05", "1200.00")],
         )
         self.assertEqual(base_events(timeline, "fund:"), [])
 

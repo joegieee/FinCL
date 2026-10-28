@@ -117,9 +117,11 @@ def _recurring_matched_from(
 ) -> tuple[dict[tuple[str, str], Decimal], set[str]]:
     """Confirmed recurring spend matched to the month it was recorded in.
 
-    A bound occurrence of an active commitment is deterministic evidence, so
-    its owner cost is lifted out of the routine residual for that month rather
-    than being left to inflate it (§5.5).  The matched anchors are also held
+    A bound occurrence is deterministic evidence, so its owner cost is lifted
+    out of the routine residual for that month rather than being left to
+    inflate it (§5.5). That holds whatever the commitment's status: an active
+    one is forecast on its own schedule, and a paused or ended one must not
+    keep being spent through the residual.  The matched anchors are also held
     back from the outlier scan: a scheduled annual premium is a known cost, not
     irregular risk.
     """
@@ -129,7 +131,6 @@ def _recurring_matched_from(
                ac.signed_coefficient, ac.scale
         FROM analysis_components ac
         JOIN recurring_occurrences o ON o.entry_anchor = ac.origin_anchor AND o.bound = 1
-        JOIN recurring_commitments c ON c.commitment = o.commitment AND c.status = 'active'
         WHERE ac.generation_token = ? AND ac.lens = 'recorded_flow'
           AND ac.bucket IN ('spending', 'fees')
           AND ac.represented_start >= ? AND ac.represented_end <= ?

@@ -1689,7 +1689,6 @@ def _obligation_events(
     *,
     start: str,
     end: str,
-    residual_category_ids: frozenset[str] = frozenset(),
 ) -> tuple[list[ForecastEvent], list[str]]:
     events: list[ForecastEvent] = []
     limitations: list[str] = []
@@ -1723,21 +1722,9 @@ def _obligation_events(
         confidence = str(obligation.get("confidence") or CONFIDENCE_LIKELY)
         date_basis = obligation.get("date_basis", {})
         link = obligation.get("baseline_link", {})
-        detailed_residual = (
-            f"role:{obligation['currency']}:{link.get('category_key')}"
-            if link.get("category_key")
-            else None
-        )
-        residual_category = (
-            detailed_residual
-            if detailed_residual in residual_category_ids
-            else f"manifest:routine:{obligation['currency']}"
-        )
-        residual_amount = (
-            str(link["monthly_baseline_portion"])
-            if link.get("available") and link.get("monthly_baseline_portion") is not None
-            else None
-        )
+        # A recurring event removes nothing from the residual: the estimator has
+        # already lifted every bound occurrence out of it, and history that is
+        # not bound yet is an action item rather than a guessed removal.
         if origin == "recurring_commitment" and date_basis.get("schedule"):
             scheduled = schedule_occurrences(date_basis["schedule"], first, last)
             # remaining_amount is only the next due occurrence's amount, which
@@ -1759,10 +1746,6 @@ def _obligation_events(
                         label=str(obligation["label"]),
                         on=iso,
                         confidence=confidence,
-                        residual_category=residual_category if residual_amount else None,
-                        residual_on=iso,
-                        residual_amount=residual_amount,
-                        removes_from_residual=residual_amount is not None,
                         provenance={
                             # The obligation family this cash belongs to, so a shortfall can be
                             # attributed to debt repayment, an installment plan or a recurring
@@ -2059,12 +2042,7 @@ def _cash_timeline(
     obligations = obligations_page_from(connection, as_of=str(cutoff), today=today)
     recurring = recurring_page_from(connection)
     obligation_events, obligation_limits = _obligation_events(
-        obligations,
-        start=str(cutoff),
-        end=end,
-        residual_category_ids=frozenset(
-            category.category_id for category in residual_categories
-        ),
+        obligations, start=str(cutoff), end=end
     )
     income_events, income_limits = _candidate_income_events(
         recurring, start=str(cutoff), end=end

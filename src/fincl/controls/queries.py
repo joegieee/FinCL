@@ -49,7 +49,9 @@ def _role_inputs(
 ) -> tuple[list[ResidualCategory], dict[str, dict[str, Any]], list[dict[str, Any]]]:
     grouped: dict[str, dict[str, Any]] = {}
     for row in roles.get("groups", []):
-        if row["currency"] != currency or row["cost_pattern"] == "irregular":
+        # Recurring commitments are forecast on their own schedule, and
+        # irregular cost has its own allowance below.
+        if row["currency"] != currency or row["cost_pattern"] in ("irregular", "fixed_recurring"):
             continue
         category = str(row["category_key"])
         cell = grouped.setdefault(

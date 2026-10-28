@@ -692,9 +692,6 @@ def _ambiguous_obligations(obligations: list[dict[str, Any]]) -> list[dict[str, 
         date_kind = o.get("date_basis", {}).get("kind")
         if date_kind in _AMBIGUOUS_DATE_KINDS:
             reasons.append(f"date basis is '{date_kind}'")
-        link = o.get("baseline_link", {})
-        if o["origin"] == "recurring_commitment" and not link.get("available"):
-            reasons.append(link.get("reason") or "baseline component link is ambiguous")
         if reasons:
             ambiguous.append(
                 {
