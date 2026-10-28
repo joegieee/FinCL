@@ -25,6 +25,8 @@ export type PocketReadiness = {
   reconciliation: { passed: number; total: number }
   months: MonthCell[]
   missing_intervals: Interval[]
+  /** Statements stop before the other accounts' and no end is recorded. */
+  stopped?: boolean
   warnings: string[]
 }
 

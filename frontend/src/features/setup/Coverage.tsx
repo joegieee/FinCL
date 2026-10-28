@@ -12,6 +12,8 @@ import {
   loadCashPosition, loadCertifications, loadCoverageReport, retireCoverage,
 } from '@/features/cash/api'
 import { type BaselineReadiness, type Interval, loadBaselineReadiness } from '@/features/baseline/api'
+import { type AccountRow, loadAccounts } from '@/features/accounts/api'
+import { CloseAccountForm, type ClosingAccount } from './CloseAccountForm'
 
 /** Where the answer's import to-dos land: `?view=Setup#setup-coverage`. */
 export const SETUP_COVERAGE_ID = 'setup-coverage'
@@ -39,23 +41,32 @@ export function scrollToImport() {
   target?.querySelector<HTMLInputElement>('input[type="file"]')?.focus()
 }
 
-type Row = { account: string; name: string; freshness: AccountFreshness | null; missing: Interval[] }
+type Row = { account: string; name: string; freshness: AccountFreshness | null; missing: Interval[]; stopped: boolean }
 
 function rows(report: CoverageReport, readiness: BaselineReadiness | null): Row[] {
   const byAccount = new Map<string, Row>()
   for (const freshness of report.freshness) {
-    byAccount.set(freshness.account, { account: freshness.account, name: freshness.display_name, freshness, missing: [] })
+    byAccount.set(freshness.account, { account: freshness.account, name: freshness.display_name, freshness, missing: [], stopped: false })
   }
   for (const pocket of readiness?.pockets ?? []) {
     if (pocket.missing_intervals.length === 0) continue
     const row = byAccount.get(pocket.account_id)
-      ?? { account: pocket.account_id, name: pocket.display_name ?? pocket.account_id, freshness: null, missing: [] }
+      ?? { account: pocket.account_id, name: pocket.display_name ?? pocket.account_id, freshness: null, missing: [], stopped: false }
+    if (pocket.stopped) row.stopped = true
     for (const interval of pocket.missing_intervals) {
       if (!row.missing.some(m => m.start === interval.start && m.end === interval.end)) row.missing.push(interval)
     }
     byAccount.set(pocket.account_id, row)
   }
   return [...byAccount.values()]
+}
+
+/** The account as the close form needs it; null when the Accounts read has no such account. */
+function closable(row: Row, accounts: AccountRow[]): ClosingAccount | null {
+  const account = accounts.find(a => a.id === row.account)
+  if (!account) return null
+  const last = account.pockets.map(p => p.observed_end ?? '').sort().pop() || row.freshness?.evidence_through || ''
+  return { id: account.id, displayName: account.display_name, lastActivity: last }
 }
 
 /**
@@ -75,6 +86,8 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
   const [pockets, setPockets] = useState<CashPocket[]>([])
   const [observing, setObserving] = useState<CashPocket | null>(null)
   const [certifying, setCertifying] = useState<CertifyTarget | null>(null)
+  const [accounts, setAccounts] = useState<AccountRow[]>([])
+  const [closing, setClosing] = useState<ClosingAccount | null>(null)
 
   // Each read degrades on its own: a failure hides that part, never the page.
   const load = useCallback(() => {
@@ -82,6 +95,7 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
     loadBaselineReadiness().then(setReadiness).catch(() => setReadiness(null))
     loadCertifications().then(r => setCertifications(r.certifications)).catch(() => setCertifications([]))
     loadCashPosition().then(p => setPockets(p.pockets)).catch(() => setPockets([]))
+    loadAccounts().then(page => setAccounts(page.accounts)).catch(() => setAccounts([]))
   }, [])
   useEffect(() => { load() }, [load, reloadKey])
   // A to-do that links here with the anchor lands on this card once it exists.
@@ -93,8 +107,8 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
   }, [shown])
 
   if (!report) return null
-  const accounts = rows(report, readiness)
-  if (accounts.length === 0 && report.remedies.length === 0) return null
+  const tableRows = rows(report, readiness)
+  if (tableRows.length === 0 && report.remedies.length === 0) return null
   const saved = () => { load(); onSaved() }
 
   return (
@@ -119,7 +133,7 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
           <table className="coverage-table">
             <thead><tr><th>Account</th><th>Proven through</th><th>Proven by</th><th>Missing months</th></tr></thead>
             <tbody>
-              {accounts.map(row => (
+              {tableRows.map(row => (
                 <tr key={row.account}>
                   <td>
                     {row.name}
@@ -132,7 +146,12 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
                       : <span className="form-error">Not proven</span>}
                   </td>
                   <td>{row.freshness?.basis ? BASIS_LABEL[row.freshness.basis] ?? row.freshness.basis : '—'}</td>
-                  <td>{row.missing.length ? row.missing.map(monthsLabel).join(', ') : 'None'}</td>
+                  <td>
+                    {row.missing.length ? row.missing.map(monthsLabel).join(', ') : 'None'}
+                    {row.stopped && closable(row, accounts) && (
+                      <Button variant="outline" size="sm" onClick={() => setClosing(closable(row, accounts))}>This account is closed</Button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -162,6 +181,13 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
           pocket={observing} generation={generation}
           onCancel={() => setObserving(null)}
           onSaved={() => { setObserving(null); saved() }}
+        />
+      )}
+      {closing && (
+        <CloseAccountForm
+          account={closing} generation={generation}
+          onCancel={() => setClosing(null)}
+          onSaved={() => { setClosing(null); saved() }}
         />
       )}
       {certifying && (
