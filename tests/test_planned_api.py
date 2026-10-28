@@ -30,8 +30,8 @@ class PlannedApiTests(ApiTestBase):
         response = self.post("/api/v1/commands", body, self.csrf)
         self.assertIn(response.status_code, {200, 202}, response.text)
 
-    def set_flow(self, **changes: Any) -> None:
-        self.command("PLANNED_FLOW_SET", {"flow": self.flow}, {
+    def set_flow(self, flow: str | None = None, **changes: Any) -> None:
+        self.command("PLANNED_FLOW_SET", {"flow": flow or self.flow}, {
             "name": "Course", "direction": "outflow", "currency": "SGD", "account_id": None, "category": None,
             "occurrences": [
                 {"key": "1", "earliest": "2026-01-02", "latest": "2026-01-02", "amount": "4.00"},
@@ -99,3 +99,45 @@ class PlannedApiTests(ApiTestBase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(self.client.get("/api/v1/planned").json()["flows"][0]["link"],
                          {"kind": "trip", "id": trip, "name": "Spring trip", "exists": True})
+
+    def one_day(self, on: str, amount: str) -> list[dict[str, str]]:
+        return [{"key": "a", "earliest": on, "latest": on, "amount": amount}]
+
+    def answer(self) -> dict[str, Any]:
+        return self.client.get("/api/v1/planning/sufficiency").json()["combined_answer"]
+
+    def forecast_event_ids(self, case: str) -> list[str]:
+        days = self.client.get("/api/v1/forecast").json()["by_currency"]["SGD"][case]["days"]
+        return [event for day in days for event in day["event_ids"] if event.startswith("planned:")]
+
+    def test_a_sure_inflow_fixes_a_shortfall_in_both_cases(self) -> None:
+        self.assertEqual(self.answer()["answer"], "No")
+        self.set_flow(direction="inflow", occurrences=self.one_day("2026-03-01", "100.00"))
+        answer = self.answer()
+        self.assertEqual((answer["answer"], answer["base"]["verdict"], answer["cautious"]["verdict"]),
+                         ("Yes", "enough", "enough"))
+        self.assertEqual([(row["label"], row["next_on"], row["confidence"]) for row in answer["income"]],
+                         [("Course", "2026-03-01", "confirmed")])
+        for case in ("base", "conservative"):
+            self.assertEqual(self.forecast_event_ids(case), [f"planned:{self.flow}:a"])
+
+    def test_an_expected_inflow_helps_the_base_case_only(self) -> None:
+        self.set_flow(direction="inflow", certainty="expected", occurrences=self.one_day("2026-03-01", "100.00"))
+        answer = self.answer()
+        self.assertEqual((answer["base"]["verdict"], answer["cautious"]["verdict"]), ("enough", "short"))
+        self.assertTrue(answer["only_safe_in_the_base_case"])
+        self.assertEqual(self.forecast_event_ids("base"), [f"planned:{self.flow}:a"])
+        self.assertEqual(self.forecast_event_ids("conservative"), [])
+
+    def test_a_planned_outflow_moves_the_forecast_and_flips_the_answer(self) -> None:
+        self.set_flow(direction="inflow", occurrences=self.one_day("2026-03-01", "200.00"))
+        before = self.answer()
+        self.assertEqual(before["answer"], "Yes")
+        outflow = str(uuid.uuid4())
+        self.set_flow(outflow, name="Laptop", occurrences=self.one_day("2026-04-15", "300.00"))
+        after = self.answer()
+        self.assertEqual(after["answer"], "No")
+        self.assertEqual(after["base"]["verdict"], "short")
+        self.assertLess(float(after["base"]["lowest"]), float(before["base"]["lowest"]) - 299)
+        self.assertIn(f"planned:{outflow}:a", self.forecast_event_ids("base"))
+        self.assertIn("Planned spending", [row["label"] for row in after["where_it_goes"]])
