@@ -5,17 +5,20 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
+import { CorrectEventForm, RemoveEventForm } from './CorrectEvent'
 import { EventForm } from './EventForm'
 import { NewDebtForm } from './NewDebtForm'
 import { SplitBillForm } from './SplitBillForm'
 import {
   RECONCILIATION_LABEL,
   detailsCommand,
+  kindLabel,
   lifecycleCommand,
   loadDebtDetail,
   loadDebts,
   type DebtCard,
   type DebtDetail,
+  type DebtEvent,
   type DebtsPage,
 } from './api'
 
@@ -172,6 +175,10 @@ function DebtDetailView({
 }) {
   const debt = detail.debt
   const [recording, setRecording] = useState(startRecording)
+  // An event being corrected or removed; every other control waits.
+  const [correcting, setCorrecting] = useState<{ event: DebtEvent; remove: boolean } | null>(null)
+  const busy = recording || correcting !== null
+  async function corrected(status: string) { setCorrecting(null); await onSaved(status) }
   return (
     <Card className="debt-detail"><WorkspaceReportingDetails data={detail}/>
       <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft size={14} /> All debts</Button>
@@ -192,7 +199,19 @@ function DebtDetailView({
       <p className="debt-detail-status">
         {RECONCILIATION_LABEL[debt.reconciliation_status] ?? debt.reconciliation_status}
       </p>
-      {debt.status === 'OPEN' && (
+      {debt.overlapping_commitments?.length ? (
+        <p className="debt-event-error" role="note">
+          {debt.overlapping_commitments.length === 1 ? 'A recorded payment of this debt is also' : 'Recorded payments of this debt are also'} part of
+          {' '}{debt.overlapping_commitments.map((c) => `“${c.name}”`).join(', ')}, {debt.overlapping_commitments.length === 1 ? 'a confirmed recurring commitment' : 'confirmed recurring commitments'}.
+          {' '}The forecast projects the commitment and this debt’s remaining principal separately, so the same repayments are counted twice.
+        </p>
+      ) : null}
+      {correcting && (correcting.remove
+        ? <RemoveEventForm detail={detail} event={correcting.event} generation={generation}
+            onCancel={() => setCorrecting(null)} onSaved={corrected} />
+        : <CorrectEventForm detail={detail} event={correcting.event} generation={generation} categories={categories}
+            onCancel={() => setCorrecting(null)} onSaved={corrected} />)}
+      {debt.status === 'OPEN' && !correcting && (
         recording ? (
           <EventForm
             detail={detail}
@@ -207,29 +226,35 @@ function DebtDetailView({
           </Button>
         )
       )}
-      {!recording && <DetailsControls detail={detail} generation={generation} onSaved={onSaved} />}
-      {!recording && (
+      {!busy && <DetailsControls detail={detail} generation={generation} onSaved={onSaved} />}
+      {!busy && (
         <LifecycleControls detail={detail} generation={generation} onSaved={onSaved} />
       )}
       <table className="debt-history">
         <thead>
-          <tr><th>Date</th><th>Event</th><th>Principal</th><th>Note</th></tr>
+          <tr><th>Date</th><th>Event</th><th>Principal</th><th>Note</th><th /></tr>
         </thead>
         <tbody>
           {debt.principal_history.map((e) => (
             <tr key={e.event_id}>
               <td>{dateLabel(e.effective_on)}</td>
               <td>
-                {e.event_kind}
+                {kindLabel(e.event_kind)}
                 {e.opening_balance ? <span className="tag">opening</span> : null}
                 {!e.bound ? <span className="tag warn">unverified</span> : null}
               </td>
               <td>{(e.signed < 0 ? '−' : '+') + reportedMoney(e.principal, 'value', debt.currency).replace(/^−/, '')}</td>
               <td>{e.reason}{e.expense_category ? <span className="tag">{e.expense_category}</span> : null}</td>
+              <td className="debt-history-actions">
+                <Button size="sm" variant="ghost" disabled={busy} aria-label={`Correct ${kindLabel(e.event_kind)} on ${e.effective_on}`}
+                  onClick={() => setCorrecting({ event: e, remove: false })}>Correct</Button>
+                <Button size="sm" variant="ghost" disabled={busy} aria-label={`Remove ${kindLabel(e.event_kind)} on ${e.effective_on}`}
+                  onClick={() => setCorrecting({ event: e, remove: true })}>Remove</Button>
+              </td>
             </tr>
           ))}
           {debt.principal_history.length === 0 && (
-            <tr><td colSpan={4} className="debt-empty">No principal events recorded.</td></tr>
+            <tr><td colSpan={5} className="debt-empty">No principal events recorded.</td></tr>
           )}
         </tbody>
       </table>

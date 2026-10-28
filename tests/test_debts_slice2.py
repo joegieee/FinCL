@@ -339,7 +339,7 @@ class OffLedgerAndRebuildTests(Slice2Base):
                          "reason": "my share"}},
         ]
         before = self._journal_len()
-        with self.assertRaisesRegex(FinCLError, "exceeds the component magnitude"):
+        with self.assertRaisesRegex(FinCLError, "more than the 20.00 other allocations leave"):
             record_batch(
                 self.database, request_id=str(uuid.uuid4()),
                 intent_hash=_intent("DECISION_BATCH", {}, {"items": items}),

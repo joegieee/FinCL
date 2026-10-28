@@ -42,16 +42,30 @@ export type DebtsPage = {
   next_cursor: string | null
 }
 
+/** An active recurring commitment whose payments are this debt's own movements. */
+export type OverlappingCommitment = { commitment: string; name: string; payments: number }
+
 export type DebtDetail = {
   generation: string
   as_of: string
-  debt: DebtCard & { principal_history: DebtEvent[]; reason: string }
+  debt: DebtCard & { principal_history: DebtEvent[]; reason: string; overlapping_commitments?: OverlappingCommitment[] }
 }
 
-export function loadDebts(opts: { asOf?: string; generation: string }): Promise<DebtsPage> {
+/** Every debt, following the server's pages: the lists, the split form and the
+ * classification hand-off all need the whole set, not the first page of it. */
+export async function loadDebts(opts: { asOf?: string; generation: string }): Promise<DebtsPage> {
   const q = new URLSearchParams({ generation: opts.generation, limit: '200' })
   if (opts.asOf) q.set('as_of', opts.asOf)
-  return reportedApi<DebtsPage>('debts?' + q)
+  const page = await reportedApi<DebtsPage>('debts?' + q)
+  for (let cursor = page.next_cursor; cursor; ) {
+    q.set('cursor', cursor)
+    const next = await reportedApi<DebtsPage>('debts?' + q)
+    page.i_owe.push(...next.i_owe)
+    page.owed_to_me.push(...next.owed_to_me)
+    cursor = next.next_cursor
+  }
+  page.next_cursor = null
+  return page
 }
 
 export function loadDebtDetail(id: string, opts: { asOf?: string; generation: string }): Promise<DebtDetail> {
@@ -102,6 +116,8 @@ export type AllocationCandidate = {
   amount: string
   open_amount: string
   description: string | null
+  /** An inflow's recorded incoming type, if any. */
+  incoming_type?: string | null
 }
 
 export type AllocationCandidatesPage = {
@@ -121,12 +137,15 @@ export function loadAllocationCandidates(opts: {
   search?: string
   /** Narrow to exactly one transaction (the classification editor's hand-off). */
   anchor?: string
+  /** An event being corrected: what it claims is offered as open again. */
+  replacing?: string
   limit?: number
 }): Promise<AllocationCandidatesPage> {
   const q = new URLSearchParams({ debt: opts.debtId, generation: opts.generation, limit: String(opts.limit ?? 50) })
   if (opts.eventKind) q.set('event_kind', opts.eventKind)
   if (opts.search) q.set('search', opts.search)
   if (opts.anchor) q.set('anchor', opts.anchor)
+  if (opts.replacing) q.set('replacing', opts.replacing)
   return reportedApi<AllocationCandidatesPage>('debts/allocation-candidates?' + q)
 }
 
@@ -202,40 +221,23 @@ export function loadSplitCandidates(opts: { generation: string; search?: string;
   return reportedApi<SplitCandidatesPage>('debts/split-candidates?' + q)
 }
 
-/** The number of decimals an amount string carries ("51.25" -> 2). */
-export function scaleOf(amount: string): number {
-  const dot = amount.indexOf('.')
-  return dot < 0 ? 0 : amount.length - dot - 1
-}
-
-/** Exact integer minor units at `scale`, or null for anything that is not a
- * plain non-negative amount with at most `scale` decimals. */
-export function toMinor(text: string, scale: number): number | null {
-  const match = /^(\d+)(?:\.(\d*))?$/.exec(text.trim())
-  if (!match || (match[2] ?? '').length > scale) return null
-  return Number(match[1] + (match[2] ?? '').padEnd(scale, '0'))
-}
-
-export function fromMinor(minor: number, scale: number): string {
-  const digits = String(minor).padStart(scale + 1, '0')
-  return scale ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}` : digits
-}
-
 /** One other person's share: an existing receivable, or someone new (`debtId`
  * null) whose receivable is opened in the same batch. */
 export type SplitShare = { debtId: string | null; name: string; amount: string }
 
-/** The one atomic batch for a split: a receivable for each new person, an
+/** The draft for a split: a receivable for each new person, an
  * EXPENSE_PAID_FOR_OTHER per share backed by the bill, and the owner's own
- * share as the bill's residual (omitted when the owner kept none of it). */
+ * share as the bill's residual. Its amount is left to the server, which
+ * records whatever the shares leave of the bill (or nothing, when they cover
+ * it) -- see `previewDebtDraft`. */
 export function splitItems(
   bill: AllocationCandidate,
   shares: SplitShare[],
-  mine: { amount: string; category: string } | null,
+  category: string,
   reason: string,
-): { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }[] {
+): DraftItem[] {
   const day = bill.effective_at.slice(0, 10)
-  const items: { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }[] = []
+  const items: DraftItem[] = []
   for (const share of shares) {
     let debtId = share.debtId
     if (debtId === null) {
@@ -254,6 +256,80 @@ export function splitItems(
       },
     })
   }
-  if (mine) items.push({ kind: 'ENTRY_RESIDUAL_SET', anchors: { entry: bill.entry_anchor }, payload: { expense_amount: mine.amount, expense_category: mine.category, reason } })
+  items.push({ kind: 'ENTRY_RESIDUAL_SET', anchors: { entry: bill.entry_anchor }, payload: { expense_amount: null, expense_category: category, reason } })
   return items
+}
+
+// --- drafts checked by the server --------------------------------------------
+
+export type DraftItem = { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }
+
+export type TimelineEvent = {
+  event_id: string
+  event_kind: string
+  effective_on: string
+  signed: number
+  principal: string
+  /** The principal standing after this event. */
+  balance: string
+}
+
+export type DraftDebt = {
+  debt_id: string
+  counterparty_label: string
+  direction: 'PAYABLE' | 'RECEIVABLE'
+  currency: string
+  before: { status: string; closed_on: string | null; remaining: string } | null
+  after: { status: string; closed_on: string | null; remaining: string }
+  events: (TimelineEvent & { change: 'added' | 'changed' | 'balance' | null; balance_before: string | null })[]
+  removed: TimelineEvent[]
+}
+
+export type DraftPreview = { generation: string; items: DraftItem[]; debts: DraftDebt[] }
+
+/** Check a draft as one batch and see what it does to every later balance.
+ * `items` comes back exactly as it should be saved, with any amount the draft
+ * left null completed by the server. Nothing is recorded. */
+export function previewDebtDraft(generation: string, items: DraftItem[]): Promise<DraftPreview> {
+  return api<DraftPreview>('debts/preview', { expected_generation: generation, items })
+}
+
+export type DebtEventPayload = {
+  event_id: string
+  event_kind: string
+  direction: 'PAYABLE' | 'RECEIVABLE'
+  principal_amount: string
+  effective_on: string
+  entry_allocations: AllocationInput[]
+  opening_balance: boolean
+  expense_category: string | null
+  reason: string
+}
+
+export type DebtEventRead = { generation: string; debt_id: string; event: DebtEventPayload; sources: AllocationCandidate[] }
+
+/** One recorded event as its payload, with its sources described as candidates. */
+export function loadDebtEvent(debtId: string, eventId: string, generation: string): Promise<DebtEventRead> {
+  const q = new URLSearchParams({ generation })
+  return api<DebtEventRead>(`debts/${encodeURIComponent(debtId)}/events/${encodeURIComponent(eventId)}?` + q)
+}
+
+/** A closed debt is reopened around a correction and, unless the user says
+ * otherwise, closed again on `recloseOn` in the same record. */
+export function aroundClosed(
+  debt: { debt_id: string; status: string },
+  items: DraftItem[],
+  opts: { reopenOn: string; recloseOn: string | null; reason: string },
+): DraftItem[] {
+  if (debt.status !== 'CLOSED') return items
+  const lifecycle = (kind: string, on: string): DraftItem => ({ kind, anchors: { debt: debt.debt_id }, payload: { effective_on: on, reason: opts.reason } })
+  return [
+    lifecycle('PERSONAL_DEBT_REOPEN', opts.reopenOn),
+    ...items,
+    ...(opts.recloseOn ? [lifecycle('PERSONAL_DEBT_CLOSE', opts.recloseOn)] : []),
+  ]
+}
+
+export function kindLabel(kind: string): string {
+  return [...EVENT_KINDS.PAYABLE, ...EVENT_KINDS.RECEIVABLE].find(spec => spec.kind === kind)?.label ?? kind
 }

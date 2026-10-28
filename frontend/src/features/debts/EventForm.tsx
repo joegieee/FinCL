@@ -1,16 +1,18 @@
-import { useMemo, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ApiError } from '@/lib/api'
 import { CategoryPicker, rememberCategory } from '@/features/classification/CategoryPicker'
-import { AllocationTable, emptyAllocation, principalTotalMinor } from './AllocationTable'
+import { INCOMING_LABELS } from '@/features/classification/api'
+import { AllocationTable, emptyAllocation } from './AllocationTable'
+import { DraftEffect, RecloseControl, useDebtDraft } from './Draft'
 import {
   EVENT_KINDS,
+  aroundClosed,
   bankDirection,
   kindsForMovement,
-  previewThenCommit,
   type AllocationCandidate,
   type AllocationInput,
   type DebtDetail,
+  type DebtEventRead,
   type EventKindSpec,
 } from './api'
 
@@ -21,10 +23,19 @@ function todayIso(): string {
 
 /** A row the user added but never filled in: dropped rather than sent. */
 function isBlank(row: AllocationInput): boolean {
-  return !row.entry_anchor && principalTotalMinor([row]) === 0
+  return !row.entry_anchor && !row.principal_amount.trim()
 }
 
-/** Record one PERSONAL_DEBT_EVENT_SET against an open debt.
+/** Record one PERSONAL_DEBT_EVENT_SET against an open debt, or correct one.
+ *
+ * `replacing` is a recorded event being corrected: the form starts from its
+ * values, and saving retires it and records the corrected event in one batch.
+ * On a closed debt that batch also reopens it and, unless the user says
+ * otherwise, closes it again. What it claims of its sources is offered back.
+ *
+ * An inflow with a recorded incoming type keeps it unless it is cleared in the
+ * same change. One called an own-account transfer must be: that outranks the
+ * debt, so the debt would not count.
  *
  * `seed` is one source transaction handed over from the classification editor:
  * the form then offers only the event kinds that transaction's direction can
@@ -33,14 +44,16 @@ function isBlank(row: AllocationInput): boolean {
  * An expense someone paid for me is reported as spending under its category, so
  * it is chosen from the same category list as every other transaction.
  *
- * The principal and the date follow the picked sources until the user edits
- * them: the principal tracks the allocated total, the date the latest source. */
+ * A source-linked event's principal may be left blank: the server takes it as
+ * the total of the sources and shows it, with every later balance, when the
+ * event is checked. The date follows the picked sources until the user edits it. */
 export function EventForm({
   detail,
   generation,
   onSaved,
   onCancel,
   seed,
+  replacing,
   categories = [],
 }: {
   detail: DebtDetail
@@ -48,123 +61,111 @@ export function EventForm({
   onSaved: (status: string) => void | Promise<void>
   onCancel: () => void
   seed?: AllocationCandidate
+  replacing?: DebtEventRead
   /** The ledger's categories; `Unclassified` is not offered, since it says nothing about the expense. */
   categories?: string[]
 }) {
   const debt = detail.debt
+  const old = replacing?.event
   const kinds = seed ? kindsForMovement(debt.direction, seed.economic_direction) : EVENT_KINDS[debt.direction]
-  const [spec, setSpec] = useState<EventKindSpec>(kinds[0])
-  const [principal, setPrincipal] = useState(seed?.open_amount ?? '')
-  const [principalAuto, setPrincipalAuto] = useState(true)
+  const [spec, setSpec] = useState<EventKindSpec>(kinds.find((k) => k.kind === old?.event_kind) ?? kinds[0])
+  // A source-linked event's principal is the total of its sources, so a
+  // correction starts it blank and lets the server work it out again.
+  const [principal, setPrincipal] = useState(old && !old.entry_allocations.length ? old.principal_amount : '')
   // A debt's first event usually opens it; later ones happen now-ish.
   const [effectiveOn, setEffectiveOn] = useState(() => {
+    if (old) return old.effective_on
     if (seed) return seed.effective_at.slice(0, 10)
     const today = todayIso()
     return debt.event_count > 0 && today > debt.opened_on ? today : debt.opened_on
   })
-  const [dateAuto, setDateAuto] = useState(!seed)
-  const sourceDated = useRef(false)
-  const [openingBalance, setOpeningBalance] = useState(false)
-  const [expenseCategory, setExpenseCategory] = useState('')
+  const [dateAuto, setDateAuto] = useState(!seed && !old)
+  const [sourceDated, setSourceDated] = useState(false)
+  const [openingBalance, setOpeningBalance] = useState(old?.opening_balance ?? false)
+  const [expenseCategory, setExpenseCategory] = useState(old?.expense_category ?? '')
   const [rows, setRows] = useState<AllocationInput[]>(
-    seed ? [{ ...emptyAllocation(seed.entry_anchor), principal_amount: seed.open_amount }] : [],
+    old ? old.entry_allocations
+      : seed ? [{ ...emptyAllocation(seed.entry_anchor), principal_amount: seed.open_amount }] : [],
   )
+  const [recloseOn, setRecloseOn] = useState<string | null>(debt.closed_on)
+  // Picked sources that carry an incoming type, and whether to clear it.
+  const [typed, setTyped] = useState<Record<string, AllocationCandidate>>(() =>
+    Object.fromEntries([seed, ...(replacing?.sources ?? [])].filter((c): c is AllocationCandidate => Boolean(c?.incoming_type)).map((c) => [c.entry_anchor, c])))
+  const [clearing, setClearing] = useState<Record<string, boolean>>({})
   const [reason, setReason] = useState('')
-  const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
-  const inFlight = useRef(false)
+  const [problem, setProblem] = useState('')
+  const draft = useDebtDraft(generation, async status => {
+    if (spec.kind === 'EXPENSE_PAID_FOR_ME') rememberCategory(expenseCategory)
+    await onSaved(status)
+  })
 
   const offLedger = spec.offLedger || (spec.opening && openingBalance)
   const needsCategory = spec.kind === 'EXPENSE_PAID_FOR_ME'
+  const filledRows = rows.filter((r) => !isBlank(r))
+  const typedSources = offLedger ? [] : filledRows.flatMap((r) => typed[r.entry_anchor] ? [typed[r.entry_anchor]] : [])
+  const clears = (source: AllocationCandidate) => source.incoming_type === 'self_transfer' || Boolean(clearing[source.entry_anchor])
 
-  const filledRows = useMemo(() => rows.filter((r) => !isBlank(r)), [rows])
-  const principalBalanced = useMemo(() => {
-    if (offLedger) return true
-    const want = Math.round(Number(principal) * 100)
-    return Number.isFinite(want) && principalTotalMinor(filledRows) === want && filledRows.length > 0
-  }, [offLedger, principal, filledRows])
+  function edit(change: () => void) { change(); setProblem(''); draft.invalidate() }
 
   function pickKind(kind: string) {
     const next = kinds.find((k) => k.kind === kind) ?? kinds[0]
-    setSpec(next)
-    // A seeded source suits every kind offered (they share its direction), so
-    // it survives a kind change; otherwise the picked sources may not.
-    if (!seed) {
-      setRows([])
-      sourceDated.current = false
-      if (principalAuto) setPrincipal('')
-    }
-    if (!next.opening) setOpeningBalance(false)
+    edit(() => {
+      setSpec(next)
+      // A seeded source suits every kind offered (they share its direction), so
+      // it survives a kind change; otherwise the picked sources may not. A
+      // corrected event keeps its own sources for the server to judge.
+      if (!seed && !old) { setRows([]); setSourceDated(false) }
+      if (!next.opening) setOpeningBalance(false)
+    })
   }
 
-  // The principal follows the allocated total as sources are picked, added and
-  // edited -- until the user types their own: the stated principal is the claim
-  // the allocations are checked against, so once typed it is theirs to change.
   function updateRows(next: AllocationInput[], picked?: AllocationCandidate) {
-    setRows(next)
-    if (principalAuto) {
-      const total = principalTotalMinor(next)
-      if (Number.isFinite(total)) setPrincipal(total > 0 ? (total / 100).toFixed(2) : '')
-    }
-    if (picked && dateAuto) {
-      const day = picked.effective_at.slice(0, 10)
-      const floor = day < debt.opened_on ? debt.opened_on : day
-      setEffectiveOn((prev) => (sourceDated.current && prev > floor ? prev : floor))
-      sourceDated.current = true
-    }
+    edit(() => {
+      setRows(next)
+      if (picked?.incoming_type) setTyped((prev) => ({ ...prev, [picked.entry_anchor]: picked }))
+      if (picked && dateAuto) {
+        const day = picked.effective_at.slice(0, 10)
+        const floor = day < debt.opened_on ? debt.opened_on : day
+        setEffectiveOn((prev) => (sourceDated && prev > floor ? prev : floor))
+        setSourceDated(true)
+      }
+    })
   }
 
-  function editPrincipal(value: string) {
-    setPrincipal(value)
-    setPrincipalAuto(!value.trim())
-  }
-
-  async function submit() {
-    if (inFlight.current) return
-    if (!reason.trim() || !principal.trim() || (needsCategory && !expenseCategory)) {
-      setError('Principal, a reason' + (needsCategory ? ' and an expense category from the list' : '') + ' are required.')
-      return
-    }
-    if (!offLedger && filledRows.some((r) => !r.entry_anchor)) {
-      setError('Pick a transaction for every source row that has an amount, or remove the row.')
-      return
-    }
-    if (!principalBalanced) {
-      setError('The source allocations must sum to the event principal.')
-      return
-    }
-    inFlight.current = true; setBusy(true); setError('')
-    const body = {
-      request_id: crypto.randomUUID(),
-      expected_generation: generation,
+  function submit() {
+    if (draft.preview) { void draft.save(reason.trim()); return }
+    const missing = !reason.trim() ? 'A reason is required.'
+      : offLedger && !principal.trim() ? 'Enter the principal.'
+      : needsCategory && !expenseCategory ? 'Choose an expense category from the list.'
+      : !offLedger && !filledRows.length ? 'Pick the transaction that moved this money.'
+      : !offLedger && filledRows.some((r) => !r.entry_anchor) ? 'Pick a transaction for every source row that has an amount, or remove the row.'
+      : ''
+    if (missing) { setProblem(missing); return }
+    const retire = old ? [{ kind: 'PERSONAL_DEBT_EVENT_RETIRE', anchors: { debt: debt.debt_id, event: old.event_id }, payload: { reason: reason.trim() } }] : []
+    const cleared = typedSources.filter(clears).map((source) => (
+      { kind: 'INBOUND_CLASSIFICATION_RETIRE', anchors: { entry: source.entry_anchor }, payload: { reason: reason.trim() } }))
+    void draft.check(aroundClosed(debt, [...cleared, ...retire, {
       kind: 'PERSONAL_DEBT_EVENT_SET',
       anchors: { debt: debt.debt_id, event: crypto.randomUUID() },
       payload: {
         event_kind: spec.kind,
         direction: debt.direction,
-        principal_amount: principal.trim(),
+        principal_amount: principal.trim() || null,
         effective_on: effectiveOn,
         entry_allocations: offLedger ? [] : filledRows,
         opening_balance: spec.opening && openingBalance,
         expense_category: needsCategory ? expenseCategory : null,
         reason: reason.trim(),
       },
-    }
-    try {
-      const result = await previewThenCommit(body)
-      if (needsCategory) rememberCategory(expenseCategory)
-      await onSaved(result.status)
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not record the event.')
-    } finally {
-      inFlight.current = false; setBusy(false)
-    }
+    }], { reopenOn: detail.as_of, recloseOn, reason: reason.trim() }))
   }
+
+  const checkedPrincipal = draft.preview?.items.find((i) => i.kind === 'PERSONAL_DEBT_EVENT_SET')?.payload.principal_amount
 
   return (
     <div className="debt-event-form">
       <div className="debt-event-title">
-        <h3>Record an event · {debt.counterparty_label}</h3>
+        <h3>{old ? 'Correct an event' : 'Record an event'} · {debt.counterparty_label}</h3>
         <span>{debt.direction === 'PAYABLE' ? 'I owe them' : 'They owe me'}</span>
       </div>
       <div className="debt-event-grid">
@@ -174,7 +175,7 @@ export function EventForm({
             aria-label="Event kind"
             value={spec.kind}
             onChange={(e) => pickKind(e.target.value)}
-            disabled={busy}
+            disabled={draft.busy}
           >
             {kinds.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
           </select>
@@ -186,13 +187,13 @@ export function EventForm({
             <input
               aria-label="Event principal"
               inputMode="decimal"
-              placeholder="0.00"
+              placeholder={offLedger ? '0.00' : 'Total of the sources'}
               value={principal}
-              onChange={(e) => editPrincipal(e.target.value)}
-              disabled={busy}
+              onChange={(e) => edit(() => setPrincipal(e.target.value))}
+              disabled={draft.busy}
             />
           </span>
-          {!offLedger && principalAuto ? <small>Totals the sources below</small> : null}
+          {!offLedger && !principal.trim() ? <small>Leave blank to use the total of the sources below</small> : null}
         </label>
         <label>
           Effective date
@@ -201,8 +202,8 @@ export function EventForm({
             type="date"
             value={effectiveOn}
             min={debt.opened_on}
-            onChange={(e) => { setEffectiveOn(e.target.value); setDateAuto(false) }}
-            disabled={busy}
+            onChange={(e) => edit(() => { setEffectiveOn(e.target.value); setDateAuto(false) })}
+            disabled={draft.busy}
           />
           {!offLedger && dateAuto ? <small>Follows the transaction you pick</small> : null}
         </label>
@@ -211,8 +212,8 @@ export function EventForm({
             <input
               type="checkbox"
               checked={openingBalance}
-              onChange={(e) => setOpeningBalance(e.target.checked)}
-              disabled={busy}
+              onChange={(e) => edit(() => setOpeningBalance(e.target.checked))}
+              disabled={draft.busy}
             />
             <span>
               Opening balance
@@ -226,8 +227,8 @@ export function EventForm({
             label="Expense category"
             categories={categories.filter((c) => !c.startsWith('Unclassified /'))}
             value={expenseCategory}
-            onChange={setExpenseCategory}
-            disabled={busy}
+            onChange={(c) => edit(() => setExpenseCategory(c))}
+            disabled={draft.busy}
           />
         ) : null}
       </div>
@@ -244,30 +245,48 @@ export function EventForm({
           currency={debt.currency}
           rows={rows.length ? rows : [emptyAllocation()]}
           onChange={updateRows}
-          eventPrincipal={principal || '0'}
           sourceDirection={bankDirection(debt.direction, spec)}
-          onUseTotal={(total) => { setPrincipal(total); setPrincipalAuto(true) }}
-          known={seed ? [seed] : undefined}
+          known={seed ? [seed] : replacing?.sources}
+          replacing={old?.event_id}
         />
       )}
+
+      {typedSources.map((source) => (
+        <label key={source.entry_anchor} className="debt-event-check">
+          <input type="checkbox" checked={clears(source)} disabled={draft.busy || source.incoming_type === 'self_transfer'}
+            onChange={(e) => edit(() => setClearing((prev) => ({ ...prev, [source.entry_anchor]: e.target.checked })))} />
+          <span>
+            Clear its incoming type “{INCOMING_LABELS[source.incoming_type ?? ''] ?? source.incoming_type}” ({source.description?.trim() || 'this transaction'})
+            <small>{source.incoming_type === 'self_transfer'
+              ? 'A transfer between your own accounts would hide this debt, so it is cleared with this event.'
+              : 'Any part the debt does not explain goes back to needing an incoming type.'}</small>
+          </span>
+        </label>
+      ))}
 
       <label className="debt-event-reason">
         Reason
         <textarea
           aria-label="Reason"
-          placeholder={spec.sign > 0 ? 'e.g. Rent top-up for October' : 'e.g. Monthly repayment'}
+          placeholder={old ? 'Why is the recorded event wrong?' : spec.sign > 0 ? 'e.g. Rent top-up for October' : 'e.g. Monthly repayment'}
           value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          disabled={busy}
+          onChange={(e) => edit(() => setReason(e.target.value))}
+          disabled={draft.busy}
           rows={2}
         />
       </label>
 
-      {error ? <p className="debt-event-error" role="alert">{error}</p> : null}
+      {debt.status === 'CLOSED' && debt.closed_on
+        ? <RecloseControl closedOn={debt.closed_on} value={recloseOn} onChange={(v) => edit(() => setRecloseOn(v))} disabled={draft.busy} />
+        : null}
+      {draft.preview && typeof checkedPrincipal === 'string' && !principal.trim()
+        ? <p className="muted-note">Principal: the sources total {checkedPrincipal} {debt.currency}.</p> : null}
+      {draft.preview ? <DraftEffect preview={draft.preview} /> : null}
+      {problem || draft.error ? <p className="debt-event-error" role="alert">{problem || draft.error}</p> : null}
       <div className="debt-event-actions">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>Cancel</Button>
-        <Button size="sm" onClick={submit} disabled={busy}>
-          {busy ? 'Saving…' : 'Preview and save'}
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={draft.busy}>Cancel</Button>
+        <Button size="sm" onClick={submit} disabled={draft.busy}>
+          {draft.busy ? 'Working…' : draft.preview ? (draft.retrying ? 'Retry save' : old ? 'Save correction' : 'Save event') : old ? 'Check correction' : 'Check event'}
         </Button>
       </div>
     </div>

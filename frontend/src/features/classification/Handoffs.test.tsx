@@ -54,6 +54,13 @@ function calls(prefix: string): Array<[string, unknown]> {
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); localStorage.clear() })
 
+type Item = { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }
+/** The debt draft check: echoes the items, completing a blank principal as the server would. */
+const draftCheck = (total: string) => (body: unknown) => ({
+  generation: 'g1', debts: [],
+  items: (body as { items: Item[] }).items.map(i => i.payload.principal_amount === null ? { ...i, payload: { ...i.payload, principal_amount: total } } : i),
+})
+
 describe('EntryDialog — "What is this?"', () => {
   it('asks what an outflow is before any classification field, defaulting to spending', () => {
     mockRoutes({})
@@ -85,8 +92,8 @@ describe('EntryDialog — debt hand-off', () => {
         candidates: [{ entry_anchor: 'a1', effective_at: '2026-03-09 10:00:00', economic_direction: 'OUT', currency: 'SGD', amount: '110.00', open_amount: '110.00', description: 'TRANSFER TO ALEX' }],
       }),
       'reporting/workspaces/debts/d-alex': () => ({ generation: 'g1', as_of: '2026-03-31', debt: { ...debtCard(), principal_history: [], reason: 'Loan' } }),
-      preview: () => ({ status: 'previewed' }),
-      commands: () => ({ status: 'recorded' }),
+      'debts/preview': draftCheck('110.00'),
+      batch: () => ({ status: 'recorded' }),
       'transactions/entry': () => ({ generation: 'g2', entry: entry({ bucket: 'debt', debt_allocation: 'full', review: false }) }),
     })
     render(<EntryDialog entry={entry()} data={dashboard()} onClose={vi.fn()} onSaved={onSaved} onRelationshipSaved={onRelationshipSaved} />)
@@ -98,23 +105,24 @@ describe('EntryDialog — debt hand-off', () => {
 
     // The debt's own event form opens with this transaction already allocated
     // for its unclaimed amount, offering only kinds an outflow can back.
-    const principal = await screen.findByLabelText('Event principal') as HTMLInputElement
-    expect(principal.value).toBe('110.00')
+    await screen.findByLabelText('Event principal')
+    expect(screen.getByLabelText('Allocation 1 principal')).toHaveValue('110.00')
     const kinds = within(screen.getByLabelText('Event kind')).getAllByRole('option').map(o => o.textContent)
     expect(kinds).toEqual(['Repaid principal'])
     const [[candidatePath]] = calls('reporting/workspaces/debts/allocation-candidates')
     expect(candidatePath).toContain('anchor=a1')
 
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Paid Alex back' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Preview and save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Check event' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save event' }))
 
     await screen.findByText('Recorded against the debt.')
     expect(screen.getByText(/fully explained by debt allocations/)).toBeInTheDocument()
-    const [[, body]] = calls('commands')
-    expect(body).toMatchObject({
+    const [[, body]] = calls('batch')
+    expect((body as { items: Item[] }).items).toMatchObject([{
       kind: 'PERSONAL_DEBT_EVENT_SET',
       payload: { event_kind: 'PRINCIPAL_REPAID', principal_amount: '110.00', entry_allocations: [expect.objectContaining({ entry_anchor: 'a1', principal_amount: '110.00' })] },
-    })
+    }])
     // The refresh kept the dialog open (not the closing `onSaved`) ...
     expect(onRelationshipSaved).toHaveBeenCalledWith('recorded')
     expect(onSaved).not.toHaveBeenCalled()
@@ -131,18 +139,17 @@ describe('EntryDialog — debt hand-off', () => {
         candidates: [{ entry_anchor: 'a1', effective_at: '2026-03-09 10:00:00', economic_direction: 'OUT', currency: 'SGD', amount: '110.00', open_amount: '110.00', description: 'TRANSFER TO ALEX' }],
       }),
       'reporting/workspaces/debts/d-alex': () => ({ generation: 'g1', as_of: '2026-03-31', debt: { ...debtCard(), principal_history: [], reason: 'Loan' } }),
-      preview: () => ({ status: 'previewed' }),
-      commands: () => ({ status: 'recorded' }),
+      'debts/preview': draftCheck('60.00'),
+      batch: () => ({ status: 'recorded' }),
       'transactions/entry': () => ({ generation: 'g2', entry: entry({ debt_allocation: 'partial' }) }),
     })
     render(<EntryDialog entry={entry()} data={dashboard()} onClose={vi.fn()} onSaved={vi.fn()} onRelationshipSaved={async () => {}} />)
     fireEvent.click(screen.getByRole('radio', { name: 'Lending or repaying a debt' }))
     fireEvent.change(await screen.findByRole('combobox', { name: 'Debt' }), { target: { value: 'd-alex' } })
-    fireEvent.change(await screen.findByLabelText('Event principal'), { target: { value: '60.00' } })
+    fireEvent.change(await screen.findByLabelText('Allocation 1 principal'), { target: { value: '60.00' } })
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Part of this repaid Alex' } })
-    // Keep the allocation equal to the stated principal.
-    fireEvent.change(screen.getAllByLabelText(/principal/i).find(el => el !== screen.getByLabelText('Event principal'))!, { target: { value: '60.00' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Preview and save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Check event' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Save event' }))
     await screen.findByText(/classify the rest below/)
     expect(screen.getByRole('radio', { name: 'Spending' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByLabelText('Category')).toBeInTheDocument()

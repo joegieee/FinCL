@@ -44,14 +44,19 @@ describe('OwnerShareForm', () => {
     expect(calls('preview')[0][1]).toMatchObject({ kind: 'ENTRY_RESIDUAL_RETIRE', anchors: { entry: 'bill' }, payload: { reason: 'Correct the share' } })
     expect(screen.queryByLabelText('Your share (USD)')).not.toBeInTheDocument()
   })
-  it('compares large exact decimals without rounding them into the available amount', async () => {
+  it('leaves the limit to the server and shows its refusal with the draft kept', async () => {
     setup({ ...source, available_amount: '9007199254740992.01' })
     await screen.findByDisplayValue('40.00')
+    apiMock.mockImplementation((path: string) => path === 'preview'
+      ? Promise.reject(new ApiError('Your share is more than the 9007199254740992.01 other allocations leave of this transaction', 422))
+      : Promise.resolve({ status: 'APPLIED' }))
     fireEvent.change(screen.getByLabelText('Your share (USD)'), { target: { value: '9007199254740992.02' } })
     fireEvent.change(screen.getByLabelText('Reason for this change'), { target: { value: 'Too much' } })
     fireEvent.click(screen.getByRole('button', { name: 'Check share' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('exceeds')
-    expect(calls('preview')).toHaveLength(0)
+    expect(await screen.findByRole('alert')).toHaveTextContent('more than the 9007199254740992.01')
+    expect(calls('preview')[0][1]).toMatchObject({ payload: { expense_amount: '9007199254740992.02' } })
+    expect(screen.getByLabelText('Your share (USD)')).toHaveValue('9007199254740992.02')
+    expect(calls('commands')).toHaveLength(0)
   })
   it('preserves refused drafts and freezes uncertain saves for a retry with the same id', async () => {
     const saved = setup()

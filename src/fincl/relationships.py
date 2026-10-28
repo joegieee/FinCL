@@ -444,12 +444,17 @@ def preview_batch(
         raise FinCLError("a candidate in this batch is already a duplicate primary elsewhere")
 
     if debt_items:
+        from .debts.preview import check_references
         from .debts.projection import apply_debt, resolve_debts
 
         connection.execute("SAVEPOINT batch_debt_preview")
         try:
             for index, kind, anchors, payload in debt_items:
                 try:
+                    check_references(
+                        connection, kind, anchors, payload,
+                        resolve_anchor=lambda a: resolve_anchor(connection, a),
+                    )
                     apply_debt(
                         connection,
                         decision_kind=kind,

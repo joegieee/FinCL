@@ -138,6 +138,17 @@ class DebtJournalTests(ApiTestBase):
         with self.assertRaises(FinCLError):
             self._open_payable(opened_on="2026-02-01", due_on="2026-01-01")
 
+    def test_a_later_due_date_before_open_is_refused_too(self) -> None:
+        debt_id = self._open_payable(opened_on="2026-02-01")
+        with self.assertRaisesRegex(FinCLError, "may not precede"):
+            self._record(
+                "PERSONAL_DEBT_DETAILS_SET",
+                {"debt": debt_id},
+                {"counterparty_label": "Alex", "due_on": "2026-01-15",
+                 "reason": "A due date before the loan existed"},
+            )
+        self.assertIsNone(self._rows("personal_debts")[0]["due_on"])
+
     def test_event_before_open_is_refused(self) -> None:
         debt_id = self._open_payable(opened_on="2026-02-01")
         with self.assertRaises(FinCLError):

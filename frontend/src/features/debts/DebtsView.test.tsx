@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const money = (v: string) => ({ value: v, currency: 'SGD' })
@@ -90,5 +90,38 @@ describe('DebtsView', () => {
       kind: 'PERSONAL_DEBT_DETAILS_SET', anchors: { debt: 'd-1' },
       payload: { counterparty_label: 'Alex', due_on: '2026-12-31', reason: 'Agreed with Alex' },
     })))
+  })
+})
+
+describe('DebtsView paging', () => {
+  it('lists every debt, not only the first page', async () => {
+    const second = { ...page, next_cursor: null, i_owe: [{ ...page.i_owe[0], debt_id: 'd-9', counterparty_label: 'Zed' }], owed_to_me: [] }
+    const original = apiMock.getMockImplementation()!
+    onTestFinished(() => { apiMock.mockImplementation(original) })
+    apiMock.mockImplementation(async (path: string) => {
+      if (path.startsWith('reporting/workspaces/debts?') && path.includes('cursor=d-2')) return second
+      if (path.startsWith('reporting/workspaces/debts?')) return { ...page, next_cursor: 'd-2', i_owe: [...page.i_owe], owed_to_me: [...page.owed_to_me] }
+      throw new Error(`unmocked ${path}`)
+    })
+    await mount()
+    expect(await screen.findByText('Zed')).toBeInTheDocument()
+    expect(screen.getByText('Alex')).toBeInTheDocument()
+    expect(screen.getByText('Jo')).toBeInTheDocument()
+  })
+})
+
+describe('DebtsView commitment overlap', () => {
+  it('warns when a recurring commitment repeats the debt’s repayments', async () => {
+    const original = apiMock.getMockImplementation()!
+    onTestFinished(() => { apiMock.mockImplementation(original) })
+    apiMock.mockImplementation(async (path: string) => {
+      if (path.startsWith('reporting/workspaces/debts?')) return page
+      if (path.startsWith('reporting/workspaces/debts/')) return { ...detail, debt: { ...detail.debt, overlapping_commitments: [{ commitment: 'c-1', name: 'Alex repayment', payments: 2 }] } }
+      throw new Error(`unmocked ${path}`)
+    })
+    await mount()
+    fireEvent.click(await screen.findByText('Alex'))
+    expect(await screen.findByRole('note')).toHaveTextContent('“Alex repayment”, a confirmed recurring commitment')
+    expect(screen.getByRole('note')).toHaveTextContent('counted twice')
   })
 })

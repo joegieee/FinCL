@@ -1244,6 +1244,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/debts/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Debt Draft Preview
+         * @description What a debt draft would save and do to each debt's balances; nothing is recorded.
+         */
+        post: operations["debt_draft_preview_api_v1_debts_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/debts/{debt_id}": {
         parameters: {
             query?: never;
@@ -1253,6 +1273,23 @@ export interface paths {
         };
         /** Debt */
         get: operations["debt_api_v1_debts__debt_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/debts/{debt_id}/events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Debt Event Read */
+        get: operations["debt_event_read_api_v1_debts__debt_id__events__event_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2721,6 +2758,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reporting/workspaces/debts/{debt_id}/events/{event_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reported Workspace Debt Event Read */
+        get: operations["reported_workspace_debt_event_read_api_v1_reporting_workspaces_debts__debt_id__events__event_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/workspaces/debts/{debt_id}/events": {
         parameters: {
             query?: never;
@@ -3180,6 +3234,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Index */
+        get: operations["index__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3258,7 +3329,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_EVENT_SET" | "ENTRY_RESIDUAL_SET" | "ENTRY_COUNTRY_SET" | "ENTRY_COUNTRY_RETIRE" | "TRIP_SET" | "TRIP_RETIRE" | "ENTRY_TRIP_SET" | "ENTRY_TRIP_RETIRE" | "PLANNED_MATCH_RETIRE" | "PLANNED_OCCURRENCE_RESOLVE_RETIRE" | "PLANNED_FLOW_RETIRE";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_EVENT_SET" | "ENTRY_RESIDUAL_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "ENTRY_COUNTRY_SET" | "ENTRY_COUNTRY_RETIRE" | "TRIP_SET" | "TRIP_RETIRE" | "ENTRY_TRIP_SET" | "ENTRY_TRIP_RETIRE" | "PLANNED_MATCH_RETIRE" | "PLANNED_OCCURRENCE_RESOLVE_RETIRE" | "PLANNED_FLOW_RETIRE";
             /** Anchors */
             anchors: {
                 [key: string]: string;
@@ -3844,6 +3915,13 @@ export interface components {
             total_entries: number;
             /** Transfer Proposals */
             transfer_proposals: components["schemas"]["Proposal"][];
+        };
+        /** DebtDraft */
+        DebtDraft: {
+            /** Expected Generation */
+            expected_generation: string;
+            /** Items */
+            items: components["schemas"]["BatchItem"][];
         };
         /** EconomicFlowOut */
         EconomicFlowOut: {
@@ -6977,6 +7055,7 @@ export interface operations {
                 limit?: number;
                 generation?: string | null;
                 anchor?: string | null;
+                replacing?: string | null;
             };
             header?: never;
             path?: never;
@@ -7070,6 +7149,39 @@ export interface operations {
             };
         };
     };
+    debt_draft_preview_api_v1_debts_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DebtDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     debt_api_v1_debts__debt_id__get: {
         parameters: {
             query?: {
@@ -7079,6 +7191,40 @@ export interface operations {
             header?: never;
             path: {
                 debt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    debt_event_read_api_v1_debts__debt_id__events__event_id__get: {
+        parameters: {
+            query?: {
+                generation?: string | null;
+            };
+            header?: never;
+            path: {
+                debt_id: string;
+                event_id: string;
             };
             cookie?: never;
         };
@@ -9457,6 +9603,7 @@ export interface operations {
                 limit?: number;
                 generation?: string | null;
                 anchor?: string | null;
+                replacing?: string | null;
             };
             header?: never;
             path?: never;
@@ -9559,6 +9706,40 @@ export interface operations {
             header?: never;
             path: {
                 debt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportedWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_workspace_debt_event_read_api_v1_reporting_workspaces_debts__debt_id__events__event_id__get: {
+        parameters: {
+            query?: {
+                generation?: string | null;
+            };
+            header?: never;
+            path: {
+                debt_id: string;
+                event_id: string;
             };
             cookie?: never;
         };
@@ -10429,6 +10610,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    index__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

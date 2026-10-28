@@ -225,7 +225,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
             {bucket === 'excluded'
               ? 'This transaction is not active in the current selection scope and cannot be classified.'
               : bucket === 'debt'
-                ? 'This movement is fully explained by debt allocations and any recorded expense share. Principal is neither spending nor income; your expense share keeps its own category. Review your share here, or change debt events on the Debts page.'
+                ? 'This movement is fully explained by debt allocations and any recorded expense share. Principal is neither spending nor income; your expense share keeps its own category. Review your share here. To change what was recorded against the debt, open the debt on the Debts page and correct or remove the event in its history.'
                 : bucket === 'installment'
                   ? 'This movement belongs to a confirmed installment plan, so it is neither spending nor income: the original purchase carries the spending and its category. Change the plan on the Installments page instead of classifying it here.'
                   : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
