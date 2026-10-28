@@ -178,3 +178,114 @@ class InboundClassificationRetireTests(DebtCorrectionBase):
         entry = self.seed_entry()
         self.assertIsNone(entry["classification"])
         self.assertEqual(entry["bucket"], "debt")
+
+
+class DraftPreviewTests(DebtCorrectionBase):
+    def preview(self, items: list[dict]):
+        return self.post("/api/v1/debts/preview", {
+            "expected_generation": self.overview()["generation"], "items": items,
+        }, self.csrf)
+
+    def test_a_correction_shows_every_later_balance_and_records_nothing(self) -> None:
+        self.settled_and_closed()
+        journal = self.journal_len()
+        response = self.preview([
+            self.lifecycle("PERSONAL_DEBT_REOPEN", "2026-01-04"),
+            self.retire(self.opening),
+            self.event(str(uuid.uuid4()), "BORROWED", "23.00", "2026-01-01", opening=True),
+        ])
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.journal_len(), journal)
+        [debt] = response.json()["debts"]
+        self.assertEqual(debt["before"], {"status": "CLOSED", "closed_on": "2026-01-04", "remaining": "0.00"})
+        self.assertEqual(debt["after"], {"status": "OPEN", "closed_on": None, "remaining": "4.00"})
+        self.assertEqual([(e["event_kind"], e["balance"], e["balance_before"], e["change"]) for e in debt["events"]],
+                         [("BORROWED", "23.00", None, "added"), ("PRINCIPAL_REPAID", "4.00", "0.00", "balance")])
+        self.assertEqual([e["event_id"] for e in debt["removed"]], [self.opening])
+
+    def test_an_event_principal_left_open_is_the_total_of_its_sources(self) -> None:
+        self.settled_and_closed()
+        event = self.event(str(uuid.uuid4()), "PRINCIPAL_REPAID", "0", "2026-01-02", [_alloc(self.cafe, "1.5"), _alloc(self.grocer, "2.255")])
+        event["payload"]["principal_amount"] = None
+        response = self.preview([self.lifecycle("PERSONAL_DEBT_REOPEN", "2026-01-04"),
+                                 self.event(str(uuid.uuid4()), "BORROWED", "10.00", "2026-01-01", opening=True), event])
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["items"][2]["payload"]["principal_amount"], "3.755")
+
+    def test_an_owner_share_left_open_is_what_the_split_leaves(self) -> None:
+        sam = str(uuid.uuid4())
+        items = [
+            {"kind": "PERSONAL_DEBT_OPEN", "anchors": {"debt": sam},
+             "payload": {"direction": "RECEIVABLE", "currency": "SGD", "counterparty_label": "Sam",
+                         "opened_on": "2026-01-20", "due_on": None, "reason": "Split"}},
+            {"kind": "PERSONAL_DEBT_EVENT_SET", "anchors": {"debt": sam, "event": str(uuid.uuid4())},
+             "payload": {"event_kind": "EXPENSE_PAID_FOR_OTHER", "direction": "RECEIVABLE", "principal_amount": None,
+                         "effective_on": "2026-01-20", "entry_allocations": [_alloc(self.grocer, "30.005")],
+                         "opening_balance": False, "expense_category": None, "reason": "Split"}},
+            {"kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": self.grocer},
+             "payload": {"expense_amount": None, "expense_category": "Food & Dining / Groceries", "reason": "Split"}},
+        ]
+        response = self.preview(items)
+        self.assertEqual(response.status_code, 200, response.text)
+        saved = response.json()["items"]
+        self.assertEqual(saved[2]["payload"]["expense_amount"], "21.245")
+        self.assertEqual(saved[1]["payload"]["principal_amount"], "30.005")
+        committed = self.batch(saved, "Split")
+        self.assertIn(committed.status_code, {200, 202}, committed.text)
+
+        items[1]["payload"]["entry_allocations"] = [_alloc(self.grocer, "51.25")]
+        whole = self.preview(items[:1] + [{**items[1], "anchors": {"debt": str(uuid.uuid4()), "event": str(uuid.uuid4())}}])
+        self.assertEqual(whole.status_code, 422, whole.text)
+
+    def test_a_split_that_leaves_nothing_drops_the_owner_share_and_one_that_overshoots_says_by_how_much(self) -> None:
+        sam = str(uuid.uuid4())
+
+        def items(share: str) -> list[dict]:
+            return [
+                {"kind": "PERSONAL_DEBT_OPEN", "anchors": {"debt": sam},
+                 "payload": {"direction": "RECEIVABLE", "currency": "SGD", "counterparty_label": "Sam",
+                             "opened_on": "2026-01-20", "due_on": None, "reason": "Split"}},
+                {"kind": "PERSONAL_DEBT_EVENT_SET", "anchors": {"debt": sam, "event": str(uuid.uuid4())},
+                 "payload": {"event_kind": "EXPENSE_PAID_FOR_OTHER", "direction": "RECEIVABLE", "principal_amount": None,
+                             "effective_on": "2026-01-20", "entry_allocations": [_alloc(self.grocer, share)],
+                             "opening_balance": False, "expense_category": None, "reason": "Split"}},
+                {"kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": self.grocer},
+                 "payload": {"expense_amount": None, "expense_category": "", "reason": "Split"}},
+            ]
+
+        whole = self.preview(items("51.25"))
+        self.assertEqual(whole.status_code, 200, whole.text)
+        self.assertEqual([i["kind"] for i in whole.json()["items"]], ["PERSONAL_DEBT_OPEN", "PERSONAL_DEBT_EVENT_SET"])
+        over = self.preview(items("60.00"))
+        self.assertEqual(over.status_code, 422, over.text)
+        self.assertIn("8.75 more than the 51.25", over.json()["detail"])
+        uncategorised = self.preview(items("50.00"))
+        self.assertEqual(uncategorised.status_code, 422, uncategorised.text)
+        self.assertIn("choose a category", uncategorised.json()["detail"])
+
+    def test_a_stale_draft_is_409(self) -> None:
+        response = self.post("/api/v1/debts/preview", {"expected_generation": "old", "items": [self.retire(self.opening)]}, self.csrf)
+        self.assertEqual(response.status_code, 409, response.text)
+
+
+class EventReadTests(DebtCorrectionBase):
+    def test_an_event_reads_as_its_payload_with_its_own_claim_offered_back(self) -> None:
+        self.settled_and_closed()
+        response = self.client.get(f"/api/v1/debts/{self.debt}/events/{self.repaid}")
+        self.assertEqual(response.status_code, 200, response.text)
+        page = response.json()
+        self.assertEqual(page["event"]["principal_amount"], "19.00")
+        self.assertEqual(page["event"]["entry_allocations"], [_alloc(self.bookshop, "19.00")])
+        [source] = page["sources"]
+        self.assertEqual((source["description"], source["open_amount"]), ("Bookshop", "19.00"))
+
+        candidates = self.client.get(f"/api/v1/debts/allocation-candidates?debt={self.debt}&event_kind=PRINCIPAL_REPAID")
+        self.assertNotIn(self.bookshop, {c["entry_anchor"] for c in candidates.json()["candidates"]})
+        replacing = self.client.get(
+            f"/api/v1/debts/allocation-candidates?debt={self.debt}&event_kind=PRINCIPAL_REPAID&replacing={self.repaid}")
+        self.assertIn(self.bookshop, {c["entry_anchor"] for c in replacing.json()["candidates"]})
+
+    def test_a_missing_event_is_404(self) -> None:
+        self.settled_and_closed()
+        response = self.client.get(f"/api/v1/debts/{self.debt}/events/{uuid.uuid4()}")
+        self.assertEqual(response.status_code, 404, response.text)

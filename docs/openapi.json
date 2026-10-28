@@ -3176,6 +3176,22 @@
               ],
               "title": "Anchor"
             }
+          },
+          {
+            "name": "replacing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Replacing"
+            }
           }
         ],
         "responses": {
@@ -3345,6 +3361,45 @@
         }
       }
     },
+    "/api/v1/debts/preview": {
+      "post": {
+        "summary": "Debt Draft Preview",
+        "description": "What a debt draft would save and do to each debt's balances; nothing is recorded.",
+        "operationId": "debt_draft_preview_api_v1_debts_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DebtDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Debt Draft Preview Api V1 Debts Preview Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/debts/{debt_id}": {
       "get": {
         "summary": "Debt",
@@ -3399,6 +3454,70 @@
               "application/json": {
                 "schema": {
                   "title": "Response Debt Api V1 Debts  Debt Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/debts/{debt_id}/events/{event_id}": {
+      "get": {
+        "summary": "Debt Event Read",
+        "operationId": "debt_event_read_api_v1_debts__debt_id__events__event_id__get",
+        "parameters": [
+          {
+            "name": "debt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Debt Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Debt Event Read Api V1 Debts  Debt Id  Events  Event Id  Get"
                 }
               }
             }
@@ -7699,6 +7818,22 @@
               ],
               "title": "Anchor"
             }
+          },
+          {
+            "name": "replacing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Replacing"
+            }
           }
         ],
         "responses": {
@@ -7896,6 +8031,70 @@
                 }
               ],
               "title": "As Of"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportedWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reporting/workspaces/debts/{debt_id}/events/{event_id}": {
+      "get": {
+        "summary": "Reported Workspace Debt Event Read",
+        "operationId": "reported_workspace_debt_event_read_api_v1_reporting_workspaces_debts__debt_id__events__event_id__get",
+        "parameters": [
+          {
+            "name": "debt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Debt Id"
+            }
+          },
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Event Id"
             }
           },
           {
@@ -11723,6 +11922,32 @@
           "transfer_proposals"
         ],
         "title": "Dashboard"
+      },
+      "DebtDraft": {
+        "properties": {
+          "expected_generation": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Expected Generation"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BatchItem"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_generation",
+          "items"
+        ],
+        "title": "DebtDraft"
       },
       "EconomicFlowOut": {
         "properties": {

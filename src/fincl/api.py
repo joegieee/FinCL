@@ -205,6 +205,13 @@ class Batch(StrictModel):
     reason: str = Field(max_length=2000)
 
 
+class DebtDraft(StrictModel):
+    expected_generation: str = Field(min_length=1,max_length=100)
+    # The kinds a debt correction or split may carry; an event's principal or
+    # an owner share's amount may be null, for the server to complete.
+    items: list[BatchItem] = Field(min_length=1,max_length=100)
+
+
 class Bootstrap(StrictModel):
     secret: str = Field(max_length=256)
 
@@ -1829,12 +1836,14 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     @app.get('/api/v1/debts/allocation-candidates')
     def debt_allocation_candidates(debt: str, event_kind: str | None = None, search: str | None = None,
                                    cursor: str | None = None, limit: int = 50,
-                                   generation: str | None = None, anchor: str | None = None) -> Any:
+                                   generation: str | None = None, anchor: str | None = None,
+                                   replacing: str | None = None) -> Any:
         from .debts.queries import allocation_candidates
         with ledger_writer(database):
             try:
                 return allocation_candidates(database, debt_id=debt, event_kind=event_kind, search=search,
-                                             cursor=cursor, limit=limit, expected=generation, anchor=anchor)
+                                             cursor=cursor, limit=limit, expected=generation, anchor=anchor,
+                                             replacing=replacing)
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc
@@ -1862,12 +1871,48 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 raise HTTPException(409, str(exc)) from exc
             raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
 
+    @app.post('/api/v1/debts/preview')
+    def debt_draft_preview(body: DebtDraft) -> Any:
+        """What a debt draft would save and do to each debt's balances; nothing is recorded."""
+        from .db import connect_sqlite, initialize_schema
+        from .debts.preview import draft_preview
+        from .decisions import replay_journal
+        with ledger_writer(database):
+            connection = connect_sqlite(database)
+            try:
+                generation = current_generation(connection)
+                if generation is None or generation['generation_token'] != body.expected_generation:
+                    raise HTTPException(409, 'STALE_GENERATION: reload and preview again. Your draft is preserved.')
+                initialize_schema(connection)
+                replay_journal(connection)
+                result = draft_preview(
+                    connection, [{'kind': i.kind, 'anchors': dict(i.anchors), 'payload': dict(i.payload)} for i in body.items],
+                    resolve_anchor=lambda a: resolve_anchor(connection, a),
+                    custom_categories=frozenset(custom_categories(database)),
+                )
+                return {'generation': body.expected_generation, **result}
+            except FinCLError as exc:
+                raise HTTPException(422, str(exc)) from exc
+            finally:
+                connection.close()
+
     @app.get('/api/v1/debts/{debt_id}')
     def debt(debt_id: str, as_of: str | None = None, generation: str | None = None) -> Any:
         from .debts.queries import debt_detail
         with ledger_writer(database):
             try:
                 return debt_detail(database, debt_id, as_of=as_of or clock.today().isoformat(), expected=generation)
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
+
+    @app.get('/api/v1/debts/{debt_id}/events/{event_id}')
+    def debt_event_read(debt_id: str, event_id: str, generation: str | None = None) -> Any:
+        from .debts.queries import debt_event
+        with ledger_writer(database):
+            try:
+                return debt_event(database, debt_id, event_id, expected=generation)
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc

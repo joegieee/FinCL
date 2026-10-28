@@ -327,6 +327,139 @@ def debt_events(
         connection.close()
 
 
+def principal_timeline(connection: Any, debt_id: str) -> dict[str, Any] | None:
+    """Every event of one debt with the principal standing after it.
+
+    Events run in the order the chronology check walks them (date, increases
+    before decreases on a day, event id), so each ``balance`` is the one the
+    projection itself would reach. ``remaining`` counts every event, including
+    any dated after today.
+    """
+    debt = connection.execute(
+        "SELECT * FROM personal_debts WHERE debt_id = ?", (debt_id,)
+    ).fetchone()
+    if debt is None:
+        return None
+    rows = connection.execute(
+        "SELECT * FROM personal_debt_events WHERE debt_id = ? "
+        "ORDER BY effective_on, signed DESC, event_id",
+        (debt_id,),
+    ).fetchall()
+    scale = max((int(row["principal_scale"]) for row in rows), default=0)
+    running = 0
+    events = []
+    for row in rows:
+        running += int(row["signed"]) * int(row["principal_coefficient"]) * 10 ** (
+            scale - int(row["principal_scale"])
+        )
+        events.append({
+            "event_id": str(row["event_id"]),
+            "event_kind": str(row["event_kind"]),
+            "effective_on": str(row["effective_on"]),
+            "signed": int(row["signed"]),
+            "principal": format_decimal(int(row["principal_coefficient"]), int(row["principal_scale"])),
+            "balance": format_decimal(running, scale),
+        })
+    return {
+        "debt_id": debt_id,
+        "counterparty_label": str(debt["counterparty_label"]),
+        "direction": str(debt["direction"]),
+        "currency": str(debt["currency"]),
+        "status": str(debt["status"]),
+        "closed_on": str(debt["closed_on"]) if debt["closed_on"] is not None else None,
+        "remaining": format_decimal(running, scale),
+        "events": events,
+    }
+
+
+def _own_claims(connection: Any, debt_id: str, event_id: str | None) -> dict[str, Fraction]:
+    """What one event already claims of each source, to offer back when it is being replaced."""
+    claims: dict[str, Fraction] = {}
+    if event_id is None:
+        return claims
+    for row in connection.execute(
+        "SELECT entry_anchor, principal_coefficient, principal_scale, interest_coefficient, "
+        "interest_scale, fee_coefficient, fee_scale FROM personal_debt_allocations "
+        "WHERE debt_id = ? AND event_id = ? AND bound = 1",
+        (debt_id, event_id),
+    ):
+        claims[str(row["entry_anchor"])] = sum(
+            (Fraction(int(row[f"{part}_coefficient"]), 10 ** int(row[f"{part}_scale"]))
+             for part in ("principal", "interest", "fee")),
+            Fraction(0),
+        )
+    return claims
+
+
+def debt_event(
+    database: Path, debt_id: str, event_id: str, *, expected: str | None = None
+) -> dict[str, Any]:
+    """One event as its decision payload, ready to be corrected.
+
+    ``sources`` describes each allocated transaction the way the allocation
+    picker does, with this event's own claim counted as still open, since a
+    correction replaces it.
+    """
+    connection = connect_readonly(database)
+    try:
+        connection.execute("BEGIN")
+        token = _generation(connection, expected)
+        debt = connection.execute(
+            "SELECT direction, currency FROM personal_debts WHERE debt_id = ?", (debt_id,)
+        ).fetchone()
+        row = connection.execute(
+            "SELECT * FROM personal_debt_events WHERE debt_id = ? AND event_id = ?",
+            (debt_id, event_id),
+        ).fetchone()
+        if debt is None or row is None:
+            raise FinCLError("that debt event does not exist")
+        allocations = connection.execute(
+            "SELECT * FROM personal_debt_allocations WHERE debt_id = ? AND event_id = ? "
+            "ORDER BY seq_in_event",
+            (debt_id, event_id),
+        ).fetchall()
+        own = _own_claims(connection, debt_id, event_id)
+        direction = expected_bank_direction(str(debt["direction"]), int(row["signed"]))
+        sources: list[dict[str, Any]] = []
+        for allocation in allocations:
+            found, _ = _entry_candidates(
+                connection, currency=None, direction=direction, search=None,
+                anchor=str(allocation["entry_anchor"]), cursor=None, limit=1, add_back=own,
+            )
+            sources.extend(found)
+
+        def amount(part: str, item: Any) -> str:
+            return format_decimal(int(item[f"{part}_coefficient"]), int(item[f"{part}_scale"]))
+
+        return {
+            "generation": token,
+            "debt_id": debt_id,
+            "event": {
+                "event_id": event_id,
+                "event_kind": str(row["event_kind"]),
+                "direction": str(debt["direction"]),
+                "principal_amount": amount("principal", row),
+                "effective_on": str(row["effective_on"]),
+                "entry_allocations": [
+                    {
+                        "entry_anchor": str(item["entry_anchor"]),
+                        "principal_amount": amount("principal", item),
+                        "interest_amount": amount("interest", item),
+                        "fee_amount": amount("fee", item),
+                        "separate_fee_amount": amount("separate_fee", item),
+                    }
+                    for item in allocations
+                ],
+                "opening_balance": bool(row["opening_balance"]),
+                "expense_category": row["expense_category"],
+                "reason": str(row["reason"]),
+            },
+            "sources": sources,
+        }
+    finally:
+        connection.close()
+
+
 def _entry_candidates(
     connection: Any,
     *,
@@ -337,6 +470,7 @@ def _entry_candidates(
     cursor: str | None,
     limit: int,
     without_owner_share: bool = False,
+    add_back: dict[str, Fraction] | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """Selected, non-internal entries in one bank direction with an unclaimed
     amount left, newest first, keyset-paged by ``(effective_at, natural_anchor)``.
@@ -344,6 +478,8 @@ def _entry_candidates(
     ``without_owner_share`` leaves out entries whose owner share is already
     recorded (an ``ENTRY_RESIDUAL_SET``): an entry carries one owner share, so a
     second one would replace it rather than add to it.
+
+    ``add_back`` counts claims about to be replaced as still open.
     """
     from ..analysis.allocations import open_residual
 
@@ -401,7 +537,9 @@ def _entry_candidates(
     for row in rows:
         scale = int(row["amount_scale"])
         magnitude = Fraction(abs(int(row["amount_coefficient"])), 10**scale)
-        remaining = open_residual(connection, str(row["natural_anchor"]), role="amount")
+        remaining = open_residual(connection, str(row["natural_anchor"]), role="amount") + (
+            add_back or {}
+        ).get(str(row["natural_anchor"]), Fraction(0))
         if remaining <= 0:
             continue  # fully reconciled elsewhere; not a usable source
         candidates.append(
@@ -428,6 +566,7 @@ def allocation_candidates(
     limit: int = 50,
     expected: str | None = None,
     anchor: str | None = None,
+    replacing: str | None = None,
 ) -> dict[str, Any]:
     """Selected entries that could back a source allocation for one debt event.
 
@@ -463,6 +602,7 @@ def allocation_candidates(
         candidates, next_cursor = _entry_candidates(
             connection, currency=str(debt["currency"]), direction=want, search=search,
             anchor=anchor, cursor=cursor, limit=limit,
+            add_back=_own_claims(connection, debt_id, replacing),
         )
         return {
             "generation": token,
