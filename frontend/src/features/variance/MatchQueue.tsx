@@ -5,6 +5,10 @@ import { Badge } from '@/components/ui/badge'
 import { ApiError, money } from '@/lib/api'
 import { recordMatch, type MatchCandidate, type MatchSuggestion } from './api'
 
+// A long gap in coverage can leave hundreds of events waiting, which rendered
+// as one page tens of thousands of pixels tall; reveal the queue in steps.
+const QUEUE_STEP = 10
+
 /**
  * The matching queue: bind real cash to the events a forecast issued.
  *
@@ -30,6 +34,7 @@ export function MatchQueue({
 }) {
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const [shown, setShown] = useState(QUEUE_STEP)
 
   async function bind(suggestion: MatchSuggestion, candidate: MatchCandidate) {
     setBusy(candidate.movement_id); setError('')
@@ -62,7 +67,7 @@ export function MatchQueue({
   return (
     <div className="match-queue">
       {error && <p className="debt-event-error" role="alert">{error}</p>}
-      {suggestions.map(suggestion => (
+      {suggestions.slice(0, shown).map(suggestion => (
         <div className="match-group" key={suggestion.event_id}>
           <p className="match-group-title">
             <strong>{suggestion.label}</strong>
@@ -105,6 +110,14 @@ export function MatchQueue({
           </ul>
         </div>
       ))}
+      {suggestions.length > shown && (
+        <div className="match-queue-more">
+          <span>Showing {shown} of {suggestions.length} events waiting on a match.</span>
+          <Button variant="outline" size="sm" onClick={() => setShown(n => n + QUEUE_STEP)}>
+            Show {Math.min(QUEUE_STEP, suggestions.length - shown)} more
+          </Button>
+        </div>
+      )}
       <p className="muted-note">{suggestions[0].rule}.</p>
     </div>
   )

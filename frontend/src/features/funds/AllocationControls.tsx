@@ -2,6 +2,7 @@ import { reportedMoney } from '@/lib/workspaceReporting'
 import { useState } from 'react'
 import { PiggyBank, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ApiError, money } from '@/lib/api'
 import { recordAllocation, retireAllocation, type Fund } from './api'
 
@@ -69,14 +70,14 @@ export function AllocationControls({
       <div className="fund-allocation-row">
         <label>
           Amount set aside ({fund.currency})
-          <input
+          <Input
             aria-label={`Amount set aside for ${fund.name}`} placeholder="0.00"
             value={amount} disabled={busy !== ''} onChange={e => setAmount(e.target.value)}
           />
         </label>
         <label>
           On
-          <input
+          <Input
             aria-label={`Date set aside for ${fund.name}`} type="date" value={on}
             max={today()} disabled={busy !== ''} onChange={e => setOn(e.target.value)}
           />

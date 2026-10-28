@@ -84,6 +84,19 @@ describe('MatchQueue', () => {
     expect(screen.getByText(/No issued event is waiting on a match/)).toBeInTheDocument()
   })
 
+  it('reveals a long queue in steps instead of rendering every event at once', () => {
+    renderQueue(Array.from({ length: 23 }, (_, i) => suggestion({ event_id: `e-${i}`, label: `Event ${i}` })))
+
+    expect(screen.getAllByRole('button', { name: /^Match / })).toHaveLength(10)
+    expect(screen.getByText('Showing 10 of 23 events waiting on a match.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show 10 more' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show 3 more' }))
+
+    expect(screen.getAllByRole('button', { name: /^Match / })).toHaveLength(23)
+    expect(screen.queryByRole('button', { name: /more$/ })).not.toBeInTheDocument()
+  })
+
   it('surfaces a rejected match instead of silently doing nothing', async () => {
     const { ApiError } = await import('@/lib/api')
     recordMatch.mockRejectedValue(

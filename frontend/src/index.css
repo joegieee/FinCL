@@ -355,6 +355,33 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .match-group .issue-list li{display:flex;align-items:center;justify-content:space-between;gap:14px}
 .match-group .issue-list li>button{flex-shrink:0}
 @media(max-width:700px){.match-group .issue-list li{flex-direction:column;align-items:stretch}}
+.funds-view,.variance-view,.maintenance-view{display:flex;flex-direction:column;gap:18px}
+.funds-view>*,.variance-view>*,.maintenance-view>*{min-width:0}
+.funds-view [data-slot=card],.variance-view [data-slot=card],.maintenance-view [data-slot=card]{padding-bottom:20px}
+.funds-view [data-slot=card]>:not(.panel-title),.variance-view [data-slot=card]>:not(.panel-title),.maintenance-view [data-slot=card]>:not(.panel-title){margin-left:25px;margin-right:25px}
+.funds-view [data-slot=card]>:last-child,.variance-view [data-slot=card]>:last-child,.variance-view .match-queue>:last-child,.maintenance-view [data-slot=card]>:last-child{margin-bottom:0}
+.variance-view [data-slot=card]>.panel-title{padding-bottom:12px}
+.funds-view .scope-caption{margin:0;align-items:center}
+.funds-view .muted-note>svg{display:inline-block;vertical-align:-2px;margin-right:4px}
+.funds-view .alert>svg,.variance-view .alert>svg,.maintenance-view .alert>svg{flex-shrink:0}
+.funds-view .alert>svg+div,.variance-view .alert>svg+div,.maintenance-view .alert>svg+div{flex:1;min-width:0}
+.fund-allocations .issue-list li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px}
+.variance-view [data-slot=card]>label{max-width:320px}
+.variance-view [data-slot=card]>.table-scroll{width:auto}
+.variance-view .form-row-3>*{min-width:0}
+.variance-view .pocket-table td:first-child{white-space:nowrap}
+.match-group .remedy-body .muted-note{margin:0}
+.match-queue-more{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;font-size:11px;color:var(--muted)}
+.maintenance-view .row-actions{flex-wrap:wrap;align-items:center}
+.maintenance-view .row-actions>select{flex:1 1 220px;min-width:0}
+@media(max-width:600px){
+ .funds-view [data-slot=card]>:not(.panel-title),.variance-view [data-slot=card]>:not(.panel-title),.maintenance-view [data-slot=card]>:not(.panel-title){margin-left:18px;margin-right:18px}
+ .funds-view .scope-caption{align-items:flex-start}
+ .funds-view .baseline-metrics{grid-template-columns:1fr}
+ .fund-allocation-row>label,.fund-allocation-row>button,.maintenance-view .row-actions>select,.maintenance-view .row-actions>button{flex:1 1 100%}
+ .fund-allocation-row input,.fund-allocation-row>button,.maintenance-view .row-actions>select,.maintenance-view .row-actions>button,.match-queue button{min-height:44px}
+ .variance-view [data-slot=card]>label{max-width:none}
+}
 .issue-list{list-style:none;display:flex;flex-direction:column;gap:9px;margin:12px 0;padding:0}
 .issue-list li{border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-size:12px}
 .issue-list li p{color:var(--muted);margin-top:4px}
