@@ -55,8 +55,10 @@ export type CombinedAnswer = {
   reporting_currency: string
   answer: string
   verdict: SufficiencyCase['verdict']
-  /** False when a pocket could not be counted; it is named in `pockets`. */
+  /** False when a pocket could not be counted or a pocket's bills are missing. */
   complete: boolean
+  /** Why the answer is incomplete, already worded for the page. */
+  incomplete_because: string[]
   starts_on: string | null
   ends_on: string | null
   starting_total: string | null
@@ -68,6 +70,7 @@ export type CombinedAnswer = {
     currency: string
     counted: 'projected' | 'held_as_is' | 'not_counted' | 'ignored'
     why: string | null
+    missing: { kind: string; label: string; reason: string }[]
     starting_balance: string | null
     starting_balance_reported: string | null
     rate: string | null

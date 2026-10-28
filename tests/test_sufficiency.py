@@ -569,6 +569,32 @@ class CardPlanTodoTests(unittest.TestCase):
     def test_an_unknown_repayment_asks_how_the_card_is_paid(self) -> None:
         self.assertIn("card-plan", self._keys("at least one evidenced statement was not settled in full, so the balance revolves"))
 
+    def test_a_card_with_one_statement_asks_for_another(self) -> None:
+        timeline = _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, [{
+            "output": "card_settlement", "requirement": "cycle_geometry_unevidenced",
+            "label": "Rewards Card", "detail": "1 statement(s) carry both a period end and a due date",
+        }])
+        answer = combined_answer(timeline, rates={"SGD": Fraction(1)}, reporting_currency="SGD", scale=2)
+
+        todo = next(todo for todo in answer["todos"] if todo["key"] == "card-history")
+        self.assertEqual(todo["page"], "Setup")
+        self.assertIn("Rewards Card", todo["detail"])
+
+    def test_missing_card_bills_keep_a_yes_from_being_plain(self) -> None:
+        pocket = _pocket(_days(("2026-02-01", "100.00")))
+        pocket["missing_outflows"] = [{
+            "kind": "card_statement", "account_id": "c1", "label": "Rewards Card",
+            "reason": "its bills can't be dated or sized from the statements, so none are counted",
+        }]
+        answer = combined_answer(_timeline({"SGD": pocket}), rates={"SGD": Fraction(1)},
+                                 reporting_currency="SGD", scale=2)
+
+        self.assertEqual((answer["verdict"], answer["answer"]), ("enough", "Yes, but not every bill is counted"))
+        self.assertFalse(answer["complete"])
+        self.assertEqual(answer["incomplete_because"], [
+            "Rewards Card (SGD): its bills can't be dated or sized from the statements, so none are counted.",
+        ])
+
     def test_a_declared_plan_leaves_only_the_missing_statement(self) -> None:
         self.assertNotIn("card-plan", self._keys("card c SGD has no reconciled exactly-once settlement plan"))
 

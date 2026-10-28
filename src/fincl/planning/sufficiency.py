@@ -459,6 +459,15 @@ def _todos(
                 "detail": f"Card spending between {window.group(1)} and {window.group(2)} is unknown, "
                           "so it is not counted.",
             })
+    history = sorted({str(i.get("label")) for i in items
+                      if i.get("requirement") == "cycle_geometry_unevidenced"})
+    if history:
+        todos.append({
+            "key": "card-history", "page": _FIX_PAGE["imports"],
+            "title": "Import another statement for your card",
+            "detail": "Two statements with a due date are needed before the next card bill can be "
+                      f"dated, so these cards' bills aren't counted yet: {', '.join(history)}.",
+        })
     # Only when how the card is repaid is the unknown: a missing statement is
     # its own to-do above, and the generic "no settlement plan" line is just
     # the consequence of one of the two.
@@ -607,6 +616,10 @@ def combined_answer(
             "currency": currency,
             "counted": how,
             "why": why,
+            "missing": [
+                {"kind": item["kind"], "label": item["label"], "reason": item["reason"]}
+                for item in cell.get("missing_outflows", [])
+            ],
             "starting_balance": balance,
             "starting_balance_reported": (
                 _quantized(_fraction(balance) * rate, scale)
@@ -636,13 +649,27 @@ def combined_answer(
     cautious = _combined_case(
         _combined_path(counted, held, name="conservative"), reserve=reserve, scale=scale
     )
-    complete = bool(counted) and all(p["counted"] != COUNTED_NOT for p in pockets)
+    incomplete_because = [
+        f"{item['label']} ({pocket['currency']}): {item['reason']}."
+        for pocket in pockets if pocket["currency"] in counted
+        for item in pocket["missing"]
+    ]
+    complete = (
+        bool(counted)
+        and all(p["counted"] != COUNTED_NOT for p in pockets)
+        and not incomplete_because
+    )
+    answer = _ANSWER[base["verdict"]]
+    if base["verdict"] == VERDICT_ENOUGH and incomplete_because:
+        # Bills the path never pays can't stand behind a plain yes.
+        answer = "Yes, but not every bill is counted"
     first = next(iter(counted.values()), {})
     return {
         "reporting_currency": reporting_currency,
-        "answer": _ANSWER[base["verdict"]],
+        "answer": answer,
         "verdict": base["verdict"],
         "complete": complete,
+        "incomplete_because": incomplete_because,
         "starts_on": cutoff,
         "ends_on": ((first.get("base") or {}).get("horizon") or {}).get("end")
         or (timeline.get("horizon") or {}).get("end"),

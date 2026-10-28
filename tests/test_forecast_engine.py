@@ -104,6 +104,24 @@ class CashTimelineTrapTests(unittest.TestCase):
             ("personal_debt", "Loan"),
         )
 
+    def test_a_card_without_a_plan_is_named_with_what_it_needs(self) -> None:
+        conversion = {"cards": [{
+            "account_id": "card-1", "currency": "SGD", "label": "Rewards Card",
+            "plan": {"available": False, "settlements": [], "unresolved": [{
+                "requirement": "cycle_geometry_unevidenced", "detail": "one statement only",
+            }]},
+            "reconciliation": {"reconciled": False},
+        }]}
+
+        events, limitations, missing = _card_events(conversion, prospective=[])
+
+        self.assertEqual(events, [])
+        self.assertIn("one statement only", limitations)
+        self.assertEqual(missing, [{
+            "account_id": "card-1", "currency": "SGD", "label": "Rewards Card",
+            "requirements": {"one statement only": "cycle_geometry_unevidenced"},
+        }])
+
     def test_a_dated_cost_beyond_its_residual_is_a_note_not_a_missing_case(self) -> None:
         bill = ForecastEvent(
             event_id="boiler", source_id="boiler", currency="SGD", amount="500.00",
@@ -339,7 +357,7 @@ class CashTimelineTrapTests(unittest.TestCase):
             ],
         }
 
-        events, limitations = _card_events(
+        events, limitations, _ = _card_events(
             conversion,
             prospective=[
                 {

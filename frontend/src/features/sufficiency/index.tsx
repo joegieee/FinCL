@@ -187,6 +187,13 @@ function Answer({ combined, today }: { combined: CombinedAnswer; today: string }
         </p>
       )}
 
+      {combined.incomplete_because.length > 0 && (
+        <div className="sufficiency-missing" role="note">
+          <p>This answer is incomplete because:</p>
+          <ul>{combined.incomplete_because.map(reason => <li key={reason}>{reason}</li>)}</ul>
+        </div>
+      )}
+
       <div className="sufficiency-cases">
         <p className="muted-note">
           <strong>Cautious case</strong> (likely income doesn’t arrive and spending runs at its highest month):{' '}

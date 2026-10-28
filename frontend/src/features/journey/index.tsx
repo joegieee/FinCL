@@ -144,7 +144,7 @@ function ShortAnswer({ page, error, today }: { page: SufficiencyPage | null; err
   return <>
     {base.verdict === 'short' && <p className="journey-lead is-short"><strong>No — short by {money(base.shortfall, c)}</strong><small> around {when(base.shortfall_on, today)}</small></p>}
     {base.verdict === 'below_reserve' && <p className="journey-lead"><strong>Just — you dip into your reserve</strong><small> by up to {money(base.shortfall, c)}</small></p>}
-    {base.verdict === 'enough' && <p className={`journey-lead${shortIfRepaid ? ' is-short' : ''}`}><strong>{shortIfRepaid ? 'Only if your debts can wait' : 'Yes'}</strong><small> lowest point {money(base.lowest, c)}, {money(base.closing, c)} left by {answer.ends_on ? dateLabel(answer.ends_on) : 'the end'}</small></p>}
+    {base.verdict === 'enough' && <p className={`journey-lead${shortIfRepaid ? ' is-short' : ''}`}><strong>{shortIfRepaid ? 'Only if your debts can wait' : answer.incomplete_because?.length ? answer.answer : 'Yes'}</strong><small> lowest point {money(base.lowest, c)}, {money(base.closing, c)} left by {answer.ends_on ? dateLabel(answer.ends_on) : 'the end'}</small></p>}
     {shortIfRepaid && missing && (
       <p className="journey-warning" role="note">
         <AlertTriangle size={14} /> {money(missing.total, c)} you owe has no due date, so the forecast doesn’t count it

@@ -1937,9 +1937,15 @@ def _candidate_income_events(
 
 def _card_events(
     conversion: dict[str, Any], *, prospective: Sequence[dict[str, Any]]
-) -> tuple[list[ForecastEvent], list[str]]:
+) -> tuple[list[ForecastEvent], list[str], list[dict[str, Any]]]:
+    """Card settlements, the limitations of cards without a plan, and those cards.
+
+    A card without a reconciled plan settles nothing in the forecast, so the
+    third value names it: its pocket's answer is missing that card's bills.
+    """
     events: list[ForecastEvent] = []
     limitations: list[str] = []
+    missing: list[dict[str, Any]] = []
     prospective_by_id = {str(item["id"]): item for item in prospective if item.get("id")}
     for card in conversion.get("cards", []):
         plan = card.get("plan", {})
@@ -1949,9 +1955,19 @@ def _card_events(
                 f"card {card.get('account_id')} {card.get('currency')} has no "
                 "reconciled exactly-once settlement plan"
             )
+            unresolved = [item for item in plan.get("unresolved", []) if isinstance(item, dict)]
             limitations.extend(
                 str(item.get("detail") or item) for item in plan.get("unresolved", [])
             )
+            missing.append({
+                "account_id": card.get("account_id"),
+                "currency": card.get("currency"),
+                "label": card.get("label") or card.get("account_id"),
+                "requirements": {
+                    str(item.get("detail")): str(item.get("requirement"))
+                    for item in unresolved
+                },
+            })
             continue
         for row in plan.get("settlements", []):
             source_id = str(row["source_id"])
@@ -1986,7 +2002,7 @@ def _card_events(
                     },
                 )
             )
-    return events, limitations
+    return events, limitations, missing
 
 
 def cash_timeline(
@@ -2082,7 +2098,7 @@ def _cash_timeline(
         horizon_months=HORIZON_MONTHS,
         prospective_purchases=prospective,
     )
-    card_events, card_limits = _card_events(cards, prospective=prospective)
+    card_events, card_limits, missing_cards = _card_events(cards, prospective=prospective)
 
     from .sources import EXTRA_SOURCES, SourceContext
 
@@ -2112,7 +2128,7 @@ def _cash_timeline(
             horizon_months=HORIZON_MONTHS,
             prospective_purchases=prospective,
         )
-        card_events, card_limits = _card_events(cards, prospective=prospective)
+        card_events, card_limits, missing_cards = _card_events(cards, prospective=prospective)
 
     reported = {
         "manifest": manifest.get("generation"),
@@ -2170,10 +2186,27 @@ def _cash_timeline(
         *(limit for source in extra for limit in source.limitations),
     ]
     result["limitations"].extend(adapter_limits)
+    for card in missing_cards:
+        cell = result["by_currency"].get(str(card["currency"]))
+        if cell is not None:
+            cell.setdefault("missing_outflows", []).append({
+                "kind": "card_statement", "account_id": card["account_id"],
+                "label": card["label"],
+                "reason": "its bills can't be dated or sized from the statements, so none are counted",
+            })
+    card_requirements = {
+        detail: (card, code)
+        for card in missing_cards
+        for detail, code in card["requirements"].items()
+    }
     result["action_items"] = sorted(
         [*_action_items(manifest, card_limits), *(item for source in extra for item in source.action_items)],
         key=lambda item: (-item["rank"], item["output"], item["detail"]),
     )
+    for item in result["action_items"]:
+        if item["output"] == "card_settlement" and item["detail"] in card_requirements:
+            card, code = card_requirements[item["detail"]]
+            item.update(requirement=code, account_id=card["account_id"], label=card["label"])
     result["source_contracts"] = {
         "obligations": obligations.get("rules", []),
         "card_cash_conversion": {

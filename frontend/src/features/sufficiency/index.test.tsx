@@ -23,7 +23,7 @@ function kase(over: Record<string, unknown> = {}) {
 
 function combined(over: Record<string, unknown> = {}) {
   return {
-    reporting_currency: 'SGD', answer: 'Yes', verdict: 'enough', complete: true,
+    reporting_currency: 'SGD', answer: 'Yes', verdict: 'enough', complete: true, incomplete_because: [],
     starts_on: '2025-12-10', ends_on: '2026-06-10', starting_total: '6650.00',
     base: kase(), cautious: kase(), only_safe_in_the_base_case: false,
     reserve: { available: false, target: null },
@@ -127,6 +127,18 @@ describe('SufficiencyView', () => {
 
     expect(await screen.findByRole('note')).toHaveTextContent('Not counted: THB 0.50 (no exchange rate to the reporting currency is available)')
     expect(screen.getByText('not counted')).toBeInTheDocument()
+  })
+
+  it('says beside a yes why it is incomplete', async () => {
+    loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
+      answer: 'Yes, but not every bill is counted', complete: false,
+      incomplete_because: ['Rewards Card (SGD): its bills can’t be dated or sized from the statements, so none are counted.'],
+    }) }))
+
+    render(<SufficiencyView generation="gen-1" />)
+
+    expect(await screen.findByRole('heading', { name: 'Yes, but not every bill is counted' })).toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent('This answer is incomplete because:Rewards Card (SGD)')
   })
 
   it('lists a pocket too small to matter as ignored, without flagging the answer', async () => {
