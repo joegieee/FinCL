@@ -278,6 +278,42 @@ export function previewDebtDraft(generation: string, items: DraftItem[]): Promis
   return api<DraftPreview>('debts/preview', { expected_generation: generation, items })
 }
 
+export type DebtEventPayload = {
+  event_id: string
+  event_kind: string
+  direction: 'PAYABLE' | 'RECEIVABLE'
+  principal_amount: string
+  effective_on: string
+  entry_allocations: AllocationInput[]
+  opening_balance: boolean
+  expense_category: string | null
+  reason: string
+}
+
+export type DebtEventRead = { generation: string; debt_id: string; event: DebtEventPayload; sources: AllocationCandidate[] }
+
+/** One recorded event as its payload, with its sources described as candidates. */
+export function loadDebtEvent(debtId: string, eventId: string, generation: string): Promise<DebtEventRead> {
+  const q = new URLSearchParams({ generation })
+  return api<DebtEventRead>(`debts/${encodeURIComponent(debtId)}/events/${encodeURIComponent(eventId)}?` + q)
+}
+
+/** A closed debt is reopened around a correction and, unless the user says
+ * otherwise, closed again on `recloseOn` in the same record. */
+export function aroundClosed(
+  debt: { debt_id: string; status: string },
+  items: DraftItem[],
+  opts: { reopenOn: string; recloseOn: string | null; reason: string },
+): DraftItem[] {
+  if (debt.status !== 'CLOSED') return items
+  const lifecycle = (kind: string, on: string): DraftItem => ({ kind, anchors: { debt: debt.debt_id }, payload: { effective_on: on, reason: opts.reason } })
+  return [
+    lifecycle('PERSONAL_DEBT_REOPEN', opts.reopenOn),
+    ...items,
+    ...(opts.recloseOn ? [lifecycle('PERSONAL_DEBT_CLOSE', opts.recloseOn)] : []),
+  ]
+}
+
 export function kindLabel(kind: string): string {
   return [...EVENT_KINDS.PAYABLE, ...EVENT_KINDS.RECEIVABLE].find(spec => spec.kind === kind)?.label ?? kind
 }

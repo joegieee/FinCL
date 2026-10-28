@@ -88,3 +88,24 @@ export function DraftEffect({ preview }: { preview: DraftPreview }) {
     })}
   </div>
 }
+
+/** For a closed debt: the correction reopens it and, unless unticked, closes
+ * it again on the chosen date in the same record. */
+export function RecloseControl({ closedOn, value, onChange, disabled }: {
+  closedOn: string
+  value: string | null
+  onChange: (value: string | null) => void
+  disabled?: boolean
+}) {
+  return <div className="debt-lifecycle-row">
+    <label className="debt-event-check">
+      <input type="checkbox" checked={value !== null} disabled={disabled}
+        onChange={e => onChange(e.target.checked ? closedOn : null)}/>
+      <span>Close it again on
+        <small>This debt is closed. The change reopens it; untick to leave it open.</small>
+      </span>
+    </label>
+    {value !== null && <input aria-label="Close again on" type="date" value={value} disabled={disabled}
+      onChange={e => onChange(e.target.value)}/>}
+  </div>
+}
