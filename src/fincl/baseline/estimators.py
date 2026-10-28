@@ -28,6 +28,7 @@ purchase or an unlinked receipt adjustment block a protective claim.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -37,6 +38,7 @@ from typing import Any
 from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
+from ..planning.schedules import occurrences
 from ..read_cache import per_request
 from ..reserve import reserve_policy
 from .queries import cost_income_table_from
@@ -203,6 +205,44 @@ def _confirmed_recurring_flat_from(connection: sqlite3.Connection) -> dict[str, 
         amount = Decimal(row["expected_coefficient"]).scaleb(-int(row["expected_scale"]))
         flat[row["currency"]] = flat.get(row["currency"], Decimal(0)) + amount
     return flat
+
+
+def _unlinked_recurring_from(
+    connection: sqlite3.Connection, span_start: str, span_end: str
+) -> list[dict[str, Any]]:
+    """Scheduled dates in the window that no payment has been linked to or skipped.
+
+    Only a bound payment is lifted out of the routine residual, so an unlinked
+    one is counted in usual spending as well as on its own forecast date until
+    the user links it or marks the date skipped.
+    """
+    unlinked: list[dict[str, Any]] = []
+    for row in connection.execute(
+        "SELECT commitment, name, currency, schedule_json FROM recurring_commitments "
+        "WHERE status = 'active' ORDER BY name, commitment"
+    ):
+        schedule = json.loads(row["schedule_json"])
+        recorded = {
+            str(item["scheduled_on"])
+            for item in connection.execute(
+                "SELECT scheduled_on FROM recurring_occurrences WHERE commitment = ?",
+                (row["commitment"],),
+            )
+        }
+        first = max(date.fromisoformat(span_start), date.fromisoformat(schedule["anchor_on"]))
+        dates = [
+            day.isoformat()
+            for day in occurrences(schedule, first, date.fromisoformat(span_end))
+            if day.isoformat() not in recorded
+        ]
+        if dates:
+            unlinked.append({
+                "commitment": str(row["commitment"]),
+                "name": str(row["name"]),
+                "currency": str(row["currency"]),
+                "scheduled_on": dates,
+            })
+    return unlinked
 
 
 _REGIME_SHIFT_RATIO = Decimal("0.5")
@@ -489,6 +529,7 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
         "reconciliation": table["reconciliation"],
         "limitations": limitations,
         "tasks": table["tasks"],
+        "unlinked_recurring": _unlinked_recurring_from(connection, span_start, span_end),
     }
 
 

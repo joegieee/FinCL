@@ -609,6 +609,7 @@ def forecast_input_manifest_from(
             "unclassified_spending": unclassified_spending,
             "evidence_gaps": evidence_gaps,
             "ambiguous_obligations": ambiguous_obligations,
+            "unlinked_recurring": estimate.get("unlinked_recurring", []),
             "unmatched_receipts": (
                 {
                     currency: table["reconciliation"][currency]["unmatched_receipts_total"]

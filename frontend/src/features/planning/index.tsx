@@ -517,7 +517,8 @@ function OccurrenceTable({ commitment, currency, generation, disabled, onSaved }
   commitment: string; currency: string; generation: string; disabled: boolean; onSaved: (status: string) => void | Promise<void>
 }) {
   const now = new Date()
-  const start = `${now.getFullYear()}-01-01`
+  // A year back, so every date in the baseline window can have its payment linked.
+  const start = `${now.getFullYear() - 1}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   // Through the forecast horizon, so an upcoming occurrence's amount can be set.
   const horizon = new Date(now.getFullYear(), now.getMonth() + 7, 0)
   const end = `${horizon.getFullYear()}-${String(horizon.getMonth() + 1).padStart(2, '0')}-${String(horizon.getDate()).padStart(2, '0')}`

@@ -1387,6 +1387,26 @@ def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> 
             "detail": str(task.get("note") or task.get("detail") or task),
         })
 
+    unlinked = manifest.get("unresolved_items", {}).get("unlinked_recurring", [])
+    for commitment in unlinked:
+        count = len(commitment["scheduled_on"])
+        items.append({
+            "kind": "needs_review", "output": "recurring_history",
+            "currency": commitment["currency"], "rank": 65,
+            "action": "Link or skip the past payments of this recurring bill",
+            "detail": f"{commitment['name']}: {count} past date(s) have no linked payment",
+            "commitment": commitment["commitment"], "scheduled_on": commitment["scheduled_on"],
+            "todo": {
+                "key": "recurring-history", "page": "Planning",
+                "title": "Link past payments to your recurring bills",
+                "detail": (
+                    f"{commitment['name']} has {count} past date{'s' if count != 1 else ''} with "
+                    "no payment linked or marked skipped. Until you do, those payments are "
+                    "counted in your usual spending as well as on their own dates."
+                ),
+            },
+        })
+
     for limit in card_limits:
         items.append({
             "kind": "needs_review", "output": "card_settlement", "currency": None,
