@@ -5,9 +5,11 @@ import sqlite3
 import tempfile
 import unittest
 import uuid
+from datetime import date
 from pathlib import Path
 from typing import Any
 
+from fincl import clock
 from fincl.api import create_app
 from fincl.context.queries import trip_spend_to_date
 from fincl.db import connect_readonly, connect_sqlite
@@ -318,6 +320,16 @@ class TripTests(unittest.TestCase):
         context = self.client.get("/api/v1/entry-context", params={"anchor": seed}).json()
         self.assertEqual((context["counted_as_cost"], context["assignment"]), (False, "excluded"))
         self.assertEqual(self.client.get("/api/v1/entry-context", params={"anchor": "nope"}).status_code, 404)
+
+    def test_a_trip_is_upcoming_ongoing_or_past_against_the_app_clock(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        self.addCleanup(clock.pin, None)
+        for today, status in (("2026-01-09", "upcoming"), ("2026-01-10", "ongoing"), ("2026-01-15", "ongoing"),
+                              ("2026-01-16", "past")):
+            clock.pin(date.fromisoformat(today))
+            with self.subTest(today=today):
+                self.assertEqual(self.client.get("/api/v1/trips").json()["trips"][0]["status"], status)
+                self.assertEqual(self.detail(trip_a)["trip"]["status"], status)
 
     def test_invalid_context_decisions_are_refused(self) -> None:
         trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])

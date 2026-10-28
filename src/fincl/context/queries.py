@@ -136,7 +136,13 @@ def _row(entry: dict[str, Any], trip: dict[str, Any] | None = None) -> dict[str,
     return row
 
 
-def _summary(trip: dict[str, Any], members: list[dict[str, Any]], review_count: int) -> dict[str, Any]:
+def _status(trip: dict[str, Any], today: date) -> str:
+    if today < date.fromisoformat(trip["start_on"]):
+        return "upcoming"
+    return "past" if today > date.fromisoformat(trip["end_on"]) else "ongoing"
+
+
+def _summary(trip: dict[str, Any], members: list[dict[str, Any]], review_count: int, today: date) -> dict[str, Any]:
     totals: dict[str, dict[str, Any]] = {}
     parts: dict[tuple[str, str, str], list[Any]] = {}
     for entry in members:
@@ -152,6 +158,7 @@ def _summary(trip: dict[str, Any], members: list[dict[str, Any]], review_count: 
                 part[1] = max(part[1], entry["scale"])
     return {
         **{key: trip[key] for key in ("trip_id", "name", "start_on", "end_on", "countries", "reason")},
+        "status": _status(trip, today),
         "entry_count": len(members),
         "review_count": review_count,
         "totals_by_currency": {
@@ -176,20 +183,22 @@ def _review(trip_id: str, entries: dict[str, dict[str, Any]]) -> list[dict[str, 
             if trip_id in e["in_windows"] and e["assignment"] in {"none", "ambiguous"}]
 
 
-def trips_page_from(connection: sqlite3.Connection, *, expected: str | None = None) -> dict[str, Any]:
+def trips_page_from(connection: sqlite3.Connection, *, today: date, expected: str | None = None) -> dict[str, Any]:
     state = _load(connection, expected)
     entries = state["entries"]
     return {
         "generation": state["token"], "lens": LENS, "lens_note": LENS_NOTE,
         "assignment_policy": ASSIGNMENT_POLICY, "country_list_version": COUNTRY_LIST_VERSION,
         "trips": [
-            _summary(trip, [e for e in entries.values() if e["trip"] == trip_id], len(_review(trip_id, entries)))
+            _summary(trip, [e for e in entries.values() if e["trip"] == trip_id], len(_review(trip_id, entries)), today)
             for trip_id, trip in state["trips"].items()
         ],
     }
 
 
-def trip_detail_from(connection: sqlite3.Connection, trip_id: str, *, expected: str | None = None) -> dict[str, Any]:
+def trip_detail_from(
+    connection: sqlite3.Connection, trip_id: str, *, today: date, expected: str | None = None,
+) -> dict[str, Any]:
     state = _load(connection, expected)
     trip = state["trips"].get(trip_id)
     if trip is None:
@@ -207,7 +216,7 @@ def trip_detail_from(connection: sqlite3.Connection, trip_id: str, *, expected: 
     return {
         "generation": state["token"], "lens": LENS, "lens_note": LENS_NOTE,
         "assignment_policy": ASSIGNMENT_POLICY, "country_list_version": COUNTRY_LIST_VERSION,
-        "trip": _summary(trip, members, len(review)),
+        "trip": _summary(trip, members, len(review), today),
         "by_category": [
             {"currency": currency, "category_key": category, "cost_amount": _text(value, scale)}
             for (currency, category), (value, scale) in sorted(by_category.items(), key=lambda item: (item[0][0], -item[1][0]))
@@ -280,18 +289,18 @@ def entry_context_from(connection: sqlite3.Connection, anchor: str, *, expected:
     }
 
 
-def trips_page(database: Path, *, expected: str | None = None) -> dict[str, Any]:
+def trips_page(database: Path, *, today: date, expected: str | None = None) -> dict[str, Any]:
     connection = connect_readonly(database)
     try:
-        return trips_page_from(connection, expected=expected)
+        return trips_page_from(connection, today=today, expected=expected)
     finally:
         connection.close()
 
 
-def trip_detail(database: Path, trip_id: str, *, expected: str | None = None) -> dict[str, Any]:
+def trip_detail(database: Path, trip_id: str, *, today: date, expected: str | None = None) -> dict[str, Any]:
     connection = connect_readonly(database)
     try:
-        return trip_detail_from(connection, trip_id, expected=expected)
+        return trip_detail_from(connection, trip_id, today=today, expected=expected)
     finally:
         connection.close()
 

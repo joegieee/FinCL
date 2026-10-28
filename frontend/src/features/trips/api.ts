@@ -10,11 +10,14 @@ export type Assignment = 'automatic' | 'manual' | 'excluded' | 'ambiguous' | 'no
 
 export type TripTotals = { gross_cost: string; refunds: string; net_cost: string; entry_count: number }
 
+export type TripStatus = 'upcoming' | 'ongoing' | 'past'
+
 export type TripSummary = {
   trip_id: string
   name: string
   start_on: string
   end_on: string
+  status: TripStatus
   countries: string[]
   reason: string
   entry_count: number

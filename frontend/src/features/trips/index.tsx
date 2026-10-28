@@ -9,8 +9,10 @@ import { useBatchCommand, useLedgerCommand, type BatchItem } from '@/lib/command
 import { reportedMoney, WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import {
   countryName, countrySet, loadCountries, loadTrip, loadTrips, tripAssign, tripAssignRetire, tripRetire,
-  type ContextRow, type TripDetail, type TripDraft, type TripSummary, type TripsPage,
+  type ContextRow, type TripDetail, type TripDraft, type TripStatus, type TripSummary, type TripsPage,
 } from './api'
+
+const STATUS: Record<TripStatus, string> = { upcoming: 'Upcoming', ongoing: 'Under way', past: 'Past' }
 
 type Saved = (status: string) => void | Promise<void>
 
@@ -46,7 +48,7 @@ export function TripsView({ generation, onSaved }: { generation: string; onSaved
         {data.trips.length === 0 && !editing && <Card className="controls-card"><p className="muted-note">No trips yet. Add one with its dates and the countries it covers; transactions then join it once their country is known.</p></Card>}
         <ul className="trip-list">{data.trips.map(trip => <li key={trip.trip_id}>
           <button className={`trip-card${selected === trip.trip_id ? ' is-active' : ''}`} onClick={() => setSelected(trip.trip_id)} aria-pressed={selected === trip.trip_id}>
-            <span className="trip-card-title"><strong>{trip.name}</strong>{trip.review_count > 0 && <Badge variant="outline" className="review-badge">{trip.review_count} to review</Badge>}</span>
+            <span className="trip-card-title"><strong>{trip.name}</strong><Badge variant="secondary">{STATUS[trip.status]}</Badge>{trip.review_count > 0 && <Badge variant="outline" className="review-badge">{trip.review_count} to review</Badge>}</span>
             <small>{dateLabel(trip.start_on)} – {dateLabel(trip.end_on)} · {trip.countries.length ? trip.countries.map(countryName).join(', ') : 'No countries listed'}</small>
             <span className="trip-card-totals">{Object.keys(trip.totals_by_currency).length
               ? Object.entries(trip.totals_by_currency).map(([currency, cell]) => <span key={currency}>{reportedMoney(cell, 'net_cost', currency)} <small>({currency} pocket)</small></span>)
@@ -145,11 +147,12 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
     <AsyncView loading={loading} error={error} data={detail} onRetry={load} errorTitle="We couldn’t load this trip.">
       {d => <>
         <WorkspaceReportingDetails data={d}/>
-        <div className="panel-title"><div><p className="eyebrow"><MapPinned size={12}/> TRIP · {dateLabel(d.trip.start_on)} – {dateLabel(d.trip.end_on)}</p><h2>{d.trip.name}</h2><p className="muted-note">{d.trip.countries.length ? d.trip.countries.map(countryName).join(', ') : 'No countries listed: nothing joins automatically.'}</p></div>
+        <div className="panel-title"><div><p className="eyebrow"><MapPinned size={12}/> TRIP · {dateLabel(d.trip.start_on)} – {dateLabel(d.trip.end_on)} · {STATUS[d.trip.status].toUpperCase()}</p><h2>{d.trip.name}</h2><p className="muted-note">{d.trip.countries.length ? d.trip.countries.map(countryName).join(', ') : 'No countries listed: nothing joins automatically.'}</p></div>
           <div className="row-actions"><Button variant="outline" size="sm" onClick={() => onEdit(d.trip)}>Edit</Button><Button variant="ghost" size="sm" onClick={onClose} aria-label="Close trip"><X size={15}/></Button></div></div>
         {Object.keys(d.trip.totals_by_currency).length > 0 ? <dl className="baseline-metrics">{Object.entries(d.trip.totals_by_currency).map(([currency, cell]) => <div key={currency}><dt>{currency} pocket · cost / refunds / net</dt><dd>{reportedMoney(cell, 'gross_cost', currency)} · {reportedMoney(cell, 'refunds', currency)} · <strong>{reportedMoney(cell, 'net_cost', currency)}</strong></dd></div>)}</dl>
           : <p className="muted-note">Nothing is assigned to this trip yet.</p>}
         <p className="muted-note">{d.lens_note}</p>
+        <section className="trip-budget" aria-label="Budget"><h3>Budget</h3><p className="muted-note">No budget for this trip yet.</p></section>
         {d.by_category.length > 0 && <div className="table-scroll"><table className="pocket-table"><thead><tr><th>Category</th><th>Pocket</th><th>Cost</th></tr></thead>
           <tbody>{d.by_category.map((row, i) => <tr key={i}><td>{row.category_key}</td><td>{row.currency}</td><td>{reportedMoney(row, 'cost_amount', row.currency)}</td></tr>)}</tbody></table></div>}
         <RowSection title="In this trip" rows={d.contributors} checked={checked} onToggle={toggle} empty="No transactions yet."/>
