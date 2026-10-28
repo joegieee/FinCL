@@ -15,6 +15,7 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+from .. import clock
 from ..db import connect_readonly, read_snapshot
 from ..errors import FinCLError
 from ..generation import current_generation
@@ -89,7 +90,7 @@ def _encode_allocation_cursor(effective_at: str, entry_anchor: str) -> str:
 
 def _check_as_of(as_of: str | None) -> str:
     if as_of is None:
-        return date.today().isoformat()
+        return clock.today().isoformat()
     try:
         return date.fromisoformat(as_of).isoformat()
     except ValueError as exc:

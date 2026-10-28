@@ -35,6 +35,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .. import clock
 from ..db import connect_readonly
 from ..errors import FinCLError
 from ..intervals import contains_range
@@ -727,7 +728,7 @@ def forecast_variance_page(
 ) -> dict[str, Any]:
     """Compare one issued forecast snapshot against the cash that actually moved."""
     if as_of is None:
-        resolved = date.today().isoformat()
+        resolved = clock.today().isoformat()
     else:
         try:
             resolved = date.fromisoformat(as_of).isoformat()

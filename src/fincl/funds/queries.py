@@ -27,6 +27,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .. import clock
 from ..baseline.estimators import baseline_estimate
 from ..db import connect_readonly
 from ..errors import FinCLError
@@ -54,7 +55,7 @@ STATUS_INCOMPLETE = "incomplete"
 
 def _as_of(value: str | None) -> str:
     if value is None:
-        return date.today().isoformat()
+        return clock.today().isoformat()
     try:
         return date.fromisoformat(value).isoformat()
     except ValueError as exc:

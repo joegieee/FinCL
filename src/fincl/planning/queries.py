@@ -14,6 +14,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .. import clock
 from ..db import connect_readonly
 from ..decision_journal import default_journal_path, read_records
 from ..errors import FinCLError
@@ -62,7 +63,7 @@ def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]
         contract = _coverage_contract(connection)
         start, end = _month_bounds(month)
         month_covered = any(i.contains_interval(DateInterval(start, end)) for i in contract.covered_intervals)
-        month_past = end < date.today().isoformat()
+        month_past = end < clock.today().isoformat()
         complete = month_covered and month_past
 
         revisions = connection.execute(
@@ -227,7 +228,7 @@ def budget_backdate_preview(
             "FROM budget_revisions WHERE plan = ? ORDER BY effective_month, journal_seq", (plan,)
         ).fetchall()
         new_cents = _to_cents(limit)
-        today_month = date.today().strftime("%Y-%m")
+        today_month = clock.today().strftime("%Y-%m")
         later = [r["effective_month"] for r in rows if r["effective_month"] > effective_month]
         window_end = _month_add(min(later), -1) if later else today_month
         if effective_month > window_end:
@@ -257,8 +258,8 @@ def budget_backdate_preview(
                 "previous_limit": _money(prev_limit) if prev_limit is not None else None,
                 "new_limit": _money(new_cents),
                 "actual": _money(actual),
-                "previous_remaining": _money(prev_limit - actual) if (prev_limit is not None and covered and end < date.today().isoformat()) else None,
-                "new_remaining": _money(new_cents - actual) if (covered and end < date.today().isoformat()) else None,
+                "previous_remaining": _money(prev_limit - actual) if (prev_limit is not None and covered and end < clock.today().isoformat()) else None,
+                "new_remaining": _money(new_cents - actual) if (covered and end < clock.today().isoformat()) else None,
             })
         return {"plan": plan, "affected_months": affected}
     finally:
@@ -266,7 +267,7 @@ def budget_backdate_preview(
 
 
 def goals_page(database: Path, *, as_of: str | None = None) -> dict[str, Any]:
-    as_of = as_of or date.today().isoformat()
+    as_of = as_of or clock.today().isoformat()
     connection = connect_readonly(database)
     try:
         generation = _generation(connection)
@@ -347,7 +348,7 @@ def goal_scenario(
     target date, rounded up to the currency display scale. No interest or
     investment return is assumed; this creates no transfer or reservation
     (DESIGN-personal-finance §6)."""
-    as_of = as_of or date.today().isoformat()
+    as_of = as_of or clock.today().isoformat()
     connection = connect_readonly(database)
     try:
         generation = _generation(connection)

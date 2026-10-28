@@ -4,6 +4,9 @@ shared command flow."""
 from __future__ import annotations
 
 import uuid
+from datetime import date
+
+from fincl import clock
 from tests.test_api import ApiTestBase
 
 
@@ -41,6 +44,18 @@ class PlanningApiTests(ApiTestBase):
         history = self.client.get(f"/api/v1/budgets/{plan}/history").json()
         self.assertEqual(len(history["revisions"]), 1)
         self.assertEqual(history["revisions"][0]["limit"], "100.00")
+
+    def test_goals_read_today_from_the_pinned_clock(self) -> None:
+        plan = str(uuid.uuid4())
+        self.command(
+            "GOAL_DETAILS_SET", {"plan": plan},
+            {"name": "Fund", "currency": "SGD", "target": "500.00", "target_on": "2026-03-01", "reason": "s"},
+        )
+        clock.pin(date(2026, 2, 1))
+        self.addCleanup(clock.pin, None)
+        page = self.client.get("/api/v1/goals").json()
+        self.assertEqual(page["as_of"], "2026-02-01")
+        self.assertFalse(next(g for g in page["goals"] if g["plan"] == plan)["overdue"])
 
     def test_a_month_that_does_not_exist_is_refused(self) -> None:
         response = self.client.get("/api/v1/budgets?month=2026-13&currency=SGD")

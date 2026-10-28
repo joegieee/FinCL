@@ -29,6 +29,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .. import clock
 from ..common import utc_now
 from ..db import connect_readonly
 from ..errors import FinCLError
@@ -180,7 +181,7 @@ def snapshot_payload(
     returns a journal payload. The caller appends it (through
     ``fincl.application.record_decision``) when it means to issue the forecast.
     """
-    today = today or date.today()
+    today = today or clock.today()
     timeline = cash_timeline(
         database,
         today=today,

@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from . import clock
 from .analysis import handles
 from .analysis.queries import analysis_page as analysis_page
 from .baseline.outliers import outlier_anchor_set
@@ -830,7 +831,7 @@ def dashboard(database: Path, *, start: str | None = None, end: str | None = Non
             if start is None and contract.covered_intervals:
                 start, end = contract.covered_intervals[-1].start, contract.covered_intervals[-1].end
             if start is None:
-                latest = max((e['date'] for e in entries), default=date.today().isoformat())
+                latest = max((e['date'] for e in entries), default=clock.today().isoformat())
                 start, end = latest[:7] + '-01', latest
         assert start is not None and end is not None
         try:
