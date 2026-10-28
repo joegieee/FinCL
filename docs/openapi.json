@@ -6369,6 +6369,100 @@
         }
       }
     },
+    "/api/v1/planned": {
+      "get": {
+        "summary": "Planned",
+        "operationId": "planned_api_v1_planned_get",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Planned Api V1 Planned Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/planned/match-candidates": {
+      "get": {
+        "summary": "Planned Match Candidates",
+        "operationId": "planned_match_candidates_api_v1_planned_match_candidates_get",
+        "parameters": [
+          {
+            "name": "flow",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Flow"
+            }
+          },
+          {
+            "name": "occurrence",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Occurrence"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Planned Match Candidates Api V1 Planned Match Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/workspaces/baseline/readiness": {
       "get": {
         "summary": "Reported Workspace Baseline Readiness Read",
@@ -9428,16 +9522,94 @@
         }
       }
     },
-    "/": {
+    "/api/v1/reporting/workspaces/planned": {
       "get": {
-        "summary": "Index",
-        "operationId": "index__get",
+        "summary": "Reported Workspace Planned",
+        "operationId": "reported_workspace_planned_api_v1_reporting_workspaces_planned_get",
+        "parameters": [
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ReportedWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reporting/workspaces/planned/match-candidates": {
+      "get": {
+        "summary": "Reported Workspace Planned Match Candidates",
+        "operationId": "reported_workspace_planned_match_candidates_api_v1_reporting_workspaces_planned_match_candidates_get",
+        "parameters": [
+          {
+            "name": "flow",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Flow"
+            }
+          },
+          {
+            "name": "occurrence",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Occurrence"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportedWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -9698,7 +9870,10 @@
               "TRIP_SET",
               "TRIP_RETIRE",
               "ENTRY_TRIP_SET",
-              "ENTRY_TRIP_RETIRE"
+              "ENTRY_TRIP_RETIRE",
+              "PLANNED_MATCH_RETIRE",
+              "PLANNED_OCCURRENCE_RESOLVE_RETIRE",
+              "PLANNED_FLOW_RETIRE"
             ],
             "title": "Kind"
           },
@@ -10946,7 +11121,13 @@
               "ENTRY_TRIP_SET",
               "ENTRY_TRIP_RETIRE",
               "REPORT_DEFINITION_SET",
-              "REPORT_DEFINITION_RETIRE"
+              "REPORT_DEFINITION_RETIRE",
+              "PLANNED_FLOW_SET",
+              "PLANNED_FLOW_RETIRE",
+              "PLANNED_MATCH_SET",
+              "PLANNED_MATCH_RETIRE",
+              "PLANNED_OCCURRENCE_RESOLVE_SET",
+              "PLANNED_OCCURRENCE_RESOLVE_RETIRE"
             ],
             "title": "Kind"
           },

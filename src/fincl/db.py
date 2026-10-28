@@ -14,7 +14,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 30
+SCHEMA_VERSION = 31
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -604,6 +604,59 @@ CREATE TABLE IF NOT EXISTS recurring_occurrence_amounts (
     reason TEXT NOT NULL,
     journal_seq INTEGER NOT NULL,
     PRIMARY KEY (commitment, scheduled_on)
+) STRICT;
+"""
+
+# Schema 31: planned flows — future spending and income the owner states —
+# with their occurrences, matched transactions and outcomes, projected from
+# PLANNED_FLOW_*, PLANNED_MATCH_* and PLANNED_OCCURRENCE_RESOLVE_*.
+SCHEMA_31_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS planned_flows (
+    flow TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    direction TEXT NOT NULL CHECK (direction IN ('outflow', 'inflow')),
+    currency TEXT NOT NULL,
+    account_id TEXT,
+    category TEXT,
+    certainty TEXT NOT NULL CHECK (certainty IN ('sure', 'expected', 'maybe')),
+    baseline_treatment TEXT NOT NULL CHECK (baseline_treatment IN ('extra', 'irregular_allowance')),
+    link_kind TEXT CHECK (link_kind IN ('trip')),
+    link_id TEXT,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    CHECK ((link_kind IS NULL) = (link_id IS NULL))
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS planned_occurrences (
+    flow TEXT NOT NULL,
+    occurrence TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    earliest TEXT NOT NULL,
+    latest TEXT NOT NULL,
+    amount_coefficient INTEGER NOT NULL CHECK (amount_coefficient > 0),
+    amount_scale INTEGER NOT NULL,
+    PRIMARY KEY (flow, occurrence),
+    CHECK (earliest <= latest)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS planned_matches (
+    flow TEXT NOT NULL,
+    occurrence TEXT NOT NULL,
+    entry_anchor TEXT NOT NULL,
+    amount_coefficient INTEGER NOT NULL CHECK (amount_coefficient > 0),
+    amount_scale INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    PRIMARY KEY (flow, occurrence, entry_anchor)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS planned_resolutions (
+    flow TEXT NOT NULL,
+    occurrence TEXT NOT NULL,
+    outcome TEXT NOT NULL CHECK (outcome IN ('done', 'cancelled')),
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    PRIMARY KEY (flow, occurrence)
 ) STRICT;
 """
 
@@ -1217,6 +1270,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_28_TABLES_SQL
         + SCHEMA_29_TABLES_SQL
         + SCHEMA_30_TABLES_SQL
+        + SCHEMA_31_TABLES_SQL
     )
 
 

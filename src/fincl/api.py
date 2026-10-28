@@ -27,6 +27,7 @@ from .errors import FinCLError
 from .generation import build_manifest, current_generation, generation_token
 from .locking import LedgerBusyError, ledger_writer
 from .money import ExactMoney, exact_sum, format_decimal
+from .planned.models import PLANNED_DECISION_KINDS
 from .planning import PLANNING_DECISION_KINDS
 from .plans import validate_plan
 from .position import POSITION_DECISION_KINDS
@@ -105,6 +106,9 @@ _SINGLE_KINDS = Literal[
     'ENTRY_TRIP_SET','ENTRY_TRIP_RETIRE',
     # v0.7 saved report definitions
     'REPORT_DEFINITION_SET','REPORT_DEFINITION_RETIRE',
+    # Planned flows: future spending and income the owner states
+    'PLANNED_FLOW_SET','PLANNED_FLOW_RETIRE','PLANNED_MATCH_SET','PLANNED_MATCH_RETIRE',
+    'PLANNED_OCCURRENCE_RESOLVE_SET','PLANNED_OCCURRENCE_RESOLVE_RETIRE',
 ]
 
 _CONTEXT_KINDS = frozenset({
@@ -185,6 +189,8 @@ class BatchItem(StrictModel):
         # together with its manual assignments.
         'ENTRY_COUNTRY_SET','ENTRY_COUNTRY_RETIRE','TRIP_SET','TRIP_RETIRE',
         'ENTRY_TRIP_SET','ENTRY_TRIP_RETIRE',
+        # A planned item retired together with its matched payments.
+        'PLANNED_MATCH_RETIRE','PLANNED_OCCURRENCE_RESOLVE_RETIRE','PLANNED_FLOW_RETIRE',
     ]
     anchors: dict[str,str]
     payload: dict[str,Any]
@@ -764,6 +770,10 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
             from .context import check_context_sequence
             check_context_sequence(connection, [(command.kind, dict(command.anchors), dict(command.payload))],
                                    lambda anchor: resolve_anchor(connection, anchor))
+        elif command.kind in PLANNED_DECISION_KINDS:
+            from .planned import check_planned_sequence
+            check_planned_sequence(connection, [(command.kind, dict(command.anchors), dict(command.payload))],
+                                   lambda anchor: resolve_anchor(connection, anchor), frozenset(custom))
         elif command.kind == 'REPORTING_CURRENCY_SET':
             from .reporting_currency import (
                 currency_coverage_preview,
@@ -1925,6 +1935,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     policy = 'reporting-currency-v1'
                 elif command.kind in _CONTEXT_KINDS:
                     policy = 'trip-context-v1'
+                elif command.kind in PLANNED_DECISION_KINDS:
+                    policy = 'planned-flow-v1'
                 elif command.kind in {'REPORT_DEFINITION_SET','REPORT_DEFINITION_RETIRE'}:
                     policy = 'report-definition-v1'
             receipt = record_decision(database,request_id=str(command.request_id),intent_hash=intent,decision_kind=kind,anchors=anchors,payload=payload,policy_version=policy,snapshot=f'{kind}: {payload}',writer=writer)
@@ -2045,6 +2057,8 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     register_trip_routes(app, database)
     from .api_reports import register_report_routes
     register_report_routes(app, database)
+    from .api_planned import register_planned_routes
+    register_planned_routes(app, database)
     from .reporting_workspaces import register_workspace_reports
     register_workspace_reports(app, database)
 

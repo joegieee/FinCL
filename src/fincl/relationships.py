@@ -27,6 +27,12 @@ from .errors import FinCLError
 from .financial_roles import FINANCIAL_ROLE_DECISION_KINDS
 from .inbound_rules import INBOUND_RULE_DECISION_KINDS
 from .money import ExactMoney, format_decimal
+from .planned.models import (
+    PLANNED_DECISION_KINDS,
+    PLANNED_FLOW_RETIRE,
+    PLANNED_MATCH_RETIRE,
+    PLANNED_OCCURRENCE_RESOLVE_RETIRE,
+)
 
 DECISION_BATCH = "DECISION_BATCH"
 DUPLICATE_CONFIRM = "DUPLICATE_CONFIRM"
@@ -66,6 +72,8 @@ BATCH_CHILD_KINDS = frozenset(
         # v0.7: assigning a set of transactions to a trip (or setting their
         # country) together, and retiring a trip with its manual assignments.
         *CONTEXT_DECISION_KINDS,
+        # Retiring a planned item together with its matched payments.
+        PLANNED_MATCH_RETIRE, PLANNED_OCCURRENCE_RESOLVE_RETIRE, PLANNED_FLOW_RETIRE,
     }
 )
 
@@ -343,6 +351,8 @@ def preview_batch(
     from .decisions import resolve_anchor
     from .financial_roles import validate_financial_role
     from .inbound_rules import validate_inbound_rule
+    from .planned.projection import check_planned_sequence
+    from .planned.validation import validate_planned
 
     def _entry(anchor: str) -> str:
         entry_id = resolve_anchor(connection, anchor)
@@ -373,6 +383,9 @@ def preview_batch(
                 continue
             if kind in CONTEXT_DECISION_KINDS:
                 validate_context(kind, anchors, payload)
+                continue
+            if kind in PLANNED_DECISION_KINDS:
+                validate_planned(kind, anchors, payload)
                 continue
             if kind in DUPLICATE_KINDS:
                 validate_duplicate(kind, anchors, payload)
@@ -414,6 +427,9 @@ def preview_batch(
     context_items = [(str(i["kind"]), dict(i["anchors"]), dict(i["payload"])) for i in items if i["kind"] in CONTEXT_DECISION_KINDS]
     if context_items:
         check_context_sequence(connection, context_items, lambda anchor: resolve_anchor(connection, anchor))
+    planned_items = [(str(i["kind"]), dict(i["anchors"]), dict(i["payload"])) for i in items if i["kind"] in PLANNED_DECISION_KINDS]
+    if planned_items:
+        check_planned_sequence(connection, planned_items, lambda anchor: resolve_anchor(connection, anchor), custom_categories)
 
     # Conflicting primary designation inside this batch or against prior state.
     confirmed_primaries = {p for p, _ in suppress_pairs}
