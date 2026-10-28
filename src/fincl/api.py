@@ -927,7 +927,24 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     })
                 finally:
                     upload.file.close()
-        return {'results':results,'accepted':sum(r.get('status') not in {'FAILED','UNRECOGNISED'} for r in results)}
+        from .coverage import account_statement_coverage
+        from .db import connect_readonly
+        connection = connect_readonly(database)
+        try:
+            coverage = account_statement_coverage(connection)
+        finally:
+            connection.close()
+        touched = {str(r['account_id']):str(r.get('account_display_name') or r['account_id']) for r in results if r.get('account_id')}
+        return {
+            'results':results,
+            'accepted':sum(r.get('status')=='ACCEPTED' for r in results),
+            'quarantined':sum(r.get('status')=='QUARANTINED' for r in results),
+            # The last day each uploaded account's selected statements reach.
+            'evidence_through':[
+                {'account_id':account,'display_name':name,'through':coverage[account][-1].end if coverage.get(account) else None}
+                for account,name in sorted(touched.items())
+            ],
+        }
 
     @app.post('/api/v1/fx-rates')
     def fx_rates_create(

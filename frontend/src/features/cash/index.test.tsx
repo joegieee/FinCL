@@ -120,7 +120,7 @@ describe('CashView', () => {
   it('labels a historical common cutoff and withholds the available-today figure', async () => {
     loadReportedCash.mockResolvedValue(page())
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     expect(await screen.findByText('Not observed as of today')).toBeInTheDocument()
     expect(screen.getByText('Observed through 2026-03-05')).toBeInTheDocument()
@@ -138,7 +138,7 @@ describe('CashView', () => {
       current_position_reasons: ['included liquid pockets do not share a supported balance cutoff'],
     }))
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     expect(await screen.findByText('withheld: no common supported cutoff', { exact: false })).toBeInTheDocument()
     expect(screen.getByText(/1 currency withheld/)).toBeInTheDocument()
@@ -151,7 +151,7 @@ describe('CashView', () => {
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
     recordBalanceObservation.mockResolvedValue({ status: 'recorded' })
     const onSaved = vi.fn()
-    render(<CashView generation="gen-1" onSaved={onSaved} />)
+    render(<CashView generation="gen-1" onSaved={onSaved} onOpenSetup={() => {}} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Record manual balance/ }))
     expect(screen.getByText(/A dated fact asserted directly/)).toBeInTheDocument()
@@ -173,7 +173,7 @@ describe('CashView', () => {
     }))
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
     retireBalanceObservation.mockResolvedValue({ status: 'recorded' })
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Update/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Retire this one' }))
@@ -188,7 +188,7 @@ describe('CashView', () => {
       pockets: [pocket(), pocket({ account_id: 'acc-2', currency_pocket: 'USD', balance: '200.00' })],
     }))
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     await screen.findByText('Reporting in SGD')
     fireEvent.change(screen.getByLabelText('Filter by account currency'), { target: { value: 'USD' } })
@@ -202,7 +202,7 @@ describe('CashView', () => {
     const { ApiError } = await import('@/lib/api')
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
     loadReportedCash.mockRejectedValueOnce(new (ApiError as unknown as { new (s: number, m: string): Error })(409, 'stale'))
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     expect(await screen.findByText('Refresh required.')).toBeInTheDocument()
 
@@ -227,7 +227,7 @@ describe('CashView coverage panel', () => {
     }))
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
 
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     expect(await screen.findByText('1 of 2 liquid pockets proven')).toBeInTheDocument()
     expect(screen.getByText('50% covered')).toBeInTheDocument()
@@ -253,7 +253,7 @@ describe('CashView coverage panel', () => {
     }))
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
 
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     expect(await screen.findByText(/Most current figure available/)).toBeInTheDocument()
     expect(screen.getAllByText(/SGD 900.00/).length).toBeGreaterThan(0)
@@ -281,7 +281,7 @@ describe('CashView coverage panel', () => {
     }))
     certifyCoverage.mockResolvedValue({ status: 'committed' })
 
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     fireEvent.click(await screen.findByRole('button', { name: /Certify range/ }))
     const from = await screen.findByLabelText('No movement from')
@@ -298,6 +298,25 @@ describe('CashView coverage panel', () => {
     }))
   })
 
+  it('opens Setup from the import remedy', async () => {
+    loadReportedCash.mockResolvedValue(page())
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+    loadCoverageReport.mockResolvedValue(coverageReport({
+      remedies: [{
+        action: 'import-statement', decision_kind: null,
+        account_id: 'acc-1', currency_pocket: 'SGD', display_name: 'Revolut Current',
+        institution: 'Revolut', unlocks: 'unblocks-shared-cutoff', rank: 0,
+        detail: 'This pocket has no balance boundary at all.', parameters: {},
+      }],
+    }))
+    const onOpenSetup = vi.fn()
+
+    render(<CashView generation="gen-1" onOpenSetup={onOpenSetup} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Import a statement/ }))
+
+    expect(onOpenSetup).toHaveBeenCalledOnce()
+  })
+
   it('lists an active certification and can retire it', async () => {
     loadReportedCash.mockResolvedValue(page())
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
@@ -311,7 +330,7 @@ describe('CashView coverage panel', () => {
     })
     retireCoverage.mockResolvedValue({ status: 'committed' })
 
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     expect(await screen.findByText(/2026-03-06 → 2026-05-01/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Retire the certification/ }))
@@ -325,7 +344,7 @@ describe('CashView coverage panel', () => {
     loadReportedCash.mockResolvedValue(page())
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
 
-    render(<CashView generation="gen-1" />)
+    render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     expect(await screen.findByText('Every liquid pocket is proven')).toBeInTheDocument()
     expect(screen.getByText(/Nothing is outstanding/)).toBeInTheDocument()

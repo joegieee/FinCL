@@ -18,7 +18,7 @@ function page(over: Record<string, unknown> = {}) {
     accounts: [{
       id: 'acc-1', institution: 'Revolut', source_type: 'CSV', display_name: 'Revolut Current',
       masked_identifier: '••1234', archived_on: '', entry_count: 3, currencies: ['SGD'],
-      pockets: [{ pocket: 'SGD', expected_start: null, expected_end: null, observed_start: '2026-01-01', observed_end: '2026-01-20', entry_count: 3, coverage_status: 'unconfigured' }],
+      pockets: [{ pocket: 'SGD', expected_start: null, expected_end: null, observed_start: '2026-01-01', observed_end: '2026-01-20', entry_count: 3, coverage_status: 'unconfigured', gaps: [] }],
       coverage_status: 'unconfigured', expected_start: null, expected_end: null,
     }],
     aliases: [],
@@ -36,6 +36,18 @@ describe('AccountsView', () => {
     expect(await screen.findByRole('heading', { name: 'Revolut Current' })).toBeInTheDocument()
     expect(screen.getByText(/Economic-flow report unavailable/)).toBeInTheDocument()
     expect(screen.getByText('2026-01-01 → 2026-01-20')).toBeInTheDocument()
+  })
+
+  it('names the days between statements that no statement covers', async () => {
+    const gapped = page()
+    gapped.accounts[0].pockets = [{
+      pocket: 'SGD', expected_start: null, expected_end: null, observed_start: '2026-01-01',
+      observed_end: '2026-03-31', entry_count: 5, coverage_status: 'gap',
+      gaps: [{ start: '2026-02-01', end: '2026-02-28' }],
+    }]
+    loadAccounts.mockResolvedValue(gapped)
+    render(<AccountsView freshness="current" onSaved={() => {}} />)
+    expect(await screen.findByText('No statement for 2026-02-01 → 2026-02-28')).toBeInTheDocument()
   })
 
   it('previews then commits an expected window with the same request id', async () => {

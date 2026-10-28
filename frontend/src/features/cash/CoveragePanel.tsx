@@ -38,9 +38,10 @@ const ACTION_LABEL = {
  * that carries no amount.
  */
 export function CoveragePanel({
-  page, report, certifications, onCertify, onObserve, onImport, onRetireCertification,
+  summary, partial, report, certifications, onCertify, onObserve, onImport, onRetireCertification,
 }: {
-  page: CashPageOut
+  summary: CashPageOut['coverage_summary']
+  partial: CashPageOut['partial_position']
   report: CoverageReport | null
   certifications: MovementCertification[]
   onCertify: (target: CertifyTarget) => void
@@ -48,8 +49,6 @@ export function CoveragePanel({
   onImport: () => void
   onRetireCertification: (certification: MovementCertification) => void
 }) {
-  const summary = page.coverage_summary
-  const partial = page.partial_position
   const percent = Math.round(summary.ratio * 100)
   const remedies = report?.remedies ?? []
   const partialTotals = Object.entries(partial.by_currency)

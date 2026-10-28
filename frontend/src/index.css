@@ -396,6 +396,12 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .import-table th{background:var(--background);font-size:10px;text-align:left}
 .import-table td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:top}
 .import-table td small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+.coverage-table{font-size:11px;min-width:560px;width:100%}
+.coverage-table th{background:var(--background);font-size:10px;text-align:left}
+.coverage-table td{padding:9px 10px;border-top:1px solid var(--border);vertical-align:top}
+.coverage-table td small{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+.coverage-table td .review-badge{margin-top:4px}
+.evidence-through{margin:6px 0 0;padding-left:18px;color:var(--muted)}
 
 /* v0.5 slice 2 — account inventory and coverage */
 .accounts-view{display:flex;flex-direction:column;gap:18px}
@@ -619,7 +625,7 @@ main{width:100%;min-width:0}
  .app-main-col,.view-shell,.card,[data-slot=card],[data-slot=table-container]{min-width:0;max-width:100%}
  .table-scroll{position:relative;width:100%;min-width:0;max-width:100%;overflow-x:auto}
  table:not(.transactions-table):not([data-slot=table]){position:relative;display:block;max-width:100%;overflow-x:auto}
- .forecast-table,.import-table{min-width:0}
+ .forecast-table,.import-table,.coverage-table{min-width:0}
  .scope-bar,.section-heading,.panel-title,.debts-toolbar,.controls-month{flex-wrap:wrap}
  .period-popover{max-width:calc(100vw - 44px);flex-wrap:wrap}
  .card-lenses{grid-template-columns:1fr}

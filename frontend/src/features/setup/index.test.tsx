@@ -22,7 +22,42 @@ vi.mock('./api', async (importOriginal) => {
   }
 })
 
+const loadCoverageReport = vi.fn()
+const loadBaselineReadiness = vi.fn()
+
+vi.mock('@/features/cash/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/cash/api')>()
+  return {
+    ...actual,
+    loadCoverageReport: () => loadCoverageReport(),
+    loadCertifications: () => Promise.resolve({ certifications: [] }),
+    loadCashPosition: () => Promise.resolve({ pockets: [] }),
+  }
+})
+vi.mock('@/features/baseline/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/baseline/api')>()
+  return { ...actual, loadBaselineReadiness: () => loadBaselineReadiness() }
+})
+
 const { SetupView } = await import('./index')
+
+function coverage(over: Record<string, unknown> = {}) {
+  return {
+    generated_for: '2026-09-20', supported_cutoff: '2026-07-31', current_position_supported: false,
+    coverage: { included_pockets: 2, covered_pockets: 1, short_pockets: 1, ratio: 0.5, basis: 'share of included liquid pockets with a coverage-backed balance', status: 'partial' },
+    partial_position: { as_of: '2026-08-31', by_currency: { SGD: '10.00' }, contributing_pockets: [], short_pockets: [], is_complete: false, reason: null },
+    remedies: [{
+      action: 'import-statement', decision_kind: null, account_id: 'acct_revolut_current', currency_pocket: 'SGD',
+      display_name: 'Revolut Current', institution: 'Revolut', unlocks: 'unblocks-shared-cutoff', rank: 0,
+      detail: 'Import a statement for it.', parameters: {},
+    }],
+    freshness: [
+      { account: 'acct_revolut_current', display_name: 'Revolut Current', currencies: ['SGD'], evidence_through: '2026-07-31', age_days: 51, stale: true, basis: 'statement', holds_back_start: true },
+      { account: 'trust-savings', display_name: 'Trust Bank Savings Account', currencies: ['SGD'], evidence_through: '2026-09-20', age_days: 0, stale: false, basis: 'certification', holds_back_start: false },
+    ],
+    ...over,
+  }
+}
 
 const SETUP = {
   state: 'ready', current_ledger: 'ledger.sqlite3', storage_profile: 'plaintext-local',
@@ -30,7 +65,11 @@ const SETUP = {
 }
 
 afterEach(() => { cleanup(); vi.clearAllMocks() })
-beforeEach(() => { refreshImports.mockReset(); refreshImports.mockResolvedValue({}) })
+beforeEach(() => {
+  refreshImports.mockReset(); refreshImports.mockResolvedValue({})
+  loadCoverageReport.mockRejectedValue(new Error('no coverage in this test'))
+  loadBaselineReadiness.mockRejectedValue(new Error('no readiness in this test'))
+})
 
 describe('SetupView', () => {
   it('shows setup state and an empty import history', async () => {
@@ -150,6 +189,77 @@ describe('SetupView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Upload statements' }))
     expect(await screen.findByText('Unsupported statement')).toBeInTheDocument()
     expect(refreshImports).not.toHaveBeenCalled()
+  })
+
+  it('shows how far each account is proven, what holds the start back and what is missing', async () => {
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [] })
+    loadCoverageReport.mockResolvedValue(coverage())
+    loadBaselineReadiness.mockResolvedValue({ pockets: [
+      { account_id: 'acct_revolut_current', display_name: 'Revolut Current', missing_intervals: [{ start: '2026-08-01', end: '2026-08-31' }] },
+    ] })
+    render(<SetupView onImported={() => {}} generation="g1" />)
+
+    const card = within(await screen.findByText(/Your forecast starts from/).then(h => h.closest('.setup-coverage') as HTMLElement))
+    const revolut = within(card.getByText('Revolut Current').closest('tr') as HTMLElement)
+    expect(revolut.getByText('Holding the start back')).toBeInTheDocument()
+    expect(revolut.getByText('51 days ago')).toBeInTheDocument()
+    expect(revolut.getByText('Aug 2026')).toBeInTheDocument()
+    const trust = within(card.getByText('Trust Bank Savings Account').closest('tr') as HTMLElement)
+    expect(trust.getByText('a range you certified as quiet')).toBeInTheDocument()
+    expect(trust.queryByText('Holding the start back')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Import a statement/ }))
+    expect(document.activeElement).toBe(screen.getByLabelText('Statement files'))
+  })
+
+  it('does not count a quarantined file as accepted and says what each file did', async () => {
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [] })
+    submitImport.mockResolvedValue({
+      accepted: 1, quarantined: 1,
+      evidence_through: [{ account_id: 'acct_revolut_current', display_name: 'Revolut Current', through: '2026-05-31' }],
+      results: [
+        { filename: 'may.pdf', adapter: 'REVOLUT_PDF', status: 'ACCEPTED', account_display_name: 'Revolut Current', period_start: '2026-05-01', period_end: '2026-05-31', transaction_count: 9, superseded_by: null, supersedes: ['2026-05-01..2026-05-15'] },
+        { filename: 'trust.pdf', adapter: 'TRUST_SAVINGS', status: 'QUARANTINED', blocking_issue_count: 2 },
+      ],
+    })
+    render(<SetupView onImported={() => {}} />)
+    await screen.findByText('ledger.sqlite3')
+    fireEvent.change(screen.getByLabelText('Statement files'), { target: { files: [new File(['%PDF'], 'may.pdf'), new File(['%PDF'], 'trust.pdf')] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Upload statements' }))
+
+    expect(await screen.findByText(/1 of 2 files accepted\. 1 could not be added\./)).toBeInTheDocument()
+    expect(screen.getByText('Revolut Current · 1 May 2026 – 31 May 2026 · 9 rows')).toBeInTheDocument()
+    expect(screen.getByText(/Replaces the shorter statement for 1 May 2026 – 15 May 2026/)).toBeInTheDocument()
+    expect(screen.getByText('Revolut Current: statements now reach 31 May 2026')).toBeInTheDocument()
+    await waitFor(() => expect(refreshImports).toHaveBeenCalledOnce())
+  })
+
+  it('lists each import with its file and account, and names both copies of a conflict', async () => {
+    const run = {
+      id: 'imp_1', started_at: '2026-09-20T01:00:00+00:00', completed_at: null, status: 'SUCCEEDED',
+      evidence_sha256: 'b'.repeat(64), extraction_run_id: 'ext_1', extraction_reused: 0, error_message: null,
+      byte_size: 2048, media_type: 'application/pdf', extraction_status: 'QUARANTINED', selection_state: 'SELECTED',
+      source_profile_version: 'p', parser_version: 'v', blockers: 1, filename: 'corrected.pdf', transaction_count: 4,
+      account_id: 'acct_revolut_current', account_display_name: 'Revolut Current', period_start: '2026-01-01',
+      period_end: '2026-01-20', statement_state: 'CANDIDATE', conflict_state: 'CONFLICT', superseded_by: null, outcome: 'CONFLICT',
+    }
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [run] })
+    loadImportDetail.mockResolvedValue({ ...run, issues: [], conflict_with: [
+      { period_start: '2026-01-01', period_end: '2026-01-20', evidence_sha256: 'a'.repeat(64), filename: 'january.pdf', imported_at: '2026-09-01T01:00:00+00:00', this_import: false },
+      { period_start: '2026-01-01', period_end: '2026-01-20', evidence_sha256: 'b'.repeat(64), filename: 'corrected.pdf', imported_at: '2026-09-20T01:00:00+00:00', this_import: true },
+    ] })
+    render(<SetupView onImported={() => {}} />)
+
+    const row = within((await screen.findByText('corrected.pdf')).closest('tr') as HTMLElement)
+    expect(row.getByText('Revolut Current')).toBeInTheDocument()
+    expect(row.getByText('Conflicting copy')).toBeInTheDocument()
+    fireEvent.click(row.getByRole('button', { name: 'Open' }))
+    expect(await screen.findByText('Two different files claim to be the same statement.')).toBeInTheDocument()
+    expect(screen.getByText('january.pdf')).toBeInTheDocument()
+    expect(screen.getByText(/\(this import\)/)).toBeInTheDocument()
   })
 
   it('loads FX rates from a JSON document', async () => {

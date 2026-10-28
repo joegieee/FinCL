@@ -22,6 +22,7 @@ from typing import Any, Literal, cast
 
 from .analysis.components import build_components
 from .analysis.materialize import materialize_components
+from .coverage import account_statement_coverage
 from .db import connect_sqlite, initialize_schema
 from .engine import categorize
 from .generation import publish_generation
@@ -112,6 +113,7 @@ def rebuild_projection(connection: sqlite3.Connection) -> tuple[str | None, str]
                 connection,
                 covered_intervals=covered,
                 analysis_intervals=covered,
+                account_intervals=account_statement_coverage(connection),
             ),
         )
         connection.execute("COMMIT")

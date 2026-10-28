@@ -1,4 +1,4 @@
-import { api } from '@/lib/api'
+import { api, type components } from '@/lib/api'
 
 export type BoundaryDetail = {
   balance: string
@@ -167,6 +167,22 @@ export type CoverageReport = {
   supported_cutoff: string | null
   current_position_supported: boolean
   remedies: CoverageRemedy[]
+  partial_position: PartialPosition
+  freshness: AccountFreshness[]
+}
+
+export type PartialPosition = components['schemas']['PartialPositionOut']
+
+/** How fresh one account's evidence is; see `position/freshness.py`. */
+export type AccountFreshness = {
+  account: string
+  display_name: string
+  currencies: string[]
+  evidence_through: string | null
+  age_days: number | null
+  stale: boolean
+  basis: 'statement' | 'observation' | 'certification' | null
+  holds_back_start: boolean
 }
 
 export const loadCoverageReport = () => api<CoverageReport>('position/coverage')

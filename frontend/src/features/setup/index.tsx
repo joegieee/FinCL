@@ -6,10 +6,12 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AsyncView } from '@/components/AsyncView'
 import { ApiError } from '@/lib/api'
+import { dateLabel } from '@/lib/format'
+import { SETUP_IMPORT_ID, SetupCoverage } from './Coverage'
 import {
   ADAPTERS, MAX_BYTES, MAX_FILES,
   loadImportDetail, loadImports, loadSetup, refreshImports, submitFxRates, submitImport,
-  type FxRatesResult, type ImportDetail, type ImportRun, type SetupOptions, type UploadResult,
+  type FxRatesResult, type ImportDetail, type ImportRun, type SetupOptions, type UploadOutcome, type UploadResult,
 } from './api'
 
 function when(value: string | null) {
@@ -17,6 +19,24 @@ function when(value: string | null) {
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short' })
 }
+function periodLabel(start: string | null | undefined, end: string | null | undefined) {
+  if (!start || !end) return null
+  return start === end ? dateLabel(start) : `${dateLabel(start)} – ${dateLabel(end)}`
+}
+function supersededLabel(period: string) {
+  const [start, end] = period.split('..')
+  return periodLabel(start, end) ?? period
+}
+
+const OUTCOME_LABEL: Record<string, string> = {
+  ACCEPTED: 'Added',
+  ALREADY_IMPORTED: 'Already imported',
+  QUARANTINED: 'Not added',
+  CONFLICT: 'Conflicting copy',
+  FAILED: 'Failed',
+  RUNNING: 'Running',
+}
+
 function sizeLabel(bytes: number | null) {
   if (!bytes) return '—'
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`
@@ -29,16 +49,22 @@ function sizeLabel(bytes: number | null) {
  */
 /** Accepted imports refresh the ledger before notifying the surrounding app.
  * `onReview` optionally opens the next review workflow. */
-export function SetupView({ onImported, onReview }: { onImported: () => void; onReview?: () => void | Promise<void> }) {
+export function SetupView({ onImported, onReview, generation = '' }: {
+  onImported: () => void
+  onReview?: () => void | Promise<void>
+  generation?: string
+}) {
   const [setup, setSetup] = useState<SetupOptions | null>(null)
   const [imports, setImports] = useState<ImportRun[] | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<ImportDetail | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const seq = useRef(0)
 
   const load = useCallback(() => {
     const id = ++seq.current
+    setReloadKey(key => key + 1)
     setLoading(true); setError('')
     Promise.all([loadSetup(), loadImports()])
       .then(([s, i]) => { if (id === seq.current) { setSetup(s); setImports(i.imports) } })
@@ -49,14 +75,15 @@ export function SetupView({ onImported, onReview }: { onImported: () => void; on
 
   return (
     <AsyncView loading={loading} error={error} data={setup} onRetry={load} loadingLabel="Loading setup" errorTitle="We couldn’t load setup.">
-      {setup => <SetupContent setup={setup} imports={imports} loading={loading} load={load} onImported={onImported} onReview={onReview} detail={detail} setDetail={setDetail} setError={setError} />}
+      {setup => <SetupContent setup={setup} imports={imports} loading={loading} load={load} onImported={onImported} onReview={onReview} detail={detail} setDetail={setDetail} setError={setError} generation={generation} reloadKey={reloadKey} />}
     </AsyncView>
   )
 }
 
-function SetupContent({ setup, imports, loading, load, onImported, onReview, detail, setDetail, setError }: {
+function SetupContent({ setup, imports, loading, load, onImported, onReview, detail, setDetail, setError, generation, reloadKey }: {
   setup: SetupOptions; imports: ImportRun[] | null; loading: boolean; load: () => void; onImported: () => void; onReview?: () => void | Promise<void>
   detail: ImportDetail | null; setDetail: (d: ImportDetail | null) => void; setError: (e: string) => void
+  generation: string; reloadKey: number
 }) {
   return (
     <div className="setup-view">
@@ -67,8 +94,10 @@ function SetupContent({ setup, imports, loading, load, onImported, onReview, det
           <div><dt>Storage profile</dt><dd>{setup.storage_profile}</dd></div>
           <div><dt>Workspace root</dt><dd className="mono">{setup.workspace_root}</dd></div>
         </dl>
-        <p className="muted-note"><ShieldCheck size={13} /> New ledgers and switching are granted by the host launcher (<code>fincl setup --workspace-root</code>). This screen never takes an absolute path from the browser.</p>
+        <p className="muted-note"><ShieldCheck size={13} /> This is the ledger the app was started with. To work on a different ledger, start the app with that ledger; this screen never takes a file path from the browser.</p>
       </Card>
+
+      <SetupCoverage generation={generation} reloadKey={reloadKey} onSaved={onImported} />
 
       <ImportWizard onDone={() => { load(); onImported() }} onReview={onReview} />
 
@@ -83,14 +112,16 @@ function SetupContent({ setup, imports, loading, load, onImported, onReview, det
         {imports && imports.length > 0 && (
           <div className="table-scroll">
             <table className="import-table">
-              <thead><tr><th>Started</th><th>Outcome</th><th>Size</th><th>Parser</th><th>Issues</th><th><span className="sr-only">Detail</span></th></tr></thead>
+              <thead><tr><th>Started</th><th>File</th><th>Account</th><th>Period</th><th>Rows</th><th>Outcome</th><th>Issues</th><th><span className="sr-only">Detail</span></th></tr></thead>
               <tbody>
                 {imports.map(run => (
                   <tr key={run.id}>
                     <td>{when(run.started_at)}</td>
-                    <td><Badge variant="outline" className={run.status === 'FAILED' ? 'review-badge' : ''}>{run.status}</Badge>{run.extraction_reused ? <small>evidence reused</small> : null}</td>
-                    <td>{sizeLabel(run.byte_size)}</td>
-                    <td>{run.parser_version || '—'}</td>
+                    <td>{run.filename || '—'}<small>{sizeLabel(run.byte_size)}</small></td>
+                    <td>{run.account_display_name || '—'}</td>
+                    <td>{periodLabel(run.period_start, run.period_end) ?? '—'}</td>
+                    <td>{run.transaction_count ?? '—'}</td>
+                    <td><Badge variant="outline" className={run.outcome === 'ACCEPTED' || run.outcome === 'ALREADY_IMPORTED' ? '' : 'review-badge'}>{OUTCOME_LABEL[run.outcome] ?? run.outcome}</Badge>{run.extraction_reused ? <small>same file again</small> : null}</td>
                     <td>{run.blockers > 0 ? <span className="issue-count">{run.blockers} blocking</span> : run.error_message ? 'error' : 'none'}</td>
                     <td><Button variant="ghost" size="sm" onClick={() => { setDetail(null); loadImportDetail(run.id).then(setDetail).catch(e => setError((e as Error).message)) }}>Open</Button></td>
                   </tr>
@@ -109,12 +140,35 @@ function SetupContent({ setup, imports, loading, load, onImported, onReview, det
               <DialogDescription>Preserved evidence, parser version and remaining issues.</DialogDescription>
             </DialogHeader>
             <dl className="detail-list">
-              <div><dt>Outcome</dt><dd>{detail.status}</dd></div>
+              <div><dt>Outcome</dt><dd>{OUTCOME_LABEL[detail.outcome] ?? detail.outcome}</dd></div>
+              {detail.filename && <div><dt>File</dt><dd>{detail.filename}</dd></div>}
+              {detail.account_display_name && <div><dt>Account</dt><dd>{detail.account_display_name}</dd></div>}
+              {periodLabel(detail.period_start, detail.period_end) && <div><dt>Period</dt><dd>{periodLabel(detail.period_start, detail.period_end)}</dd></div>}
               <div><dt>Evidence SHA-256</dt><dd className="mono">{detail.evidence_sha256 || '—'}</dd></div>
               <div><dt>Source profile</dt><dd>{detail.source_profile_version || '—'}</dd></div>
               <div><dt>Selection state</dt><dd>{detail.selection_state || '—'}</dd></div>
             </dl>
             {detail.error_message && <p className="form-error" role="alert">{detail.error_message}</p>}
+            {detail.superseded_by && (
+              <p className="muted-note">Nothing was added: the statement for {supersededLabel(detail.superseded_by)} already has every row of this one.</p>
+            )}
+            {detail.conflict_with.length > 0 && (
+              <div className="alert" role="note">
+                <div>
+                  <strong>Two different files claim to be the same statement.</strong>
+                  <p>Their rows disagree, so neither is counted until one is removed. Check which one the bank issued.</p>
+                  <ul className="issue-list">
+                    {detail.conflict_with.map(copy => (
+                      <li key={copy.evidence_sha256}>
+                        <strong>{copy.filename ?? copy.evidence_sha256.slice(0, 12)}</strong>
+                        {copy.this_import ? ' (this import)' : ''} · {periodLabel(copy.period_start, copy.period_end) ?? '—'}
+                        {copy.imported_at && <small>imported {when(copy.imported_at)}</small>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
             {detail.issues.length > 0 ? (
               <ul className="issue-list">
                 {detail.issues.map((issue, i) => (
@@ -164,7 +218,8 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
       setResult(outcome)
       setFiles([])
       if (inputRef.current) inputRef.current.value = ''
-      if (outcome.accepted > 0) await refreshAccepted()
+      // A quarantined copy can still demote a statement it conflicts with.
+      if (outcome.accepted + (outcome.quarantined ?? 0) > 0) await refreshAccepted()
       else onDone()
     } catch (e) {
       // Draft (adapter + file selection) is intentionally preserved on failure.
@@ -175,7 +230,7 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
   }
 
   return (
-    <Card className="import-wizard">
+    <Card className="import-wizard" id={SETUP_IMPORT_ID}>
       <div className="panel-title"><div><p className="eyebrow">IMPORT A STATEMENT</p><h2>Add transactions from your bank</h2></div></div>
       <form onSubmit={submit}>
         <label>Source
@@ -217,16 +272,27 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
       </form>
       {result && (
         <div className="upload-result" role="status">
-          <p>{result.accepted > 0 ? <Check size={15} /> : <AlertTriangle size={15} />} {result.accepted} of {result.results.length} file{result.results.length === 1 ? '' : 's'} accepted.</p>
+          <p>{result.accepted > 0 ? <Check size={15} /> : <AlertTriangle size={15} />} {result.accepted} of {result.results.length} file{result.results.length === 1 ? '' : 's'} accepted.
+            {result.quarantined ? ` ${result.quarantined} could not be added.` : ''}</p>
+          {result.evidence_through && result.evidence_through.length > 0 && (
+            <ul className="evidence-through">
+              {result.evidence_through.map(item => (
+                <li key={item.account_id}>{item.display_name}: statements now reach {item.through ? dateLabel(item.through) : '—'}</li>
+              ))}
+            </ul>
+          )}
           {reviewing && <p>Refreshing ledger…</p>}
           {refreshError && <div className="alert error" role="alert"><div><strong>Your statements were accepted, but the ledger refresh failed.</strong><p>{refreshError}</p><p>Retry the refresh to make the new transactions visible.</p></div></div>}
           <ul className="issue-list">
             {result.results.map((r, i) => (
               <li key={i}>
-                <Badge variant="outline" className={r.status === 'FAILED' || r.status === 'UNRECOGNISED' ? 'review-badge' : ''}>{r.status === 'UNRECOGNISED' ? 'NOT RECOGNISED' : r.status}</Badge>
+                <Badge variant="outline" className={r.status === 'ACCEPTED' ? '' : 'review-badge'}>{r.status === 'UNRECOGNISED' ? 'NOT RECOGNISED' : r.status}</Badge>
                 <strong>{r.filename}</strong>
+                {statementLine(r) && <small>{statementLine(r)}</small>}
                 {r.detected && r.adapter ? <small>recognised as {ADAPTERS.find(a => a.id === r.adapter)?.label ?? r.adapter}</small> : null}
                 {r.evidence_reused ? <small>evidence reused</small> : null}
+                {r.superseded_by ? <p>Nothing new: the statement for {supersededLabel(r.superseded_by)} already has every row of this one.</p> : null}
+                {r.supersedes && r.supersedes.length > 0 ? <p>Replaces the shorter statement{r.supersedes.length === 1 ? '' : 's'} for {r.supersedes.map(supersededLabel).join(', ')}, so no row is counted twice.</p> : null}
                 {r.error ? <p className="form-error">{r.error}</p> : null}
                 {r.blocking_issue_count ? <p>{r.blocking_issue_count} blocking issue{r.blocking_issue_count === 1 ? '' : 's'} — open the import in history for details.</p> : null}
               </li>
@@ -243,6 +309,13 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
       )}
     </Card>
   )
+}
+
+function statementLine(r: UploadOutcome) {
+  if (!r.account_display_name) return null
+  const period = periodLabel(r.period_start, r.period_end)
+  const rows = r.transaction_count === undefined ? '' : ` · ${r.transaction_count} row${r.transaction_count === 1 ? '' : 's'}`
+  return `${r.account_display_name}${period ? ` · ${period}` : ''}${rows}`
 }
 
 function FxRatesWizard() {

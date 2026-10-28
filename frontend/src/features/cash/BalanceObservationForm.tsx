@@ -28,7 +28,7 @@ function today() {
 export function BalanceObservationForm({
   pocket, generation, onSaved, onCancel,
 }: {
-  pocket: CashPocketOut
+  pocket: Pick<CashPocketOut, 'account_id' | 'currency_pocket' | 'display_name' | 'manual_observation'>
   generation: string
   onSaved: (status: string) => void | Promise<void>
   onCancel: () => void

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -138,6 +139,9 @@ class Component:
     source_account_id: str | None = None
     account_source_type: str | None = None
     payment_channel: Literal["card", "bank", "off_ledger"] = "off_ledger"
+    # Inside the cross-account analysis window. A component materialised only
+    # because its own account's statements cover the day is not.
+    eligible: bool = True
 
     @property
     def origin_component_id(self) -> str:
@@ -399,6 +403,7 @@ def build_components(
     covered_intervals: list[DateInterval],
     analysis_intervals: list[DateInterval],
     lens: str = LENS_RECORDED_FLOW,
+    account_intervals: Mapping[str, Sequence[DateInterval]] | None = None,
 ) -> ComponentProjection:
     """Project every eligible entry inside ``analysis_intervals`` into components.
 
@@ -406,7 +411,18 @@ def build_components(
     membership and every emitted component honour ``analysis_intervals``, with the
     MVP rule that a MONTH-precision row contributes only when its whole month
     fits.
+
+    With ``account_intervals`` an entry is a member wherever its own account is
+    covered, so one account with less history cannot remove another account's
+    months; components outside ``analysis_intervals`` are emitted with
+    ``eligible=False``. Off-ledger debt events are members wherever any account
+    is covered.
     """
+    any_account = (
+        [interval for spans in account_intervals.values() for interval in spans]
+        if account_intervals is not None
+        else None
+    )
     rows = connection.execute(_ENTRY_SELECT).fetchall()
     debt = _debt_economic_effects(connection)
     installment_owned = _installment_owned(connection)
@@ -437,17 +453,25 @@ def build_components(
             bucket_stats["outside_covered_window"] += 1
 
         precision = row["effective_precision"]
+        membership = (
+            list(account_intervals.get(row["source_account_id"], ()))
+            if account_intervals is not None
+            else analysis_intervals
+        )
         if precision == "MONTH":
-            in_analysis = any(
-                interval.contains_interval(month_span(posted_date[:7]))
-                for interval in analysis_intervals
-            )
-            if not in_analysis and covers_date(analysis_intervals, posted_date):
-                period_precision_excluded += 1
             represented = month_span(posted_date[:7])
+            in_analysis = any(
+                interval.contains_interval(represented) for interval in membership
+            )
+            if not in_analysis and covers_date(membership, posted_date):
+                period_precision_excluded += 1
+            cross_account = any(
+                interval.contains_interval(represented) for interval in analysis_intervals
+            )
         else:
-            in_analysis = covers_date(analysis_intervals, posted_date)
+            in_analysis = covers_date(membership, posted_date)
             represented = DateInterval(posted_date, posted_date)
+            cross_account = covers_date(analysis_intervals, posted_date)
 
         if not in_analysis:
             bucket_stats["outside_analysis_window"] += 1
@@ -494,6 +518,7 @@ def build_components(
             "source_account_id": row["source_account_id"],
             "account_source_type": row["account_source_type"],
             "payment_channel": row["payment_channel"],
+            "eligible": cross_account,
         }
 
         magnitude = abs(int(row["amount_coefficient"]))
@@ -585,7 +610,7 @@ def build_components(
     # movement. Emit it once, dated on the event, inside the analysis window.
     for event in debt.expense_paid_for_me:
         day = event.effective_on
-        if not covers_date(analysis_intervals, day):
+        if not covers_date(any_account if any_account is not None else analysis_intervals, day):
             continue
         currency = event.currency
         if currency not in seen_currencies:
@@ -623,6 +648,7 @@ def build_components(
                 evidence_sha256="",
                 decision_seqs=(event.journal_seq,),
                 nets=True,
+                eligible=covers_date(analysis_intervals, day),
             )
         )
 
@@ -632,7 +658,7 @@ def build_components(
     # an exceptional loss.
     for adj in debt.exceptional:
         day = adj.effective_on
-        if not covers_date(analysis_intervals, day):
+        if not covers_date(any_account if any_account is not None else analysis_intervals, day):
             continue
         currency = adj.currency
         if currency not in seen_currencies:
@@ -674,6 +700,7 @@ def build_components(
                 evidence_sha256="",
                 decision_seqs=(adj.journal_seq,),
                 nets=True,
+                eligible=covers_date(analysis_intervals, day),
             )
         )
 

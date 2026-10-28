@@ -54,6 +54,7 @@ from .valuation import (
 
 __all__ = [
     "GROSS_BURN_DEFINITION_VERSION",
+    "account_statement_coverage",
     "BurnMonthSelection",
     "CoverageContract",
     "DatedCoverage",
@@ -111,6 +112,34 @@ def _family_eligible_intervals(
         (family,),
     ).fetchall()
     return [DateInterval(row["lo"], row["hi"]) for row in rows], "statement_period", True
+
+
+def account_statement_coverage(
+    connection: sqlite3.Connection,
+) -> dict[str, list[DateInterval]]:
+    """Each account's own coverage: its accepted, selected statement periods.
+
+    This is the per-pocket coverage the baseline reads. Baseline readiness
+    classifies months from it and refresh materialises components from it, so
+    the months readiness calls established are exactly the months that carry
+    components.
+    """
+    rows = connection.execute(
+        """
+        SELECT s.account_id AS account_id, s.period_start AS lo, s.period_end AS hi
+        FROM statements s
+        JOIN extraction_runs x ON x.id = s.extraction_run_id
+        WHERE x.status = 'ACCEPTED'
+          AND s.selection_state = 'SELECTED'
+          AND s.period_start IS NOT NULL AND s.period_end IS NOT NULL
+        """
+    ).fetchall()
+    by_account: dict[str, list[DateInterval]] = {}
+    for row in rows:
+        by_account.setdefault(row["account_id"], []).append(
+            DateInterval(row["lo"][:10], row["hi"][:10])
+        )
+    return {account: normalize(spans) for account, spans in by_account.items()}
 
 
 def _family_evidence_refs(connection: sqlite3.Connection, family: str) -> list[str]:

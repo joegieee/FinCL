@@ -11,6 +11,7 @@ read from the exact evidence (a printed closing balance) or a journalled
 operator observation, and each carries its basis, as-of date and staleness.
 """
 
+from .freshness import account_freshness, account_freshness_from
 from .models import (
     BALANCE_OBSERVATION_RETIRE,
     BALANCE_OBSERVATION_SET,
@@ -36,6 +37,8 @@ __all__ = [
     "MOVEMENT_COVERAGE_CERTIFY",
     "MOVEMENT_COVERAGE_RETIRE",
     "POSITION_DECISION_KINDS",
+    "account_freshness",
+    "account_freshness_from",
     "apply_balance_observation",
     "coverage_remedies",
     "coverage_remedies_from",

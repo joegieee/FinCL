@@ -143,7 +143,7 @@ export default function App(){
    {tab==='Rules'&&<RulesView generation={data.generation} freshness={data.freshness} categories={data.categories} onSaved={saved}/>}
    {tab==='Planning'&&<PlanningView generation={data.generation} freshness={data.freshness} categories={data.categories} onSaved={saved}/>}
    {tab==='Baseline'&&<BaselineView onOpenTransactionAnchor={openReportedAnchor}/>}
-   {tab==='Cash'&&<CashView generation={data.generation} onSaved={saved}/>}
+   {tab==='Cash'&&<CashView generation={data.generation} onSaved={saved} onOpenSetup={()=>setTab('Setup')}/>}
    {tab==='Forecast'&&<ForecastView/>}
    {tab==='Controls'&&<AllControlsView initialMonth={(end || new Date().toISOString().slice(0, 7)).slice(0, 7)}/>}
    {tab==='Will I have enough'&&<SufficiencyView generation={data.generation} onSaved={saved} onOpen={setTab} onOpenObligations={()=>setTab('Obligations')} onOpenCash={()=>setTab('Cash')}/>}
@@ -152,7 +152,7 @@ export default function App(){
    {tab==='Variance'&&<VarianceView generation={data.generation} currency="SGD" currencies={data.currencies} onSaved={saved}/>}
    {tab==='Maintenance'&&<MaintenanceView/>}
    {tab==='Accounts'&&<AccountsView freshness={data.freshness} onSaved={saved}/>}
-   {tab==='Setup'&&<SetupView onImported={()=>{void load()}} onReview={()=>{setTab('Categorization')}}/>}
+   {tab==='Setup'&&<SetupView generation={data.generation} onImported={()=>{void load()}} onReview={()=>{setTab('Categorization')}}/>}
    </div>
    <footer><span><ShieldCheck size={13}/> On your device. Backed by your records.</span><span>Refreshed {new Date(data.updated_at).toLocaleString('en-SG',{dateStyle:'medium',timeStyle:'short'})}</span></footer>
    {historyRows&&<Dialog open onOpenChange={open=>{if(!open)setHistoryRows(null)}}><DialogContent><DialogHeader><DialogTitle>Recent decisions</DialogTitle><DialogDescription>The latest 50 durable changes in your ledger, including category changes and plans.</DialogDescription></DialogHeader><div className="history-list">{historyRows.map(r=><article key={r.sequence}><span className="eyebrow">#{r.sequence} · {new Date(r.date).toLocaleString('en-SG')}</span><h3>{r.kind.toLowerCase().replaceAll('_',' ')}</h3>{r.category&&<p>{r.category}</p>}<small>{r.reason}</small></article>)}{!historyRows.length&&<p>No decisions recorded yet.</p>}</div></DialogContent></Dialog>}

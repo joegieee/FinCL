@@ -115,7 +115,7 @@ def import_stream(
             "TRUST_SAVINGS": service.import_trust,
             "REVOLUT_PDF": service.import_revolut_pdf,
         }[adapter]
-        result = method(path, writer=writer)
+        result = method(path, writer=writer, source_name=Path(filename).name)
         return {**asdict(result), "filename": Path(filename).name, "adapter": adapter, **detection}
     finally:
         path.unlink(missing_ok=True)

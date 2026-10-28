@@ -8,6 +8,8 @@ export type PocketCoverage = {
   observed_end: string | null
   entry_count: number
   coverage_status: 'covered' | 'gap' | 'unconfigured'
+  /** Days between this account's statements that no statement covers. */
+  gaps: { start: string; end: string }[]
 }
 
 export type AccountRow = {

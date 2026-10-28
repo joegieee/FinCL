@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -72,6 +73,15 @@ class DocumentImportResult:
     reconciliation_passed: int
     reconciliation_total: int
     transfer_links_created: int
+    # Statement periods, as "start..end". `superseded_by` names the statement
+    # that already carries every row of this one, so nothing new was counted;
+    # `supersedes` names the statements this one replaced.
+    superseded_by: str | None = None
+    supersedes: tuple[str, ...] = ()
+    account_id: str = ""
+    account_display_name: str = ""
+    period_start: str | None = None
+    period_end: str | None = None
 
 
 class DocumentImportService:
@@ -92,59 +102,69 @@ class DocumentImportService:
         return cls(database_path, PlaintextEvidenceStore(evidence_directory))
 
     def import_dbs(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "DBS_CONSOLIDATED", writer=writer)
+        return self._import(source_path, "DBS_CONSOLIDATED", writer=writer, source_name=source_name)
 
     def import_paylah(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "DBS_PAYLAH", writer=writer)
+        return self._import(source_path, "DBS_PAYLAH", writer=writer, source_name=source_name)
 
     def import_maribank(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "MARI_SAVINGS", writer=writer)
+        return self._import(source_path, "MARI_SAVINGS", writer=writer, source_name=source_name)
 
     def import_mari_card(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "MARI_CARD", writer=writer)
+        return self._import(source_path, "MARI_CARD", writer=writer, source_name=source_name)
 
     def import_trust(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "TRUST_SAVINGS", writer=writer)
+        return self._import(source_path, "TRUST_SAVINGS", writer=writer, source_name=source_name)
 
     def import_revolut_pdf(
-        self, source_path: Path, *, writer: WriterContext | None = None
+        self, source_path: Path, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
-        return self._import(source_path, "REVOLUT_PDF", writer=writer)
+        return self._import(source_path, "REVOLUT_PDF", writer=writer, source_name=source_name)
 
     def _import(
-        self, source_path: Path, source_type: str, *, writer: WriterContext | None = None
+        self, source_path: Path, source_type: str, *, writer: WriterContext | None = None,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
+        """``source_name`` replaces the recorded path when ``source_path`` is only
+        a spooled copy, so the import is recorded under the name it was given."""
         with ledger_writer(self.database_path, existing=writer):
             connection = self.connection_factory(self.database_path)
             try:
-                return self._run_import(connection, source_path, source_type)
+                return self._run_import(connection, source_path, source_type, source_name)
             finally:
                 connection.close()
 
     def _run_import(
-        self, connection: sqlite3.Connection, source_path: Path, source_type: str
+        self, connection: sqlite3.Connection, source_path: Path, source_type: str,
+        source_name: str | None = None,
     ) -> DocumentImportResult:
         initialize_schema(connection)
         replay_journal(connection)
         import_run_id = "imp_" + uuid.uuid4().hex
         connection.execute(
             "INSERT INTO import_runs(id, started_at, status, source_path) VALUES (?, ?, 'RUNNING', ?)",
-            (import_run_id, _now(), str(Path(source_path).resolve())),
+            (import_run_id, _now(), source_name or str(Path(source_path).resolve())),
         )
         connection.commit()
         try:
             capture = self.evidence_store.capture(Path(source_path))
-            self._record_source(connection, capture)
+            self._record_source(connection, capture, source_name or capture.original_path)
             with self.evidence_store.open_verified(capture.sha256, capture.evidence_key) as evidence:
                 data = evidence.read()
             if hashlib.sha256(data).hexdigest() != capture.sha256:
@@ -232,7 +252,9 @@ class DocumentImportService:
             raise
 
     @staticmethod
-    def _record_source(connection: sqlite3.Connection, capture: EvidenceCapture) -> None:
+    def _record_source(
+        connection: sqlite3.Connection, capture: EvidenceCapture, recorded_path: str
+    ) -> None:
         now = _now()
         connection.execute(
             """
@@ -250,8 +272,8 @@ class DocumentImportService:
                 capture.byte_size,
                 capture.evidence_key,
                 capture.storage_kind,
-                capture.original_path,
-                capture.original_path,
+                recorded_path,
+                recorded_path,
                 now,
                 now,
             ),
@@ -309,34 +331,6 @@ class DocumentImportService:
                 "CONFLICT" if has_conflict else "NONE",
             ),
         )
-        if has_conflict:
-            connection.execute(
-                """
-                UPDATE statements SET selection_state = 'CANDIDATE', conflict_state = 'CONFLICT'
-                WHERE statement_identity = ?
-                """,
-                (parsed.statement_identity,),
-            )
-            for conflict in conflicts:
-                revoke_links_for_extraction(
-                    connection,
-                    conflict["extraction_run_id"],
-                    SELECTION_LOST,
-                )
-                connection.execute(
-                    "UPDATE ledger_entries SET analytics_eligible = 0 "
-                    "WHERE extraction_run_id = ? AND source_family = 'DOCUMENT'",
-                    (conflict["extraction_run_id"],),
-                )
-            _insert_document_issue(
-                connection,
-                extraction_run_id,
-                "BLOCKING",
-                "STATEMENT_CONTENT_CONFLICT",
-                "different evidence objects claim the same authoritative statement identity",
-                {"statement_identity": parsed.statement_identity},
-            )
-
         section_ids: dict[int, str] = {}
         for section in parsed.sections:
             section_id = _stable_id("sec", statement_id, str(section.ordinal))
@@ -453,6 +447,59 @@ class DocumentImportService:
                 connection, extraction_run_id, statement_id, parsed
             )
 
+        # A statement whose rows another selected statement of the same account
+        # already carries is the same evidence again: a re-download with
+        # different bytes, or a mid-month export inside the month's statement.
+        # It is kept as evidence and never counted twice, and is not a conflict.
+        superseded_by = (
+            _containing_statement(connection, statement_id) if parsed.accepted else None
+        )
+        if superseded_by is not None:
+            has_conflict = False
+            connection.execute(
+                "UPDATE statements SET selection_state = 'CANDIDATE', conflict_state = 'NONE' "
+                "WHERE id = ?",
+                (statement_id,),
+            )
+            _insert_document_issue(
+                connection,
+                extraction_run_id,
+                "WARNING",
+                "STATEMENT_SUPERSEDED",
+                "an already imported statement for this account carries every row of this one",
+                {"superseded_by": superseded_by["id"], "period": superseded_by["period"]},
+            )
+        elif has_conflict:
+            connection.execute(
+                """
+                UPDATE statements SET selection_state = 'CANDIDATE', conflict_state = 'CONFLICT'
+                WHERE statement_identity = ?
+                """,
+                (parsed.statement_identity,),
+            )
+            for conflict in conflicts:
+                revoke_links_for_extraction(
+                    connection,
+                    conflict["extraction_run_id"],
+                    SELECTION_LOST,
+                )
+                connection.execute(
+                    "UPDATE ledger_entries SET analytics_eligible = 0 "
+                    "WHERE extraction_run_id = ? AND source_family = 'DOCUMENT'",
+                    (conflict["extraction_run_id"],),
+                )
+            _insert_document_issue(
+                connection,
+                extraction_run_id,
+                "BLOCKING",
+                "STATEMENT_CONTENT_CONFLICT",
+                "different evidence objects claim the same authoritative statement identity",
+                {"statement_identity": parsed.statement_identity},
+            )
+
+        elif parsed.accepted:
+            _supersede_contained(connection, statement_id)
+
         blocking_issues = connection.execute(
             "SELECT count(*) FROM extraction_issues WHERE extraction_run_id = ? AND severity = 'BLOCKING'",
             (extraction_run_id,),
@@ -475,7 +522,7 @@ class DocumentImportService:
                 extraction_run_id,
             ),
         )
-        if status == "ACCEPTED":
+        if status == "ACCEPTED" and superseded_by is None:
             connection.execute(
                 "UPDATE ledger_entries SET analytics_eligible = 1 "
                 "WHERE extraction_run_id = ? AND source_family = 'DOCUMENT'",
@@ -548,6 +595,11 @@ class DocumentImportService:
             checks["passed"] or 0,
             checks["total"] or 0,
             links_created,
+            *_supersession(connection, extraction_run_id),
+            parsed.account_id,
+            parsed.account_display_name,
+            parsed.period_start,
+            parsed.period_end,
         )
 
 
@@ -831,6 +883,132 @@ def _event_kind(
         kind = "PAYMENT" if source_type == "DBS_PAYLAH" else "OTHER"
     assert kind in LEDGER_EVENT_KINDS
     return kind
+
+
+def _statement_rows(
+    connection: sqlite3.Connection, statement_id: str, start: str, end: str
+) -> Counter[tuple[str, str, str, str]]:
+    """The statement's movements dated ``start..end``, as comparable rows."""
+    return Counter(
+        (row[0], row[1], row[2], row[3])
+        for row in connection.execute(
+            """
+            SELECT e.currency_pocket, substr(e.effective_at, 1, 10), e.amount_text,
+                   coalesce(d.description_raw, '')
+            FROM ledger_entries e
+            LEFT JOIN document_records d ON d.id = e.document_record_id
+            WHERE e.statement_id = ? AND substr(e.effective_at, 1, 10) BETWEEN ? AND ?
+            """,
+            (statement_id, start, end),
+        )
+    )
+
+
+def _same_account_statements(
+    connection: sqlite3.Connection, statement_id: str
+) -> tuple[sqlite3.Row, list[sqlite3.Row]]:
+    this = connection.execute(
+        "SELECT id, account_id, evidence_sha256, period_start, period_end "
+        "FROM statements WHERE id = ?",
+        (statement_id,),
+    ).fetchone()
+    others = connection.execute(
+        """
+        SELECT s.id, s.extraction_run_id, s.period_start, s.period_end
+        FROM statements s JOIN extraction_runs x ON x.id = s.extraction_run_id
+        WHERE s.account_id = ? AND s.evidence_sha256 <> ? AND s.selection_state = 'SELECTED'
+          AND x.status = 'ACCEPTED'
+          AND s.period_start IS NOT NULL AND s.period_end IS NOT NULL
+        ORDER BY s.period_start, s.period_end, s.id
+        """,
+        (this["account_id"], this["evidence_sha256"]),
+    ).fetchall()
+    return this, others
+
+
+def _carries(
+    connection: sqlite3.Connection, container: str, contained: str, start: str, end: str
+) -> bool:
+    """Whether ``container`` holds exactly ``contained``'s rows over its period."""
+    return _statement_rows(connection, container, start, end) == _statement_rows(
+        connection, contained, start, end
+    )
+
+
+def _containing_statement(
+    connection: sqlite3.Connection, statement_id: str
+) -> dict[str, str] | None:
+    this, others = _same_account_statements(connection, statement_id)
+    if this["period_start"] is None or this["period_end"] is None:
+        return None
+    start, end = this["period_start"], this["period_end"]
+    for other in others:
+        if other["period_start"] <= start and other["period_end"] >= end and _carries(
+            connection, other["id"], statement_id, start, end
+        ):
+            return {"id": other["id"], "period": f"{other['period_start']}..{other['period_end']}"}
+    return None
+
+
+def _supersede_contained(connection: sqlite3.Connection, statement_id: str) -> None:
+    """Stop counting earlier statements this one fully carries."""
+    this, others = _same_account_statements(connection, statement_id)
+    if this["period_start"] is None or this["period_end"] is None:
+        return
+    for other in others:
+        start, end = other["period_start"], other["period_end"]
+        if not (this["period_start"] <= start and this["period_end"] >= end):
+            continue
+        if not _carries(connection, statement_id, other["id"], start, end):
+            continue
+        connection.execute(
+            "UPDATE statements SET selection_state = 'CANDIDATE' WHERE id = ?", (other["id"],)
+        )
+        revoke_links_for_extraction(connection, other["extraction_run_id"], SELECTION_LOST)
+        connection.execute(
+            "UPDATE ledger_entries SET analytics_eligible = 0 WHERE statement_id = ?",
+            (other["id"],),
+        )
+        _insert_document_issue(
+            connection,
+            other["extraction_run_id"],
+            "WARNING",
+            "STATEMENT_SUPERSEDED",
+            "a later statement for this account carries every row of this one",
+            {
+                "superseded_by": statement_id,
+                "period": f"{this['period_start']}..{this['period_end']}",
+            },
+        )
+
+
+def _supersession(
+    connection: sqlite3.Connection, extraction_run_id: str
+) -> tuple[str | None, tuple[str, ...]]:
+    """(the period that supersedes this import's statement, periods it supersedes)."""
+    by = connection.execute(
+        """
+        SELECT json_extract(q.context_json, '$.period')
+        FROM extraction_issues q JOIN statements s ON s.extraction_run_id = q.extraction_run_id
+        WHERE q.extraction_run_id = ? AND q.code = 'STATEMENT_SUPERSEDED'
+          AND s.selection_state = 'CANDIDATE'
+        ORDER BY q.id DESC LIMIT 1
+        """,
+        (extraction_run_id,),
+    ).fetchone()
+    replaced = connection.execute(
+        """
+        SELECT DISTINCT o.period_start || '..' || o.period_end
+        FROM statements s
+        JOIN extraction_issues q ON q.code = 'STATEMENT_SUPERSEDED'
+             AND json_extract(q.context_json, '$.superseded_by') = s.id
+        JOIN statements o ON o.extraction_run_id = q.extraction_run_id
+        WHERE s.extraction_run_id = ? AND o.selection_state = 'CANDIDATE'
+        ORDER BY 1
+        """,
+        (extraction_run_id,),
+    ).fetchall()
+    return (by[0] if by else None), tuple(row[0] for row in replaced)
 
 
 def _insert_document_issue(
