@@ -141,3 +141,41 @@ class PlannedApiTests(ApiTestBase):
         self.assertLess(float(after["base"]["lowest"]), float(before["base"]["lowest"]) - 299)
         self.assertIn(f"planned:{outflow}:a", self.forecast_event_ids("base"))
         self.assertIn("Planned spending", [row["label"] for row in after["where_it_goes"]])
+
+    def draft(self, **changes: Any) -> dict[str, Any]:
+        return {
+            "name": "Laptop", "direction": "outflow", "currency": "SGD", "account_id": None, "category": None,
+            "occurrences": self.one_day("2026-04-15", "300.00"), "certainty": "sure",
+            "baseline_treatment": "extra", "link": None, **changes,
+        }
+
+    def test_impact_previews_the_answer_without_saving_anything(self) -> None:
+        self.set_flow(direction="inflow", occurrences=self.one_day("2026-03-01", "200.00"))
+        journal, saved = self.journal_len(), self.client.get("/api/v1/planned").json()
+        response = self.post("/api/v1/planned/impact", {"payload": self.draft()}, self.csrf)
+        self.assertEqual(response.status_code, 200, response.text)
+        impact = response.json()
+        self.assertEqual((impact["before"]["answer"], impact["after"]["answer"], impact["flips"]), ("Yes", "No", True))
+        self.assertEqual(impact["after"]["base"]["verdict"], "short")
+        self.assertEqual(impact["after"]["base"]["lowest_on"], "2026-07-20")
+        april = next(row for row in impact["months"] if row["month"] == "2026-04")
+        self.assertEqual((april["base"]["change"], april["cautious"]["change"]), ("-300.00", "-300.00"))
+        self.assertTrue(all(row["month"] >= "2026-04" for row in impact["months"]))
+        self.assertEqual((self.journal_len(), self.client.get("/api/v1/planned").json()), (journal, saved))
+        self.assertEqual(self.answer()["answer"], "Yes")
+
+        committed = str(uuid.uuid4())
+        self.set_flow(committed, name="Laptop", occurrences=self.one_day("2026-04-15", "300.00"))
+        self.assertEqual(self.answer()["base"]["lowest"], impact["after"]["base"]["lowest"])
+
+    def test_impact_of_an_edit_replaces_the_recorded_item(self) -> None:
+        self.set_flow(direction="inflow", certainty="maybe", occurrences=self.one_day("2026-03-01", "200.00"))
+        impact = self.post("/api/v1/planned/impact", {"flow": self.flow, "payload": self.draft(
+            name="Course", direction="inflow", certainty="sure", occurrences=self.one_day("2026-03-01", "200.00"))},
+            self.csrf).json()
+        self.assertEqual((impact["before"]["answer"], impact["after"]["answer"]), ("No", "Yes"))
+
+    def test_impact_refuses_a_draft_that_could_not_be_saved(self) -> None:
+        response = self.post("/api/v1/planned/impact", {"payload": self.draft(occurrences=self.one_day("2026-04-15", "0.00"))}, self.csrf)
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("greater than zero", response.text)
