@@ -1,8 +1,9 @@
 """Full-state pre-append check for the ``PERSONAL_DEBT_*`` / residual kinds.
 
 ``validate_debt_payload`` covers shape; this module covers everything that needs
-the current projection: the debt exists (or, for OPEN, does not), every source
-anchor resolves, principal direction / currency is right, the debt chronology
+the current projection: the debt exists (or, for OPEN, does not), what a retire
+names is there, every source anchor resolves, principal direction / currency is
+right, the debt chronology
 still holds, and no bank component ends up over-claimed. It works by applying the
 pending decision inside a SAVEPOINT and running the real projection pass, so the
 preview can never diverge from replay.
@@ -16,7 +17,9 @@ from typing import Any
 from ..common import INTERNAL_GROUP, resolve_category
 from ..errors import FinCLError
 from .models import (
+    ENTRY_RESIDUAL_RETIRE,
     ENTRY_RESIDUAL_SET,
+    INBOUND_CLASSIFICATION_RETIRE,
     PERSONAL_DEBT_CLOSE,
     PERSONAL_DEBT_DETAILS_SET,
     PERSONAL_DEBT_EVENT_RETIRE,
@@ -42,33 +45,7 @@ def preview_debt(
     """Raise :class:`FinCLError` if appending this decision would not fully replay."""
     validate_debt_payload(decision_kind, anchors, payload)
     check_expense_category(decision_kind, payload, custom_categories)
-
-    _needs_debt = {
-        PERSONAL_DEBT_DETAILS_SET,
-        PERSONAL_DEBT_EVENT_SET,
-        PERSONAL_DEBT_EVENT_RETIRE,
-        PERSONAL_DEBT_CLOSE,
-        PERSONAL_DEBT_REOPEN,
-    }
-    debt_exists = bool(
-        "debt" in anchors
-        and connection.execute(
-            "SELECT 1 FROM personal_debts WHERE debt_id = ?", (anchors["debt"],)
-        ).fetchone()
-    )
-    if decision_kind == PERSONAL_DEBT_OPEN and debt_exists:
-        raise FinCLError("that debt id is already open")
-    if decision_kind in _needs_debt and not debt_exists:
-        raise FinCLError("that debt does not exist")
-    if decision_kind == PERSONAL_DEBT_DETAILS_SET and payload["due_on"] is not None:
-        (opened_on,) = connection.execute(
-            "SELECT opened_on FROM personal_debts WHERE debt_id = ?", (anchors["debt"],)
-        ).fetchone()
-        if str(payload["due_on"]) < str(opened_on):
-            raise FinCLError("due_on may not precede opened_on")
-
-    if decision_kind == ENTRY_RESIDUAL_SET and resolve_anchor(anchors["entry"]) is None:
-        raise FinCLError("the source transaction does not resolve to one selected entry")
+    check_references(connection, decision_kind, anchors, payload, resolve_anchor=resolve_anchor)
 
     connection.execute("SAVEPOINT debt_preview")
     try:
@@ -85,6 +62,64 @@ def preview_debt(
     finally:
         connection.execute("ROLLBACK TO debt_preview")
         connection.execute("RELEASE debt_preview")
+
+
+_NEEDS_DEBT = frozenset({
+    PERSONAL_DEBT_DETAILS_SET,
+    PERSONAL_DEBT_EVENT_SET,
+    PERSONAL_DEBT_EVENT_RETIRE,
+    PERSONAL_DEBT_CLOSE,
+    PERSONAL_DEBT_REOPEN,
+})
+
+
+def check_references(
+    connection: sqlite3.Connection,
+    decision_kind: str,
+    anchors: dict[str, str],
+    payload: dict[str, Any],
+    *,
+    resolve_anchor: Any,
+) -> None:
+    """What the decision names exists in the current projection.
+
+    Replay would accept a retire of something that is not there as a no-op, so
+    this is the only place a mistyped or stale reference is refused. A batch
+    calls it per item against the state its earlier items left behind.
+    """
+    debt = (
+        connection.execute(
+            "SELECT opened_on FROM personal_debts WHERE debt_id = ?", (anchors["debt"],)
+        ).fetchone()
+        if "debt" in anchors
+        else None
+    )
+    if decision_kind == PERSONAL_DEBT_OPEN and debt is not None:
+        raise FinCLError("that debt id is already open")
+    if decision_kind in _NEEDS_DEBT and debt is None:
+        raise FinCLError("that debt does not exist")
+    if (
+        decision_kind == PERSONAL_DEBT_DETAILS_SET
+        and debt is not None
+        and payload["due_on"] is not None
+        and str(payload["due_on"]) < str(debt["opened_on"])
+    ):
+        raise FinCLError("due_on may not precede opened_on")
+    if decision_kind == PERSONAL_DEBT_EVENT_RETIRE and connection.execute(
+        "SELECT 1 FROM personal_debt_events WHERE debt_id = ? AND event_id = ?",
+        (anchors["debt"], anchors["event"]),
+    ).fetchone() is None:
+        raise FinCLError("that debt event does not exist")
+    if decision_kind == ENTRY_RESIDUAL_SET and resolve_anchor(anchors["entry"]) is None:
+        raise FinCLError("the source transaction does not resolve to one selected entry")
+    if decision_kind == ENTRY_RESIDUAL_RETIRE and connection.execute(
+        "SELECT 1 FROM entry_residuals WHERE entry_anchor = ?", (anchors["entry"],)
+    ).fetchone() is None:
+        raise FinCLError("that transaction has no recorded owner share")
+    if decision_kind == INBOUND_CLASSIFICATION_RETIRE and connection.execute(
+        "SELECT 1 FROM inbound_classifications WHERE anchor = ?", (anchors["entry"],)
+    ).fetchone() is None:
+        raise FinCLError("that transaction has no recorded incoming type")
 
 
 def check_expense_category(

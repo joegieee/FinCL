@@ -181,6 +181,11 @@ class BatchItem(StrictModel):
         # A split bill: new receivables, each person's share, and the owner's
         # own share, recorded together or not at all.
         'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_EVENT_SET','ENTRY_RESIDUAL_SET',
+        # A debt correction: a changed or removed event, reopening a closed debt
+        # around it and closing it again, and the inflow or owner share it
+        # re-adjudicates -- all or nothing.
+        'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
+        'ENTRY_RESIDUAL_RETIRE','INBOUND_CLASSIFICATION_RETIRE',
         # v0.7: several transactions' country/trip together; a trip retired
         # together with its manual assignments.
         'ENTRY_COUNTRY_SET','ENTRY_COUNTRY_RETIRE','TRIP_SET','TRIP_RETIRE',
