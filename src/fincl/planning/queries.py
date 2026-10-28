@@ -23,6 +23,7 @@ from ..money import ExactMoney
 from ..queries import _ENTRY_VIEW
 from ..read_cache import per_request
 from ..report import _coverage_contract
+from .budgets import _MONTH
 from .detection import candidates as detect_candidates
 
 
@@ -52,7 +53,7 @@ def _month_bounds(month: str) -> tuple[str, str]:
 
 
 def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]:
-    if len(month) != 7 or month[4] != "-":
+    if not _MONTH.fullmatch(month):
         raise FinCLError("month must be YYYY-MM")
     connection = connect_readonly(database)
     try:
@@ -214,7 +215,7 @@ def budget_backdate_preview(
     with the limit and remaining before and after. A revision never silently
     rewrites a previously displayed historical limit — this is what the caller
     shows first (DESIGN-personal-finance §5)."""
-    if len(effective_month) != 7 or effective_month[4] != "-":
+    if not _MONTH.fullmatch(effective_month):
         raise FinCLError("effective_month must be YYYY-MM")
     connection = connect_readonly(database)
     try:

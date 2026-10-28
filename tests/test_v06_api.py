@@ -4,7 +4,6 @@ shared command flow."""
 from __future__ import annotations
 
 import uuid
-
 from tests.test_api import ApiTestBase
 
 
@@ -42,6 +41,10 @@ class PlanningApiTests(ApiTestBase):
         history = self.client.get(f"/api/v1/budgets/{plan}/history").json()
         self.assertEqual(len(history["revisions"]), 1)
         self.assertEqual(history["revisions"][0]["limit"], "100.00")
+
+    def test_a_month_that_does_not_exist_is_refused(self) -> None:
+        response = self.client.get("/api/v1/budgets?month=2026-13&currency=SGD")
+        self.assertEqual(response.status_code, 422, response.text)
 
     def test_a_competing_same_month_revision_is_refused_at_commit(self) -> None:
         plan = str(uuid.uuid4())
