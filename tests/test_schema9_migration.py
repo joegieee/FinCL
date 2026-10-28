@@ -43,6 +43,7 @@ from fincl.migrations import (
     MIGRATION_26_TO_27_CHECKSUM,
     MIGRATION_27_TO_28_CHECKSUM,
     MIGRATION_28_TO_29_CHECKSUM,
+    MIGRATION_29_TO_30_CHECKSUM,
     apply_pending_migrations,
 )
 from fincl.refresh import refresh_ledger
@@ -59,6 +60,7 @@ _SCHEMA_26_TABLES = ("installment_conversions",)
 _SCHEMA_27_TABLES = ("trips", "entry_countries", "entry_trips")
 _SCHEMA_28_TABLES = ("report_definitions",)
 _SCHEMA_29_TABLES = ("card_repayment_plans",)
+_SCHEMA_30_TABLES = ("recurring_occurrence_amounts",)
 _SCHEMA_25_TABLES = ("reserve_policy",)
 _SCHEMA_24_TABLES = ("movement_coverage_certifications",)
 _SCHEMA_23_TABLES = ("reporting_policy",)
@@ -124,6 +126,7 @@ _ADDED_AFTER = {
     26: _SCHEMA_27_TABLES,
     27: _SCHEMA_28_TABLES,
     28: _SCHEMA_29_TABLES,
+    29: _SCHEMA_30_TABLES,
 }
 
 
@@ -203,7 +206,7 @@ class Schema9MigrationTests(unittest.TestCase):
 
         self.assertEqual((result.from_version, result.to_version), (8, SCHEMA_VERSION))
         self.assertEqual(
-            result.steps, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
+            result.steps, [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
         )
         self.assertEqual(self._stored_version(), SCHEMA_VERSION)
         for table in (
@@ -211,7 +214,7 @@ class Schema9MigrationTests(unittest.TestCase):
             *_SCHEMA_14_TABLES, *_SCHEMA_15_TABLES, *_SCHEMA_16_TABLES, *_SCHEMA_17_TABLES,
             *_SCHEMA_18_TABLES, *_SCHEMA_19_TABLES, *_SCHEMA_20_TABLES,
             *_SCHEMA_21_TABLES, *_SCHEMA_22_TABLES, *_SCHEMA_23_TABLES,
-            *_SCHEMA_24_TABLES, *_SCHEMA_25_TABLES, *_SCHEMA_26_TABLES, *_SCHEMA_27_TABLES, *_SCHEMA_28_TABLES, *_SCHEMA_29_TABLES,
+            *_SCHEMA_24_TABLES, *_SCHEMA_25_TABLES, *_SCHEMA_26_TABLES, *_SCHEMA_27_TABLES, *_SCHEMA_28_TABLES, *_SCHEMA_29_TABLES, *_SCHEMA_30_TABLES,
         ):
             self.assertIn(table, self._tables(self.database))
 
@@ -247,6 +250,7 @@ class Schema9MigrationTests(unittest.TestCase):
                 (27, 26, MIGRATION_26_TO_27_CHECKSUM),
                 (28, 27, MIGRATION_27_TO_28_CHECKSUM),
                 (29, 28, MIGRATION_28_TO_29_CHECKSUM),
+                (30, 29, MIGRATION_29_TO_30_CHECKSUM),
             ],
         )
 
@@ -265,7 +269,7 @@ class Schema9MigrationTests(unittest.TestCase):
             *_SCHEMA_15_TABLES, *_SCHEMA_16_TABLES, *_SCHEMA_17_TABLES, *_SCHEMA_18_TABLES,
             *_SCHEMA_19_TABLES, *_SCHEMA_20_TABLES, *_SCHEMA_21_TABLES,
             *_SCHEMA_22_TABLES, *_SCHEMA_23_TABLES, *_SCHEMA_24_TABLES,
-            *_SCHEMA_25_TABLES, *_SCHEMA_26_TABLES, *_SCHEMA_27_TABLES, *_SCHEMA_28_TABLES, *_SCHEMA_29_TABLES,
+            *_SCHEMA_25_TABLES, *_SCHEMA_26_TABLES, *_SCHEMA_27_TABLES, *_SCHEMA_28_TABLES, *_SCHEMA_29_TABLES, *_SCHEMA_30_TABLES,
         ):
             self.assertNotIn(table, self._tables(self.database))
 
@@ -277,7 +281,7 @@ class Schema9MigrationTests(unittest.TestCase):
         self.assertEqual((result.from_version, result.to_version), (9, SCHEMA_VERSION))
         self.assertEqual(
             result.steps,
-            [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29],
+            [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
         )
         self.assertEqual(
             self._tables(self.database) - fresh_layout,
@@ -299,7 +303,8 @@ class Schema9MigrationTests(unittest.TestCase):
             | set(_SCHEMA_26_TABLES)
             | set(_SCHEMA_27_TABLES)
             | set(_SCHEMA_28_TABLES)
-            | set(_SCHEMA_29_TABLES),
+            | set(_SCHEMA_29_TABLES)
+            | set(_SCHEMA_30_TABLES),
         )
 
         # It opens, refreshes and now carries a committed component projection.

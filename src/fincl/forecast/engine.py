@@ -1740,6 +1740,12 @@ def _obligation_events(
         )
         if origin == "recurring_commitment" and date_basis.get("schedule"):
             scheduled = schedule_occurrences(date_basis["schedule"], first, last)
+            # remaining_amount is only the next due occurrence's amount, which
+            # may itself be one of the varied ones.
+            varied = {
+                str(cell["scheduled_on"]): str(cell["amount"])
+                for cell in obligation.get("occurrence_amounts", [])
+            }
             for occurrence in scheduled:
                 iso = occurrence.isoformat()
                 events.append(
@@ -1747,7 +1753,7 @@ def _obligation_events(
                         event_id=f"{obligation['obligation_id']}:{iso}",
                         source_id=f"{obligation['obligation_id']}:{iso}",
                         currency=str(obligation["currency"]),
-                        amount=str(amount_cell["value"]),
+                        amount=varied.get(iso, str(obligation["expected_amount"])),
                         column=column,
                         direction=direction,
                         label=str(obligation["label"]),

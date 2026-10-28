@@ -36,6 +36,7 @@ from ..errors import FinCLError
 from ..generation import current_generation
 from ..intervals import month_span
 from ..money import format_decimal
+from ..planning.recurring import occurrence_amounts
 from ..planning.schedules import occurrences as schedule_occurrences
 from ..read_cache import per_request
 from .rules import (
@@ -446,7 +447,11 @@ def _installments_inside(
 def _recurring_obligations(
     connection: sqlite3.Connection, as_of: str, portions: dict[tuple[str, str], str]
 ) -> list[dict[str, Any]]:
-    """Active recurring commitments, linked to their own baseline component."""
+    """Active recurring commitments, linked to their own baseline component.
+
+    Each occurrence is expected at the commitment's usual amount unless an
+    occurrence amount names a different one for that date.
+    """
     token = _generation(connection)
     result: list[dict[str, Any]] = []
     for row in connection.execute(
@@ -455,6 +460,7 @@ def _recurring_obligations(
         commitment = str(row["commitment"])
         currency = str(row["currency"])
         expected = money(_amount(row["expected_coefficient"], row["expected_scale"]))
+        varied = occurrence_amounts(connection, commitment)
         bound = connection.execute(
             "SELECT scheduled_on, entry_anchor FROM recurring_occurrences "
             "WHERE commitment = ? AND bound = 1 AND entry_anchor IS NOT NULL "
@@ -465,7 +471,7 @@ def _recurring_obligations(
             {
                 "scheduled_on": str(item["scheduled_on"]),
                 "entry_anchor": str(item["entry_anchor"]),
-                "amount": expected,
+                "amount": varied.get(str(item["scheduled_on"]), {}).get("amount", expected),
             }
             for item in bound
             if str(item["scheduled_on"]) <= as_of
@@ -484,6 +490,7 @@ def _recurring_obligations(
         ]
         next_due = upcoming[0].isoformat() if upcoming else None
         due_on = overdue[0] if overdue else next_due
+        due_amount = varied[due_on]["amount"] if due_on in varied else expected
         result.append(
             {
                 "obligation_id": f"recurring:{commitment}",
@@ -498,6 +505,10 @@ def _recurring_obligations(
                     "schedule": schedule,
                 },
                 "unmatched_past_occurrences": overdue,
+                "expected_amount": expected,
+                "occurrence_amounts": [
+                    {"scheduled_on": on, **cell} for on, cell in varied.items()
+                ],
                 "actual_payments": {
                     "count": len(payments),
                     "total": _payments_total(payments),
@@ -508,14 +519,14 @@ def _recurring_obligations(
                     categories=categories, currency=currency, portions=portions
                 ),
                 **resolve_amount_basis(
-                    lump_sum=expected, schedule=None, currency=currency
+                    lump_sum=due_amount, schedule=None, currency=currency
                 ),
                 **history_confidence(commitment_recorded=True),
                 **payment_state(
                     due_on=overdue[0] if overdue else None,
                     as_of=as_of,
                     payment_count=0 if overdue else len(payments),
-                    remaining=expected,
+                    remaining=due_amount,
                 ),
             }
         )

@@ -472,7 +472,7 @@ function RecurringSection({ generation, disabled, onSaved }: { generation: strin
             </div>
             <Button variant="ghost" size="sm" onClick={() => setOpen(o => o === c.commitment ? null : c.commitment)}>Occurrences <ChevronRight size={13} /></Button>
           </div>
-          {open === c.commitment && <OccurrenceTable commitment={c.commitment} generation={generation} disabled={disabled} onSaved={onSaved} />}
+          {open === c.commitment && <OccurrenceTable commitment={c.commitment} currency={c.currency} generation={generation} disabled={disabled} onSaved={onSaved} />}
         </div>
       ))}
       <p className="muted-note">Missing is not “unpaid” and never triggers a payment. Forecasts are labeled estimates and stay separate from observed cash flow.</p>
@@ -513,22 +513,25 @@ function CandidateReview({ candidate, generation, disabled, onSaved }: {
   </form>
 }
 
-function OccurrenceTable({ commitment, generation, disabled, onSaved }: {
-  commitment: string; generation: string; disabled: boolean; onSaved: (status: string) => void | Promise<void>
+function OccurrenceTable({ commitment, currency, generation, disabled, onSaved }: {
+  commitment: string; currency: string; generation: string; disabled: boolean; onSaved: (status: string) => void | Promise<void>
 }) {
   const now = new Date()
   const start = `${now.getFullYear()}-01-01`
-  const end = `${now.getFullYear()}-12-31`
+  // Through the forecast horizon, so an upcoming occurrence's amount can be set.
+  const horizon = new Date(now.getFullYear(), now.getMonth() + 7, 0)
+  const end = `${horizon.getFullYear()}-${String(horizon.getMonth() + 1).padStart(2, '0')}-${String(horizon.getDate()).padStart(2, '0')}`
   const { data, error } = useResource<OccurrencesPage>(() => loadOccurrences(commitment, start, end), [commitment])
   if (error) return <p className="form-error" role="alert">{error}</p>
   if (!data) return <p className="muted-note">Loading…</p>
   return (
     <table className="occurrence-table">
-      <thead><tr><th>Scheduled</th><th>State</th><th>Entry</th><th>Review</th></tr></thead>
+      <thead><tr><th>Scheduled</th><th>Expected</th><th>State</th><th>Entry</th><th>Review</th></tr></thead>
       <tbody>
         {data.occurrences.map(o => (
           <tr key={o.scheduled_on}>
             <td>{o.scheduled_on}</td>
+            <td>{reportedMoney(o, 'expected_amount', currency)}{o.amount_reason && <small title={o.amount_reason}> · varied</small>}</td>
             <td>{o.state.replaceAll('_', ' ')}</td>
             <td className="mono">{o.entry ?? (o.state === 'explicitly_skipped' ? 'skipped' : '—')}</td>
             <td><OccurrenceDecision commitment={commitment} occurrence={o} generation={generation} disabled={disabled} onSaved={onSaved} /></td>
@@ -544,20 +547,27 @@ function OccurrenceDecision({ commitment, occurrence, generation, disabled, onSa
   onSaved: (status: string) => void | Promise<void>
 }) {
   const [entry, setEntry] = useState(occurrence.entry ?? '')
+  const [amount, setAmount] = useState(occurrence.expected_amount)
   const [reason, setReason] = useState('')
-  const [action, setAction] = useState<'match' | 'skip' | 'retire'>(occurrence.state === 'explicitly_skipped' || occurrence.state === 'associated' ? 'retire' : 'match')
+  const [action, setAction] = useState<'match' | 'skip' | 'retire' | 'amount' | 'usual'>(occurrence.state === 'explicitly_skipped' || occurrence.state === 'associated' ? 'retire' : 'match')
   const cmd = useLedgerCommand(generation, onSaved)
   return <form className="inline-decision" onChange={cmd.reset} onSubmit={e => {
     e.preventDefault()
     const anchors = { commitment, scheduled_on: occurrence.scheduled_on }
     void cmd.act(action === 'retire'
       ? { kind: 'RECURRING_OCCURRENCE_RETIRE', anchors, payload: { reason } }
-      : { kind: 'RECURRING_OCCURRENCE_SET', anchors, payload: { entry: action === 'skip' ? null : entry.trim(), reason } })
+      : action === 'amount'
+        ? { kind: 'RECURRING_OCCURRENCE_AMOUNT_SET', anchors, payload: { amount: amount.trim(), reason } }
+        : action === 'usual'
+          ? { kind: 'RECURRING_OCCURRENCE_AMOUNT_RETIRE', anchors, payload: { reason } }
+          : { kind: 'RECURRING_OCCURRENCE_SET', anchors, payload: { entry: action === 'skip' ? null : entry.trim(), reason } })
   }}>
-    <select aria-label="Occurrence decision" value={action} disabled={cmd.attempted} onChange={e => setAction(e.target.value as 'match' | 'skip' | 'retire')}>
+    <select aria-label="Occurrence decision" value={action} disabled={cmd.attempted} onChange={e => setAction(e.target.value as 'match' | 'skip' | 'retire' | 'amount' | 'usual')}>
       <option value="match">Match entry</option><option value="skip">Mark skipped</option><option value="retire">Return to detection</option>
+      <option value="amount">Expect a different amount</option>{occurrence.amount_reason && <option value="usual">Expect the usual amount</option>}
     </select>
     {action === 'match' && <Input required aria-label="Entry anchor" value={entry} disabled={cmd.attempted} onChange={e => setEntry(e.target.value)} />}
+    {action === 'amount' && <Input required inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" aria-label="Expected amount" value={amount} disabled={cmd.attempted} onChange={e => setAmount(e.target.value)} />}
     <Input required aria-label="Occurrence reason" value={reason} disabled={cmd.attempted} onChange={e => setReason(e.target.value)} />
     {cmd.error && <small className="form-error">{cmd.error}</small>}
     <Button size="sm" type="submit" disabled={disabled || cmd.busy}>{cmd.previewed ? 'Save' : 'Preview'}</Button>

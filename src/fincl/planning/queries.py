@@ -11,6 +11,7 @@ from __future__ import annotations
 import calendar
 import json
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -434,6 +435,7 @@ def recurring_page_from(connection: Any) -> dict[str, Any]:
 
 
 def recurring_occurrences(database: Path, commitment: str, *, start: str, end: str) -> dict[str, Any]:
+    from .recurring import occurrence_amounts
     from .schedules import occurrences
 
     connection = connect_readonly(database)
@@ -453,6 +455,8 @@ def recurring_occurrences(database: Path, commitment: str, *, start: str, end: s
                 (commitment,),
             )
         }
+        usual = _money(row["expected_coefficient"] * 10 ** (2 - row["expected_scale"]))
+        varied = occurrence_amounts(connection, commitment)
         today = date.today().isoformat()
         contract = _coverage_contract(connection)
         claimed = {r["entry_anchor"]: r["commitment"] for r in connection.execute(
@@ -460,6 +464,7 @@ def recurring_occurrences(database: Path, commitment: str, *, start: str, end: s
         items: list[dict[str, Any]] = []
         for occ in scheduled:
             iso = occ.isoformat()
+            expected_amount = varied[iso]["amount"] if iso in varied else usual
             if iso in associations:
                 state = "explicitly_skipped" if associations[iso] is None else "associated"
                 entry = associations[iso]
@@ -475,7 +480,7 @@ def recurring_occurrences(database: Path, commitment: str, *, start: str, end: s
                 if not any(i.contains_interval(DateInterval(lo, hi)) for i in contract.covered_intervals):
                     state, entry = "unverifiable_coverage", None
                 else:
-                    expected = row["expected_coefficient"] * 10 ** (2-row["expected_scale"])
+                    expected = int(Decimal(expected_amount) * 100)
                     tolerance = row["tolerance_coefficient"] * 10 ** (2-row["tolerance_scale"])
                     accounts = json.loads(row["account_ids_json"])
                     matches = connection.execute(
@@ -491,7 +496,11 @@ def recurring_occurrences(database: Path, commitment: str, *, start: str, end: s
                         state, entry = "ambiguous", None
                     else:
                         state, entry = "missing_in_covered_window", None
-            items.append({"scheduled_on": iso, "state": state, "entry": entry})
+            items.append({
+                "scheduled_on": iso, "state": state, "entry": entry,
+                "expected_amount": expected_amount,
+                "amount_reason": varied[iso]["reason"] if iso in varied else None,
+            })
         return {"generation": generation, "commitment": commitment, "occurrences": items}
     finally:
         connection.close()

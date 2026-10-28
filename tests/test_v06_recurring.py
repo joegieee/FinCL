@@ -6,6 +6,8 @@ import json
 import tempfile
 import unittest
 import uuid
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from fincl.db import connect_sqlite, initialize_schema
@@ -13,6 +15,9 @@ from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import entry_anchor, replay_journal
 from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
+from fincl.forecast.engine import _obligation_events
+from fincl.obligations import obligations_page
+from fincl.planning.queries import recurring_occurrences
 from fincl.refresh import refresh_ledger
 from tests.revolut_pdf import revolut_pdf_bytes
 
@@ -102,6 +107,36 @@ class RecurringProjectionTests(unittest.TestCase):
         ).fetchall()
         self.assertEqual([r["scheduled_on"] for r in remaining], ["2026-02-15"])
 
+    def test_an_occurrence_amount_projects_retires_and_replays(self) -> None:
+        self._commitment()
+        anchors = {"commitment": self.commitment, "scheduled_on": "2026-04-15"}
+        self._append("RECURRING_OCCURRENCE_AMOUNT_SET", anchors, {"amount": "19.99", "reason": "price rise notice"})
+        self._append("RECURRING_OCCURRENCE_AMOUNT_SET", {**anchors, "scheduled_on": "2026-05-15"},
+                     {"amount": "17.50", "reason": "prorated"})
+        self._append("RECURRING_OCCURRENCE_AMOUNT_RETIRE", {**anchors, "scheduled_on": "2026-05-15"},
+                     {"reason": "not prorated after all"})
+        replay_journal(self.connection)
+        replay_journal(self.connection)
+
+        rows = self.connection.execute(
+            "SELECT scheduled_on, amount_coefficient, amount_scale, reason FROM recurring_occurrence_amounts"
+        ).fetchall()
+        self.assertEqual([tuple(r) for r in rows], [("2026-04-15", 1999, 2, "price rise notice")])
+
+    def test_an_occurrence_amount_must_fall_on_the_schedule(self) -> None:
+        self._commitment()
+        self._append("RECURRING_OCCURRENCE_AMOUNT_SET", {"commitment": self.commitment, "scheduled_on": "2026-04-16"},
+                     {"amount": "19.99", "reason": "wrong day"})
+        with self.assertRaisesRegex(FinCLError, "not a scheduled occurrence"):
+            replay_journal(self.connection)
+
+    def test_retiring_an_occurrence_amount_that_was_never_set_is_refused(self) -> None:
+        self._commitment()
+        self._append("RECURRING_OCCURRENCE_AMOUNT_RETIRE", {"commitment": self.commitment, "scheduled_on": "2026-04-15"},
+                     {"reason": "nothing there"})
+        with self.assertRaisesRegex(FinCLError, "No amount is set"):
+            replay_journal(self.connection)
+
     def test_currency_is_immutable_for_a_commitment(self) -> None:
         self._commitment(currency="SGD")
         self._commitment(currency="USD")
@@ -149,3 +184,71 @@ class RecurringProjectionTests(unittest.TestCase):
             (self.commitment,),
         ).fetchone()
         self.assertEqual(json.loads(row["seed_anchors_json"]), [anchor])
+
+
+class OccurrenceAmountReaderTests(unittest.TestCase):
+    """A varied occurrence is read at its own amount; every other keeps the usual one."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        balance = Decimal("500.00")
+        rows = [_ROWS[0]]
+        for month, amount in (("01", "14.99"), ("02", "19.99"), ("03", "14.99")):
+            balance -= Decimal(amount)
+            rows.append(["Card Payment", "Current", f"2026-{month}-15 10:00:00", f"2026-{month}-15 10:00:01",
+                         "StreamCo", f"-{amount}", "0.00", "SGD", "COMPLETED", str(balance)])
+        rows.append(["Topup", "Current", "2026-03-31 10:00:00", "2026-03-31 10:00:01", "Seed", "10.00", "0.00",
+                     "SGD", "COMPLETED", str(balance + 10)])
+        source = root / "revolut.csv"
+        source.write_bytes(revolut_pdf_bytes(rows))
+        self.database = root / "fincl.sqlite3"
+        DocumentImportService.plaintext_phase2(self.database, root / "evidence").import_revolut_pdf(source)
+        self.commitment = str(uuid.uuid4())
+        self._append(
+            "RECURRING_COMMITMENT_SET", {"commitment": self.commitment},
+            {
+                "name": "Streaming", "currency": "SGD", "merchant_key": "STREAMCO",
+                "account_ids": [], "seed_entry_anchors": [],
+                "schedule": {"kind": "monthly", "day": 15, "anchor_on": "2026-01-15"},
+                "expected_amount": "14.99", "amount_tolerance": "0.00",
+                "status": "active", "ended_on": None, "reason": "confirmed",
+            },
+        )
+        for scheduled_on, amount in (("2026-02-15", "19.99"), ("2026-06-15", "30.00"), ("2026-09-15", "19.99")):
+            self._append(
+                "RECURRING_OCCURRENCE_AMOUNT_SET", {"commitment": self.commitment, "scheduled_on": scheduled_on},
+                {"amount": amount, "reason": "bill notice"},
+            )
+        refresh_ledger(self.database)
+
+    def _append(self, kind: str, anchors: dict[str, str], payload: dict[str, object]) -> None:
+        append_decision(
+            default_journal_path(self.database), decision_kind=kind, anchors=anchors,
+            payload=payload, policy_version="planning-v1", snapshot=f"{kind} {anchors}",
+        )
+
+    def test_a_varied_payment_matches_its_own_occurrence(self) -> None:
+        page = recurring_occurrences(self.database, self.commitment, start="2026-01-01", end="2026-03-31")
+        rows = {o["scheduled_on"]: o for o in page["occurrences"]}
+        self.assertEqual({on: o["state"] for on, o in rows.items()},
+                         {"2026-01-15": "observed", "2026-02-15": "observed", "2026-03-15": "observed"})
+        self.assertEqual(rows["2026-02-15"]["expected_amount"], "19.99")
+        self.assertEqual(rows["2026-02-15"]["amount_reason"], "bill notice")
+        self.assertEqual(rows["2026-03-15"]["expected_amount"], "14.99")
+        self.assertIsNone(rows["2026-03-15"]["amount_reason"])
+
+    def test_the_obligation_and_forecast_use_each_occurrence_amount(self) -> None:
+        page = obligations_page(self.database, as_of="2026-07-20", today=date(2026, 7, 20))
+        streaming = next(o for o in page["obligations"] if o["obligation_id"] == f"recurring:{self.commitment}")
+        # The earliest unmatched occurrence is the one due, at its own amount.
+        self.assertEqual(streaming["date_basis"]["value"], "2026-06-15")
+        self.assertEqual(streaming["remaining_amount"]["value"], "30.00")
+        self.assertEqual(streaming["expected_amount"], "14.99")
+
+        events, _ = _obligation_events(page, start="2026-07-20", end="2026-10-31")
+        self.assertEqual(
+            [(e.on, e.amount) for e in events if e.source_id.startswith(f"recurring:{self.commitment}")],
+            [("2026-08-15", "14.99"), ("2026-09-15", "19.99"), ("2026-10-15", "14.99")],
+        )

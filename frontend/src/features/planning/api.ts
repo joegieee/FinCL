@@ -79,7 +79,10 @@ export type RecurringCandidate = {
   account_ids: string[]; cadence: 'weekly' | 'monthly'; count: number
   expected_amount: string; last_observed_on: string; seed_entry_anchors: string[]
 }
-export type Occurrence = { scheduled_on: string; state: string; entry: string | null }
+export type Occurrence = {
+  scheduled_on: string; state: string; entry: string | null
+  expected_amount: string; amount_reason: string | null
+}
 export type OccurrencesPage = { generation: string; commitment: string; occurrences: Occurrence[] }
 
 export const loadBudgets = (month: string, currency: string) =>

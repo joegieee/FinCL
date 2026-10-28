@@ -4,7 +4,9 @@
 Detection stays an observation, not an originating decision. A commitment is an
 explicit reviewed record; a dismissal suppresses one deterministic candidate
 identity; an occurrence association adds context to one scheduled date and never
-removes or recounts an expense. All project into disposable tables rebuilt by
+removes or recounts an expense. An occurrence amount says one scheduled date is
+expected at a different amount from the commitment's usual one; every other
+occurrence keeps the usual amount. All project into disposable tables rebuilt by
 journal replay.
 """
 
@@ -14,20 +16,24 @@ import json
 import re
 import sqlite3
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from ..decision_journal import JournalRecord
 from ..errors import FinCLError
 from ..money import ExactMoney
-from .schedules import parse_schedule
+from .schedules import occurrences, parse_schedule
 
 RECURRING_COMMITMENT_SET = "RECURRING_COMMITMENT_SET"
 RECURRING_CANDIDATE_DISMISS = "RECURRING_CANDIDATE_DISMISS"
 RECURRING_OCCURRENCE_SET = "RECURRING_OCCURRENCE_SET"
 RECURRING_OCCURRENCE_RETIRE = "RECURRING_OCCURRENCE_RETIRE"
+RECURRING_OCCURRENCE_AMOUNT_SET = "RECURRING_OCCURRENCE_AMOUNT_SET"
+RECURRING_OCCURRENCE_AMOUNT_RETIRE = "RECURRING_OCCURRENCE_AMOUNT_RETIRE"
 RECURRING_DECISION_KINDS = frozenset(
     {RECURRING_COMMITMENT_SET, RECURRING_CANDIDATE_DISMISS,
-     RECURRING_OCCURRENCE_SET, RECURRING_OCCURRENCE_RETIRE}
+     RECURRING_OCCURRENCE_SET, RECURRING_OCCURRENCE_RETIRE,
+     RECURRING_OCCURRENCE_AMOUNT_SET, RECURRING_OCCURRENCE_AMOUNT_RETIRE}
 )
 
 _ID = re.compile(r"^[A-Za-z0-9._:-]{1,200}$")
@@ -40,6 +46,7 @@ _SAFE_NAME = re.compile(r"^[^\x00-\x1f]{1,80}$")
 # length, so they get their own generous bound rather than a bare 200-char cap.
 _ANCHOR = re.compile(r"^[A-Za-z0-9._:-]{1,512}$")
 _MAX_LIST = 50
+_CENT = Decimal("0.01")
 
 
 def _reason(payload: dict[str, Any]) -> None:
@@ -135,6 +142,19 @@ def validate_recurring(kind: str, anchors: dict[str, str], payload: dict[str, An
         _iso_date(anchors["scheduled_on"], "scheduled_on")
         if set(payload) != {"reason"}:
             raise FinCLError("RECURRING_OCCURRENCE_RETIRE payload must be exactly {reason}")
+    elif kind == RECURRING_OCCURRENCE_AMOUNT_SET:
+        if set(anchors) != {"commitment", "scheduled_on"} or not _ID.fullmatch(anchors["commitment"]):
+            raise FinCLError("RECURRING_OCCURRENCE_AMOUNT_SET anchors must be {commitment, scheduled_on}")
+        _iso_date(anchors["scheduled_on"], "scheduled_on")
+        if set(payload) != {"amount", "reason"}:
+            raise FinCLError("RECURRING_OCCURRENCE_AMOUNT_SET payload fields must be exactly {amount, reason}")
+        _money(payload["amount"], allow_zero=False)
+    elif kind == RECURRING_OCCURRENCE_AMOUNT_RETIRE:
+        if set(anchors) != {"commitment", "scheduled_on"} or not _ID.fullmatch(anchors["commitment"]):
+            raise FinCLError("RECURRING_OCCURRENCE_AMOUNT_RETIRE anchors must be {commitment, scheduled_on}")
+        _iso_date(anchors["scheduled_on"], "scheduled_on")
+        if set(payload) != {"reason"}:
+            raise FinCLError("RECURRING_OCCURRENCE_AMOUNT_RETIRE payload must be exactly {reason}")
     else:  # pragma: no cover - guarded by the caller
         raise FinCLError(f"{kind} is not a recurring decision kind")
 
@@ -202,3 +222,57 @@ def apply_recurring(connection: sqlite3.Connection, record: JournalRecord) -> No
             "DELETE FROM recurring_occurrences WHERE commitment = ? AND scheduled_on = ?",
             (record.anchors["commitment"], record.anchors["scheduled_on"]),
         )
+    elif record.decision_kind == RECURRING_OCCURRENCE_AMOUNT_SET:
+        check_occurrence_amount(connection, record.decision_kind, record.anchors)
+        amount = ExactMoney.parse(str(payload["amount"]))
+        connection.execute(
+            "INSERT OR REPLACE INTO recurring_occurrence_amounts(commitment, scheduled_on, "
+            "amount_coefficient, amount_scale, reason, journal_seq) VALUES (?,?,?,?,?,?)",
+            (record.anchors["commitment"], record.anchors["scheduled_on"], amount.coefficient,
+             amount.scale, str(payload["reason"]).strip(), record.seq),
+        )
+    elif record.decision_kind == RECURRING_OCCURRENCE_AMOUNT_RETIRE:
+        check_occurrence_amount(connection, record.decision_kind, record.anchors)
+        connection.execute(
+            "DELETE FROM recurring_occurrence_amounts WHERE commitment = ? AND scheduled_on = ?",
+            (record.anchors["commitment"], record.anchors["scheduled_on"]),
+        )
+
+
+def check_occurrence_amount(connection: sqlite3.Connection, kind: str, anchors: dict[str, str]) -> None:
+    """Cross-record checks for an occurrence amount, shared by the command
+    boundary and replay so a refused decision is never appended."""
+    commitment, scheduled_on = anchors["commitment"], anchors["scheduled_on"]
+    if kind == RECURRING_OCCURRENCE_AMOUNT_RETIRE:
+        if connection.execute(
+            "SELECT 1 FROM recurring_occurrence_amounts WHERE commitment = ? AND scheduled_on = ?",
+            (commitment, scheduled_on),
+        ).fetchone() is None:
+            raise FinCLError(f"No amount is set for the {scheduled_on} occurrence")
+        return
+    row = connection.execute(
+        "SELECT schedule_json FROM recurring_commitments WHERE commitment = ?", (commitment,)
+    ).fetchone()
+    if row is None:
+        raise FinCLError(f"Commitment {commitment} does not exist")
+    day = date.fromisoformat(scheduled_on)
+    if occurrences(json.loads(row["schedule_json"]), day, day) != [day]:
+        raise FinCLError(f"{scheduled_on} is not a scheduled occurrence of this commitment")
+
+
+def occurrence_amounts(connection: sqlite3.Connection, commitment: str) -> dict[str, dict[str, str]]:
+    """The occurrences of one commitment expected at an amount other than the
+    usual one, by scheduled date."""
+    return {
+        str(row["scheduled_on"]): {
+            "amount": str(
+                Decimal(row["amount_coefficient"]).scaleb(-int(row["amount_scale"])).quantize(_CENT)
+            ),
+            "reason": str(row["reason"]),
+        }
+        for row in connection.execute(
+            "SELECT scheduled_on, amount_coefficient, amount_scale, reason "
+            "FROM recurring_occurrence_amounts WHERE commitment = ? ORDER BY scheduled_on",
+            (commitment,),
+        )
+    }

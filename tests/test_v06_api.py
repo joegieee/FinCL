@@ -121,6 +121,35 @@ class PlanningApiTests(ApiTestBase):
         self.assertEqual(states["2026-02-10"], "explicitly_skipped")
         self.assertIn(states["2026-01-10"], {"missing_in_covered_window", "associated"})
 
+    def test_an_occurrence_amount_is_previewed_against_the_schedule(self) -> None:
+        commitment = str(uuid.uuid4())
+        self.command(
+            "RECURRING_COMMITMENT_SET", {"commitment": commitment},
+            {"name": "Power", "currency": "SGD", "merchant_key": "powerco",
+             "account_ids": [], "seed_entry_anchors": [],
+             "schedule": {"kind": "monthly", "day": 10, "anchor_on": "2026-01-10"},
+             "expected_amount": "80.00", "amount_tolerance": "5.00",
+             "status": "active", "ended_on": None, "reason": "confirmed"},
+        )
+        body = {
+            "request_id": str(uuid.uuid4()),
+            "expected_generation": self.overview()["generation"],
+            "kind": "RECURRING_OCCURRENCE_AMOUNT_SET",
+            "anchors": {"commitment": commitment, "scheduled_on": "2026-03-11"},
+            "payload": {"amount": "120.00", "reason": "winter bill"},
+        }
+        self.assertEqual(self.post("/api/v1/preview", body, self.csrf).status_code, 422)
+
+        self.command(
+            "RECURRING_OCCURRENCE_AMOUNT_SET", {"commitment": commitment, "scheduled_on": "2026-03-10"},
+            {"amount": "120.00", "reason": "winter bill"},
+        )
+        occ = self.client.get(
+            f"/api/v1/recurring/{commitment}/occurrences?start=2026-02-01&end=2026-03-31"
+        ).json()["occurrences"]
+        self.assertEqual({o["scheduled_on"]: o["expected_amount"] for o in occ},
+                         {"2026-02-10": "80.00", "2026-03-10": "120.00"})
+
     def test_goal_target_date_scenario_divides_the_remainder_and_rounds_up(self) -> None:
         plan = str(uuid.uuid4())
         self.command(

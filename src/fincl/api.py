@@ -84,6 +84,7 @@ _SINGLE_KINDS = Literal[
     'GOAL_OBSERVATION_SET','GOAL_OBSERVATION_RETIRE','GOAL_ARCHIVE_SET',
     'RECURRING_COMMITMENT_SET','RECURRING_CANDIDATE_DISMISS',
     'RECURRING_OCCURRENCE_SET','RECURRING_OCCURRENCE_RETIRE',
+    'RECURRING_OCCURRENCE_AMOUNT_SET','RECURRING_OCCURRENCE_AMOUNT_RETIRE',
     # Stage 2A liquid-position observations
     'BALANCE_OBSERVATION_SET','BALANCE_OBSERVATION_RETIRE',
     # Cash-flow coverage: operator attestation that a quiet range is complete
@@ -697,6 +698,9 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
         elif command.kind in PLANNING_DECISION_KINDS:
             from .planning import validate_planning
             validate_planning(command.kind, command.anchors, command.payload)
+            if command.kind in {'RECURRING_OCCURRENCE_AMOUNT_SET','RECURRING_OCCURRENCE_AMOUNT_RETIRE'}:
+                from .planning.recurring import check_occurrence_amount
+                check_occurrence_amount(connection, command.kind, dict(command.anchors))
         elif command.kind in POSITION_DECISION_KINDS:
             from .position import validate_position_payload
             validate_position_payload(command.kind, command.anchors, command.payload)

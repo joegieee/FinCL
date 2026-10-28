@@ -159,6 +159,48 @@ describe('PlanningView', () => {
     expect(screen.getByText(/no interest or investment return is assumed/i)).toBeInTheDocument()
   })
 
+  it('shows each occurrence at its own amount and sets a different one', async () => {
+    setup()
+    loadRecurring.mockResolvedValue({
+      ...recurringPage,
+      confirmed: [{
+        commitment: 'c1', name: 'Power', currency: 'SGD', merchant_key: 'powerco', status: 'active', ended_on: null,
+        schedule: { kind: 'monthly', day: 10, anchor_on: '2026-01-10' }, account_ids: [],
+        expected_amount: '80.00', amount_tolerance: '5.00',
+      }],
+    })
+    loadOccurrences.mockResolvedValue({
+      generation: 'g1', commitment: 'c1', occurrences: [
+        { scheduled_on: '2026-11-10', state: 'upcoming_estimate', entry: null, expected_amount: '80.00', amount_reason: null },
+        { scheduled_on: '2026-12-10', state: 'upcoming_estimate', entry: null, expected_amount: '120.00', amount_reason: 'winter bill' },
+      ],
+    })
+    const onSaved = vi.fn()
+    render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={onSaved} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Occurrences/ }))
+
+    const varied = (await screen.findByText('2026-12-10')).closest('tr') as HTMLElement
+    expect(within(varied).getByText('SGD 120.00')).toBeInTheDocument()
+    expect(within(varied).getByTitle('winter bill')).toBeInTheDocument()
+    const usual = screen.getByText('2026-11-10').closest('tr') as HTMLElement
+    expect(within(usual).getByText('SGD 80.00')).toBeInTheDocument()
+    expect(within(usual).queryByRole('option', { name: 'Expect the usual amount' })).toBeNull()
+
+    fireEvent.change(within(usual).getByLabelText('Occurrence decision'), { target: { value: 'amount' } })
+    fireEvent.change(within(usual).getByLabelText('Expected amount'), { target: { value: '95.50' } })
+    fireEvent.change(within(usual).getByLabelText('Occurrence reason'), { target: { value: 'rate change letter' } })
+    apiMock.mockResolvedValueOnce({})
+    fireEvent.click(within(usual).getByRole('button', { name: 'Preview' }))
+    apiMock.mockResolvedValueOnce({ status: 'recorded' })
+    fireEvent.click(await within(usual).findByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('recorded'))
+
+    const commit = apiMock.mock.calls.find(c => c[0] === 'commands')?.[1] as { kind: string; anchors: object; payload: object }
+    expect(commit.kind).toBe('RECURRING_OCCURRENCE_AMOUNT_SET')
+    expect(commit.anchors).toEqual({ commitment: 'c1', scheduled_on: '2026-11-10' })
+    expect(commit.payload).toEqual({ amount: '95.50', reason: 'rate change letter' })
+  })
+
   it('freezes edits when the ledger is stale', async () => {
     setup()
     render(<PlanningView generation="g1" freshness="stale" categories={CATEGORIES} onSaved={() => {}} />)

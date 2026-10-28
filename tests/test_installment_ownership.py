@@ -237,7 +237,7 @@ class InstallmentOwnershipTests(unittest.TestCase):
         connection = sqlite3.connect(self.database)
         try:
             connection.execute("DROP TABLE installment_conversions")
-            for table in ("entry_trips", "trips", "entry_countries", "report_definitions", "card_repayment_plans"):  # schemas 27-29
+            for table in ("entry_trips", "trips", "entry_countries", "report_definitions", "card_repayment_plans", "recurring_occurrence_amounts"):  # schemas 27-30
                 connection.execute(f"DROP TABLE {table}")
             connection.execute("UPDATE schema_metadata SET value = '25' WHERE key = 'schema_version'")
             connection.commit()

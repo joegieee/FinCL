@@ -14,7 +14,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -589,6 +589,21 @@ CREATE TABLE IF NOT EXISTS card_repayment_plans (
     rule TEXT NOT NULL,
     reason TEXT NOT NULL,
     journal_seq INTEGER NOT NULL
+) STRICT;
+"""
+
+# Schema 30: one recurring commitment occurrence expected at a different amount
+# from the commitment's usual one, projected from
+# RECURRING_OCCURRENCE_AMOUNT_SET/RETIRE.
+SCHEMA_30_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS recurring_occurrence_amounts (
+    commitment TEXT NOT NULL,
+    scheduled_on TEXT NOT NULL,
+    amount_coefficient INTEGER NOT NULL,
+    amount_scale INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    journal_seq INTEGER NOT NULL,
+    PRIMARY KEY (commitment, scheduled_on)
 ) STRICT;
 """
 
@@ -1201,6 +1216,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_27_TABLES_SQL
         + SCHEMA_28_TABLES_SQL
         + SCHEMA_29_TABLES_SQL
+        + SCHEMA_30_TABLES_SQL
     )
 
 
