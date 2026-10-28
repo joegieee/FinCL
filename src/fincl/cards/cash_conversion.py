@@ -859,7 +859,7 @@ def _generation(connection: sqlite3.Connection) -> str:
 
 
 def _statement_rows(
-    connection: sqlite3.Connection, account_id: str, pocket: str
+    connection: sqlite3.Connection, account_id: str, pocket: str, *, as_of: str
 ) -> list[dict[str, Any]]:
     """Issued statements for one card pocket, with their printed money facts.
 
@@ -869,7 +869,8 @@ def _statement_rows(
     to the card after the statement's period closed, up to its due date —
     repayments, refunds and conversions all reduce what that statement asked
     for. The window stops at the next period's end, so no credit is ever
-    counted toward two statements.
+    counted toward two statements, and at ``as_of``, so a later credit has not
+    paid anything yet.
     """
     rows: list[dict[str, Any]] = []
     statements = list(card_projection.selected_statements(connection, account_id))
@@ -915,7 +916,7 @@ def _statement_rows(
         due_on = due_date_fact.value_text if due_date_fact else None
         if not allocations and period_end is not None and due_on is not None:
             later = [end for end in period_ends if end > str(period_end)]
-            window_end = min([str(due_on), *later])
+            window_end = min([str(due_on), as_of, *later])
             observed = sum(
                 (amount for on, amount in credits if str(period_end) < on <= window_end), Decimal(0)
             )
@@ -1214,20 +1215,20 @@ def _one_card(
     cash_available: str | None,
 ) -> dict[str, Any]:
     account_id = str(account["id"])
-    statements = _statement_rows(connection, account_id, pocket)
+    statements = _statement_rows(connection, account_id, pocket, as_of=as_of)
     issued = [item for item in statements if str(item["statement_date"]) <= as_of]
 
-    billed = [
-        {
-            "id": f"card_statement:{item['statement_id']}:{pocket}",
-            "statement_id": item["statement_id"],
-            "amount": _money(max(Decimal(item["due"]) - Decimal(item["paid"]), Decimal(0))),
-            "due_on": item["payment_due_date"],
-        }
-        for item in issued
-        if item["due"] is not None
-        and Decimal(item["due"]) - Decimal(item["paid"]) > 0
-    ]
+    # The latest issued statement already carries every earlier unpaid amount,
+    # so billing each older one as well would count the same money twice.
+    latest = next((item for item in reversed(issued) if item["due"] is not None), None)
+    billed: list[dict[str, Any]] = []
+    if latest is not None and Decimal(latest["due"]) - Decimal(latest["paid"]) > 0:
+        billed = [{
+            "id": f"card_statement:{latest['statement_id']}:{pocket}",
+            "statement_id": latest["statement_id"],
+            "amount": _money(Decimal(latest["due"]) - Decimal(latest["paid"])),
+            "due_on": latest["payment_due_date"],
+        }]
 
     latest_period_end = next(
         (
@@ -1248,23 +1249,15 @@ def _one_card(
     )
 
     declared = card_projection.repayment_plan(connection, account_id)
-    if declared is not None and declared["rule"] == "pay_in_full":
-        # The latest issued statement already carries every earlier unpaid
-        # amount, so settling each older one as well would pay the same money
-        # twice. An overdue balance is paid the day after the as-of date: the
-        # declared rule cannot move cash into the past.
-        latest = next((item for item in reversed(issued) if item["due"] is not None), None)
-        billed = []
-        if latest is not None and Decimal(latest["due"]) - Decimal(latest["paid"]) > 0:
-            due_on = latest["payment_due_date"]
-            overdue = due_on is not None and str(due_on) <= as_of
-            billed = [{
-                "id": f"card_statement:{latest['statement_id']}:{pocket}",
-                "statement_id": latest["statement_id"],
-                "amount": _money(Decimal(latest["due"]) - Decimal(latest["paid"])),
-                "due_on": (_day(as_of) + timedelta(days=1)).isoformat() if overdue else due_on,
-                "settle_basis": "declared_plan_overdue_paid_next_day" if overdue else "declared_plan_statement_due_date",
-            }]
+    if declared is not None and declared["rule"] == "pay_in_full" and billed:
+        # An overdue balance is paid the day after the as-of date: the declared
+        # rule cannot move cash into the past.
+        due_on = billed[0]["due_on"]
+        overdue = due_on is not None and str(due_on) <= as_of
+        billed[0]["due_on"] = (_day(as_of) + timedelta(days=1)).isoformat() if overdue else due_on
+        billed[0]["settle_basis"] = (
+            "declared_plan_overdue_paid_next_day" if overdue else "declared_plan_statement_due_date"
+        )
 
     start = _day(as_of)
     horizon_end = _add_months(start, horizon_months, start.day).isoformat()

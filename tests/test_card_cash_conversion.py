@@ -555,6 +555,12 @@ class DeclaredRepaymentPlanTests(unittest.TestCase):
         self.assertEqual(card["repayment_behaviour"]["pattern"], "partial_or_revolving")
         self.assertFalse(card["plan"]["available"])
 
+    def test_without_a_plan_the_unpaid_balance_is_still_billed_once(self) -> None:
+        billed = next(item for item in self._card()["partitions"]["partitions"]
+                      if item["partition"] == PARTITION_UNPAID_BILLED)
+        self.assertEqual(billed["amount"], "600.00")
+        self.assertEqual([item["statement_id"] for item in billed["items"]], ["stmt-c"])
+
     def test_a_declared_plan_settles_the_latest_statement_once(self) -> None:
         self._declare()
         card = self._card()
@@ -599,6 +605,12 @@ class ObservedCardCreditTests(unittest.TestCase):
         self.assertEqual(behaviour["pattern"], "pays_statement_in_full")
         self.assertEqual([item["paid"] for item in behaviour["observations"]], ["500.00", "400.00"])
 
+    def test_a_credit_after_the_as_of_date_has_not_paid_anything_yet(self) -> None:
+        card = self._card((("2026-05-10", "500.00"), ("2026-06-12", "400.00"), ("2026-07-10", "300.00")))
+        billed = next(item for item in card["partitions"]["partitions"]
+                      if item["partition"] == PARTITION_UNPAID_BILLED)
+        self.assertEqual(billed["amount"], "300.00")
+
     def test_a_credit_after_the_due_date_is_not_a_settlement_of_that_statement(self) -> None:
         card = self._card((("2026-05-20", "500.00"), ("2026-06-12", "400.00")))
         self.assertEqual(card["repayment_behaviour"]["pattern"], "partial_or_revolving")
@@ -613,7 +625,7 @@ class ObservedCardCreditTests(unittest.TestCase):
         connection = connect_sqlite(database)
         try:
             from fincl.cards.cash_conversion import _statement_rows
-            rows = {row["statement_id"]: row for row in _statement_rows(connection, "card-1", "SGD")}
+            rows = {row["statement_id"]: row for row in _statement_rows(connection, "card-1", "SGD", as_of=AS_OF)}
         finally:
             connection.close()
         self.assertEqual((rows["stmt-a"]["paid"], rows["stmt-a"]["paid_basis"]), ("0.00", "none"))
@@ -624,7 +636,21 @@ class ObservedCardCreditTests(unittest.TestCase):
         connection = connect_sqlite(database)
         try:
             from fincl.cards.cash_conversion import _statement_rows
-            row = next(r for r in _statement_rows(connection, "card-1", "SGD") if r["statement_id"] == "stmt-a")
+            row = next(r for r in _statement_rows(connection, "card-1", "SGD", as_of=AS_OF) if r["statement_id"] == "stmt-a")
         finally:
             connection.close()
         self.assertEqual((row["paid"], row["paid_basis"]), ("500.00", "manual_allocation"))
+
+    def test_the_obligations_read_counts_the_same_credits(self) -> None:
+        """A bill the card shows repaid is not still owed on Obligations."""
+        credits = (("2026-05-10", "500.00"), ("2026-06-12", "400.00"), ("2026-07-03", "300.00"))
+        database = _build_ledger(Path(tempfile.mkdtemp()), self._UNMATCHED, credits)
+        connection = connect_sqlite(database)
+        try:
+            from fincl.obligations.queries import _card_obligations
+            [obligation] = _card_obligations(connection, AS_OF)
+        finally:
+            connection.close()
+        self.assertEqual(obligation["source"]["id"], "stmt-c")
+        self.assertEqual(obligation["actual_payments"]["total"], "300.00")
+        self.assertEqual(obligation["remaining_amount"]["value"], "0.00")

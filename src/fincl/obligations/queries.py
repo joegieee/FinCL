@@ -28,6 +28,7 @@ from typing import Any
 
 from ..baseline.queries import _month_list, cost_income_table_from
 from ..cards import projection as card_projection
+from ..cards.cash_conversion import _statement_rows
 from ..cards.models import ROLE_PAYMENT_DUE, ROLE_PAYMENT_DUE_DATE
 from ..db import connect_readonly
 from ..debts.queries import _balance_minor
@@ -311,9 +312,11 @@ def _card_obligations(connection: sqlite3.Connection, as_of: str) -> list[dict[s
     """The latest statement due per card pocket, net of recorded payments.
 
     The remaining due is the printed ``payment_due`` less the payments actually
-    allocated to that statement.  Installment occurrences that posted inside the
-    statement period are named on the obligation: they are already part of this
-    due and must not be counted again as bank withdrawals.
+    allocated to that statement or, with none allocated, less the card's own
+    credits in its payment window, as the Cards page and forecast read it.
+    Installment occurrences that posted inside the statement period are named on
+    the obligation: they are already part of this due and must not be counted
+    again as bank withdrawals.
     """
     result: list[dict[str, Any]] = []
     for account in card_projection.selected_card_accounts(connection):
@@ -351,6 +354,12 @@ def _card_obligations(connection: sqlite3.Connection, as_of: str) -> list[dict[s
                 for row in allocations
             ]
             paid = sum((Decimal(item["amount"]) for item in payments), Decimal(0))
+            if not payments:
+                paid = next(
+                    Decimal(row["paid"])
+                    for row in _statement_rows(connection, str(account["id"]), pocket, as_of=as_of)
+                    if row["statement_id"] == str(statement["id"])
+                )
             remaining = money(max(due - paid, Decimal(0)))
             inside = _installments_inside(
                 connection, str(account["id"]), statement, pocket
@@ -402,7 +411,7 @@ def _card_obligations(connection: sqlite3.Connection, as_of: str) -> list[dict[s
                     **payment_state(
                         due_on=due_date_fact.value_text if due_date_fact else None,
                         as_of=as_of,
-                        payment_count=len(payments),
+                        payment_count=len(payments) or int(paid > 0),
                         remaining=remaining,
                     ),
                 }

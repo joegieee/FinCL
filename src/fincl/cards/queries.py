@@ -308,7 +308,7 @@ def card_detail(
             # Each statement's amount due beside what was paid toward it, and
             # where that figure comes from (a manual match, or the card's own
             # credits between the period end and the due date).
-            "repayments": _repayments(connection, account_id),
+            "repayments": _repayments(connection, account_id, as_of=as_of),
             "utilization": util,
             "latest_statement": summary,
             "statement_activity": views,
@@ -325,12 +325,12 @@ def card_detail(
 __all__ = ["cards_page", "card_statements", "card_detail"]
 
 
-def _repayments(connection: sqlite3.Connection, account_id: str) -> list[dict[str, Any]]:
+def _repayments(connection: sqlite3.Connection, account_id: str, *, as_of: str) -> list[dict[str, Any]]:
     from .cash_conversion import _pockets, _statement_rows
 
     rows: list[dict[str, Any]] = []
     for pocket in _pockets(connection, account_id):
-        for row in _statement_rows(connection, account_id, pocket):
+        for row in _statement_rows(connection, account_id, pocket, as_of=as_of):
             if row["due"] is None:
                 continue
             rows.append({
