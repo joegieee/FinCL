@@ -185,6 +185,30 @@ class CashTimelineTrapTests(unittest.TestCase):
         february = next(row for row in cell["base"]["months"] if row["month"] == "2026-02")
         self.assertEqual(february["expense"], "800.00")
 
+    def test_a_pocket_with_sourced_events_and_no_history_is_projected_with_a_zero_residual(self) -> None:
+        manifest = _manifest()
+        manifest["cash"]["by_currency"]["USD"] = {
+            "readiness": "established-input estimate", "balance": "500.00", "reason": None,
+        }
+        bill = ForecastEvent(
+            event_id="visa", source_id="visa", currency="USD", amount="120.00",
+            column=COLUMN_IRREGULAR, direction=DIRECTION_OUT, label="Visa fee", on="2026-02-10",
+            removes_from_residual=True, residual_category="manifest:irregular:USD",
+        )
+        estimate = {"available": True, "by_currency": {"SGD": {
+            "variable_residual_monthly": "300.00", "variable_residual_max": "300.00",
+            "irregular_allowance_monthly": "50.00",
+        }}}
+
+        result = build_cash_timeline(manifest, sourced_events=[bill], estimate=estimate)["by_currency"]
+
+        usd = result["USD"]
+        self.assertTrue(usd["available"])
+        self.assertTrue(usd["no_spending_history"])
+        self.assertIn("USD has no spending history", usd["base"]["notes"][0])
+        self.assertEqual(usd["base"]["days"][-1]["closing"], "380.00")
+        self.assertEqual(usd["conservative"]["days"][-1]["closing"], "380.00")
+
     def test_residual_spending_is_not_gated_by_allowance_readiness(self) -> None:
         manifest = _manifest()
         manifest["reserve_and_allowance"]["by_currency"]["SGD"]["allowance"] = {

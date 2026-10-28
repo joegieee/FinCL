@@ -258,6 +258,7 @@ function Assumptions({ combined, today, onOpenObligations }: { combined: Combine
                 : p.rate_display ? `${money(p.starting_balance_reported, c)} at 1 ${p.currency} = ${p.rate_display} ${c}`
                 : 'counted as it is'}
               {p.counted === 'held_as_is' && ' · kept as it is, nothing projected'}
+              {p.counted === 'projected' && p.why && ` · ${p.why}`}
             </span>
             {p.accounts.length > 0 && (
               <ul className="assumption-sublist">

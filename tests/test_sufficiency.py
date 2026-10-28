@@ -574,6 +574,14 @@ class CombinedAnswerTests(unittest.TestCase):
              "stale": False, "basis": "observation", "holds_back_start": False},
         ])
 
+    def test_a_pocket_without_spending_history_is_projected_and_says_so(self) -> None:
+        pocket = {**_pocket(_days(("2026-02-01", "100.00"))), "no_spending_history": True}
+
+        answer = self._answer(_timeline({"SGD": pocket}), {"SGD": Fraction(1)})
+
+        self.assertEqual((answer["pockets"][0]["counted"], answer["pockets"][0]["why"]),
+                         ("projected", "it has no spending history, so only what is scheduled for it is counted"))
+
     def test_evidence_gaps_go_to_the_import_page_or_beside_the_answer(self) -> None:
         items = [
             {"output": "baseline", "task": "import-missing", "account_name": "Everyday", "detail": "x",

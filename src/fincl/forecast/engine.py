@@ -1480,6 +1480,16 @@ def _monotonicity(base: dict[str, Any], conservative: dict[str, Any]) -> dict[st
     }
 
 
+def _has_no_history(
+    estimate: dict[str, Any] | None, currency: str, residual_categories: Sequence[ResidualCategory]
+) -> bool:
+    """A usable baseline exists and has nothing for this currency's pocket."""
+    return (
+        not residual_categories and bool(estimate and estimate.get("available"))
+        and currency not in (estimate or {}).get("by_currency", {})
+    )
+
+
 def build_cash_timeline(
     manifest: dict[str, Any],
     *,
@@ -1661,7 +1671,18 @@ def build_cash_timeline(
                 }
             ),
         }
-        if not scoped_categories:
+        if not scoped_categories and scoped_events and _has_no_history(estimate, currency, residual_categories):
+            # Sourced money (a planned bill, a debt schedule) is enough to
+            # project the pocket; with no spending history the usual
+            # spending is simply zero, and the case says so.
+            note = (
+                f"{currency} has no spending history, so its usual spending is taken as zero "
+                "and only the money scheduled for it is counted"
+            )
+            base["notes"].append(note)
+            conservative["notes"].append(note)
+            result_by_currency[currency]["no_spending_history"] = True
+        elif not scoped_categories:
             message = (
                 f"{currency} has no supported residual-spending input; known-event "
                 "cash arithmetic is shown but a complete base or conservative case is unavailable"

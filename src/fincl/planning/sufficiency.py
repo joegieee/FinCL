@@ -310,6 +310,8 @@ def _counting(cell: dict[str, Any], rate: Fraction | None) -> tuple[str, str | N
     if rate is None:
         return COUNTED_NOT, _NO_RATE
     if cell.get("available"):
+        if cell.get("no_spending_history"):
+            return COUNTED_PROJECTED, "it has no spending history, so only what is scheduled for it is counted"
         return COUNTED_PROJECTED, None
     if base.get("days") and not events and cell.get("starting_balance") is not None:
         return COUNTED_AS_IS, "it has no spending history and nothing is scheduled in or out of it"

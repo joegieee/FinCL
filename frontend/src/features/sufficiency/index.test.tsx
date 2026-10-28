@@ -158,6 +158,15 @@ describe('SufficiencyView', () => {
     expect(onOpenPlanned).toHaveBeenCalled()
   })
 
+  it('notes a pocket that is projected without spending history', async () => {
+    loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
+      pockets: [{ currency: 'USD', counted: 'projected', why: 'it has no spending history, so only what is scheduled for it is counted', starting_balance: '500.00', starting_balance_reported: '500.00', rate: null, rate_display: null, accounts: [] }],
+    }) }))
+    render(<SufficiencyView generation="gen-1" />)
+
+    expect(await screen.findByText(/it has no spending history, so only what is scheduled/)).toBeInTheDocument()
+  })
+
   it('lands an import to-do on the coverage card', async () => {
     const onOpen = vi.fn()
     loadSufficiency.mockResolvedValue(page({ combined_answer: combined({ todos: [
