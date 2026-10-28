@@ -109,7 +109,7 @@ describe('EntryDialog — debt hand-off', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview and save' }))
 
     await screen.findByText('Recorded against the debt.')
-    expect(screen.getByText(/fully allocated to a personal debt, so it is neither spending nor income/)).toBeInTheDocument()
+    expect(screen.getByText(/fully explained by debt allocations/)).toBeInTheDocument()
     const [[, body]] = calls('commands')
     expect(body).toMatchObject({
       kind: 'PERSONAL_DEBT_EVENT_SET',

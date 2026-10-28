@@ -1838,6 +1838,16 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(422, str(exc)) from exc
 
+    @app.get('/api/v1/debts/entry-residual')
+    def debt_entry_residual(anchor: str, generation: str | None = None) -> Any:
+        from .debts.queries import entry_residual
+        try:
+            return entry_residual(database, anchor=anchor, expected=generation)
+        except FinCLError as exc:
+            if str(exc).startswith('STALE_GENERATION'):
+                raise HTTPException(409, str(exc)) from exc
+            raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
+
     @app.get('/api/v1/debts/{debt_id}')
     def debt(debt_id: str, as_of: str | None = None, generation: str | None = None) -> Any:
         from .debts.queries import debt_detail

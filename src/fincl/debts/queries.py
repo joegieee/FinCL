@@ -15,14 +15,59 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
-from ..db import connect_readonly
+from ..db import connect_readonly, read_snapshot
 from ..errors import FinCLError
 from ..generation import current_generation
-from ..money import format_decimal
+from ..money import MAX_SCALE, format_decimal
 from .models import events_for_direction
 from .projection import expected_bank_direction
 
 _DATE_RE_LEN = 10
+
+
+def entry_residual(database: Path, *, anchor: str, expected: str | None = None) -> dict[str, Any]:
+    """Native source evidence for editing the one owner share of an outflow.
+
+    Add back the existing share when finding the replacement limit. All other
+    claims remain owned by the shared allocation registry, including refunds
+    and installment claims. Nothing is inferred to be the owner's expense.
+    """
+    from ..analysis.allocations import open_residual
+
+    with read_snapshot(database) as connection:
+        token = _generation(connection, expected)
+        entry = connection.execute(
+            """SELECT e.amount_coefficient, e.amount_scale, e.currency_pocket, e.economic_direction
+               FROM ledger_entries e JOIN extraction_runs x ON x.id = e.extraction_run_id
+               WHERE e.natural_anchor = ? AND x.selection_state = 'SELECTED' LIMIT 1""",
+            (anchor,),
+        ).fetchone()
+        if entry is None:
+            raise FinCLError("source entry does not exist in the selected evidence")
+        if entry["economic_direction"] != "OUT":
+            raise FinCLError("An owner expense share requires an outgoing transaction")
+        residual = connection.execute(
+            "SELECT * FROM entry_residuals WHERE entry_anchor = ? AND bound = 1", (anchor,)
+        ).fetchone()
+        own = (Fraction(int(residual["expense_coefficient"]), 10 ** int(residual["expense_scale"]))
+               if residual else Fraction(0))
+        unassigned = open_residual(connection, anchor)
+
+        def decimal(value: Fraction) -> str:
+            for scale in range(int(entry["amount_scale"]), MAX_SCALE + 1):
+                scaled = value * 10**scale
+                if scaled.denominator == 1:
+                    return format_decimal(int(scaled), scale)
+            raise FinCLError("The allocation cannot be represented as exact money")  # pragma: no cover
+
+        return {
+            "generation": token, "entry_anchor": anchor, "currency": str(entry["currency_pocket"]),
+            "amount": decimal(Fraction(abs(int(entry["amount_coefficient"])), 10 ** int(entry["amount_scale"]))),
+            "available_amount": decimal(unassigned + own),
+            "unassigned_amount": decimal(unassigned),
+            "owner_share": ({"expense_amount": decimal(own), "expense_category": str(residual["expense_category"]),
+                             "reason": str(residual["reason"])} if residual else None),
+        }
 
 
 def _decode_allocation_cursor(cursor: str | None) -> tuple[str, str] | None:

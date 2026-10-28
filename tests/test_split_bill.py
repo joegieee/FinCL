@@ -111,6 +111,63 @@ class SplitBillTests(ApiTestBase):
         self.assertEqual(self.journal_len(), journal)
         self.assertEqual(self.client.get("/api/v1/debts").json()["owed_to_me"], [])
 
+    def test_owner_share_read_adds_back_the_existing_share_at_its_exact_scale(self) -> None:
+        response = self.batch(self.split_items(sam_share="30.005", my_share="21.245"))
+        self.assertIn(response.status_code, {200, 202}, response.text)
+        journal = self.journal_len()
+        read = self.client.get(f"/api/v1/debts/entry-residual?anchor={self.grocer}")
+        self.assertEqual(read.status_code, 200, read.text)
+        page = read.json()
+        self.assertEqual(page["amount"], "51.25")
+        self.assertEqual(page["available_amount"], "21.245")
+        self.assertEqual(page["unassigned_amount"], "0.00")
+        self.assertEqual(page["owner_share"]["expense_amount"], "21.245")
+        self.assertEqual(page["currency"], "SGD")
+        self.assertEqual(self.journal_len(), journal)
+
+    def test_owner_share_read_refuses_stale_missing_and_incoming_sources(self) -> None:
+        stale = self.client.get(f"/api/v1/debts/entry-residual?anchor={self.grocer}&generation=old")
+        self.assertEqual(stale.status_code, 409, stale.text)
+        missing = self.client.get("/api/v1/debts/entry-residual?anchor=missing")
+        self.assertEqual(missing.status_code, 404, missing.text)
+        incoming = self.first_anchor(direction="IN")
+        refused = self.client.get(f"/api/v1/debts/entry-residual?anchor={incoming}")
+        self.assertEqual(refused.status_code, 422, refused.text)
+
+    def test_owner_share_can_be_replaced_and_retired_without_changing_debt_principal(self) -> None:
+        split = self.batch(self.split_items(sam_share="30.00", my_share="21.25"))
+        self.assertIn(split.status_code, {200, 202}, split.text)
+        debts_before = self.client.get("/api/v1/debts").json()["owed_to_me"]
+        for kind, payload in [
+            ("ENTRY_RESIDUAL_SET", {"expense_amount": "10.00", "expense_category": "Food & Dining / Dining Out", "reason": "Correct my share"}),
+            ("ENTRY_RESIDUAL_RETIRE", {"reason": "Return to ordinary classification"}),
+        ]:
+            with self.subTest(kind=kind):
+                body = {"request_id": str(uuid.uuid4()), "expected_generation": self.overview()["generation"],
+                        "kind": kind, "anchors": {"entry": self.grocer}, "payload": payload}
+                journal = self.journal_len()
+                preview = self.post("/api/v1/preview", body, self.csrf)
+                self.assertEqual(preview.status_code, 200, preview.text)
+                self.assertEqual(self.journal_len(), journal)
+                saved = self.post("/api/v1/commands", body, self.csrf)
+                self.assertIn(saved.status_code, {200, 202}, saved.text)
+                page = self.client.get(f"/api/v1/debts/entry-residual?anchor={self.grocer}").json()
+                self.assertEqual(page["available_amount"], "21.25")
+                self.assertEqual(page["unassigned_amount"], "11.25" if kind.endswith("SET") else "21.25")
+                self.assertEqual(page["owner_share"] is None, kind.endswith("RETIRE"))
+                self.assertEqual(self.client.get("/api/v1/debts").json()["owed_to_me"], debts_before)
+
+    def test_owner_share_preview_rejects_overallocation_without_journaling(self) -> None:
+        split = self.batch(self.split_items(sam_share="30.00", my_share="21.25"))
+        self.assertIn(split.status_code, {200, 202}, split.text)
+        journal = self.journal_len()
+        body = {"request_id": str(uuid.uuid4()), "expected_generation": self.overview()["generation"],
+                "kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": self.grocer},
+                "payload": {"expense_amount": "21.26", "expense_category": "Food & Dining / Groceries", "reason": "Too large"}}
+        preview = self.post("/api/v1/preview", body, self.csrf)
+        self.assertEqual(preview.status_code, 422, preview.text)
+        self.assertEqual(self.journal_len(), journal)
+
 
 if __name__ == "__main__":
     import unittest

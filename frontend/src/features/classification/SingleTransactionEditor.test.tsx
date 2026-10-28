@@ -219,7 +219,7 @@ describe('EntryDialog — applicability', () => {
   it('offers nothing editable for a movement a personal debt fully explains, and says where to change it', () => {
     mockApi({})
     render(<EntryDialog entry={entry({ bucket: 'debt', debt_allocation: 'full', review: false })} data={dashboard()} onClose={vi.fn()} onSaved={vi.fn()} />)
-    expect(screen.getByText(/fully allocated to a personal debt/)).toBeInTheDocument()
+    expect(screen.getByText(/fully explained by debt allocations/)).toBeInTheDocument()
     expect(screen.getByText(/Debts page/)).toBeInTheDocument()
     expect(screen.queryByLabelText('Category')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Spending pattern')).not.toBeInTheDocument()

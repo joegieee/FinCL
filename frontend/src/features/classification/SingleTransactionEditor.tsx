@@ -7,6 +7,7 @@ import { api, money, shortCategory, type Dashboard, type Entry } from '@/lib/api
 import { dateLabel } from '@/lib/format'
 import { useBatchCommand } from '@/lib/command'
 import { StatementDetailPanel } from '@/features/transactions'
+import { OwnerShareForm } from '@/features/debts/OwnerShareForm'
 import type { TransactionRowOut } from '@/features/transactions/reportedApi'
 import { CategoryPicker, rememberCategory } from './CategoryPicker'
 import { DebtHandoff, InstallmentHandoff, TransferHandoff, handoffTarget, movementDirection } from './Handoffs'
@@ -69,6 +70,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
   const direction = movementDirection(e)
   const [nature, setNature] = useState<Nature>(natureOf(bucket))
   const [installment, setInstallment] = useState(false)
+  const [editingShare, setEditingShare] = useState(false)
   const [notice, setNotice] = useState('')
 
   const initialCategory = e.category === UNCLASSIFIED ? '' : e.category
@@ -126,7 +128,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
 
   /** After a hand-off records a decision: refresh, then re-read this row at
    * the new generation and say plainly what the decision made of it. */
-  async function recorded(status: string, what: 'debt' | 'transfer' | 'installment') {
+  async function recorded(status: string, what: 'debt' | 'transfer' | 'installment' | 'owner_share') {
     await refreshKeepingOpen(status)
     try {
       const fresh = await api<{ generation: string; entry: Entry }>(`transactions/entry?anchor=${encodeURIComponent(e.anchor)}`)
@@ -136,7 +138,8 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
       const freshBucket = detailBucket(fresh.entry)
       // A fully owned row gets the standing explanation below the notice, so
       // the notice only confirms the save rather than repeating it.
-      if (freshBucket === 'debt') setNotice('Recorded against the debt.')
+      if (what === 'owner_share') setNotice('Your expense share was updated. Debt principal is unchanged.')
+      else if (freshBucket === 'debt') setNotice('Recorded against the debt.')
       else if (freshBucket === 'internal_linked') setNotice('Recorded as a transfer.')
       else if (what === 'debt') setNotice(fresh.entry.debt_allocation === 'partial'
         ? 'Recorded. Part of this amount now repays a personal debt; classify the rest below.'
@@ -209,12 +212,19 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
 
       <h3>Update this transaction</h3>
       {notice && <p className="muted-note" role="status">{notice}</p>}
+      {direction === 'OUT' && e.debt_allocation && !['excluded', 'internal_linked', 'installment'].includes(bucket) && (
+        editingShare ? <OwnerShareForm key={`${e.anchor}-${data.generation}`} anchor={e.anchor} generation={data.generation}
+          categories={data.categories} onCancel={() => setEditingShare(false)}
+          onSaved={async status => { await recorded(status, 'owner_share'); setEditingShare(false) }}/>
+          : <Button type="button" size="sm" variant="outline" disabled={disabled || batch.busy}
+              onClick={() => setEditingShare(true)}>Review my expense share</Button>
+      )}
       {notEditable
         ? <p className="muted-note">
             {bucket === 'excluded'
               ? 'This transaction is not active in the current selection scope and cannot be classified.'
               : bucket === 'debt'
-                ? 'This movement is fully allocated to a personal debt, so it is neither spending nor income. Change the debt event on the Debts page instead of classifying it here.'
+                ? 'This movement is fully explained by debt allocations and any recorded expense share. Principal is neither spending nor income; your expense share keeps its own category. Review your share here, or change debt events on the Debts page.'
                 : bucket === 'installment'
                   ? 'This movement belongs to a confirmed installment plan, so it is neither spending nor income: the original purchase carries the spending and its category. Change the plan on the Installments page instead of classifying it here.'
                   : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}

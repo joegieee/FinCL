@@ -1210,6 +1210,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/debts/entry-residual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Debt Entry Residual */
+        get: operations["debt_entry_residual_api_v1_debts_entry_residual_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/debts/{debt_id}": {
         parameters: {
             query?: never;
@@ -2577,6 +2594,23 @@ export interface paths {
         };
         /** Reported Workspace Debt Split Candidates */
         get: operations["reported_workspace_debt_split_candidates_api_v1_reporting_workspaces_debts_split_candidates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reporting/workspaces/debts/entry-residual": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reported Workspace Debt Entry Residual */
+        get: operations["reported_workspace_debt_entry_residual_api_v1_reporting_workspaces_debts_entry_residual_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6870,6 +6904,38 @@ export interface operations {
             };
         };
     };
+    debt_entry_residual_api_v1_debts_entry_residual_get: {
+        parameters: {
+            query: {
+                anchor: string;
+                generation?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     debt_api_v1_debts__debt_id__get: {
         parameters: {
             query?: {
@@ -9163,6 +9229,38 @@ export interface operations {
                 search?: string | null;
                 cursor?: string | null;
                 limit?: number;
+                generation?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportedWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_workspace_debt_entry_residual_api_v1_reporting_workspaces_debts_entry_residual_get: {
+        parameters: {
+            query: {
+                anchor: string;
                 generation?: string | null;
             };
             header?: never;
