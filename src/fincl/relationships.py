@@ -649,6 +649,8 @@ def resolve(connection: sqlite3.Connection) -> None:
     primaries: set[str] = set()
     for body, seq in confirms:  # journal order: an earlier confirm wins a conflict
         primary, candidate = body["primary"], body["candidate"]
+        if primary == candidate:
+            continue  # both rows were one statement's row carried by another
         if primary in suppressed:
             continue  # the named primary is itself suppressed elsewhere
         if candidate in primaries:

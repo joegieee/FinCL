@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import sqlite3
 import uuid
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +35,7 @@ from .reconciliation import (
     revoke_links_for_extraction,
 )
 from .selection import recompute_selection
+from .supersession import containing_statement, supersede, supersede_contained, supersession_of
 
 # Re-exported: importers historically reach these through document_service.
 __all__ = [
@@ -451,24 +451,10 @@ class DocumentImportService:
         # already carries is the same evidence again: a re-download with
         # different bytes, or a mid-month export inside the month's statement.
         # It is kept as evidence and never counted twice, and is not a conflict.
-        superseded_by = (
-            _containing_statement(connection, statement_id) if parsed.accepted else None
-        )
+        superseded_by = containing_statement(connection, statement_id) if parsed.accepted else None
         if superseded_by is not None:
             has_conflict = False
-            connection.execute(
-                "UPDATE statements SET selection_state = 'CANDIDATE', conflict_state = 'NONE' "
-                "WHERE id = ?",
-                (statement_id,),
-            )
-            _insert_document_issue(
-                connection,
-                extraction_run_id,
-                "WARNING",
-                "STATEMENT_SUPERSEDED",
-                "an already imported statement for this account carries every row of this one",
-                {"superseded_by": superseded_by["id"], "period": superseded_by["period"]},
-            )
+            supersede(connection, statement_id, superseded_by)
         elif has_conflict:
             connection.execute(
                 """
@@ -498,7 +484,7 @@ class DocumentImportService:
             )
 
         elif parsed.accepted:
-            _supersede_contained(connection, statement_id)
+            supersede_contained(connection, statement_id)
 
         blocking_issues = connection.execute(
             "SELECT count(*) FROM extraction_issues WHERE extraction_run_id = ? AND severity = 'BLOCKING'",
@@ -595,7 +581,7 @@ class DocumentImportService:
             checks["passed"] or 0,
             checks["total"] or 0,
             links_created,
-            *_supersession(connection, extraction_run_id),
+            *supersession_of(connection, extraction_run_id),
             parsed.account_id,
             parsed.account_display_name,
             parsed.period_start,
@@ -883,132 +869,6 @@ def _event_kind(
         kind = "PAYMENT" if source_type == "DBS_PAYLAH" else "OTHER"
     assert kind in LEDGER_EVENT_KINDS
     return kind
-
-
-def _statement_rows(
-    connection: sqlite3.Connection, statement_id: str, start: str, end: str
-) -> Counter[tuple[str, str, str, str]]:
-    """The statement's movements dated ``start..end``, as comparable rows."""
-    return Counter(
-        (row[0], row[1], row[2], row[3])
-        for row in connection.execute(
-            """
-            SELECT e.currency_pocket, substr(e.effective_at, 1, 10), e.amount_text,
-                   coalesce(d.description_raw, '')
-            FROM ledger_entries e
-            LEFT JOIN document_records d ON d.id = e.document_record_id
-            WHERE e.statement_id = ? AND substr(e.effective_at, 1, 10) BETWEEN ? AND ?
-            """,
-            (statement_id, start, end),
-        )
-    )
-
-
-def _same_account_statements(
-    connection: sqlite3.Connection, statement_id: str
-) -> tuple[sqlite3.Row, list[sqlite3.Row]]:
-    this = connection.execute(
-        "SELECT id, account_id, evidence_sha256, period_start, period_end "
-        "FROM statements WHERE id = ?",
-        (statement_id,),
-    ).fetchone()
-    others = connection.execute(
-        """
-        SELECT s.id, s.extraction_run_id, s.period_start, s.period_end
-        FROM statements s JOIN extraction_runs x ON x.id = s.extraction_run_id
-        WHERE s.account_id = ? AND s.evidence_sha256 <> ? AND s.selection_state = 'SELECTED'
-          AND x.status = 'ACCEPTED'
-          AND s.period_start IS NOT NULL AND s.period_end IS NOT NULL
-        ORDER BY s.period_start, s.period_end, s.id
-        """,
-        (this["account_id"], this["evidence_sha256"]),
-    ).fetchall()
-    return this, others
-
-
-def _carries(
-    connection: sqlite3.Connection, container: str, contained: str, start: str, end: str
-) -> bool:
-    """Whether ``container`` holds exactly ``contained``'s rows over its period."""
-    return _statement_rows(connection, container, start, end) == _statement_rows(
-        connection, contained, start, end
-    )
-
-
-def _containing_statement(
-    connection: sqlite3.Connection, statement_id: str
-) -> dict[str, str] | None:
-    this, others = _same_account_statements(connection, statement_id)
-    if this["period_start"] is None or this["period_end"] is None:
-        return None
-    start, end = this["period_start"], this["period_end"]
-    for other in others:
-        if other["period_start"] <= start and other["period_end"] >= end and _carries(
-            connection, other["id"], statement_id, start, end
-        ):
-            return {"id": other["id"], "period": f"{other['period_start']}..{other['period_end']}"}
-    return None
-
-
-def _supersede_contained(connection: sqlite3.Connection, statement_id: str) -> None:
-    """Stop counting earlier statements this one fully carries."""
-    this, others = _same_account_statements(connection, statement_id)
-    if this["period_start"] is None or this["period_end"] is None:
-        return
-    for other in others:
-        start, end = other["period_start"], other["period_end"]
-        if not (this["period_start"] <= start and this["period_end"] >= end):
-            continue
-        if not _carries(connection, statement_id, other["id"], start, end):
-            continue
-        connection.execute(
-            "UPDATE statements SET selection_state = 'CANDIDATE' WHERE id = ?", (other["id"],)
-        )
-        revoke_links_for_extraction(connection, other["extraction_run_id"], SELECTION_LOST)
-        connection.execute(
-            "UPDATE ledger_entries SET analytics_eligible = 0 WHERE statement_id = ?",
-            (other["id"],),
-        )
-        _insert_document_issue(
-            connection,
-            other["extraction_run_id"],
-            "WARNING",
-            "STATEMENT_SUPERSEDED",
-            "a later statement for this account carries every row of this one",
-            {
-                "superseded_by": statement_id,
-                "period": f"{this['period_start']}..{this['period_end']}",
-            },
-        )
-
-
-def _supersession(
-    connection: sqlite3.Connection, extraction_run_id: str
-) -> tuple[str | None, tuple[str, ...]]:
-    """(the period that supersedes this import's statement, periods it supersedes)."""
-    by = connection.execute(
-        """
-        SELECT json_extract(q.context_json, '$.period')
-        FROM extraction_issues q JOIN statements s ON s.extraction_run_id = q.extraction_run_id
-        WHERE q.extraction_run_id = ? AND q.code = 'STATEMENT_SUPERSEDED'
-          AND s.selection_state = 'CANDIDATE'
-        ORDER BY q.id DESC LIMIT 1
-        """,
-        (extraction_run_id,),
-    ).fetchone()
-    replaced = connection.execute(
-        """
-        SELECT DISTINCT o.period_start || '..' || o.period_end
-        FROM statements s
-        JOIN extraction_issues q ON q.code = 'STATEMENT_SUPERSEDED'
-             AND json_extract(q.context_json, '$.superseded_by') = s.id
-        JOIN statements o ON o.extraction_run_id = q.extraction_run_id
-        WHERE s.extraction_run_id = ? AND o.selection_state = 'CANDIDATE'
-        ORDER BY 1
-        """,
-        (extraction_run_id,),
-    ).fetchall()
-    return (by[0] if by else None), tuple(row[0] for row in replaced)
 
 
 def _insert_document_issue(
