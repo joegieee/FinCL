@@ -16,6 +16,7 @@ from fincl.forecast.engine import (
     COLUMN_LIFESTYLE,
     CONFIDENCE_CONFIRMED,
     CONFIDENCE_LIKELY,
+    CONFIDENCE_POSSIBLE,
     DIRECTION_IN,
     DIRECTION_OUT,
     TIMING_INFERRED,
@@ -121,6 +122,23 @@ class CashTimelineTrapTests(unittest.TestCase):
             "account_id": "card-1", "currency": "SGD", "label": "Rewards Card",
             "requirements": {"one statement only": "cycle_geometry_unevidenced"},
         }])
+
+    def test_a_possible_cost_is_paid_in_the_cautious_case_only(self) -> None:
+        risk = ForecastEvent(
+            event_id="repair", source_id="repair", currency="SGD", amount="400.00",
+            column=COLUMN_IRREGULAR, direction=DIRECTION_OUT, label="Car repair",
+            on="2026-03-02", confidence=CONFIDENCE_POSSIBLE,
+        )
+        estimate = {"available": True, "by_currency": {"SGD": {
+            "variable_residual_monthly": "0.00", "variable_residual_max": "0.00",
+            "irregular_allowance_monthly": "0.00",
+        }}}
+
+        cell = build_cash_timeline(_manifest(), sourced_events=[risk], estimate=estimate)["by_currency"]["SGD"]
+
+        self.assertEqual([e["source_id"] for e in cell["base"]["events"]["items"]], [])
+        self.assertEqual([e["source_id"] for e in cell["conservative"]["events"]["items"]], ["repair"])
+        self.assertTrue(cell["monotonicity"]["holds"])
 
     def test_a_dated_cost_beyond_its_residual_is_a_note_not_a_missing_case(self) -> None:
         bill = ForecastEvent(

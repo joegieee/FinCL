@@ -967,10 +967,11 @@ def _included(
     likely_income_policy: str,
     strong_income_interruption: bool,
 ) -> bool:
+    if event.direction == DIRECTION_OUT:
+        # A possible cost is a risk, so only the cautious case pays it.
+        return event.confidence != CONFIDENCE_POSSIBLE or scenario == SCENARIO_CONSERVATIVE
     if event.confidence == CONFIDENCE_POSSIBLE:
         return False
-    if event.direction == DIRECTION_OUT:
-        return True
     if scenario == SCENARIO_BASE:
         return event.confidence in (CONFIDENCE_CONFIRMED, CONFIDENCE_LIKELY)
     if strong_income_interruption and event.recurring_salary:
