@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AsyncView } from '@/components/AsyncView'
 import { ApiError } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
+import { SETUP_IMPORT_ID, SetupCoverage } from './Coverage'
 import {
   ADAPTERS, MAX_BYTES, MAX_FILES,
   loadImportDetail, loadImports, loadSetup, refreshImports, submitFxRates, submitImport,
@@ -48,16 +49,22 @@ function sizeLabel(bytes: number | null) {
  */
 /** Accepted imports refresh the ledger before notifying the surrounding app.
  * `onReview` optionally opens the next review workflow. */
-export function SetupView({ onImported, onReview }: { onImported: () => void; onReview?: () => void | Promise<void> }) {
+export function SetupView({ onImported, onReview, generation = '' }: {
+  onImported: () => void
+  onReview?: () => void | Promise<void>
+  generation?: string
+}) {
   const [setup, setSetup] = useState<SetupOptions | null>(null)
   const [imports, setImports] = useState<ImportRun[] | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState<ImportDetail | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const seq = useRef(0)
 
   const load = useCallback(() => {
     const id = ++seq.current
+    setReloadKey(key => key + 1)
     setLoading(true); setError('')
     Promise.all([loadSetup(), loadImports()])
       .then(([s, i]) => { if (id === seq.current) { setSetup(s); setImports(i.imports) } })
@@ -68,14 +75,15 @@ export function SetupView({ onImported, onReview }: { onImported: () => void; on
 
   return (
     <AsyncView loading={loading} error={error} data={setup} onRetry={load} loadingLabel="Loading setup" errorTitle="We couldn’t load setup.">
-      {setup => <SetupContent setup={setup} imports={imports} loading={loading} load={load} onImported={onImported} onReview={onReview} detail={detail} setDetail={setDetail} setError={setError} />}
+      {setup => <SetupContent setup={setup} imports={imports} loading={loading} load={load} onImported={onImported} onReview={onReview} detail={detail} setDetail={setDetail} setError={setError} generation={generation} reloadKey={reloadKey} />}
     </AsyncView>
   )
 }
 
-function SetupContent({ setup, imports, loading, load, onImported, onReview, detail, setDetail, setError }: {
+function SetupContent({ setup, imports, loading, load, onImported, onReview, detail, setDetail, setError, generation, reloadKey }: {
   setup: SetupOptions; imports: ImportRun[] | null; loading: boolean; load: () => void; onImported: () => void; onReview?: () => void | Promise<void>
   detail: ImportDetail | null; setDetail: (d: ImportDetail | null) => void; setError: (e: string) => void
+  generation: string; reloadKey: number
 }) {
   return (
     <div className="setup-view">
@@ -88,6 +96,8 @@ function SetupContent({ setup, imports, loading, load, onImported, onReview, det
         </dl>
         <p className="muted-note"><ShieldCheck size={13} /> New ledgers and switching are granted by the host launcher (<code>fincl setup --workspace-root</code>). This screen never takes an absolute path from the browser.</p>
       </Card>
+
+      <SetupCoverage generation={generation} reloadKey={reloadKey} onSaved={onImported} />
 
       <ImportWizard onDone={() => { load(); onImported() }} onReview={onReview} />
 
@@ -220,7 +230,7 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
   }
 
   return (
-    <Card className="import-wizard">
+    <Card className="import-wizard" id={SETUP_IMPORT_ID}>
       <div className="panel-title"><div><p className="eyebrow">IMPORT A STATEMENT</p><h2>Add transactions from your bank</h2></div></div>
       <form onSubmit={submit}>
         <label>Source

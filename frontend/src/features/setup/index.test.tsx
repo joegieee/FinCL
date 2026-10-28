@@ -22,7 +22,42 @@ vi.mock('./api', async (importOriginal) => {
   }
 })
 
+const loadCoverageReport = vi.fn()
+const loadBaselineReadiness = vi.fn()
+
+vi.mock('@/features/cash/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/cash/api')>()
+  return {
+    ...actual,
+    loadCoverageReport: () => loadCoverageReport(),
+    loadCertifications: () => Promise.resolve({ certifications: [] }),
+    loadCashPosition: () => Promise.resolve({ pockets: [] }),
+  }
+})
+vi.mock('@/features/baseline/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/baseline/api')>()
+  return { ...actual, loadBaselineReadiness: () => loadBaselineReadiness() }
+})
+
 const { SetupView } = await import('./index')
+
+function coverage(over: Record<string, unknown> = {}) {
+  return {
+    generated_for: '2026-09-20', supported_cutoff: '2026-07-31', current_position_supported: false,
+    coverage: { included_pockets: 2, covered_pockets: 1, short_pockets: 1, ratio: 0.5, basis: 'share of included liquid pockets with a coverage-backed balance', status: 'partial' },
+    partial_position: { as_of: '2026-08-31', by_currency: { SGD: '10.00' }, contributing_pockets: [], short_pockets: [], is_complete: false, reason: null },
+    remedies: [{
+      action: 'import-statement', decision_kind: null, account_id: 'acct_revolut_current', currency_pocket: 'SGD',
+      display_name: 'Revolut Current', institution: 'Revolut', unlocks: 'unblocks-shared-cutoff', rank: 0,
+      detail: 'Import a statement for it.', parameters: {},
+    }],
+    freshness: [
+      { account: 'acct_revolut_current', display_name: 'Revolut Current', currencies: ['SGD'], evidence_through: '2026-07-31', age_days: 51, stale: true, basis: 'statement', holds_back_start: true },
+      { account: 'trust-savings', display_name: 'Trust Bank Savings Account', currencies: ['SGD'], evidence_through: '2026-09-20', age_days: 0, stale: false, basis: 'certification', holds_back_start: false },
+    ],
+    ...over,
+  }
+}
 
 const SETUP = {
   state: 'ready', current_ledger: 'ledger.sqlite3', storage_profile: 'plaintext-local',
@@ -30,7 +65,11 @@ const SETUP = {
 }
 
 afterEach(() => { cleanup(); vi.clearAllMocks() })
-beforeEach(() => { refreshImports.mockReset(); refreshImports.mockResolvedValue({}) })
+beforeEach(() => {
+  refreshImports.mockReset(); refreshImports.mockResolvedValue({})
+  loadCoverageReport.mockRejectedValue(new Error('no coverage in this test'))
+  loadBaselineReadiness.mockRejectedValue(new Error('no readiness in this test'))
+})
 
 describe('SetupView', () => {
   it('shows setup state and an empty import history', async () => {
@@ -150,6 +189,28 @@ describe('SetupView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Upload statements' }))
     expect(await screen.findByText('Unsupported statement')).toBeInTheDocument()
     expect(refreshImports).not.toHaveBeenCalled()
+  })
+
+  it('shows how far each account is proven, what holds the start back and what is missing', async () => {
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [] })
+    loadCoverageReport.mockResolvedValue(coverage())
+    loadBaselineReadiness.mockResolvedValue({ pockets: [
+      { account_id: 'acct_revolut_current', display_name: 'Revolut Current', missing_intervals: [{ start: '2026-08-01', end: '2026-08-31' }] },
+    ] })
+    render(<SetupView onImported={() => {}} generation="g1" />)
+
+    const card = within(await screen.findByText(/Your forecast starts from/).then(h => h.closest('.setup-coverage') as HTMLElement))
+    const revolut = within(card.getByText('Revolut Current').closest('tr') as HTMLElement)
+    expect(revolut.getByText('Holding the start back')).toBeInTheDocument()
+    expect(revolut.getByText('51 days ago')).toBeInTheDocument()
+    expect(revolut.getByText('Aug 2026')).toBeInTheDocument()
+    const trust = within(card.getByText('Trust Bank Savings Account').closest('tr') as HTMLElement)
+    expect(trust.getByText('a range you certified as quiet')).toBeInTheDocument()
+    expect(trust.queryByText('Holding the start back')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /Import a statement/ }))
+    expect(document.activeElement).toBe(screen.getByLabelText('Statement files'))
   })
 
   it('does not count a quarantined file as accepted and says what each file did', async () => {

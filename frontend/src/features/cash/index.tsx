@@ -42,8 +42,13 @@ type LastGood = { key: string; policyCurrency: string; response: CashPageOut }
  *   no common cutoff never gets summed with another pocket at a different date.
  */
 export function CashView({
-  generation, onSaved,
-}: { generation: string; onSaved?: (status: string) => void | Promise<void> }) {
+  generation, onSaved, onOpenSetup,
+}: {
+  generation: string
+  onSaved?: (status: string) => void | Promise<void>
+  /** Opens Setup, where a missing statement is uploaded. */
+  onOpenSetup: () => void
+}) {
   const [filters, setFilters] = useState<CashFilters>(emptyCashFilters)
   const [page, setPage] = useState<CashPageOut | null>(null)
   const [loading, setLoading] = useState(true)
@@ -153,6 +158,7 @@ export function CashView({
           page={page} filters={filters} onFiltersChange={setFilters} generation={generation}
           onObserve={setObserving} coverage={coverage} certifications={certifications}
           onCertify={setCertifying}
+          onOpenSetup={onOpenSetup}
           onObserveScope={(accountId, pocketCurrency) => {
             const match = page.pockets.find(
               p => p.account_id === accountId && p.currency_pocket === pocketCurrency,
@@ -202,7 +208,7 @@ export function CashView({
 
 function CashPage({
   page, filters, onFiltersChange, onObserve,
-  coverage, certifications, onCertify, onObserveScope, onRetireCertification,
+  coverage, certifications, onCertify, onObserveScope, onRetireCertification, onOpenSetup,
 }: {
   page: CashPageOut
   filters: CashFilters
@@ -214,6 +220,7 @@ function CashPage({
   onCertify: (target: CertifyTarget) => void
   onObserveScope: (accountId: string, currencyPocket: string) => void
   onRetireCertification: (certification: MovementCertification) => void
+  onOpenSetup: () => void
 }) {
   const currency = page.reporting_currency
   const observedToday = page.current_position_supported
@@ -282,9 +289,9 @@ function CashPage({
       </Card>
 
       <CoveragePanel
-        page={page} report={coverage} certifications={certifications}
+        summary={page.coverage_summary} partial={page.partial_position} report={coverage} certifications={certifications}
         onCertify={onCertify} onObserve={onObserveScope}
-        onImport={() => { window.location.hash = '#/Setup' }}
+        onImport={onOpenSetup}
         onRetireCertification={onRetireCertification}
       />
 
