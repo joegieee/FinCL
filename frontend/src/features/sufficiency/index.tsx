@@ -222,7 +222,7 @@ function Todos({ combined, onOpen }: { combined: CombinedAnswer; onOpen?: (desti
               <p className="muted-note">{plainDates(todo.detail)}</p>
             </div>
             {onOpen && (
-              <Button variant="outline" size="sm" onClick={() => onOpen(todo.page)} aria-label={`${todo.title}: open ${todo.page}`}>
+              <Button variant="outline" size="sm" onClick={() => { if (todo.anchor) window.location.hash = todo.anchor; onOpen(todo.page) }} aria-label={`${todo.title}: open ${todo.page}`}>
                 Open {todo.page} <ArrowRight size={14} />
               </Button>
             )}
@@ -254,6 +254,17 @@ function Assumptions({ combined, today, onOpenObligations }: { combined: Combine
                 : 'counted as it is'}
               {p.counted === 'held_as_is' && ' · kept as it is, nothing projected'}
             </span>
+            {p.accounts.length > 0 && (
+              <ul className="assumption-sublist">
+                {p.accounts.map(a => (
+                  <li key={a.account}>
+                    {a.display_name}: {a.evidence_through ? `proven through ${when(a.evidence_through, today)}` : 'nothing proves a balance yet'}
+                    {a.stale && ' · out of date'}
+                    {a.holds_back_start && ' · holding the start back'}
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         ))}
       </ul>

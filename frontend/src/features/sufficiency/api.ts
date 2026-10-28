@@ -71,6 +71,11 @@ export type CombinedAnswer = {
     counted: 'projected' | 'held_as_is' | 'not_counted' | 'ignored'
     why: string | null
     missing: { kind: string; label: string; reason: string }[]
+    /** Each account's own evidence; the answer starts on the least fresh one's date. */
+    accounts: {
+      account: string; display_name: string; evidence_through: string | null; age_days: number | null
+      stale: boolean; basis: 'statement' | 'observation' | 'certification' | null; holds_back_start: boolean
+    }[]
     starting_balance: string | null
     starting_balance_reported: string | null
     rate: string | null
@@ -88,7 +93,8 @@ export type CombinedAnswer = {
     origin: string; label: string; total: string; monthly: string
     items: { label: string; on: string; amount: string; conditional: boolean; currency: string }[]
   }[]
-  todos: { key: string; page: SufficiencyDestination; title: string; detail: string }[]
+  /** `anchor` is an element id on the destination page to land on. */
+  todos: { key: string; page: SufficiencyDestination; title: string; detail: string; anchor?: string }[]
   /** Owed money with no due date, so no day of the forecast pays it. */
   not_in_the_path?: {
     as_of: string | null

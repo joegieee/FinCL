@@ -39,6 +39,7 @@ its own reasons and no verdict at all. A missing answer must never read as
 
 from __future__ import annotations
 
+import calendar
 import re
 import sqlite3
 from datetime import date
@@ -50,6 +51,7 @@ from ..db import connect_readonly
 from ..forecast.engine import HORIZON_MONTHS, cash_timeline_from
 from ..money import ExactMoney, format_decimal
 from ..obligations.queries import obligations_page_from
+from ..position import account_freshness_from
 from ..read_cache import request_cache
 from ..reporting_currency.models import CURRENCY_REGISTRY
 from ..reporting_currency.queries import reporting_policy
@@ -421,9 +423,26 @@ def _income(
     return rows
 
 
+_COVERAGE = "setup-coverage"
+
+
+def _months(start: str, end: str) -> list[str]:
+    """Every YYYY-MM month an inclusive date interval touches."""
+    months: list[str] = []
+    year, month = int(start[:4]), int(start[5:7])
+    while f"{year:04d}-{month:02d}" <= end[:7]:
+        months.append(f"{year:04d}-{month:02d}")
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return months
+
+
+def _month_label(month: str) -> str:
+    return f"{calendar.month_abbr[int(month[5:7])]} {month[:4]}"
+
+
 def _todos(
     timeline: dict[str, Any], *, account_names: dict[str, str], cutoff: str | None,
-    pockets: list[dict[str, Any]],
+    pockets: list[dict[str, Any]], freshness: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """What would make the answer better, most useful first, each pointing at
     the page that fixes it. Grouped so one fix reads as one item, never as one
@@ -434,14 +453,20 @@ def _todos(
     def name(account: str | None) -> str:
         return account_names.get(account or "", account or "an account")
 
-    recent = sorted({name(i.get("account_id")) for i in items
-                     if i.get("output") == "cash" and cutoff and str(i.get("start", "")) > cutoff})
-    if recent:
+    stale = [account for account in (freshness or {}).get("accounts", []) if account["stale"]]
+    if stale:
+        named = "; ".join(
+            f"{account['display_name']}, proven through {account['evidence_through']}"
+            f" ({account['age_days']} days ago)"
+            if account["evidence_through"]
+            else f"{account['display_name']}, with nothing that proves a balance"
+            for account in stale
+        )
+        start = f" The answer starts from {cutoff}, the last day every account is proven." if cutoff else ""
         todos.append({
-            "key": "recent-statements", "page": _FIX_PAGE["imports"],
+            "key": "recent-statements", "page": _FIX_PAGE["imports"], "anchor": _COVERAGE,
             "title": "Import your latest statements",
-            "detail": f"Nothing has been imported after {cutoff}, so the answer starts from that day. "
-                      f"Accounts: {', '.join(recent)}.",
+            "detail": f"Your statements are out of date for: {named}.{start}",
             "since": cutoff,
         })
 
@@ -500,6 +525,7 @@ def _todos(
         own[todo["key"]] = {
             "key": str(todo["key"]), "page": str(todo["page"]),
             "title": str(todo["title"]), "detail": str(todo["detail"]),
+            **({"anchor": str(todo["anchor"])} if todo.get("anchor") else {}),
         }
     todos.extend(own.values())
 
@@ -510,18 +536,22 @@ def _todos(
             "detail": "Some incoming payments haven't been classified, so they may be missing as income.",
         })
 
-    older = sorted(
-        {name(i.get("account_id")) for i in items
-         if i.get("output") == "cash" and cutoff and str(i.get("end", "")) <= cutoff}
-        | {str(i.get("account_name") or name(i.get("account_id"))) for i in items
-           if i.get("output") == "baseline" and i.get("task") == "import-missing"}
-    )
-    if older:
+    gaps: dict[str, set[str]] = {}
+    for i in items:
+        older_cash = i.get("output") == "cash" and cutoff and str(i.get("end", "")) <= cutoff
+        baseline = i.get("output") == "baseline" and i.get("task") == "import-missing"
+        if (older_cash or baseline) and i.get("start") and i.get("end"):
+            account = str(i.get("account_name") or name(i.get("account_id")))
+            gaps.setdefault(account, set()).update(_months(str(i["start"]), str(i["end"])))
+    if gaps:
         todos.append({
-            "key": "statement-gaps", "page": _FIX_PAGE["imports"],
+            "key": "statement-gaps", "page": _FIX_PAGE["imports"], "anchor": _COVERAGE,
             "title": "Fill gaps in older statements",
-            "detail": "Some months are missing, so the starting balance and your usual spending "
-                      f"can't be fully checked: {', '.join(older)}.",
+            "detail": "No statement covers these months, so the starting balance and your usual "
+                      "spending can't be fully checked: " + "; ".join(
+                          f"{account}: {', '.join(_month_label(m) for m in sorted(months))}"
+                          for account, months in sorted(gaps.items())
+                      ) + ".",
         })
 
     observed = sorted({str(i.get("account_name") or name(i.get("account_id"))) for i in items
@@ -623,6 +653,7 @@ def _not_in_the_path(
 def combined_answer(
     timeline: dict[str, Any], *, rates: dict[str, Fraction | None], reporting_currency: str,
     scale: int, account_names: dict[str, str] | None = None, owed: list[dict[str, Any]] | None = None,
+    freshness: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One answer across every pocket, in the reporting currency."""
     by_currency: dict[str, Any] = timeline.get("by_currency") or {}
@@ -642,6 +673,15 @@ def combined_answer(
             "missing": [
                 {"kind": item["kind"], "label": item["label"], "reason": item["reason"]}
                 for item in cell.get("missing_outflows", [])
+            ],
+            # How fresh each account's own evidence is; the start is the least fresh.
+            "accounts": [
+                {key: account[key] for key in (
+                    "account", "display_name", "evidence_through", "age_days", "stale",
+                    "basis", "holds_back_start",
+                )}
+                for account in (freshness or {}).get("accounts", [])
+                if currency in account["currencies"]
             ],
             "starting_balance": balance,
             "starting_balance_reported": (
@@ -730,7 +770,10 @@ def combined_answer(
             sum((_fraction(row["total"]) for row in where_it_goes), start=Fraction(0)) / HORIZON_MONTHS,
             scale,
         ),
-        "todos": _todos(timeline, account_names=account_names or {}, cutoff=cutoff, pockets=pockets),
+        "todos": _todos(
+            timeline, account_names=account_names or {}, cutoff=cutoff, pockets=pockets,
+            freshness=freshness,
+        ),
         "not_in_the_path": {"as_of": cutoff, **_not_in_the_path(
             timeline, owed or [], {c: rates.get(c) for c in rates},
             lowest=_fraction(base["lowest"]) if base.get("lowest") is not None else None, scale=scale,
@@ -787,6 +830,7 @@ def _sufficiency_page(connection: sqlite3.Connection, *, today: date) -> dict[st
     combined = combined_answer(
         timeline, rates=owed_rates, reporting_currency=reporting_currency,
         scale=definition.minor_unit_scale if definition else 2, account_names=account_names, owed=owed,
+        freshness=account_freshness_from(connection, today=today),
     )
     by_currency: dict[str, Any] = {}
     for currency, cell in (timeline.get("by_currency") or {}).items():

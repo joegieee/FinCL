@@ -1393,6 +1393,8 @@ def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> 
             "detail": str(task.get("note") or task.get("detail") or task),
             "task": task.get("kind"), "account_id": task.get("account_id"),
             "account_name": task.get("display_name"),
+            "start": (task.get("interval") or {}).get("start"),
+            "end": (task.get("interval") or {}).get("end"),
         })
 
     unlinked = manifest.get("unresolved_items", {}).get("unlinked_recurring", [])

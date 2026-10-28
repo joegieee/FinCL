@@ -190,5 +190,23 @@ class FundSourceTests(unittest.TestCase):
         self.assertTrue(any("Lease renewal was due on 2026-06-01" in item for item in timeline["limitations"]))
 
 
+
+class AnswerFreshnessTests(unittest.TestCase):
+    def test_the_answer_reads_each_accounts_freshness_and_asks_only_for_stale_ones(self) -> None:
+        from fincl.planning.sufficiency import sufficiency_page
+
+        database = rent_ledger()
+        fresh = sufficiency_page(database, today=TODAY)["combined_answer"]
+        stale = sufficiency_page(database, today=date(2026, 8, 1))["combined_answer"]
+
+        [account] = fresh["pockets"][0]["accounts"]
+        self.assertEqual((account["evidence_through"], account["age_days"], account["stale"]),
+                         ("2026-06-25", 6, False))
+        self.assertNotIn("recent-statements", [todo["key"] for todo in fresh["todos"]])
+        recent = next(todo for todo in stale["todos"] if todo["key"] == "recent-statements")
+        self.assertEqual((recent["page"], recent["anchor"]), ("Setup", "setup-coverage"))
+        self.assertIn("proven through 2026-06-25 (37 days ago)", recent["detail"])
+
+
 if __name__ == "__main__":
     unittest.main()
