@@ -8,7 +8,7 @@ afterEach(() => { cleanup(); apiMock.mockReset() })
 
 const envelope = { generation: 'g1', lens: 'recorded_flow', lens_note: 'Recorded lens.', country_list_version: 'v1' }
 const trip = { trip_id: '11111111-1111-4111-8111-111111111111', name: 'Trip A', start_on: '2026-01-10', end_on: '2026-01-15', countries: ['FR'], reason: 'r', entry_count: 1, review_count: 1, totals_by_currency: { SGD: { gross_cost: '30.00', refunds: '0.00', net_cost: '30.00', entry_count: 1 } } }
-const row = (anchor: string, merchant: string, assignment: string, country: string | null) => ({ anchor, on: '2026-01-11', end: '2026-01-11', date_precision: 'DAY', merchant, category_key: 'Travel', account: 'a', currency: 'SGD', cost_amount: '30.00', refund_amount: '0.00', country, country_basis: country ? 'operator' : 'unknown', assignment, candidates: [] })
+const row = (anchor: string, merchant: string, assignment: string, country: string | null) => ({ anchor, on: '2026-01-11', end: '2026-01-11', date_precision: 'DAY', merchant, category_key: 'Travel', account: 'a', currency: 'SGD', cost_amount: '30.00', refund_amount: '0.00', country, country_basis: country ? 'operator' : 'unknown', assignment, candidates: [], categories: [{ category_key: 'Travel', cost_amount: '30.00', refund_amount: '0.00' }] })
 
 function routes(path: string, body?: unknown) {
   if (path === 'reporting/workspaces/trips') return Promise.resolve({ ...envelope, trips: [trip] })

@@ -506,8 +506,10 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
         contributors = native.get("contributors") or []
         for index, row in enumerate(native.get("by_category") or []):
             combine(["by_category", index, "cost_amount"], [
-                (["contributors", j, "cost_amount"], Fraction(1)) for j, member in enumerate(contributors)
-                if member.get("currency") == row.get("currency") and member.get("category_key") == row.get("category_key")])
+                (["contributors", j, "categories", k, "cost_amount"], Fraction(1))
+                for j, member in enumerate(contributors) if member.get("currency") == row.get("currency")
+                for k, part in enumerate(member.get("categories") or [])
+                if part.get("category_key") == row.get("category_key")])
 
     if resource.startswith("reports"):
         rows = native.get("rows") or []

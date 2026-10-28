@@ -33,6 +33,7 @@ LENS_NOTE = ("Recorded lens: each transaction counts on its own date and in its 
 ASSIGNMENT_POLICY = "trip-assignment-v1"
 _COST_BUCKETS = ("spending", "fees")
 _REFUND_BUCKETS = ("refunds", "reimbursements")
+_OWNER_SHARE = "#owner-residual"
 
 
 def _text(value: Decimal, scale: int) -> str:
@@ -66,23 +67,32 @@ def _load(connection: sqlite3.Connection, expected: str | None) -> dict[str, Any
         f"SELECT entry_id, origin_anchor, bucket, signed_coefficient, scale, currency, represented_start, "
         f"represented_end, date_precision, category_key, merchant_display, account FROM analysis_components "
         f"WHERE generation_token=? AND lens=? AND eligible=1 AND origin_kind='ENTRY' "
-        f"AND bucket IN ({','.join('?' * len(buckets))}) ORDER BY represented_start, entry_id",
+        f"AND bucket IN ({','.join('?' * len(buckets))}) ORDER BY represented_start, entry_id, component_id",
         (token, LENS, *buckets),
     ):
         entry = entries.setdefault(str(c["entry_id"]), {
-            "entry_id": str(c["entry_id"]), "anchor": str(c["origin_anchor"]),
+            "entry_id": str(c["entry_id"]), "anchor": str(c["origin_anchor"]).removesuffix(_OWNER_SHARE),
             "on": str(c["represented_start"])[:10], "end": str(c["represented_end"])[:10],
             "date_precision": str(c["date_precision"]), "currency": str(c["currency"]),
-            "merchant": str(c["merchant_display"]), "category_key": str(c["category_key"]),
-            "account": str(c["account"]), "cost": Decimal(0), "refund": Decimal(0), "scale": 2,
+            "merchant": str(c["merchant_display"]), "account": str(c["account"]),
+            "cost": Decimal(0), "refund": Decimal(0), "scale": 2, "categories": {},
         })
         amount = Decimal(int(c["signed_coefficient"])).scaleb(-int(c["scale"]))
         entry["scale"] = max(entry["scale"], int(c["scale"]))
+        part = entry["categories"].setdefault(str(c["category_key"]), {"cost": Decimal(0), "refund": Decimal(0)})
         if c["bucket"] in _COST_BUCKETS:
             entry["cost"] -= amount
+            part["cost"] -= amount
         else:
             entry["refund"] += amount
+            part["refund"] += amount
     for entry_id, entry in entries.items():
+        # A split bill carries the owner's share in its own category beside the
+        # bill's emptied amount; a slice with nothing in it is not a category of
+        # this transaction unless it is the only one.
+        slices = [{"category_key": key, **part} for key, part in entry["categories"].items() if part["cost"] or part["refund"]]
+        entry["categories"] = slices or [{"category_key": key, **part} for key, part in entry["categories"].items()][:1]
+        entry["category_key"] = max(entry["categories"], key=lambda part: part["cost"])["category_key"]
         if entry_id in countries:
             entry["country"] = countries[entry_id]
             entry["country_basis"] = "operator"
@@ -112,6 +122,11 @@ def _row(entry: dict[str, Any], trip: dict[str, Any] | None = None) -> dict[str,
         "cost_amount": _text(entry["cost"], entry["scale"]), "refund_amount": _text(entry["refund"], entry["scale"]),
         "country": entry["country"], "country_basis": entry["country_basis"],
         "assignment": entry["assignment"], "candidates": entry["candidates"],
+        "categories": [
+            {"category_key": part["category_key"], "cost_amount": _text(part["cost"], entry["scale"]),
+             "refund_amount": _text(part["refund"], entry["scale"])}
+            for part in entry["categories"]
+        ],
     }
     if trip is not None:
         row["outside_window"] = not (trip["start_on"] <= entry["on"] and entry["end"] <= trip["end_on"])
@@ -181,9 +196,10 @@ def trip_detail_from(connection: sqlite3.Connection, trip_id: str, *, expected: 
     review = _review(trip_id, entries)
     by_category: dict[tuple[str, str], list[Any]] = {}
     for entry in members:
-        cell = by_category.setdefault((entry["currency"], entry["category_key"]), [Decimal(0), 2])
-        cell[0] += entry["cost"]
-        cell[1] = max(cell[1], entry["scale"])
+        for part in entry["categories"]:
+            cell = by_category.setdefault((entry["currency"], part["category_key"]), [Decimal(0), 2])
+            cell[0] += part["cost"]
+            cell[1] = max(cell[1], entry["scale"])
     in_window = [e for e in entries.values() if trip_id in e["in_windows"]]
     return {
         "generation": state["token"], "lens": LENS, "lens_note": LENS_NOTE,

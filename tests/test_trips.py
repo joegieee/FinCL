@@ -203,6 +203,42 @@ class TripTests(unittest.TestCase):
         ])
         self.assertEqual(self.client.get("/api/v1/trips").json()["trips"], [])
 
+    def test_a_split_bills_own_share_counts_under_its_own_category(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        self.country("Meal", "FR")
+        meal, sam = self.anchor("Meal"), str(uuid.uuid4())
+        self.batch([
+            {"kind": "PERSONAL_DEBT_OPEN", "anchors": {"debt": sam},
+             "payload": {"direction": "RECEIVABLE", "currency": "SGD", "counterparty_label": "Sam",
+                         "opened_on": "2026-01-10", "due_on": None, "reason": "Split the meal"}},
+            {"kind": "PERSONAL_DEBT_EVENT_SET", "anchors": {"debt": sam, "event": str(uuid.uuid4())},
+             "payload": {"event_kind": "EXPENSE_PAID_FOR_OTHER", "direction": "RECEIVABLE",
+                         "principal_amount": "20.00", "effective_on": "2026-01-10",
+                         "entry_allocations": [{"entry_anchor": meal, "principal_amount": "20.00", "interest_amount": "0.00",
+                                                "fee_amount": "0.00", "separate_fee_amount": "0.00"}],
+                         "opening_balance": False, "expense_category": None, "reason": "Split the meal"}},
+            {"kind": "ENTRY_RESIDUAL_SET", "anchors": {"entry": meal},
+             "payload": {"expense_amount": "10.00", "expense_category": "Food & Dining / Dining Out",
+                         "reason": "Split the meal"}},
+        ])
+        detail = self.detail(trip_a)
+        self.assertEqual(detail["by_category"],
+                         [{"currency": "SGD", "category_key": "Food & Dining / Dining Out", "cost_amount": "10.00"}])
+        row = detail["contributors"][0]
+        self.assertEqual((row["anchor"], row["category_key"], row["cost_amount"]),
+                         (meal, "Food & Dining / Dining Out", "10.00"))
+        reported = self.client.get(f"/api/v1/reporting/workspaces/trips/{trip_a}").json()
+        values = {tuple(a["path"]): a["value"] for a in reported["amounts"]}
+        self.assertEqual(values[("by_category", 0, "cost_amount")]["reported"]["value"], "10.00")
+        report = self.client.post("/api/v1/reports/preview", headers=self._headers(), json={
+            "name": "By category", "lens": "recorded_flow", "group_by": ["category"], "columns": ["gross_cost"],
+            "scope": {"window": {"kind": "all"}, "currencies": [], "accounts": [], "trips": [trip_a], "countries": [],
+                      "categories": ["Food & Dining / Dining Out"]},
+        })
+        self.assertEqual(report.status_code, 200, report.text)
+        self.assertEqual([(r["group"][0]["value"], r["gross_cost"], r["entry_count"]) for r in report.json()["rows"]],
+                         [("Food & Dining / Dining Out", "10.00", 1)])
+
     def test_a_row_ambiguous_between_other_trips_is_another_country_here(self) -> None:
         self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
         self.trip("Trip B", "2026-01-10", "2026-01-15", ["FR"])

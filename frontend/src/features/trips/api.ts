@@ -37,6 +37,7 @@ export type ContextRow = {
   country_basis: 'operator' | 'unknown'
   assignment: Assignment
   candidates: string[]
+  categories: { category_key: string; cost_amount: string; refund_amount: string }[]
   outside_window?: boolean
 }
 

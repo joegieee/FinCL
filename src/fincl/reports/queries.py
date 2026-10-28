@@ -106,18 +106,24 @@ def evaluate(
 
     group_by: list[str] = list(definition["group_by"])
     cells: dict[tuple[Any, ...], dict[str, Any]] = {}
-    for entry in state["entries"].values():
+    counted: dict[str, set[str]] = {}
+    # One slice per category of a transaction: a split bill's own share counts
+    # under its own category, not the bill's.
+    slices = ({**entry, "category_key": part["category_key"], "cost": part["cost"], "refund": part["refund"]}
+              for entry in state["entries"].values() for part in entry["categories"])
+    for entry in slices:
         if not keep(entry):
             continue
         keys = tuple(key_of(entry, key) for key in group_by)
         cell = cells.setdefault((*keys, entry["currency"]), {
             "group": [{"key": key, "value": value, "label": label} for key, (value, label) in zip(group_by, keys, strict=True)],
-            "currency": entry["currency"], "gross": Decimal(0), "refunds": Decimal(0), "count": 0, "scale": 2,
+            "currency": entry["currency"], "gross": Decimal(0), "refunds": Decimal(0), "entries": set(), "scale": 2,
             "parts": {},
         })
         cell["gross"] += entry["cost"]
         cell["refunds"] += entry["refund"]
-        cell["count"] += 1
+        cell["entries"].add(entry["entry_id"])
+        counted.setdefault(entry["currency"], set()).add(entry["entry_id"])
         cell["scale"] = max(cell["scale"], entry["scale"])
         for kind, value in (("cost", entry["cost"]), ("refund", entry["refund"])):
             if value:
@@ -129,7 +135,7 @@ def evaluate(
         {
             "group": cell["group"], "currency": cell["currency"],
             "gross_cost": _text(cell["gross"], cell["scale"]), "refunds": _text(cell["refunds"], cell["scale"]),
-            "net_cost": _text(cell["gross"] - cell["refunds"], cell["scale"]), "entry_count": cell["count"],
+            "net_cost": _text(cell["gross"] - cell["refunds"], cell["scale"]), "entry_count": len(cell["entries"]),
             # Daily parts behind each total, so each is valued at its own date.
             "cost_parts": [{"on": on, "currency": cell["currency"], "kind": kind, "amount": _text(value, scale)}
                            for (on, kind), (value, scale) in sorted(cell["parts"].items())],
@@ -143,10 +149,10 @@ def evaluate(
         rows.sort(key=lambda row: (row["currency"], -row["_sort"], [str(g["value"] or "") for g in row["group"]]))
     totals: dict[str, dict[str, Any]] = {}
     for row in rows:
-        total = totals.setdefault(row["currency"], {"gross": Decimal(0), "refunds": Decimal(0), "count": 0, "scale": 2})
+        total = totals.setdefault(row["currency"], {"gross": Decimal(0), "refunds": Decimal(0),
+                                                    "count": len(counted[row["currency"]]), "scale": 2})
         total["gross"] += Decimal(row["gross_cost"])
         total["refunds"] += Decimal(row["refunds"])
-        total["count"] += row["entry_count"]
         total["scale"] = max(total["scale"], row.pop("_scale"))
         del row["_sort"]
     return {
