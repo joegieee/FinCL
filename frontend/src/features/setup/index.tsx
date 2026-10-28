@@ -94,7 +94,7 @@ function SetupContent({ setup, imports, loading, load, onImported, onReview, det
           <div><dt>Storage profile</dt><dd>{setup.storage_profile}</dd></div>
           <div><dt>Workspace root</dt><dd className="mono">{setup.workspace_root}</dd></div>
         </dl>
-        <p className="muted-note"><ShieldCheck size={13} /> New ledgers and switching are granted by the host launcher (<code>fincl setup --workspace-root</code>). This screen never takes an absolute path from the browser.</p>
+        <p className="muted-note"><ShieldCheck size={13} /> This is the ledger the app was started with. To work on a different ledger, start the app with that ledger; this screen never takes a file path from the browser.</p>
       </Card>
 
       <SetupCoverage generation={generation} reloadKey={reloadKey} onSaved={onImported} />
