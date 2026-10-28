@@ -52,6 +52,7 @@ from .db import (
     SCHEMA_28_TABLES_SQL,
     SCHEMA_29_TABLES_SQL,
     SCHEMA_30_TABLES_SQL,
+    SCHEMA_31_TABLES_SQL,
     SCHEMA_VERSION,
     connect_sqlite,
 )
@@ -278,6 +279,11 @@ def _migrate_29_to_30(connection: sqlite3.Connection) -> None:
     _apply_table_ddl(connection, SCHEMA_30_TABLES_SQL)
 
 
+def _migrate_30_to_31(connection: sqlite3.Connection) -> None:
+    """Add the schema-31 planned-flow tables; no data rewrite."""
+    _apply_table_ddl(connection, SCHEMA_31_TABLES_SQL)
+
+
 # The checksum is an immutable hash of the exact DDL the step applies, so a later
 # edit to that DDL is a new migration rather than a silent change under one id.
 MIGRATION_8_TO_9_CHECKSUM = "sha256:" + hashlib.sha256(
@@ -346,6 +352,9 @@ MIGRATION_28_TO_29_CHECKSUM = "sha256:" + hashlib.sha256(
 MIGRATION_29_TO_30_CHECKSUM = "sha256:" + hashlib.sha256(
     SCHEMA_30_TABLES_SQL.encode()
 ).hexdigest()
+MIGRATION_30_TO_31_CHECKSUM = "sha256:" + hashlib.sha256(
+    SCHEMA_31_TABLES_SQL.encode()
+).hexdigest()
 
 # Keyed by the version each migration upgrades *from*.
 MIGRATIONS: dict[int, Migration] = {
@@ -371,6 +380,7 @@ MIGRATIONS: dict[int, Migration] = {
     27: Migration(27, 28, MIGRATION_27_TO_28_CHECKSUM, _migrate_27_to_28),
     28: Migration(28, 29, MIGRATION_28_TO_29_CHECKSUM, _migrate_28_to_29),
     29: Migration(29, 30, MIGRATION_29_TO_30_CHECKSUM, _migrate_29_to_30),
+    30: Migration(30, 31, MIGRATION_30_TO_31_CHECKSUM, _migrate_30_to_31),
 }
 
 

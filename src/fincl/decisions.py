@@ -50,6 +50,8 @@ from .installments import (
     resolve_installments,
     validate_installment_payload,
 )
+from .planned.models import PLANNED_DECISION_KINDS
+from .planned.projection import apply_planned
 from .planning import PLANNING_DECISION_KINDS, apply_planning
 from .position import (
     POSITION_DECISION_KINDS,
@@ -133,6 +135,7 @@ KNOWN_DECISION_KINDS = frozenset(
     | RESERVE_DECISION_KINDS
     | CONTEXT_DECISION_KINDS
     | REPORT_DECISION_KINDS
+    | PLANNED_DECISION_KINDS
 )
 
 # Anchor recipes that this build once wrote but has since superseded. A record
@@ -305,6 +308,10 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "personal_debts",
             "card_repayment_plans",
             "recurring_occurrence_amounts",
+            "planned_matches",
+            "planned_resolutions",
+            "planned_occurrences",
+            "planned_flows",
             "card_payment_allocations",
             "card_limit_observations",
             "card_facility_accounts",
@@ -504,6 +511,11 @@ def _apply_record(
         apply_inbound_rule(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq)
     elif record.decision_kind in REPORT_DECISION_KINDS:
         apply_report(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq)
+    elif record.decision_kind in PLANNED_DECISION_KINDS:
+        try:
+            apply_planned(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq)
+        except FinCLError as exc:
+            raise FinCLError(f"decision journal record {record.seq}: {exc}") from exc
     elif record.decision_kind in CONTEXT_DECISION_KINDS:
         apply_context(connection, kind=record.decision_kind, anchors=record.anchors, payload=record.payload, journal_seq=record.seq, resolve_anchor=lambda anchor: resolve_anchor(connection, anchor))
     elif record.decision_kind in DEBT_DECISION_KINDS:
