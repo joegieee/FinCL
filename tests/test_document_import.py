@@ -1244,54 +1244,41 @@ class DocumentPersistenceTests(unittest.TestCase):
         DBS_PERSIST_SOURCE.is_file() and PAYLAH_PERSIST_SOURCE.is_file(),
         "DBS/PayLah persistence statements unavailable",
     )
-    def test_different_hash_for_same_statement_is_visible_and_quarantined(self):
+    def test_a_redownload_with_different_bytes_is_the_same_statement(self):
         source = DBS_PERSIST_SOURCE
         self.service.import_paylah(PAYLAH_PERSIST_SOURCE)
         first = self.service.import_dbs(source)
         with closing(self.connect()) as connection:
-            confirmed_before_conflict = connection.execute(
+            confirmed_before = connection.execute(
                 "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
             ).fetchone()[0]
-        self.assertGreater(confirmed_before_conflict, 0)
-        corrected = self.root / "corrected.pdf"
-        shutil.copyfile(source, corrected)
-        with corrected.open("ab") as stream:
+        self.assertGreater(confirmed_before, 0)
+        redownloaded = self.root / "redownloaded.pdf"
+        shutil.copyfile(source, redownloaded)
+        with redownloaded.open("ab") as stream:
             stream.write(b"\n% distinct candidate bytes\n")
 
-        second = self.service.import_dbs(corrected)
+        second = self.service.import_dbs(redownloaded)
 
-        self.assertEqual(first.status, "ACCEPTED")
-        self.assertEqual(second.status, "QUARANTINED")
+        self.assertEqual((first.status, second.status), ("ACCEPTED", "ACCEPTED"))
         self.assertNotEqual(first.evidence_sha256, second.evidence_sha256)
+        self.assertIsNotNone(second.superseded_by)
         with closing(self.connect()) as connection:
             states = connection.execute(
-                "SELECT selection_state, conflict_state FROM statements WHERE source_type = 'DBS_CONSOLIDATED' ORDER BY evidence_sha256"
+                "SELECT evidence_sha256, selection_state, conflict_state FROM statements "
+                "WHERE source_type = 'DBS_CONSOLIDATED'"
             ).fetchall()
-            self.assertEqual({tuple(row) for row in states}, {("CANDIDATE", "CONFLICT")})
             self.assertEqual(
-                connection.execute(
-                    "SELECT count(*) FROM extraction_issues WHERE code = 'STATEMENT_CONTENT_CONFLICT' AND severity = 'BLOCKING'"
-                ).fetchone()[0],
-                1,
-            )
-            self.assertEqual(
-                connection.execute(
-                    "SELECT sum(e.analytics_eligible) FROM ledger_entries e JOIN statements s ON s.id = e.statement_id WHERE e.source_family = 'DOCUMENT' AND s.source_type = 'DBS_CONSOLIDATED'"
-                ).fetchone()[0],
-                0,
+                {(row[0], row[1], row[2]) for row in states},
+                {(first.evidence_sha256, "SELECTED", "NONE"),
+                 (second.evidence_sha256, "CANDIDATE", "NONE")},
             )
             self.assertEqual(
                 connection.execute(
                     "SELECT count(*) FROM transfer_links WHERE status = 'CONFIRMED'"
                 ).fetchone()[0],
-                0,
+                confirmed_before,
             )
-            rejected = connection.execute(
-                "SELECT evidence_json FROM transfer_links WHERE status = 'REJECTED'"
-            ).fetchall()
-            # Every link the conflicting statement had confirmed is revoked.
-            self.assertEqual(len(rejected), confirmed_before_conflict)
-            self.assertTrue(all("revocation" in json.loads(row[0]) for row in rejected))
 
     def test_phase2_money_columns_never_use_sqlite_real(self):
         connection = connect_sqlite(self.database)
