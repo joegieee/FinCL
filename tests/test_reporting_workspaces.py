@@ -81,9 +81,9 @@ class WorkspaceValuationTests(ApiTestBase):
 
     def test_historical_baseline_mean_values_months_before_combining(self) -> None:
         months = [{"month": "2026-01", "owner_cost_recorded": "10.00", "routine_variable_residual": "10.00",
-                   "unresolved_irregular": "0", "income": "0"},
+                   "unresolved_irregular": "0", "trip": "0", "income": "0"},
                   {"month": "2026-02", "owner_cost_recorded": "10.00", "routine_variable_residual": "10.00",
-                   "unresolved_irregular": "0", "income": "0"}]
+                   "unresolved_irregular": "0", "trip": "0", "income": "0"}]
         native = {"by_currency": {"USD": {"months": months, "fixed_recurring_monthly": "0",
                                           "variable_residual_monthly": "10.00", "total_observed_monthly": "10.00",
                                           "net_received_income_monthly": "0", "historical_surplus_monthly": "-10.00"}}}

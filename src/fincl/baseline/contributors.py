@@ -2,8 +2,9 @@
 
 Every owner-cost component of the month is assigned to exactly one partition
 term, using the estimator's own classification: a component bound to an active
-recurring commitment is ``identified_recurring``, a component the estimator
-held out under ``outlier-v1`` is ``unresolved_irregular``, refunds and
+recurring commitment is ``identified_recurring``, spending assigned to a trip
+is ``trip`` (with the trip it belongs to), a component the estimator held out
+under ``outlier-v1`` is ``unresolved_irregular``, refunds and
 reimbursements are ``adjustments`` (signed negative), and everything else is
 ``routine_variable_residual``. Each term's contributors sum to the figure the
 estimate published for that month, and the read says whether they do.
@@ -17,13 +18,14 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from ..context.queries import trip_assigned_entries
 from ..db import connect_readonly
 from ..errors import FinCLError
 from ..intervals import month_span
 from ..money import format_decimal
 from .estimators import _recurring_matched_from, baseline_estimate_from
 
-PARTS = ("identified_recurring", "unresolved_irregular", "routine_variable_residual", "adjustments")
+PARTS = ("identified_recurring", "trip", "unresolved_irregular", "routine_variable_residual", "adjustments")
 
 
 def baseline_contributors(database: Path, *, today: date, currency: str, month: str) -> dict[str, Any]:
@@ -52,9 +54,10 @@ def baseline_contributors_from(
     span_start, span_end = month_span(months[0]).start, month_span(months[-1]).end
     _, recurring_anchors = _recurring_matched_from(connection, token, span_start, span_end)
     irregular_ids = {entry["component_id"] for entry in cell["irregular_risk_entries"]}
+    on_trips = trip_assigned_entries(connection)
     rows = connection.execute(
         """
-        SELECT component_id, origin_anchor, bucket, category_key, merchant_display,
+        SELECT component_id, entry_id, origin_anchor, bucket, category_key, merchant_display,
                account, represented_start, date_precision, signed_coefficient, scale
         FROM analysis_components
         WHERE generation_token = ? AND lens = 'recorded_flow' AND currency = ? AND period = ?
@@ -72,6 +75,8 @@ def baseline_contributors_from(
             part, coefficient = "adjustments", -magnitude
         elif row["origin_anchor"] in recurring_anchors:
             part, coefficient = "identified_recurring", magnitude
+        elif row["entry_id"] in on_trips:
+            part, coefficient = "trip", magnitude
         elif row["component_id"] in irregular_ids:
             part, coefficient = "unresolved_irregular", magnitude
         else:
@@ -87,6 +92,7 @@ def baseline_contributors_from(
                 "bucket": row["bucket"],
                 "account": row["account"],
                 "amount": format_decimal(coefficient, int(row["scale"])),
+                "trip_id": on_trips.get(row["entry_id"]) if part == "trip" else None,
             }
         )
 

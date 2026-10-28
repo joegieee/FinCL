@@ -314,6 +314,15 @@ def trip_spend_to_date(connection: sqlite3.Connection, trip_id: str, currency: s
     summed exactly and rounded once. A part with no rate is listed under
     ``unvalued`` and left out of ``actual``, never guessed.
     """
+    state = _load(connection, None)
+    if trip_id not in state["trips"]:
+        raise FinCLError("that trip does not exist")
+    return _spend_from(connection, state, trip_id, currency, as_of)
+
+
+def _spend_from(
+    connection: sqlite3.Connection, state: dict[str, Any], trip_id: str, currency: str, as_of: str,
+) -> dict[str, Any]:
     from ..reporting_currency.models import currency_definition
     from ..valuation import (
         FLOW_RATE_V1,
@@ -325,9 +334,6 @@ def trip_spend_to_date(connection: sqlite3.Connection, trip_id: str, currency: s
         value_one,
     )
 
-    state = _load(connection, None)
-    if trip_id not in state["trips"]:
-        raise FinCLError("that trip does not exist")
     daily: dict[tuple[str, str], list[Any]] = {}
     for entry in state["entries"].values():
         if entry["trip"] != trip_id or entry["end"] > as_of:
@@ -361,6 +367,17 @@ def trip_spend_to_date(connection: sqlite3.Connection, trip_id: str, currency: s
         "trip_id": trip_id, "currency": currency, "as_of": as_of,
         "actual": quantize(total, scale=scale).text, "parts": parts, "unvalued": unvalued,
     }
+
+
+def trip_assigned_entries(connection: sqlite3.Connection) -> dict[str, str]:
+    """Every transaction counted toward a trip, by entry id, with its trip.
+
+    Assignment is derived on read from windows, countries and manual choices;
+    this is the one place outside this module that may ask for it, so the
+    baseline never re-derives it.
+    """
+    state = _load(connection, None)
+    return {entry_id: str(entry["trip"]) for entry_id, entry in state["entries"].items() if entry["trip"]}
 
 
 def entry_context(database: Path, anchor: str, *, expected: str | None = None) -> dict[str, Any]:

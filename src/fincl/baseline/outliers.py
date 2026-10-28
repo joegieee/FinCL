@@ -19,6 +19,8 @@ from __future__ import annotations
 import sqlite3
 from decimal import Decimal
 
+from ..context.queries import trip_assigned_entries
+
 OUTLIER_MULTIPLE = Decimal("3")
 OUTLIER_FLOOR = Decimal("150")
 OUTLIER_METHOD = "outlier-v1: entry ≥ 3× category median-month and ≥ 150"
@@ -41,12 +43,14 @@ def outlier_anchor_set(
 
     ``months`` restricts both the median basis and the flag to those periods;
     without it every recorded-flow period contributes.  Anchors bound to an
-    active confirmed recurring occurrence are never flagged.
+    active confirmed recurring occurrence are never flagged.  Spending on a
+    trip is neither flagged nor part of the median basis, as in the estimator.
     """
     if not token:
         return set()
+    on_trips = trip_assigned_entries(connection)
     rows = connection.execute(
-        """SELECT period, currency, category_key, origin_anchor,
+        """SELECT period, currency, category_key, origin_anchor, entry_id,
                   signed_coefficient, scale
              FROM analysis_components
             WHERE generation_token = ? AND lens = 'recorded_flow'
@@ -62,7 +66,8 @@ def outlier_anchor_set(
         )
     }
     scoped = [
-        row for row in rows if months is None or row["period"] in months
+        row for row in rows
+        if (months is None or row["period"] in months) and row["entry_id"] not in on_trips
     ]
     category_month: dict[tuple[str, str, str], Decimal] = {}
     for row in scoped:

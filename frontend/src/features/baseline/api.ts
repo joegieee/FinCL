@@ -71,6 +71,7 @@ export type MonthDecomposition = {
   month: string
   owner_cost_recorded: string
   identified_recurring: string
+  trip: string
   unresolved_irregular: string
   adjustments: string
   routine_variable_residual: string
@@ -86,6 +87,8 @@ export type CurrencyEstimate = {
   variable_residual_min: string
   variable_residual_max: string
   irregular_allowance_monthly: string
+  trip_allowance_monthly: string
+  trip_allowance_projected: boolean
   routine_lifestyle_baseline: string
   total_observed_monthly: string
   net_received_income_monthly: string
@@ -161,7 +164,7 @@ export type BaselineEstimate =
 
 export const loadBaselineEstimate = () => reportedApi<BaselineEstimate>('baseline/estimate')
 
-export type DecompositionPart = 'identified_recurring' | 'unresolved_irregular' | 'routine_variable_residual' | 'adjustments'
+export type DecompositionPart = 'identified_recurring' | 'trip' | 'unresolved_irregular' | 'routine_variable_residual' | 'adjustments'
 
 export type BaselineContributor = {
   component_id: string
@@ -173,6 +176,7 @@ export type BaselineContributor = {
   bucket: string
   account: string
   amount: string
+  trip_id: string | null
 }
 
 export type BaselineContributors =

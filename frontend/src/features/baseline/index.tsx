@@ -219,6 +219,7 @@ function EstimateCard({ currency, est, quality, monthCount, onOpenTransaction }:
         <div><dt>· median / min / max</dt><dd>{reportedMoney(est, 'variable_residual_median', currency)} · {reportedMoney(est, 'variable_residual_min', currency)} · {reportedMoney(est, 'variable_residual_max', currency)}</dd></div>
         <div><dt>Irregular allowance (mean)</dt><dd>{reportedMoney(est, 'irregular_allowance_monthly', currency)}</dd></div>
         <div><dt>· observed range</dt><dd>{rangeText(spread.irregular_allowance_monthly, currency)} · {spread.irregular_allowance_monthly.months_with_entries} of {monthCount} month{monthCount === 1 ? '' : 's'} with held-out entries</dd></div>
+        {est.trip_allowance_monthly && <div><dt>Trip allowance (mean)</dt><dd>{reportedMoney(est, 'trip_allowance_monthly', currency)}{est.trip_allowance_projected ? '' : ' · not projected'}</dd></div>}
         <div><dt>Total observed monthly</dt><dd>{reportedMoney(est, 'total_observed_monthly', currency)}</dd></div>
         <div><dt>· observed range</dt><dd>{rangeText(spread.total_observed_monthly, currency)}</dd></div>
         <div><dt>Net received income (mean)</dt><dd>{reportedMoney(est, 'net_received_income_monthly', currency)}</dd></div>
@@ -245,13 +246,14 @@ function EstimateCard({ currency, est, quality, monthCount, onOpenTransaction }:
         <tbody>{est.role_groups.map((group, i) => <tr key={`${group.category_key}:${group.cost_pattern}:${i}`}><td>{group.category_key}<small>{group.source_count} source row{group.source_count === 1 ? '' : 's'}</small></td><td>{group.cost_pattern.replaceAll('_', ' ')}</td><td>{group.essential_status}</td><td>{group.tier === null ? 'Unresolved' : `Tier ${group.tier}`}</td><td title={group.basis}>{group.review_status}</td><td>{reportedMoney(group, 'amount', currency)}</td></tr>)}</tbody>
       </table>}
       <table className="pocket-table">
-        <thead><tr><th>Month</th><th>Owner cost</th><th>Recurring</th><th>Irregular</th><th>Adjustments</th><th>Routine residual</th><th>Contributors</th></tr></thead>
+        <thead><tr><th>Month</th><th>Owner cost</th><th>Recurring</th><th>Trips</th><th>Irregular</th><th>Adjustments</th><th>Routine residual</th><th>Contributors</th></tr></thead>
         <tbody>
           {est.months.map(row => (
             <tr key={row.month}>
               <td>{row.month}</td>
               <td>{reportedMoney(row, 'owner_cost_recorded', currency)}</td>
               <td>{reportedMoney(row, 'identified_recurring', currency)}</td>
+              <td>{reportedMoney(row, 'trip', currency)}</td>
               <td>{reportedMoney(row, 'unresolved_irregular', currency)}</td>
               <td>{reportedMoney(row, 'adjustments', currency)}</td>
               <td>{reportedMoney(row, 'routine_variable_residual', currency)}{!row.reconciles && <small className="form-error">does not reconcile</small>}</td>

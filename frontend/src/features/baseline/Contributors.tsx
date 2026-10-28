@@ -8,6 +8,7 @@ import { loadBaselineContributors, type BaselineContributors as Contributors, ty
 
 export const PART_LABEL: Record<DecompositionPart, string> = {
   identified_recurring: 'Recurring',
+  trip: 'Trips',
   unresolved_irregular: 'Irregular (held out for review)',
   routine_variable_residual: 'Routine residual',
   adjustments: 'Adjustments (refunds and reimbursements)',
