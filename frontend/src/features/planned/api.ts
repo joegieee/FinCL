@@ -28,7 +28,7 @@ export type PlannedOccurrence = {
   overdue: boolean
   outcome: { outcome: 'done' | 'cancelled'; reason: string } | null
   in_forecast: boolean
-  forecast: { cases: string[]; amount: string; placements: { earliest: string; latest: string; amount: string; cases: string[]; overdue: boolean }[] } | null
+  forecast: { cases: string[]; amount: string; placements: { earliest: string; latest: string; amount: string; cases: string[]; overdue: boolean; actual: boolean }[] } | null
   forecast_note: string | null
   matches: PlannedMatch[]
   actual_parts: { on: string; amount: string }[]
@@ -78,6 +78,19 @@ export const loadCandidates = (flow: string, occurrence: string) =>
 export const loadAccountOptions = () => api<{ accounts: AccountOption[] }>('accounts').then(page => page.accounts)
 export const loadTripOptions = () => api<{ trips: TripOption[] }>('trips').then(page => page.trips)
 
+export type ImpactCase = { verdict: string | null; lowest: string | null; lowest_on: string | null; first_short_on: string | null; shortfall: string | null }
+export type ImpactAnswer = { answer: string | null; complete: boolean; reporting_currency: string | null; base: ImpactCase; cautious: ImpactCase }
+export type ImpactCell = { before: string | null; after: string | null; change: string | null }
+export type PlannedImpact = {
+  generation: string
+  flow: string
+  currency: string
+  before: ImpactAnswer
+  after: ImpactAnswer
+  flips: boolean
+  months: ({ month: string; currency: string; base: ImpactCell; cautious: ImpactCell })[]
+}
+
 export type FlowDraft = {
   name: string
   direction: Direction
@@ -90,6 +103,9 @@ export type FlowDraft = {
   link: { kind: 'trip'; id: string } | null
   reason: string
 }
+
+/** The answer with and without a draft item, worked out by the server. */
+export const loadImpact = (flow: string, draft: FlowDraft) => api<PlannedImpact>('planned/impact', { flow, payload: draft })
 
 export const flowSet = (flow: string, draft: FlowDraft) => ({ kind: 'PLANNED_FLOW_SET', anchors: { flow }, payload: { ...draft } })
 export const matchSet = (flow: string, occurrence: string, entry: string, amount: string, reason: string) =>

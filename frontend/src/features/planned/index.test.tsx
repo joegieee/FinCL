@@ -33,6 +33,14 @@ const page = {
   attention: [{ flow: FLOW, occurrence: '1', name: 'Course', direction: 'outflow', currency: 'SGD', latest: '2026-01-10', remaining: '280.00', question: 'Did this payment happen?', trip_linked: false }],
   rules: [],
 }
+const impact = {
+  generation: 'g1', flow: 'draft', currency: 'SGD', flips: true,
+  before: { answer: 'Yes', complete: true, reporting_currency: 'SGD', base: { verdict: 'enough', lowest: '80.26', lowest_on: '2026-07-20', first_short_on: null, shortfall: null },
+    cautious: { verdict: 'enough', lowest: '80.26', lowest_on: '2026-07-20', first_short_on: null, shortfall: null } },
+  after: { answer: 'No', complete: true, reporting_currency: 'SGD', base: { verdict: 'short', lowest: '-1,019.74', lowest_on: '2026-07-20', first_short_on: '2026-12-15', shortfall: '1019.74' },
+    cautious: { verdict: 'short', lowest: '-1,019.74', lowest_on: '2026-07-20', first_short_on: '2026-12-15', shortfall: '1019.74' } },
+  months: [{ month: '2026-12', currency: 'SGD', base: { before: '80.26', after: '-1119.74', change: '-1200.00' }, cautious: { before: '80.26', after: '-1119.74', change: '-1200.00' } }],
+}
 const candidates = {
   generation: 'g1', flow: FLOW, occurrence: '1', currency: 'SGD', planned: '300.00', remaining: '280.00', window: { from: '2025-12-27', to: '2026-01-24' },
   candidates: [{ entry: 'e1', on: '2026-01-11', merchant: 'ACADEMY', description: 'Academy', account: 'Current', amount: '280.00', available: '280.00', suggested_amount: '280.00', matched_here: null }],
@@ -42,6 +50,7 @@ function routes(path: string, body?: unknown) {
   if (path === 'reporting/workspaces/planned') return Promise.resolve(page)
   if (path === 'accounts') return Promise.resolve({ accounts: [{ id: 'a1', display_name: 'Current', currencies: ['SGD'] }] })
   if (path === 'trips') return Promise.resolve({ trips: [{ trip_id: 't1', name: 'Spring trip', start_on: '2026-03-01', end_on: '2026-03-07' }] })
+  if (path === 'planned/impact') return Promise.resolve(impact)
   if (path.startsWith('planned/match-candidates')) return Promise.resolve(candidates)
   if (path === 'preview' || path === 'commands' || path === 'batch') return Promise.resolve({ status: 'applied', body })
   return Promise.reject(new Error(`unexpected ${path}`))
@@ -76,9 +85,42 @@ describe('PlannedView', () => {
       occurrences: [{ key: '1', earliest: '2026-12-15', latest: '2026-12-15', amount: '1200' }],
       certainty: 'sure', baseline_treatment: 'irregular_allowance', link: null, reason: 'Old one is dying',
     })
-    expect(screen.getByRole('status')).toHaveTextContent(/going out: SGD 1,200.00 \(.*2026\)/)
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent(/going out: SGD 1,200.00 \(.*2026\)/)
     fireEvent.click(screen.getByRole('button', { name: 'Save planned item' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('applied'))
+  })
+
+  it('shows what the draft does to the answer before it can be saved', async () => {
+    await view()
+    fireEvent.click(screen.getByRole('button', { name: /Add planned spending or income/ }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Laptop' } })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-12-15' } })
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '1200' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Old one is dying' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview planned item' }))
+    const effect = (await screen.findByText(/with this — this changes the answer/)).closest('.planned-impact') as HTMLElement
+    expect(effect).toHaveTextContent('Yes before, No with this')
+    expect(within(effect).getByText(/Base case: lowest point SGD 80.26 on .* before, −?SGD 1,019.74/)).toBeInTheDocument()
+    expect(within(effect).getByText('December 2026')).toBeInTheDocument()
+    expect(within(effect).getAllByText('−SGD 1,200.00')).toHaveLength(2)
+    expect(sent('planned/impact')).toMatchObject({ flow: expect.any(String), payload: { name: 'Laptop', direction: 'outflow' } })
+  })
+
+  it('offers the trip’s dates as the window when a trip is linked', async () => {
+    await view()
+    fireEvent.click(screen.getByRole('button', { name: /Add planned spending or income/ }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Spring trip food' } })
+    fireEvent.change(await screen.findByLabelText('Trip'), { target: { value: 't1' } })
+    expect(screen.getByLabelText('When')).toHaveValue('trip')
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '500' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Budget' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview planned item' }))
+    await screen.findByRole('button', { name: 'Save planned item' })
+    expect(sent('preview').payload).toMatchObject({
+      occurrences: [{ key: '1', earliest: '2026-03-01', latest: '2026-03-07', amount: '500' }], link: { kind: 'trip', id: 't1' },
+    })
+    fireEvent.change(screen.getByLabelText('Trip'), { target: { value: '' } })
+    expect(screen.getByLabelText('When')).toHaveValue('day')
   })
 
   it('lists a monthly series as editable dates and income is always extra', async () => {
