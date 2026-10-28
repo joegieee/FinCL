@@ -141,6 +141,19 @@ class CashTimelineTrapTests(unittest.TestCase):
         self.assertEqual([e["source_id"] for e in cell["conservative"]["events"]["items"]], ["repair"])
         self.assertTrue(cell["monotonicity"]["holds"])
 
+    def test_money_in_a_currency_with_no_pocket_is_named_not_dropped(self) -> None:
+        fee = ForecastEvent(
+            event_id="visa", source_id="visa", currency="USD", amount="160.00",
+            column=COLUMN_IRREGULAR, direction=DIRECTION_OUT, label="Visa fee", on="2026-03-02",
+        )
+
+        result = build_cash_timeline(_manifest(), sourced_events=[fee])
+
+        self.assertNotIn("USD", result["by_currency"])
+        self.assertIn("Visa fee (USD): there is no USD account to pay it from or into, so it isn't counted.",
+                      result["answer_gaps"])
+        self.assertTrue(any("no USD cash pocket" in limit for limit in result["limitations"]))
+
     def test_a_scheduled_commitment_is_never_an_undated_obligation(self) -> None:
         annual = {
             "obligation_id": "recurring:insurance", "origin": "recurring_commitment",

@@ -1520,6 +1520,17 @@ def build_cash_timeline(
     # Sentences for the reader: money that should be on the path but is not,
     # for a reason no page can fix yet.
     answer_gaps: list[str] = []
+    pockets = set(manifest.get("cash", {}).get("by_currency", {}))
+    for currency in sorted({event.currency for event in sourced_events} - pockets):
+        labels = sorted({event.label for event in sourced_events if event.currency == currency})
+        global_limits.append(
+            f"{len(labels)} sourced item(s) in {currency} have no {currency} cash pocket "
+            "to settle against and are not forecast"
+        )
+        answer_gaps.append(
+            f"{', '.join(labels)} ({currency}): there is no {currency} account to pay "
+            "it from or into, so it isn't counted."
+        )
     spending_only = manifest.get("income", {}).get("classified_income_evidenced") is False
     possible_income = [
         event
@@ -2200,6 +2211,14 @@ def _cash_timeline(
         *obligation_limits, *income_limits, *card_limits,
         *(limit for source in extra for limit in source.limitations),
     ]
+    result["answer_gaps"].extend(
+        f"{obligation['label']} ({obligation['currency']}): how it is paid isn't known, so it isn't counted."
+        for obligation in obligations.get("obligations", [])
+        if obligation.get("stays_visible", True) and obligation.get("direction") == "outflow"
+        and obligation["origin"] != "card_statement"
+        and obligation.get("cash_effect") not in ("bank_withdrawal", None, "via_card_statement")
+    )
+    result["answer_gaps"].extend(limit for source in extra for limit in source.limitations)
     result["limitations"].extend(adapter_limits)
     for card in missing_cards:
         cell = result["by_currency"].get(str(card["currency"]))
