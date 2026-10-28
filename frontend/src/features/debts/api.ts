@@ -48,10 +48,21 @@ export type DebtDetail = {
   debt: DebtCard & { principal_history: DebtEvent[]; reason: string }
 }
 
-export function loadDebts(opts: { asOf?: string; generation: string }): Promise<DebtsPage> {
+/** Every debt, following the server's pages: the lists, the split form and the
+ * classification hand-off all need the whole set, not the first page of it. */
+export async function loadDebts(opts: { asOf?: string; generation: string }): Promise<DebtsPage> {
   const q = new URLSearchParams({ generation: opts.generation, limit: '200' })
   if (opts.asOf) q.set('as_of', opts.asOf)
-  return reportedApi<DebtsPage>('debts?' + q)
+  const page = await reportedApi<DebtsPage>('debts?' + q)
+  for (let cursor = page.next_cursor; cursor; ) {
+    q.set('cursor', cursor)
+    const next = await reportedApi<DebtsPage>('debts?' + q)
+    page.i_owe.push(...next.i_owe)
+    page.owed_to_me.push(...next.owed_to_me)
+    cursor = next.next_cursor
+  }
+  page.next_cursor = null
+  return page
 }
 
 export function loadDebtDetail(id: string, opts: { asOf?: string; generation: string }): Promise<DebtDetail> {
