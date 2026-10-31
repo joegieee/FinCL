@@ -125,6 +125,16 @@ describe('ForecastView', () => {
     expect(screen.getByText('Reporting in SGD', { exact: false })).toBeInTheDocument()
   })
 
+  it('offers a way in to add something you know is coming', async () => {
+    loadReportedForecast.mockResolvedValue(page())
+    loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
+    const onOpenPlanned = vi.fn()
+    render(<ForecastView onOpenPlanned={onOpenPlanned} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Add something you know is coming/ }))
+
+    expect(onOpenPlanned).toHaveBeenCalled()
+  })
+
   it('renders the combined totals card and an unavailable combined minimum with its reason', async () => {
     loadReportedForecast.mockResolvedValue(page())
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })

@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+import uuid
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,7 @@ from fincl.forecast.sources import SourceContext, SourceResult
 from fincl.refresh import refresh_ledger
 from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 from tests.test_obligations import _rows
+from tests.test_planned_flows import _flow, _occurrence
 
 TODAY = date(2026, 7, 1)
 
@@ -188,6 +190,52 @@ class FundSourceTests(unittest.TestCase):
 
         self.assertEqual(base_events(timeline, "fund:"), [])
         self.assertTrue(any("Lease renewal was due on 2026-06-01" in item for item in timeline["limitations"]))
+
+
+class AnswerFreshnessTests(unittest.TestCase):
+    def test_the_answer_reads_each_accounts_freshness_and_asks_only_for_stale_ones(self) -> None:
+        from fincl.planning.sufficiency import sufficiency_page
+
+        database = rent_ledger()
+        fresh = sufficiency_page(database, today=TODAY)["combined_answer"]
+        stale = sufficiency_page(database, today=date(2026, 8, 1))["combined_answer"]
+
+        [account] = fresh["pockets"][0]["accounts"]
+        self.assertEqual((account["evidence_through"], account["age_days"], account["stale"]),
+                         ("2026-06-25", 6, False))
+        self.assertNotIn("recent-statements", [todo["key"] for todo in fresh["todos"]])
+        recent = next(todo for todo in stale["todos"] if todo["key"] == "recent-statements")
+        self.assertEqual((recent["page"], recent["anchor"]), ("Setup", "setup-coverage"))
+        self.assertIn("proven through 2026-06-25 (37 days ago)", recent["detail"])
+
+
+class PlannedInTheAnswerTests(unittest.TestCase):
+    def test_planned_money_reaches_the_breakdown_the_upside_and_the_todos(self) -> None:
+        from fincl.planned.forecast import planned_source
+        from fincl.planning.sufficiency import sufficiency_page
+
+        database = rent_ledger()
+        for name, direction, certainty, occurrence in (
+            ("Laptop", "outflow", "sure", _occurrence("a", "2026-08-10", "600.00")),
+            ("Parking fine", "outflow", "sure", _occurrence("a", "2026-06-10", "50.00")),
+            ("Tax refund", "inflow", "maybe", _occurrence("a", "2026-09-01", "200.00")),
+        ):
+            _decide(database, "PLANNED_FLOW_SET", {"flow": str(uuid.uuid4())}, _flow(
+                name=name, direction=direction, certainty=certainty, occurrences=[occurrence],
+            ))
+        refresh_ledger(database)
+
+        with patch.object(sources, "EXTRA_SOURCES", [*sources.EXTRA_SOURCES, planned_source]):
+            answer = sufficiency_page(database, today=TODAY)["combined_answer"]
+
+        planned = next(row for row in answer["where_it_goes"] if row["origin"] == "planned")
+        self.assertEqual(planned["label"], "Planned spending")
+        self.assertEqual(planned["total"], "650.00")
+        self.assertEqual([(row["label"], row["amount"]) for row in answer["upside"]], [("Tax refund", "200.00")])
+        overdue = next(todo for todo in answer["todos"] if todo["key"] == "planned-overdue")
+        self.assertEqual(overdue["page"], "Planned")
+        self.assertIn("Parking fine was due by 2026-06-10", overdue["detail"])
+        self.assertNotIn("Tax refund", [row["label"] for row in answer["income"]])
 
 
 if __name__ == "__main__":

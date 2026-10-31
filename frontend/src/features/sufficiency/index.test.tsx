@@ -28,8 +28,9 @@ function combined(over: Record<string, unknown> = {}) {
     base: kase(), cautious: kase(), only_safe_in_the_base_case: false,
     reserve: { available: false, target: null },
     pockets: [
-      { currency: 'SGD', counted: 'projected', why: null, starting_balance: '400.00', starting_balance_reported: '400.00', rate: null, rate_display: null },
-      { currency: 'USD', counted: 'projected', why: null, starting_balance: '5000.00', starting_balance_reported: '6250.00', rate: '5/4', rate_display: '1.25' },
+      { currency: 'SGD', counted: 'projected', why: null, starting_balance: '400.00', starting_balance_reported: '400.00', rate: null, rate_display: null,
+        accounts: [{ account: 'a1', display_name: 'Everyday', evidence_through: '2025-12-10', age_days: 36, stale: true, basis: 'statement', holds_back_start: true }] },
+      { currency: 'USD', counted: 'projected', why: null, starting_balance: '5000.00', starting_balance_reported: '6250.00', rate: '5/4', rate_display: '1.25', accounts: [] },
     ],
     income: [{ label: 'ACME CLIENT LTD', currency: 'USD', count: 6, next_on: '2026-01-25', confidence: 'likely', native_total: '9000.00', total: '11250.00', in_cautious_case: false }],
     where_it_goes: [
@@ -120,8 +121,8 @@ describe('SufficiencyView', () => {
     loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
       complete: false,
       pockets: [
-        { currency: 'SGD', counted: 'projected', why: null, starting_balance: '400.00', starting_balance_reported: '400.00', rate: null, rate_display: null },
-        { currency: 'THB', counted: 'not_counted', why: 'no exchange rate to the reporting currency is available', starting_balance: '0.50', starting_balance_reported: null, rate: null, rate_display: null },
+        { currency: 'SGD', counted: 'projected', why: null, starting_balance: '400.00', starting_balance_reported: '400.00', rate: null, rate_display: null, accounts: [] },
+        { currency: 'THB', counted: 'not_counted', why: 'no exchange rate to the reporting currency is available', starting_balance: '0.50', starting_balance_reported: null, rate: null, rate_display: null, accounts: [] },
       ],
     }) }))
 
@@ -143,6 +144,42 @@ describe('SufficiencyView', () => {
     expect(screen.getByRole('note')).toHaveTextContent('This answer is incomplete because:Rewards Card (SGD)')
   })
 
+  it('says how fresh each account is and which one holds the start back', async () => {
+    render(<SufficiencyView generation="gen-1" />)
+
+    expect(await screen.findByText(/^Everyday: proven through 10 Dec 2025/)).toHaveTextContent('out of date · holding the start back')
+  })
+
+  it('offers a way in to add something you know is coming', async () => {
+    const onOpenPlanned = vi.fn()
+    render(<SufficiencyView generation="gen-1" onOpenPlanned={onOpenPlanned} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Add something you know is coming/ }))
+
+    expect(onOpenPlanned).toHaveBeenCalled()
+  })
+
+  it('notes a pocket that is projected without spending history', async () => {
+    loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
+      pockets: [{ currency: 'USD', counted: 'projected', why: 'it has no spending history, so only what is scheduled for it is counted', starting_balance: '500.00', starting_balance_reported: '500.00', rate: null, rate_display: null, accounts: [] }],
+    }) }))
+    render(<SufficiencyView generation="gen-1" />)
+
+    expect(await screen.findByText(/it has no spending history, so only what is scheduled/)).toBeInTheDocument()
+  })
+
+  it('lands an import to-do on the coverage card', async () => {
+    const onOpen = vi.fn()
+    loadSufficiency.mockResolvedValue(page({ combined_answer: combined({ todos: [
+      { key: 'recent-statements', page: 'Setup', anchor: 'setup-coverage', title: 'Import your latest statements', detail: 'Everyday' },
+    ] }) }))
+
+    render(<SufficiencyView generation="gen-1" onOpen={onOpen} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Import your latest statements: open Setup' }))
+
+    expect(window.location.hash).toBe('#setup-coverage')
+    expect(onOpen).toHaveBeenCalledWith('Setup')
+  })
+
   it('lists money that may come back without counting it', async () => {
     loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
       upside: [{ label: 'Jo', currency: 'SGD', amount: '800.00', on: '2026-02-01' }],
@@ -157,8 +194,8 @@ describe('SufficiencyView', () => {
   it('lists a pocket too small to matter as ignored, without flagging the answer', async () => {
     loadSufficiency.mockResolvedValue(page({ combined_answer: combined({
       pockets: [
-        { currency: 'SGD', counted: 'projected', why: null, starting_balance: '400.00', starting_balance_reported: '400.00', rate: null, rate_display: null },
-        { currency: 'THB', counted: 'ignored', why: 'it holds less than one unit of its currency and nothing is scheduled', starting_balance: '0.50', starting_balance_reported: null, rate: null, rate_display: null },
+        { currency: 'SGD', counted: 'projected', why: null, starting_balance: '400.00', starting_balance_reported: '400.00', rate: null, rate_display: null, accounts: [] },
+        { currency: 'THB', counted: 'ignored', why: 'it holds less than one unit of its currency and nothing is scheduled', starting_balance: '0.50', starting_balance_reported: null, rate: null, rate_display: null, accounts: [] },
       ],
     }) }))
 
@@ -171,7 +208,7 @@ describe('SufficiencyView', () => {
   it('never renders a missing answer as a yes', async () => {
     loadSufficiency.mockResolvedValue(page({
       combined_answer: combined({ answer: 'Not enough evidence to say', verdict: 'unavailable', pockets: [
-        { currency: 'SGD', counted: 'not_counted', why: 'no supported opening balance', starting_balance: null, starting_balance_reported: null, rate: null, rate_display: null },
+        { currency: 'SGD', counted: 'not_counted', why: 'no supported opening balance', starting_balance: null, starting_balance_reported: null, rate: null, rate_display: null, accounts: [] },
       ] }),
       limitations: ['included liquid pockets do not share a coverage-backed balance cutoff'],
     }))

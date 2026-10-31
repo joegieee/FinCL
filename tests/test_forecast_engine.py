@@ -26,6 +26,7 @@ from fincl.forecast.engine import (
     _action_items,
     _card_events,
     _manifest_categories,
+    _overlap_items,
     build_cash_timeline,
     run_timeline,
 )
@@ -184,6 +185,52 @@ class CashTimelineTrapTests(unittest.TestCase):
         self.assertIn("450.00 SGD of dated cost in manifest:irregular:SGD during 2026-02", cell["base"]["notes"][0])
         february = next(row for row in cell["base"]["months"] if row["month"] == "2026-02")
         self.assertEqual(february["expense"], "800.00")
+
+    def test_a_pocket_with_sourced_events_and_no_history_is_projected_with_a_zero_residual(self) -> None:
+        manifest = _manifest()
+        manifest["cash"]["by_currency"]["USD"] = {
+            "readiness": "established-input estimate", "balance": "500.00", "reason": None,
+        }
+        bill = ForecastEvent(
+            event_id="visa", source_id="visa", currency="USD", amount="120.00",
+            column=COLUMN_IRREGULAR, direction=DIRECTION_OUT, label="Visa fee", on="2026-02-10",
+            removes_from_residual=True, residual_category="manifest:irregular:USD",
+        )
+        estimate = {"available": True, "by_currency": {"SGD": {
+            "variable_residual_monthly": "300.00", "variable_residual_max": "300.00",
+            "irregular_allowance_monthly": "50.00",
+        }}}
+
+        result = build_cash_timeline(manifest, sourced_events=[bill], estimate=estimate)["by_currency"]
+
+        usd = result["USD"]
+        self.assertTrue(usd["available"])
+        self.assertTrue(usd["no_spending_history"])
+        self.assertIn("USD has no spending history", usd["base"]["notes"][0])
+        self.assertEqual(usd["base"]["days"][-1]["closing"], "380.00")
+        self.assertEqual(usd["conservative"]["days"][-1]["closing"], "380.00")
+
+    def test_a_dated_debt_repeated_by_a_commitment_asks_for_one_record_on_the_debts_page(self) -> None:
+        def debt(debt_id: str, **changes: object) -> dict:
+            return {
+                "origin": "personal_debt", "source": {"id": debt_id}, "obligation_id": f"debt:{debt_id}",
+                "label": "Alex", "currency": "SGD", "direction": "outflow", "stays_visible": True,
+                "date_basis": {"value": "2026-12-01"}, "remaining_amount": {"value": "500.00"},
+                "overlapping_commitments": [{"commitment": "c1", "name": "Alex repayment", "payments": 2}],
+                **changes,
+            }
+
+        items = _overlap_items({"obligations": [
+            debt("d1"),
+            debt("undated", date_basis={"value": None}),
+            debt("paid", remaining_amount={"value": "0.00"}),
+            debt("plain", overlapping_commitments=[]),
+        ]})
+
+        [item] = items
+        self.assertEqual((item["todo"]["page"], item["todo"]["anchor"]), ("Debts", "debt-d1"))
+        self.assertIn("\u201cAlex repayment\u201d repeats the payments recorded on this debt", item["todo"]["detail"])
+        self.assertIn("500.00 SGD still owed on 2026-12-01", item["todo"]["detail"])
 
     def test_residual_spending_is_not_gated_by_allowance_readiness(self) -> None:
         manifest = _manifest()

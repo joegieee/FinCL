@@ -350,6 +350,8 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:9px;color:v
 .assumption-heading{font-size:13px;font-weight:600;margin:16px 0 4px}
 .assumption-list{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:12px}
 .assumption-list li{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:6px}
+.assumption-list .assumption-sublist{flex-basis:100%;list-style:none;margin:0;padding:0;color:var(--muted);font-size:11px}
+.assumption-list .assumption-sublist li{border:0;padding:0}
 .assumption-list li span:last-child{font-variant-numeric:tabular-nums;color:var(--muted)}
 .fund-allocation-row{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin-top:10px}
 .fund-allocation-row label{flex:1;min-width:130px}

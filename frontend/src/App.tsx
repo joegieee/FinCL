@@ -144,9 +144,9 @@ export default function App(){
    {tab==='Planning'&&<PlanningView generation={data.generation} freshness={data.freshness} categories={data.categories} onSaved={saved}/>}
    {tab==='Baseline'&&<BaselineView onOpenTransactionAnchor={openReportedAnchor}/>}
    {tab==='Cash'&&<CashView generation={data.generation} onSaved={saved} onOpenSetup={()=>setTab('Setup')}/>}
-   {tab==='Forecast'&&<ForecastView/>}
+   {tab==='Forecast'&&<ForecastView onOpenPlanned={()=>setTab('Planned')}/>}
    {tab==='Controls'&&<AllControlsView initialMonth={(end || new Date().toISOString().slice(0, 7)).slice(0, 7)}/>}
-   {tab==='Will I have enough'&&<SufficiencyView generation={data.generation} onSaved={saved} onOpen={setTab} onOpenObligations={()=>setTab('Obligations')} onOpenCash={()=>setTab('Cash')}/>}
+   {tab==='Will I have enough'&&<SufficiencyView generation={data.generation} onSaved={saved} onOpen={setTab} onOpenObligations={()=>setTab('Obligations')} onOpenCash={()=>setTab('Cash')} onOpenPlanned={()=>setTab('Planned')}/>}
    {tab==='Annual funds'&&<FundsView onSaved={saved}/>}
    {tab==='Planned'&&<PlannedView generation={data.generation} currencies={data.currencies} categories={data.categories} onSaved={saved}/>}
    {tab==='Variance'&&<VarianceView generation={data.generation} currency="SGD" currencies={data.currencies} onSaved={saved}/>}

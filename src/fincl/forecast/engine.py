@@ -35,6 +35,7 @@ import sqlite3
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -1342,6 +1343,43 @@ def _manifest_categories(
     return categories
 
 
+def _overlap_items(obligations: dict[str, Any]) -> list[dict[str, Any]]:
+    """A dated debt whose repayments a recurring commitment also projects.
+
+    Only a debt the forecast actually pays on a date counts: an undated one is
+    not in the path, so the commitment is not repeating anything there.
+    """
+    items: list[dict[str, Any]] = []
+    for obligation in obligations.get("obligations", []):
+        overlapping = obligation.get("overlapping_commitments") or []
+        remaining = obligation.get("remaining_amount")
+        due_on = (obligation.get("date_basis") or {}).get("value")
+        if (
+            not overlapping or obligation.get("direction") != "outflow"
+            or not obligation.get("stays_visible", True) or due_on is None
+            or remaining is None or Decimal(str(remaining["value"])) == 0
+        ):
+            continue
+        names = ", ".join(f"“{item['name']}”" for item in overlapping)
+        debt_id = obligation["source"]["id"]
+        items.append({
+            "kind": "needs_review", "output": "debt_overlap", "currency": obligation["currency"],
+            "rank": 57, "action": "Use one record for these repayments",
+            "detail": f"{obligation['label']} is repaid by {names}",
+            "obligation_id": obligation["obligation_id"],
+            "todo": {
+                "key": f"debt-overlap:{debt_id}", "page": "Debts", "anchor": f"debt-{debt_id}",
+                "title": f"Count {obligation['label']} once",
+                "detail": (
+                    f"The recurring commitment {names} repeats the payments recorded on this debt, so the "
+                    f"forecast counts it every month and also the {remaining['value']} {obligation['currency']} "
+                    f"still owed on {due_on}. Open the debt to use the commitment as its repayment schedule."
+                ),
+            },
+        })
+    return items
+
+
 def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> list[dict[str, Any]]:
     """Turn unresolved forecast inputs into output-owned, actionable gaps.
 
@@ -1393,6 +1431,8 @@ def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> 
             "detail": str(task.get("note") or task.get("detail") or task),
             "task": task.get("kind"), "account_id": task.get("account_id"),
             "account_name": task.get("display_name"),
+            "start": (task.get("interval") or {}).get("start"),
+            "end": (task.get("interval") or {}).get("end"),
         })
 
     unlinked = manifest.get("unresolved_items", {}).get("unlinked_recurring", [])
@@ -1476,6 +1516,16 @@ def _monotonicity(base: dict[str, Any], conservative: dict[str, Any]) -> dict[st
             "spending must never improve conservative cash on any day"
         ),
     }
+
+
+def _has_no_history(
+    estimate: dict[str, Any] | None, currency: str, residual_categories: Sequence[ResidualCategory]
+) -> bool:
+    """A usable baseline exists and has nothing for this currency's pocket."""
+    return (
+        not residual_categories and bool(estimate and estimate.get("available"))
+        and currency not in (estimate or {}).get("by_currency", {})
+    )
 
 
 def build_cash_timeline(
@@ -1659,7 +1709,18 @@ def build_cash_timeline(
                 }
             ),
         }
-        if not scoped_categories:
+        if not scoped_categories and scoped_events and _has_no_history(estimate, currency, residual_categories):
+            # Sourced money (a planned bill, a debt schedule) is enough to
+            # project the pocket; with no spending history the usual
+            # spending is simply zero, and the case says so.
+            note = (
+                f"{currency} has no spending history, so its usual spending is taken as zero "
+                "and only the money scheduled for it is counted"
+            )
+            base["notes"].append(note)
+            conservative["notes"].append(note)
+            result_by_currency[currency]["no_spending_history"] = True
+        elif not scoped_categories:
             message = (
                 f"{currency} has no supported residual-spending input; known-event "
                 "cash arithmetic is shown but a complete base or conservative case is unavailable"
@@ -1960,6 +2021,46 @@ def _candidate_income_events(
     return events, limitations
 
 
+def _installment_card_purchases(
+    connection: sqlite3.Connection, obligations: dict[str, Any], *, cutoff: str, end: str
+) -> list[dict[str, Any]]:
+    """Each remaining installment row of a confirmed card plan, as a card charge.
+
+    The card statement already holds every row it has shown; the rows after the
+    cutoff are charges the card will make, so they are modelled as card
+    purchases and settle on the card's projected cycles like any other. They
+    stand in for no routine spending: the plan's cost was recognised when it
+    opened.
+    """
+    plans = {
+        str(row["plan_id"]): row
+        for row in connection.execute(
+            "SELECT plan_id, card_account_id, status FROM installment_plans"
+        )
+    }
+    purchases: list[dict[str, Any]] = []
+    for obligation in obligations.get("obligations", []):
+        if obligation["origin"] != "installment_plan" or not obligation.get("stays_visible", True):
+            continue
+        plan = plans.get(str(obligation["source"]["id"]))
+        if plan is None or plan["card_account_id"] is None or plan["status"] != "CONFIRMED":
+            continue
+        for row in obligation.get("schedule") or []:
+            if not cutoff < str(row["due_on"]) <= end:
+                continue
+            purchases.append({
+                "id": f"installment:{plan['plan_id']}:{row['schedule_index']}",
+                "account_id": str(plan["card_account_id"]),
+                "currency": str(obligation["currency"]),
+                "on": str(row["due_on"]),
+                "amount": str(row["amount"]),
+                "label": f"{obligation['label']} (installment)",
+                "origin": "installment_plan",
+                "removes_from_residual": False,
+            })
+    return purchases
+
+
 def _card_events(
     conversion: dict[str, Any], *, prospective: Sequence[dict[str, Any]]
 ) -> tuple[list[ForecastEvent], list[str], list[dict[str, Any]]]:
@@ -1998,11 +2099,12 @@ def _card_events(
             source_id = str(row["source_id"])
             inferred = row.get("basis") == "projected_cycle_due_date"
             purchase = prospective_by_id.get(source_id)
-            # A modelled purchase may say what it replaces (None: it is extra)
-            # and where it came from; otherwise it is routine card spending.
+            # A modelled purchase may name what it is (an installment, a planned
+            # item) and what it stands in for (None: it is extra); otherwise it
+            # is routine card spending.
             residual = (
                 purchase.get("residual_category", f"manifest:routine:{row['currency']}")
-                if purchase else None
+                if purchase and purchase.get("removes_from_residual", True) else None
             )
             events.append(
                 ForecastEvent(
@@ -2024,7 +2126,11 @@ def _card_events(
                     removes_from_residual=residual is not None,
                     provenance={
                         **((purchase or {}).get("provenance") or {}),
-                        "origin": ((purchase or {}).get("provenance") or {}).get("origin", "card_statement"),
+                        "origin": str(
+                            ((purchase or {}).get("provenance") or {}).get("origin")
+                            or (purchase or {}).get("origin")
+                            or "card_statement"
+                        ),
                         "contract": conversion.get("contract_version"),
                         "partition": row.get("partition"),
                         "basis": row.get("basis"),
@@ -2123,6 +2229,10 @@ def _cash_timeline(
         recurring, start=str(cutoff), end=end
     )
     prospective = list(prospective_card_purchases)
+    installment_purchases = _installment_card_purchases(
+        connection, obligations, cutoff=str(cutoff), end=end
+    )
+    prospective.extend(installment_purchases)
     cards = card_cash_conversion_from(
         connection,
         as_of=str(cutoff),
@@ -2160,6 +2270,14 @@ def _cash_timeline(
             prospective_purchases=prospective,
         )
         card_events, card_limits, missing_cards = _card_events(cards, prospective=prospective)
+
+    tracked = {(str(card["account_id"]), str(card["currency"])) for card in cards.get("cards", [])}
+    untracked_installments = sorted({
+        f"{purchase['label']} ({purchase['currency']}): the card it is charged to isn't tracked, "
+        "so its remaining payments aren't counted."
+        for purchase in installment_purchases
+        if (purchase["account_id"], purchase["currency"]) not in tracked
+    })
 
     reported = {
         "manifest": manifest.get("generation"),
@@ -2213,7 +2331,7 @@ def _cash_timeline(
         estimate=estimate,
     )
     adapter_limits = [
-        *obligation_limits, *income_limits, *card_limits,
+        *obligation_limits, *income_limits, *card_limits, *untracked_installments,
         *(limit for source in extra for limit in source.limitations),
     ]
     result["answer_gaps"].extend(
@@ -2224,6 +2342,7 @@ def _cash_timeline(
         and obligation.get("cash_effect") not in ("bank_withdrawal", None, "via_card_statement")
     )
     result["answer_gaps"].extend(limit for source in extra for limit in source.limitations)
+    result["answer_gaps"].extend(untracked_installments)
     result["limitations"].extend(adapter_limits)
     for card in missing_cards:
         cell = result["by_currency"].get(str(card["currency"]))
@@ -2265,6 +2384,7 @@ def _cash_timeline(
     result["action_items"] = sorted(
         [
             *_action_items(manifest, card_limits), *receivable_items,
+            *_overlap_items(obligations),
             *(item for source in extra for item in source.action_items),
         ],
         key=lambda item: (-item["rank"], item["output"], item["detail"]),

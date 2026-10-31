@@ -372,6 +372,15 @@ def _pocket(days: list[dict], *, events: list | None = None, available: bool = T
     }
 
 
+def _freshness() -> dict:
+    def row(account: str, name: str, through: str, age: int, stale: bool, basis: str, holds: bool) -> dict:
+        return {"account": account, "display_name": name, "currencies": ["SGD"], "evidence_through": through,
+                "age_days": age, "stale": stale, "basis": basis, "holds_back_start": holds}
+    return {"generated_for": "2026-03-12", "stale_after_days": 14, "supported_cutoff": "2026-01-31",
+            "accounts": [row("a1", "Everyday", "2026-01-31", 40, True, "statement", True),
+                         row("a2", "Savings", "2026-03-08", 4, False, "observation", False)]}
+
+
 def _timeline(by_currency: dict, action_items: list | None = None) -> dict:
     return {"by_currency": by_currency, "action_items": action_items or [],
             "horizon": {"supported_cash_cutoff": "2026-01-31", "end": "2026-03-31"}}
@@ -530,21 +539,53 @@ class CombinedAnswerTests(unittest.TestCase):
         answer = self._answer(
             _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}, items),
             {"SGD": Fraction(1)}, account_names={"a1": "Everyday", "a2": "Savings"},
+            freshness=_freshness(),
         )
 
         self.assertEqual(
-            [(todo["key"], todo["page"]) for todo in answer["todos"]],
-            [("recent-statements", "Setup"), ("debt-dates", "Debts"),
-             ("statement-gaps", "Setup"), ("essential", "Categorization")],
+            [(todo["key"], todo["page"], todo.get("anchor")) for todo in answer["todos"]],
+            [("recent-statements", "Setup", "setup-coverage"), ("debt-dates", "Debts", None),
+             ("statement-gaps", "Setup", "setup-coverage"), ("essential", "Categorization", None)],
         )
-        self.assertIn("Everyday, Savings", answer["todos"][0]["detail"])
+        self.assertEqual(
+            answer["todos"][0]["detail"],
+            "Your statements are out of date for: Everyday, proven through 2026-01-31 (40 days ago). "
+            "The answer starts from 2026-01-31, the last day every account is proven.",
+        )
+        self.assertEqual(
+            answer["todos"][2]["detail"],
+            "No statement covers these months, so the starting balance and your usual spending can't be "
+            "fully checked: Everyday: Aug 2025, Sep 2025, Oct 2025, Nov 2025, Dec 2025, Jan 2026.",
+        )
         # No page can set an installment plan's remaining dates, so it is named instead.
         self.assertIn("Phone: its remaining due dates aren't known, so it isn't counted.",
                       answer["incomplete_because"])
 
+    def test_each_pocket_says_how_fresh_its_accounts_are(self) -> None:
+        answer = self._answer(
+            _timeline({"SGD": _pocket(_days(("2026-02-01", "100.00")))}), {"SGD": Fraction(1)},
+            freshness=_freshness(),
+        )
+
+        self.assertEqual(answer["pockets"][0]["accounts"], [
+            {"account": "a1", "display_name": "Everyday", "evidence_through": "2026-01-31", "age_days": 40,
+             "stale": True, "basis": "statement", "holds_back_start": True},
+            {"account": "a2", "display_name": "Savings", "evidence_through": "2026-03-08", "age_days": 4,
+             "stale": False, "basis": "observation", "holds_back_start": False},
+        ])
+
+    def test_a_pocket_without_spending_history_is_projected_and_says_so(self) -> None:
+        pocket = {**_pocket(_days(("2026-02-01", "100.00"))), "no_spending_history": True}
+
+        answer = self._answer(_timeline({"SGD": pocket}), {"SGD": Fraction(1)})
+
+        self.assertEqual((answer["pockets"][0]["counted"], answer["pockets"][0]["why"]),
+                         ("projected", "it has no spending history, so only what is scheduled for it is counted"))
+
     def test_evidence_gaps_go_to_the_import_page_or_beside_the_answer(self) -> None:
         items = [
-            {"output": "baseline", "task": "import-missing", "account_name": "Everyday", "detail": "x"},
+            {"output": "baseline", "task": "import-missing", "account_name": "Everyday", "detail": "x",
+             "start": "2025-11-01", "end": "2025-11-30"},
             {"output": "baseline", "task": "confirm-export-period", "account_name": "Wallet", "detail": "y"},
             {"output": "baseline", "task": "resolve-reconciliation", "account_name": "Savings",
              "detail": "1 of 4 reconciliation checks fail for Savings"},

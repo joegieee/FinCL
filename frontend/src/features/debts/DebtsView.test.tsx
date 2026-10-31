@@ -125,3 +125,14 @@ describe('DebtsView commitment overlap', () => {
     expect(screen.getByRole('note')).toHaveTextContent('counted twice')
   })
 })
+
+describe('DebtsView deep link', () => {
+  it('opens the debt a to-do names and clears the link', async () => {
+    window.location.hash = '#debt-d-1'
+    await mount()
+
+    expect(await screen.findByText('Remaining principal')).toBeInTheDocument()
+    expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('debts/d-1'), undefined)
+    expect(window.location.hash).toBe('')
+  })
+})

@@ -1,6 +1,6 @@
 import { WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, ArrowRight, CheckCircle2, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, Plus, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { AsyncView } from '@/components/AsyncView'
@@ -59,7 +59,7 @@ function plainDates(text: string): string {
  * - Every to-do points at the page that fixes it.
  */
 export function SufficiencyView({
-  generation, onSaved, onOpen, onOpenObligations, onOpenCash,
+  generation, onSaved, onOpen, onOpenObligations, onOpenCash, onOpenPlanned,
 }: {
   generation: string; onSaved?: (status: string) => void | Promise<void>
   /** Where each "make this answer better" item is fixed. */
@@ -68,6 +68,8 @@ export function SufficiencyView({
   /** Where a missing answer is fixed: the Cash page names, per pocket, the
    * account and date holding the shared cutoff back. */
   onOpenCash?: () => void
+  /** Where known future money (a bill, a purchase, a trip, income) is added. */
+  onOpenPlanned?: () => void
 }) {
   const [page, setPage] = useState<SufficiencyPage | null>(null)
   const [error, setError] = useState('')
@@ -92,7 +94,10 @@ export function SufficiencyView({
           <div className="sufficiency-view"><WorkspaceReportingDetails data={page}/>
             <div className="scope-caption">
               <span>An estimate from your imported statements, on the same evidence as the Forecast tab.</span>
-              <Button variant="ghost" size="sm" onClick={load}><RefreshCw size={14} /> Refresh</Button>
+              <span>
+                {onOpenPlanned && <Button variant="outline" size="sm" onClick={onOpenPlanned}><Plus size={14} /> Add something you know is coming</Button>}
+                <Button variant="ghost" size="sm" onClick={load}><RefreshCw size={14} /> Refresh</Button>
+              </span>
             </div>
 
             {!counted && (
@@ -222,7 +227,7 @@ function Todos({ combined, onOpen }: { combined: CombinedAnswer; onOpen?: (desti
               <p className="muted-note">{plainDates(todo.detail)}</p>
             </div>
             {onOpen && (
-              <Button variant="outline" size="sm" onClick={() => onOpen(todo.page)} aria-label={`${todo.title}: open ${todo.page}`}>
+              <Button variant="outline" size="sm" onClick={() => { if (todo.anchor) window.location.hash = todo.anchor; onOpen(todo.page) }} aria-label={`${todo.title}: open ${todo.page}`}>
                 Open {todo.page} <ArrowRight size={14} />
               </Button>
             )}
@@ -253,7 +258,19 @@ function Assumptions({ combined, today, onOpenObligations }: { combined: Combine
                 : p.rate_display ? `${money(p.starting_balance_reported, c)} at 1 ${p.currency} = ${p.rate_display} ${c}`
                 : 'counted as it is'}
               {p.counted === 'held_as_is' && ' · kept as it is, nothing projected'}
+              {p.counted === 'projected' && p.why && ` · ${p.why}`}
             </span>
+            {p.accounts.length > 0 && (
+              <ul className="assumption-sublist">
+                {p.accounts.map(a => (
+                  <li key={a.account}>
+                    {a.display_name}: {a.evidence_through ? `proven through ${when(a.evidence_through, today)}` : 'nothing proves a balance yet'}
+                    {a.stale && ' · out of date'}
+                    {a.holds_back_start && ' · holding the start back'}
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         ))}
       </ul>

@@ -296,6 +296,15 @@ export function DebtsView({
       .catch((e) => setError(e instanceof ApiError ? e.message : 'Could not load that debt.'))
   }
 
+  // A to-do can open one debt directly through `#debt-<id>`.
+  useEffect(() => {
+    const id = /^#debt-(.+)$/.exec(window.location.hash)?.[1]
+    if (!id) return
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    openDetail(decodeURIComponent(id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (!justCreated) return
     setJustCreated(null)

@@ -74,8 +74,8 @@ def _baseline_portions_from(
 ) -> dict[str, Any]:
     """Monthly historical cost per (currency, category) over the baseline window.
 
-    This is the "historical baseline remainder" a recurring event replaces its
-    own share of.  When no baseline window is available the portions are empty
+    This is the historical spending a recurring commitment's linked payments are
+    lifted out of.  When no baseline window is available the portions are empty
     and every link says so rather than inventing a denominator.
     """
     table = cost_income_table_from(connection, today=today)
@@ -571,10 +571,13 @@ def _categories_for(
 def _component_effects(
     obligations: list[dict[str, Any]], baseline: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """Per baseline component: what a recurring event replaces, and what stays.
+    """Per baseline component: what a recurring commitment lifts out, and what stays.
 
-    A component nobody links to keeps its whole historical portion — that is the
-    point of naming the link: rent replaces rent, and groceries are untouched.
+    The estimator takes a commitment's linked past payments out of the usual
+    spending, and the forecast adds the commitment on its own dates. The
+    remaining historical portion is what is left once those payments are linked:
+    a component nobody links to keeps its whole historical portion, so rent
+    leaves rent and groceries are untouched.
     """
     replaced: dict[tuple[str, str], list[str]] = defaultdict(list)
     for obligation in obligations:
@@ -593,7 +596,7 @@ def _component_effects(
                 "monthly_baseline_portion": portion,
                 "replaced_by": owners,
                 "remaining_historical_portion": "0.00" if owners else portion,
-                "relation": "replaced_by_recurring_event" if owners else "unchanged",
+                "relation": "lifted_by_recurring_event" if owners else "unchanged",
             }
         )
     return effects
@@ -680,8 +683,9 @@ def obligations_page_from(
             "correction is recorded",
             "a remaining statement due is net of the payments actually recorded "
             "against that statement",
-            "a recurring event replaces its own baseline component only; unknown "
-            "terms stay unknown",
+            "a recurring commitment is forecast on its own dates, and its linked past "
+            "payments are taken out of the usual-spending baseline so it is counted once; "
+            "payments not yet linked stay in the baseline until they are",
         ],
     }
 
