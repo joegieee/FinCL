@@ -303,6 +303,8 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             "duplicate_suppressions",
             "refund_allocations",
             "personal_debt_allocations",
+            "personal_debt_schedule_rows",
+            "personal_debt_schedules",
             "personal_debt_events",
             "entry_residuals",
             "personal_debts",

@@ -14,7 +14,7 @@ from .money import MAX_ABS_COEFFICIENT, MAX_SCALE
 
 _EVENT_KIND_IN = ", ".join(f"'{kind}'" for kind in sorted(LEDGER_EVENT_KINDS))
 
-SCHEMA_VERSION = 31
+SCHEMA_VERSION = 32
 
 # Busy handler timeout for the single-writer local database. Concurrent imports
 # wait for the lock to clear instead of failing immediately with "database is
@@ -661,6 +661,28 @@ CREATE TABLE IF NOT EXISTS planned_resolutions (
 """
 
 
+# Schema 32: debt repayment schedules, projected from
+# PERSONAL_DEBT_SCHEDULE_SET/RETIRE. Rows are stored expanded; what has been
+# paid of them is computed on read from the debt's own decrease events.
+SCHEMA_32_TABLES_SQL = f"""
+CREATE TABLE IF NOT EXISTS personal_debt_schedules (
+    debt_id TEXT PRIMARY KEY,
+    effective_from TEXT NOT NULL,
+    plan_kind TEXT NOT NULL CHECK (plan_kind IN ('rows', 'series')),
+    journal_seq INTEGER NOT NULL,
+    reason TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS personal_debt_schedule_rows (
+    debt_id TEXT NOT NULL,
+    row_index INTEGER NOT NULL,
+    due_on TEXT NOT NULL,
+    amount_coefficient INTEGER NOT NULL CHECK (amount_coefficient > 0),
+    amount_scale INTEGER NOT NULL CHECK (amount_scale BETWEEN 0 AND {MAX_SCALE}),
+    PRIMARY KEY (debt_id, row_index)
+) STRICT;
+"""
+
 
 # Schema 12 (v0.5 bulk actions). The schema 8 categorization projection tables
 # carried `journal_seq INTEGER NOT NULL UNIQUE`, an identity claim that predates
@@ -1271,6 +1293,7 @@ def _create_decision_projection(connection: sqlite3.Connection) -> None:
         + SCHEMA_29_TABLES_SQL
         + SCHEMA_30_TABLES_SQL
         + SCHEMA_31_TABLES_SQL
+        + SCHEMA_32_TABLES_SQL
     )
 
 
