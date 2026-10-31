@@ -194,14 +194,14 @@ def baseline_component_link(
         "available": True,
         "category_key": category,
         "currency": currency,
-        "relation": "replaces_category_portion",
+        "relation": "lifted_from_baseline",
         "monthly_baseline_portion": portion,
         "portion_unknown_reason": (
             None if portion is not None else "the baseline window has no cost in this component"
         ),
         "note": (
-            "this replaces the historical baseline remainder for "
-            f"{category} only — no other component and no total is reduced"
+            f"its linked past payments are taken out of the usual spending for {category}, and the "
+            "commitment is forecast on its own dates; no other component is reduced"
         ),
     }
 

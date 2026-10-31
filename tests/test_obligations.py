@@ -115,7 +115,7 @@ class BaselineComponentLinkTests(unittest.TestCase):
         )
         self.assertTrue(link["available"])
         self.assertEqual(link["category_key"], "Housing / Rent")
-        self.assertEqual(link["relation"], "replaces_category_portion")
+        self.assertEqual(link["relation"], "lifted_from_baseline")
         self.assertEqual(link["monthly_baseline_portion"], "1200.00")
 
     def test_ambiguous_or_absent_sources_stay_unknown(self) -> None:
@@ -292,7 +292,7 @@ class ObligationsLedgerTests(unittest.TestCase):
         link = self._rent()["baseline_link"]
         self.assertTrue(link["available"], link)
         self.assertEqual(link["category_key"], "Housing / Rent")
-        self.assertEqual(link["relation"], "replaces_category_portion")
+        self.assertEqual(link["relation"], "lifted_from_baseline")
         self.assertEqual(link["monthly_baseline_portion"], "1200.00")
 
     def test_groceries_and_the_total_are_left_alone(self) -> None:
