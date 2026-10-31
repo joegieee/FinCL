@@ -53,7 +53,8 @@ class AccountFreshnessTests(unittest.TestCase):
             accounts[_REVOLUT],
             {"account": _REVOLUT, "display_name": "Revolut Current", "currencies": ["SGD"],
              "evidence_through": "2026-07-31", "age_days": 51, "stale": True,
-             "basis": "statement", "holds_back_start": True},
+             "basis": "statement", "holds_back_start": True,
+             "archived_on": None, "closed_with": []},
         )
         trust = accounts["trust-savings"]
         self.assertEqual((trust["evidence_through"], trust["holds_back_start"]), ("2026-08-31", False))
@@ -84,6 +85,36 @@ class AccountFreshnessTests(unittest.TestCase):
             {_REVOLUT: ("2026-09-20", "observation", False, False),
              "trust-savings": ("2026-09-20", "certification", False, False)},
         )
+
+    def close_revolut(self) -> None:
+        self.record(
+            "ACCOUNT_DETAILS_SET", {"account": _REVOLUT},
+            {"display_name": "Revolut Current", "archived_on": "2026-07-31", "reason": "closed"},
+        )
+
+    def test_closing_an_account_with_a_zero_balance_releases_the_start(self) -> None:
+        self.record(
+            "BALANCE_OBSERVATION_SET", {"observation": "11111111-1111-4111-8111-111111111111"},
+            {"account_id": _REVOLUT, "currency_pocket": "SGD", "observed_on": "2026-08-15",
+             "balance": "0.00", "reason": "emptied before closing"},
+        )
+        self.close_revolut()
+
+        read = account_freshness(self.database, today=_TODAY)
+
+        self.assertEqual([row["account"] for row in read["accounts"]], ["trust-savings"])
+        self.assertEqual(read["supported_cutoff"], "2026-08-31")
+
+    def test_closing_an_account_that_still_holds_a_balance_keeps_it_counting(self) -> None:
+        self.close_revolut()
+
+        read = account_freshness(self.database, today=_TODAY)
+        revolut = {row["account"]: row for row in read["accounts"]}[_REVOLUT]
+
+        self.assertEqual(read["supported_cutoff"], "2026-07-31")
+        self.assertTrue(revolut["holds_back_start"])
+        self.assertEqual(revolut["archived_on"], "2026-07-31")
+        self.assertEqual(revolut["closed_with"], [{"currency_pocket": "SGD", "balance": "8485.00"}])
 
 
 if __name__ == "__main__":

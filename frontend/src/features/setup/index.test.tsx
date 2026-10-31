@@ -63,8 +63,8 @@ function coverage(over: Record<string, unknown> = {}) {
       detail: 'Import a statement for it.', parameters: {},
     }],
     freshness: [
-      { account: 'acct_revolut_current', display_name: 'Revolut Current', currencies: ['SGD'], evidence_through: '2026-07-31', age_days: 51, stale: true, basis: 'statement', holds_back_start: true },
-      { account: 'trust-savings', display_name: 'Trust Bank Savings Account', currencies: ['SGD'], evidence_through: '2026-09-20', age_days: 0, stale: false, basis: 'certification', holds_back_start: false },
+      { account: 'acct_revolut_current', display_name: 'Revolut Current', currencies: ['SGD'], evidence_through: '2026-07-31', age_days: 51, stale: true, basis: 'statement', holds_back_start: true, archived_on: null, closed_with: [] },
+      { account: 'trust-savings', display_name: 'Trust Bank Savings Account', currencies: ['SGD'], evidence_through: '2026-09-20', age_days: 0, stale: false, basis: 'certification', holds_back_start: false, archived_on: null, closed_with: [] },
     ],
     ...over,
   }
@@ -263,6 +263,19 @@ describe('SetupView', () => {
 
     await screen.findByText('Aug 2026')
     expect(screen.queryByRole('button', { name: 'This account is closed' })).toBeNull()
+  })
+
+  it('says plainly when an account was closed with a balance still recorded and offers Record balance', async () => {
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [] })
+    const report = coverage()
+    report.freshness[0] = { ...report.freshness[0], archived_on: '2026-07-31', closed_with: [{ currency_pocket: 'SGD', balance: '8485.00' }] }
+    loadCoverageReport.mockResolvedValue(report)
+    render(<SetupView onImported={() => {}} generation="g1" />)
+
+    const row = within((await screen.findByText('Revolut Current')).closest('tr') as HTMLElement)
+    expect(row.getByText(/Marked closed on .* with SGD 8485\.00 still recorded, so it still counts/)).toBeInTheDocument()
+    expect(row.getByRole('button', { name: 'Record balance' })).toBeInTheDocument()
   })
 
   it('does not count a quarantined file as accepted and says what each file did', async () => {

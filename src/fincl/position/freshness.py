@@ -87,6 +87,7 @@ def account_freshness_from(connection: sqlite3.Connection, *, today: date) -> di
         else:
             # The shared start is never later than the least fresh account.
             holds_back = cutoff < today.isoformat() and through == oldest
+        archived_on = weakest.get("archived_on")
         accounts.append({
             "account": account_id,
             "display_name": weakest["display_name"] or account_id,
@@ -96,6 +97,11 @@ def account_freshness_from(connection: sqlite3.Connection, *, today: date) -> di
             "stale": age is None or age > STALE_AFTER_DAYS,
             "basis": _basis(connection, weakest, through) if through else None,
             "holds_back_start": holds_back,
+            "archived_on": archived_on,
+            "closed_with": [
+                {"currency_pocket": pocket["currency_pocket"], "balance": pocket["balance"]}
+                for pocket in pockets if archived_on and pocket["balance"] is not None
+            ],
         })
     return {
         "generated_for": today.isoformat(),
