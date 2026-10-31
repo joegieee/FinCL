@@ -22,6 +22,7 @@ from ..generation import current_generation
 from ..money import MAX_SCALE, format_decimal
 from .models import events_for_direction
 from .projection import expected_bank_direction
+from .schedule import schedule_from_commitment, schedule_state
 
 _DATE_RE_LEN = 10
 
@@ -168,8 +169,9 @@ def _reconciliation_status(rows: list[Any]) -> str:
     return "reconciled"
 
 
-def _debt_shape(debt: Any, rows: list[Any], as_of: str) -> dict[str, Any]:
+def _debt_shape(connection: Any, debt: Any, rows: list[Any], as_of: str) -> dict[str, Any]:
     total, scale = _balance_minor(rows, as_of)
+    plan = schedule_state(connection, str(debt["debt_id"]), as_of=as_of)
     last = max(rows, key=lambda r: (str(r["effective_on"]), str(r["event_id"]))) if rows else None
     return {
         "debt_id": str(debt["debt_id"]),
@@ -191,6 +193,10 @@ def _debt_shape(debt: Any, rows: list[Any], as_of: str) -> dict[str, Any]:
         ),
         "reconciliation_status": _reconciliation_status(rows),
         "event_count": len(rows),
+        "plan": None if plan is None else {
+            "next_due": plan["next_due"], "overdue_count": plan["overdue_count"],
+            "unscheduled_remainder": plan["unscheduled_remainder"] is not None,
+        },
     }
 
 
@@ -238,7 +244,7 @@ def debts_page(
                 "SELECT * FROM personal_debt_events WHERE debt_id = ?",
                 (debt["debt_id"],),
             ).fetchall()
-            shape = _debt_shape(debt, rows, as_of)
+            shape = _debt_shape(connection, debt, rows, as_of)
             (i_owe if debt["direction"] == "PAYABLE" else owed_to_me).append(shape)
         return {
             "generation": token,
@@ -269,7 +275,7 @@ def debt_detail(
             "ORDER BY effective_on, signed DESC, event_id",
             (debt_id,),
         ).fetchall()
-        shape = _debt_shape(debt, rows, as_of)
+        shape = _debt_shape(connection, debt, rows, as_of)
         _, scale = _balance_minor(rows, as_of)
         history: list[dict[str, Any]] = []
         for row in rows:
@@ -304,9 +310,24 @@ def debt_detail(
         shape["principal_history"] = history
         shape["reason"] = str(debt["reason"])
         shape["overlapping_commitments"] = overlapping_commitments(connection, debt_id).get(debt_id, [])
+        shape["schedule"] = schedule_state(connection, debt_id, as_of=as_of)
         return {"generation": token, "as_of": as_of, "debt": shape}
     finally:
         connection.close()
+
+
+def commitment_schedule_draft(
+    database: Path, debt_id: str, commitment: str, *, expected: str | None = None
+) -> dict[str, Any]:
+    """The draft that makes a recurring commitment this debt's repayment plan.
+
+    Its amounts come from the commitment's own dates and amounts; preview it
+    and save it as one batch.
+    """
+    with read_snapshot(database) as connection:
+        token = _generation(connection, expected)
+        reason = "Use the recurring commitment as this debt's repayment plan"
+        return {"generation": token, "items": schedule_from_commitment(connection, debt_id, commitment, reason=reason)}
 
 
 def debt_events(

@@ -72,6 +72,7 @@ _SINGLE_KINDS = Literal[
     'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
     'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
     'ENTRY_RESIDUAL_SET','ENTRY_RESIDUAL_RETIRE','INBOUND_CLASSIFICATION_RETIRE',
+    'PERSONAL_DEBT_SCHEDULE_SET','PERSONAL_DEBT_SCHEDULE_RETIRE',
     # v0.4 credit-card facilities, dated limit observations, manual bill allocation
     'CARD_FACILITY_SET','CARD_FACILITY_RETIRE','CARD_LIMIT_OBSERVATION_SET',
     'CARD_LIMIT_OBSERVATION_RETIRE','CARD_PAYMENT_ALLOCATION_SET',
@@ -119,6 +120,7 @@ _DEBT_KINDS = frozenset({
     'PERSONAL_DEBT_OPEN','PERSONAL_DEBT_DETAILS_SET','PERSONAL_DEBT_EVENT_SET',
     'PERSONAL_DEBT_EVENT_RETIRE','PERSONAL_DEBT_CLOSE','PERSONAL_DEBT_REOPEN',
     'ENTRY_RESIDUAL_SET','ENTRY_RESIDUAL_RETIRE','INBOUND_CLASSIFICATION_RETIRE',
+    'PERSONAL_DEBT_SCHEDULE_SET','PERSONAL_DEBT_SCHEDULE_RETIRE',
 })
 
 _CARD_KINDS = frozenset({
@@ -196,6 +198,8 @@ class BatchItem(StrictModel):
         'ENTRY_TRIP_SET','ENTRY_TRIP_RETIRE',
         # A planned item retired together with its matched payments.
         'PLANNED_MATCH_RETIRE','PLANNED_OCCURRENCE_RESOLVE_RETIRE','PLANNED_FLOW_RETIRE',
+        # A debt's repayment plan, and the recurring commitment it replaces.
+        'PERSONAL_DEBT_SCHEDULE_SET','PERSONAL_DEBT_SCHEDULE_RETIRE','RECURRING_COMMITMENT_SET',
     ]
     anchors: dict[str,str]
     payload: dict[str,Any]
@@ -1929,6 +1933,17 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
         with ledger_writer(database):
             try:
                 return debt_detail(database, debt_id, as_of=as_of or clock.today().isoformat(), expected=generation)
+            except FinCLError as exc:
+                if str(exc).startswith('STALE_GENERATION'):
+                    raise HTTPException(409, str(exc)) from exc
+                raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
+
+    @app.get('/api/v1/debts/{debt_id}/commitment-schedule')
+    def debt_commitment_schedule(debt_id: str, commitment: str, generation: str | None = None) -> Any:
+        from .debts.queries import commitment_schedule_draft
+        with ledger_writer(database):
+            try:
+                return commitment_schedule_draft(database, debt_id, commitment, expected=generation)
             except FinCLError as exc:
                 if str(exc).startswith('STALE_GENERATION'):
                     raise HTTPException(409, str(exc)) from exc
