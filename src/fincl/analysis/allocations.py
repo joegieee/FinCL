@@ -193,6 +193,14 @@ def open_residual(connection: sqlite3.Connection, entry_anchor: str, *, role: st
     return remaining if remaining > 0 else Fraction(0)
 
 
+def over_claim(connection: sqlite3.Connection, entry_anchor: str, *, role: str = "amount") -> Fraction:
+    """How far the registered claims exceed the component magnitude (zero when they fit)."""
+    excess = _claimed_minor(connection, entry_anchor, role) - _entry_component_minor(
+        connection, entry_anchor, role
+    )
+    return excess if excess > 0 else Fraction(0)
+
+
 def assert_partition(
     connection: sqlite3.Connection, entry_anchor: str, *, role: str = "amount"
 ) -> None:

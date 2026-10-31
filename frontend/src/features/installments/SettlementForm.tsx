@@ -54,15 +54,6 @@ export function SettlementForm({
       setError('Choose the settling transaction and give a reason.')
       return
     }
-    const components = [principal, fee, waiver].map((v) => Number(v || '0'))
-    if (components.some((v) => !Number.isFinite(v) || v < 0)) {
-      setError('Principal, fee and waiver must each be zero or a positive amount.')
-      return
-    }
-    if (components.every((v) => v === 0)) {
-      setError('A settlement needs a positive principal, fee or waiver.')
-      return
-    }
     inFlight.current = true
     setBusy(true)
     setError('')

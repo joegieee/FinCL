@@ -62,24 +62,6 @@ export function PurchaseAttributionForm({
       setError('Choose at least one source transaction and give a reason.')
       return
     }
-    for (const line of lines) {
-      const value = Number(line.amount)
-      if (!Number.isFinite(value) || value <= 0) {
-        setError('Every allocation needs a positive amount.')
-        return
-      }
-      const ceiling = Number(
-        line.componentRole === 'fee' ? line.entry.open_fee : line.entry.open_amount,
-      )
-      if (Number.isFinite(ceiling) && value > ceiling) {
-        setError(
-          `${line.entry.description ?? 'That transaction'} has only ` +
-            `${line.componentRole === 'fee' ? line.entry.open_fee : line.entry.open_amount} ` +
-            `unclaimed in its ${line.componentRole} component.`,
-        )
-        return
-      }
-    }
     const pairs = lines.map((l) => `${l.entry.entry_anchor}:${l.componentRole}`)
     if (new Set(pairs).size !== pairs.length) {
       setError('Each transaction component can only be claimed once.')

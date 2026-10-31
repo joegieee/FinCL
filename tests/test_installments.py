@@ -213,6 +213,37 @@ class InstallmentTests(unittest.TestCase):
         detail = installment_detail(self.database, plan_id)
         self.assertEqual(detail["plan"]["effective_status"], "SETTLED")
 
+    def test_preview_says_what_is_left_on_a_source_claimed_too_far(self) -> None:
+        plan_id = self._plan()
+        refresh_ledger(self.database)
+        application = create_app(
+            self.database, port=8765, bootstrap_secret="test-secret", evidence_dir=self.evidence,
+        )
+        client = ASGITestClient(application, base_url=_ORIGIN)
+        self.addCleanup(client.close)
+        csrf = client.post(
+            "/session", json={"secret": "test-secret"},
+            headers={"origin": _ORIGIN, "content-type": "application/json"},
+        ).json()["csrf"]
+
+        def preview(kind: str, anchors: dict, payload: dict):
+            return client.post("/api/v1/preview", json={
+                "request_id": str(uuid.uuid4()), "kind": kind, "anchors": anchors, "payload": payload,
+                "expected_generation": client.get("/api/v1/overview").json()["generation"],
+            }, headers={"origin": _ORIGIN, "content-type": "application/json", "x-csrf-token": csrf})
+
+        purchase = preview("INSTALLMENT_ALLOCATION_SET", {"plan": plan_id}, {
+            "allocations": [{"entry_anchor": self.purchase_anchor, "component_role": "principal", "amount": "25.00"}],
+            "reason": "over-claim"})
+        settlement = preview("INSTALLMENT_SETTLEMENT_SET", {"plan": plan_id, "settlement": str(uuid.uuid4())}, {
+            "settled_on": "2026-08-15", "source_entry_anchor": self.repayment_anchor,
+            "principal_amount": "40.00", "fee_amount": "15.00", "waiver_amount": "0.00", "reason": "over-claim"})
+
+        self.assertEqual(purchase.status_code, 422, purchase.text)
+        self.assertRegex(purchase.json()["detail"], r"has only 20\.00 unclaimed in its principal component$")
+        self.assertEqual(settlement.status_code, 422, settlement.text)
+        self.assertRegex(settlement.json()["detail"], r"has only 50\.00 unclaimed$")
+
     def test_plan_retire_cascades_to_dependents(self) -> None:
         plan_id = self._plan()
         self._record(

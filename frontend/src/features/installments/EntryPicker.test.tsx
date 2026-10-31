@@ -40,6 +40,7 @@ const detail = {
 let candidateRows = [fullyOpen, partlyClaimed]
 const searches: string[] = []
 const written: { path: string; body: unknown }[] = []
+let refusal: Error | null = null
 
 const apiMock = vi.fn(async (path: string, body?: unknown) => {
   if (path.startsWith('reporting/workspaces/installments/entry-candidates')) {
@@ -57,6 +58,7 @@ const apiMock = vi.fn(async (path: string, body?: unknown) => {
   }
   if (path === 'preview' || path === 'commands') {
     written.push({ path, body })
+    if (path === 'preview' && refusal) throw refusal
     return { status: 'recorded' }
   }
   throw new Error(`unmocked ${path}`)
@@ -71,6 +73,7 @@ afterEach(() => {
   apiMock.mockClear()
   written.length = 0
   searches.length = 0
+  refusal = null
   candidateRows = [fullyOpen, partlyClaimed]
 })
 
@@ -157,7 +160,9 @@ describe('purchase attribution', () => {
     ])
   })
 
-  it('refuses an amount beyond what is unclaimed, before any request', async () => {
+  it('shows the refusal of an amount beyond what is unclaimed and saves nothing', async () => {
+    const { ApiError } = await import('@/lib/api')
+    refusal = new ApiError('PARTLY CLAIMED SHOP has only 30.00 unclaimed in its principal component', 422)
     await mountAttribution()
     fireEvent.click(await screen.findByLabelText('Use PARTLY CLAIMED SHOP'))
     fireEvent.change(await screen.findByLabelText('Amount for PARTLY CLAIMED SHOP'), {
@@ -166,7 +171,7 @@ describe('purchase attribution', () => {
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Too much' } })
     fireEvent.click(screen.getByRole('button', { name: /Preview and save/ }))
     expect(await screen.findByText(/only 30.00 unclaimed/)).toBeInTheDocument()
-    expect(written).toHaveLength(0)
+    expect(written.map((w) => w.path)).toEqual(['preview'])
   })
 
   it('does not add the same transaction twice', async () => {
@@ -205,6 +210,18 @@ describe('settlement', () => {
     expect(body.kind).toBe('INSTALLMENT_SETTLEMENT_SET')
     expect(body.payload.source_entry_anchor).toBe('anchor-purchase')
     expect(body.payload.principal_amount).toBe('175.00')
+  })
+
+  it('shows the refusal of a settlement with nothing in it and saves nothing', async () => {
+    const { ApiError } = await import('@/lib/api')
+    refusal = new ApiError('a settlement needs a positive principal, fee or waiver component', 422)
+    await mountSettlement()
+    fireEvent.click(await screen.findByLabelText('Use MERCHANT DELTA SYNTHETIC'))
+    fireEvent.change(await screen.findByLabelText('Settlement principal'), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Nothing paid' } })
+    fireEvent.click(screen.getByRole('button', { name: /Preview and save/ }))
+    expect(await screen.findByText(/needs a positive principal, fee or waiver/)).toBeInTheDocument()
+    expect(written.map((w) => w.path)).toEqual(['preview'])
   })
 
   it('will not submit without a chosen transaction', async () => {

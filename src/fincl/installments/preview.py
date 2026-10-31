@@ -8,10 +8,14 @@ occurrence anchors resolve, one active plan per occurrence, component partition)
 
 from __future__ import annotations
 
+import math
 import sqlite3
+from fractions import Fraction
 from typing import Any
 
+from ..analysis.allocations import over_claim
 from ..errors import FinCLError
+from ..money import ExactMoney, format_decimal
 from .models import (
     INSTALLMENT_ALLOCATION_RETIRE,
     INSTALLMENT_ALLOCATION_SET,
@@ -34,6 +38,47 @@ _NEEDS_PLAN = frozenset(
         INSTALLMENT_SETTLEMENT_RETIRE,
     }
 )
+
+
+def _refuse_over_claims(
+    connection: sqlite3.Connection, decision_kind: str, payload: dict[str, Any]
+) -> None:
+    """Say what is left on a source that the pending decision claims too much of.
+
+    Run with the decision applied; the registry's own refusal would name the
+    entry by its anchor and give the totals unformatted.
+    """
+    claims: list[tuple[str, str, Fraction, str]] = []
+    if decision_kind == INSTALLMENT_ALLOCATION_SET:
+        for item in payload["allocations"]:
+            amount = ExactMoney.parse(str(item["amount"]))
+            claims.append((
+                str(item["entry_anchor"]), "fee" if item["component_role"] == "fee" else "amount",
+                Fraction(amount.coefficient, 10**amount.scale), f" in its {item['component_role']} component",
+            ))
+    elif decision_kind == INSTALLMENT_SETTLEMENT_SET:
+        cash = sum(
+            (Fraction(m.coefficient, 10**m.scale)
+             for m in (ExactMoney.parse(str(payload[key])) for key in ("principal_amount", "fee_amount"))),
+            start=Fraction(0),
+        )
+        claims.append((str(payload["source_entry_anchor"]), "amount", cash, ""))
+    for anchor, role, requested, where in claims:
+        over = over_claim(connection, anchor, role=role)
+        if over == 0:
+            continue
+        row = connection.execute(
+            "SELECT COALESCE(r.description_raw, d.description_raw) AS description, "
+            "e.amount_scale, e.fee_scale FROM ledger_entries e "
+            "JOIN extraction_runs x ON x.id = e.extraction_run_id AND x.selection_state = 'SELECTED' "
+            "LEFT JOIN raw_records r ON r.id = e.raw_record_id "
+            "LEFT JOIN document_records d ON d.id = e.document_record_id "
+            "WHERE e.natural_anchor = ? LIMIT 1",
+            (anchor,),
+        ).fetchone()
+        scale = int(row[f"{role}_scale"] or 0)
+        left = format_decimal(math.floor((requested - over) * 10**scale), scale)
+        raise FinCLError(f"{row['description'] or 'That transaction'} has only {left} unclaimed{where}")
 
 
 def preview_installment(
@@ -116,6 +161,7 @@ def preview_installment(
             batch_index=None,
             resolve_anchor=resolve_anchor,
         )
+        _refuse_over_claims(connection, decision_kind, payload)
         resolve_installments(connection)
     finally:
         connection.execute("ROLLBACK TO installment_preview")
