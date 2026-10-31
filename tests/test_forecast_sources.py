@@ -225,8 +225,7 @@ class PlannedInTheAnswerTests(unittest.TestCase):
             ))
         refresh_ledger(database)
 
-        with patch.object(sources, "EXTRA_SOURCES", [*sources.EXTRA_SOURCES, planned_source]):
-            answer = sufficiency_page(database, today=TODAY)["combined_answer"]
+        answer = sufficiency_page(database, today=TODAY)["combined_answer"]
 
         planned = next(row for row in answer["where_it_goes"] if row["origin"] == "planned")
         self.assertEqual(planned["label"], "Planned spending")
