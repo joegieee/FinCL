@@ -28,6 +28,7 @@ from ..db import connect_readonly
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..money import ExactMoney
+from .budget import trip_budgets, unassigned_todo
 from .countries import COUNTRY_LIST_VERSION
 
 LENS = "recorded_flow"
@@ -142,7 +143,10 @@ def _status(trip: dict[str, Any], today: date) -> str:
     return "past" if today > date.fromisoformat(trip["end_on"]) else "ongoing"
 
 
-def _summary(trip: dict[str, Any], members: list[dict[str, Any]], review_count: int, today: date) -> dict[str, Any]:
+def _summary(
+    trip: dict[str, Any], members: list[dict[str, Any]], review: list[dict[str, Any]], today: date,
+    budgets: list[dict[str, Any]],
+) -> dict[str, Any]:
     totals: dict[str, dict[str, Any]] = {}
     parts: dict[tuple[str, str, str], list[Any]] = {}
     for entry in members:
@@ -156,11 +160,14 @@ def _summary(trip: dict[str, Any], members: list[dict[str, Any]], review_count: 
                 part = parts.setdefault((entry["end"], entry["currency"], kind), [Decimal(0), 2])
                 part[0] += value
                 part[1] = max(part[1], entry["scale"])
+    status = _status(trip, today)
     return {
         **{key: trip[key] for key in ("trip_id", "name", "start_on", "end_on", "countries", "reason")},
-        "status": _status(trip, today),
+        "status": status,
         "entry_count": len(members),
-        "review_count": review_count,
+        "review_count": len(review),
+        "todo": unassigned_todo(trip, review, status),
+        "budgets": budgets,
         "totals_by_currency": {
             currency: {
                 "gross_cost": _text(cell["gross"], cell["scale"]),
@@ -186,13 +193,17 @@ def _review(trip_id: str, entries: dict[str, dict[str, Any]]) -> list[dict[str, 
 def trips_page_from(connection: sqlite3.Connection, *, today: date, expected: str | None = None) -> dict[str, Any]:
     state = _load(connection, expected)
     entries = state["entries"]
+    budgets = trip_budgets(connection, state, today=today)
+    trips = [
+        _summary(trip, [e for e in entries.values() if e["trip"] == trip_id], _review(trip_id, entries), today,
+                 budgets.get(trip_id, []))
+        for trip_id, trip in state["trips"].items()
+    ]
     return {
         "generation": state["token"], "lens": LENS, "lens_note": LENS_NOTE,
         "assignment_policy": ASSIGNMENT_POLICY, "country_list_version": COUNTRY_LIST_VERSION,
-        "trips": [
-            _summary(trip, [e for e in entries.values() if e["trip"] == trip_id], len(_review(trip_id, entries)), today)
-            for trip_id, trip in state["trips"].items()
-        ],
+        "trips": trips,
+        "todos": [trip["todo"] for trip in trips if trip["todo"]],
     }
 
 
@@ -216,7 +227,7 @@ def trip_detail_from(
     return {
         "generation": state["token"], "lens": LENS, "lens_note": LENS_NOTE,
         "assignment_policy": ASSIGNMENT_POLICY, "country_list_version": COUNTRY_LIST_VERSION,
-        "trip": _summary(trip, members, len(review), today),
+        "trip": _summary(trip, members, review, today, trip_budgets(connection, state, today=today).get(trip_id, [])),
         "by_category": [
             {"currency": currency, "category_key": category, "cost_amount": _text(value, scale)}
             for (currency, category), (value, scale) in sorted(by_category.items(), key=lambda item: (item[0][0], -item[1][0]))
@@ -314,6 +325,15 @@ def trip_spend_to_date(connection: sqlite3.Connection, trip_id: str, currency: s
     summed exactly and rounded once. A part with no rate is listed under
     ``unvalued`` and left out of ``actual``, never guessed.
     """
+    state = _load(connection, None)
+    if trip_id not in state["trips"]:
+        raise FinCLError("that trip does not exist")
+    return _spend_from(connection, state, trip_id, currency, as_of)
+
+
+def _spend_from(
+    connection: sqlite3.Connection, state: dict[str, Any], trip_id: str, currency: str, as_of: str,
+) -> dict[str, Any]:
     from ..reporting_currency.models import currency_definition
     from ..valuation import (
         FLOW_RATE_V1,
@@ -325,9 +345,6 @@ def trip_spend_to_date(connection: sqlite3.Connection, trip_id: str, currency: s
         value_one,
     )
 
-    state = _load(connection, None)
-    if trip_id not in state["trips"]:
-        raise FinCLError("that trip does not exist")
     daily: dict[tuple[str, str], list[Any]] = {}
     for entry in state["entries"].values():
         if entry["trip"] != trip_id or entry["end"] > as_of:
@@ -361,6 +378,17 @@ def trip_spend_to_date(connection: sqlite3.Connection, trip_id: str, currency: s
         "trip_id": trip_id, "currency": currency, "as_of": as_of,
         "actual": quantize(total, scale=scale).text, "parts": parts, "unvalued": unvalued,
     }
+
+
+def trip_assigned_entries(connection: sqlite3.Connection) -> dict[str, str]:
+    """Every transaction counted toward a trip, by entry id, with its trip.
+
+    Assignment is derived on read from windows, countries and manual choices;
+    this is the one place outside this module that may ask for it, so the
+    baseline never re-derives it.
+    """
+    state = _load(connection, None)
+    return {entry_id: str(entry["trip"]) for entry_id, entry in state["entries"].items() if entry["trip"]}
 
 
 def entry_context(database: Path, anchor: str, *, expected: str | None = None) -> dict[str, Any]:

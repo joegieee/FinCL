@@ -3,7 +3,7 @@
 Pure read on top of :func:`fincl.baseline.cost_income_table`. It decomposes
 each complete month of the recommended window into
 
-    identified_recurring + unresolved_irregular + routine_variable_residual
+    identified_recurring + trip + unresolved_irregular + routine_variable_residual
         + adjustments (= -refunds -reimbursements)   ==   owner_cost_recorded
 
 with ``routine_variable_residual`` as the exact balancing term, so the
@@ -19,7 +19,10 @@ The estimate is deliberately simple and labelled as such:
 * a single entry at least ``_OUTLIER_MULTIPLE``× its category's median month
   and above ``_OUTLIER_FLOOR`` is held out as observed irregular risk for
   review — it stays in the historical total, it is only removed from the
-  routine residual.
+  routine residual;
+* spending assigned to a trip is its own term: travel is neither the weekly
+  routine nor a one-off to review, and it leaves the outlier scan entirely,
+  so a week of meals abroad does not raise the threshold for meals at home.
 
 The reserve amount is derived only when the deterministic role read has no
 unresolved owner-cost contribution.  This deliberately makes an unclassified
@@ -35,6 +38,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
+from ..context.queries import trip_assigned_entries
 from ..db import connect_readonly
 from ..generation import current_generation
 from ..intervals import month_span
@@ -92,7 +96,7 @@ def _entry_spending_from(
 ) -> list[dict[str, Any]]:
     rows = connection.execute(
         """
-        SELECT component_id, period, currency, category_key, origin_anchor,
+        SELECT component_id, entry_id, period, currency, category_key, origin_anchor,
                signed_coefficient, scale
         FROM analysis_components
         WHERE generation_token = ? AND lens = 'recorded_flow'
@@ -104,6 +108,7 @@ def _entry_spending_from(
     return [
         {
             "component_id": row["component_id"],
+            "entry_id": row["entry_id"],
             "month": row["period"],
             "currency": row["currency"],
             "category_key": row["category_key"],
@@ -381,18 +386,30 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
     entries = _entry_spending_from(connection, token, span_start, span_end)
     recurring_flat = _confirmed_recurring_flat_from(connection, today)
     recurring_matched, recurring_anchors = _recurring_matched_from(connection, token, span_start, span_end)
+    trip_entries = trip_assigned_entries(connection) if token else {}
+    # A recurring-bound payment stays recurring even when it fell inside a trip.
+    on_trips = [e for e in entries if e["entry_id"] in trip_entries and e["origin_anchor"] not in recurring_anchors]
+    trip_ids = {e["component_id"] for e in on_trips}
     roles = baseline_roles_from(connection, today=today)
+    trip_only_pockets: list[str] = []
 
     by_currency: dict[str, Any] = {}
     for currency in table["currencies"]:
         cells = {row["month"]: row["by_currency"][currency] for row in table["months"]}
         scale = 2
-        irregular, flagged = _irregular_by_month(entries, months, currency, recurring_anchors)
+        irregular, flagged = _irregular_by_month(
+            [e for e in entries if e["component_id"] not in trip_ids], months, currency, recurring_anchors
+        )
+        trip_by_month = {month: Decimal(0) for month in months}
+        for entry in on_trips:
+            if entry["currency"] == currency:
+                trip_by_month[entry["month"]] += entry["amount"]
         fixed_flat = recurring_flat.get(currency, Decimal(0))
 
         month_decomp: list[dict[str, Any]] = []
         residuals: list[Decimal] = []
         irregulars: list[Decimal] = []
+        trips: list[Decimal] = []
         incomes: list[Decimal] = []
         owner_costs: list[Decimal] = []
         for month in months:
@@ -401,9 +418,11 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
             adjustments = -(_dec(cell["refunds_received"]) + _dec(cell["reimbursements_received"]))
             irregular_m = irregular[month]
             identified_recurring_m = recurring_matched.get((currency, month), Decimal(0))
-            residual = owner - irregular_m - identified_recurring_m - adjustments
+            trip_m = trip_by_month[month]
+            residual = owner - irregular_m - identified_recurring_m - trip_m - adjustments
             residuals.append(residual)
             irregulars.append(irregular_m)
+            trips.append(trip_m)
             incomes.append(_dec(cell["income"]))
             owner_costs.append(owner)
             month_decomp.append(
@@ -411,11 +430,12 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
                     "month": month,
                     "owner_cost_recorded": cell["owner_cost_recorded"],
                     "identified_recurring": str(identified_recurring_m.quantize(Decimal("0.01"))),
+                    "trip": str(trip_m.quantize(Decimal("0.01"))),
                     "unresolved_irregular": str(irregular_m.quantize(Decimal("0.01"))),
                     "adjustments": str(adjustments.quantize(Decimal("0.01"))),
                     "routine_variable_residual": str(residual.quantize(Decimal("0.01"))),
                     "reconciles": (
-                        identified_recurring_m + irregular_m + residual + adjustments == owner
+                        identified_recurring_m + trip_m + irregular_m + residual + adjustments == owner
                     ),
                     "income": cell["income"],
                 }
@@ -424,15 +444,24 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
         routine_by_month = [fixed_flat + residual for residual in residuals]
         variable_residual_monthly = _mean(residuals, scale)
         irregular_allowance_monthly = _mean(irregulars, scale)
+        trip_allowance_monthly = _mean(trips, scale)
         income_monthly = _mean(incomes, scale)
         routine_lifestyle_baseline = str(
             (_dec(variable_residual_monthly) + fixed_flat).quantize(Decimal("0.01"))
         )
         total_observed_monthly = str(
-            (_dec(routine_lifestyle_baseline) + _dec(irregular_allowance_monthly)).quantize(
-                Decimal("0.01")
-            )
+            (
+                _dec(routine_lifestyle_baseline) + _dec(irregular_allowance_monthly)
+                + _dec(trip_allowance_monthly)
+            ).quantize(Decimal("0.01"))
         )
+        # A wallet topped up only for travel would otherwise be forecast to keep
+        # travelling every month, in a pocket that is usually empty.
+        trip_only = any(trips) and not any(
+            e["currency"] == currency and e["component_id"] not in trip_ids for e in entries
+        )
+        if trip_only:
+            trip_only_pockets.append(currency)
         surplus_monthly = str(
             (_dec(income_monthly) - _dec(total_observed_monthly)).quantize(Decimal("0.01"))
         )
@@ -481,6 +510,10 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
             "variable_residual_min": str(min(residuals).quantize(Decimal("0.01"))) if residuals else "0",
             "variable_residual_max": str(max(residuals).quantize(Decimal("0.01"))) if residuals else "0",
             "irregular_allowance_monthly": irregular_allowance_monthly,
+            "trip_allowance_monthly": trip_allowance_monthly,
+            "trip_allowance_min": str(min(trips).quantize(Decimal("0.01"))) if trips else "0",
+            "trip_allowance_max": str(max(trips).quantize(Decimal("0.01"))) if trips else "0",
+            "trip_allowance_projected": any(trips) and not trip_only,
             "routine_lifestyle_baseline": routine_lifestyle_baseline,
             "total_observed_monthly": total_observed_monthly,
             "net_received_income_monthly": income_monthly,
@@ -510,8 +543,12 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
                     **_observed_range(months, irregulars),
                     "months_with_entries": sum(1 for value in irregulars if value),
                 },
+                "trip_allowance_monthly": {
+                    **_observed_range(months, trips),
+                    "months_with_entries": sum(1 for value in trips if value),
+                },
                 "total_observed_monthly": _observed_range(
-                    months, [routine + extra for routine, extra in zip(routine_by_month, irregulars, strict=True)]
+                    months, [routine + extra + trip for routine, extra, trip in zip(routine_by_month, irregulars, trips, strict=True)]
                 ),
             },
         }
@@ -524,6 +561,11 @@ def baseline_estimate_from(connection: sqlite3.Connection, *, today: date) -> di
         "the upper-spend comparison statistics are observed dispersion, not a calibrated interval",
         "the sensitivity figure is a spread check with one month removed, not a probability",
     ]
+    for currency in trip_only_pockets:
+        limitations.append(
+            f"every {currency} payment in the window was on a trip, so past trips are not projected "
+            f"as future {currency} spending; plan the next trip to have it forecast"
+        )
     if window["basis"] == "some-provisional":
         limitations.append(
             "the window rests on observed-only months; this is a limited-history estimate"

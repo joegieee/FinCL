@@ -67,7 +67,7 @@ Path = list[str | int]
 
 # Closed inventory of monetary fields. Rates, percentages, counts, dates,
 # predicates and native editor input strings deliberately do not qualify.
-MONEY_FIELDS = frozenset(["amount", "principal", "fee", "rounding_remainder", "waiver", "remaining_principal", "known_principal", "remaining_obligation", "observed_total", "credit_balance_amount", "over_limit_amount", "headroom", "limit", "target", "saved", "remaining", "actual", "expected", "previous_limit", "new_limit", "previous_remaining", "new_remaining", "monthly_amount", "expected_amount", "min_amount", "max_amount", "total_received", "gross_cost", "owner_cost_recorded", "owner_cost_baseline", "identified_recurring", "unresolved_irregular", "adjustments", "routine_variable_residual", "income", "essential", "discretionary", "unresolved", "total", "fixed_recurring_monthly", "variable_residual_monthly", "variable_residual_median", "variable_residual_min", "variable_residual_max", "irregular_allowance_monthly", "routine_lifestyle_baseline", "total_observed_monthly", "net_received_income_monthly", "historical_surplus_monthly", "essential_monthly", "earlier_mean_owner_cost", "recent_mean_owner_cost", "excluded_routine_residual", "bank_withdrawal", "via_card_statement", "monthly_baseline_portion", "remaining_historical_portion", "amount_due", "required_contribution", "allocated_now", "total_cash", "earmarked_funds", "unallocated_cash", "minimum_reserve", "reserve_adjusted_unallocated_cash", "shortfall", "insufficient_allocation", "outstanding", "open_amount", "net_cash_effect", "receipts", "payments", "realized_amount", "cash_effect", "pace_projected_spend", "pace_estimated_headroom", "external_cash_outflows", "internal_earmarks", "additional_spending_capacity", "funding_need", "minimum_conservative_unallocated_reserve_adjusted_balance", "amount_per_week", "before_gap", "after_gap", "cash_improvement", "starting_balance", "reserve_target", "closing_balance", "opening_balance", "inflows", "outflows", "net_cash_change", "reserve_adjusted_closing", "minimum_balance", "opening_liability", "closing_liability", "credit_limit", "minimum_payment", "statement_due", "statement_payment_due", "recognized_principal", "financing_fee", "outstanding_earmark", "released", "amount_remaining", "known_amount", "unclassified_receipts", "unclassified_payments", "principal_amount", "fee_amount", "cost_amount", "absolute_amount", "left_amount", "right_amount", "other_inflow", "pending_inflow", "refunds_received", "reimbursements_received", "unmatched_receipts", "owner_cost_recorded_total", "owner_cost_baseline_total", "unmatched_receipts_total", "recorded_minus_baseline", "cross_month_refund_in", "cross_month_refund_out", "expected_from_allocations", "mean_monthly", "highest_observed_monthly", "source_backed_monthly", "maximum_suggested_monthly_reduction", "refunds", "net_cost", "refund_amount", "planned", "matched", "over_plan"])
+MONEY_FIELDS = frozenset(["amount", "principal", "fee", "rounding_remainder", "waiver", "remaining_principal", "known_principal", "remaining_obligation", "observed_total", "credit_balance_amount", "over_limit_amount", "headroom", "limit", "target", "saved", "remaining", "actual", "expected", "previous_limit", "new_limit", "previous_remaining", "new_remaining", "monthly_amount", "expected_amount", "min_amount", "max_amount", "total_received", "gross_cost", "owner_cost_recorded", "owner_cost_baseline", "identified_recurring", "unresolved_irregular", "adjustments", "routine_variable_residual", "income", "essential", "discretionary", "unresolved", "total", "fixed_recurring_monthly", "variable_residual_monthly", "variable_residual_median", "variable_residual_min", "variable_residual_max", "irregular_allowance_monthly", "trip", "trip_allowance_monthly", "trip_allowance_min", "trip_allowance_max", "routine_lifestyle_baseline", "total_observed_monthly", "net_received_income_monthly", "historical_surplus_monthly", "essential_monthly", "earlier_mean_owner_cost", "recent_mean_owner_cost", "excluded_routine_residual", "bank_withdrawal", "via_card_statement", "monthly_baseline_portion", "remaining_historical_portion", "amount_due", "required_contribution", "allocated_now", "total_cash", "earmarked_funds", "unallocated_cash", "minimum_reserve", "reserve_adjusted_unallocated_cash", "shortfall", "insufficient_allocation", "outstanding", "open_amount", "net_cash_effect", "receipts", "payments", "realized_amount", "cash_effect", "pace_projected_spend", "pace_estimated_headroom", "external_cash_outflows", "internal_earmarks", "additional_spending_capacity", "funding_need", "minimum_conservative_unallocated_reserve_adjusted_balance", "amount_per_week", "before_gap", "after_gap", "cash_improvement", "starting_balance", "reserve_target", "closing_balance", "opening_balance", "inflows", "outflows", "net_cash_change", "reserve_adjusted_closing", "minimum_balance", "opening_liability", "closing_liability", "credit_limit", "minimum_payment", "statement_due", "statement_payment_due", "recognized_principal", "financing_fee", "outstanding_earmark", "released", "amount_remaining", "known_amount", "unclassified_receipts", "unclassified_payments", "principal_amount", "fee_amount", "cost_amount", "absolute_amount", "left_amount", "right_amount", "other_inflow", "pending_inflow", "refunds_received", "reimbursements_received", "unmatched_receipts", "owner_cost_recorded_total", "owner_cost_baseline_total", "unmatched_receipts_total", "recorded_minus_baseline", "cross_month_refund_in", "cross_month_refund_out", "expected_from_allocations", "mean_monthly", "highest_observed_monthly", "source_backed_monthly", "maximum_suggested_monthly_reduction", "refunds", "net_cost", "refund_amount", "planned", "matched", "over_plan"])
 
 # Rule thresholds and matching tolerances are editor/rule inputs: they stay native.
 NATIVE_ONLY_FIELDS = frozenset(["threshold", "held_out_threshold", "amount_tolerance", "suggested_tolerance"])
@@ -236,6 +236,8 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
                 purpose = ValuationPurpose.FORECAST
             # A planned amount is a forward figure; a matched payment or a
             # trip's spend is a dated flow.
+            if resource.startswith("trips") and "budgets" in path and key in {"planned", "remaining"}:
+                purpose = ValuationPurpose.FORECAST
             if resource == "planned":
                 purpose = ValuationPurpose.FLOW if any(part in path for part in ("matches", "actual_parts")) \
                     else ValuationPurpose.FORECAST
@@ -337,10 +339,11 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
 
         fixed: list[tuple[Path, Fraction]] = [([*root, "fixed_recurring_monthly"], Fraction(1))]
         routine = fixed + mean("routine_variable_residual")
-        total = routine + mean("unresolved_irregular")
+        total = routine + mean("unresolved_irregular") + mean("trip")
         for name, parts in {
             "variable_residual_monthly": mean("routine_variable_residual"),
             "irregular_allowance_monthly": mean("unresolved_irregular"),
+            "trip_allowance_monthly": mean("trip"),
             "routine_lifestyle_baseline": routine,
             "total_observed_monthly": total,
             "net_received_income_monthly": mean("income"),
@@ -351,7 +354,8 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
         for name, (fields, with_fixed) in {
             "routine_lifestyle_baseline": (("routine_variable_residual",), True),
             "irregular_allowance_monthly": (("unresolved_irregular",), False),
-            "total_observed_monthly": (("routine_variable_residual", "unresolved_irregular"), True),
+            "trip_allowance_monthly": (("trip",), False),
+            "total_observed_monthly": (("routine_variable_residual", "unresolved_irregular", "trip"), True),
         }.items():
             spread = (cell.get("observed_range") or {}).get(name) or {}
             for bound in ("min", "max"):

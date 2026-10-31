@@ -22,7 +22,7 @@ function estimate(over: Record<string, unknown> = {}) {
     sample: { months: ['2026-03'], month_count: 1, quality: 'limited-history', method_version: 'baseline-estimator-v1', residual_method: 'arithmetic-mean-of-monthly-routine-residual', outlier_method: 'outlier-v1' },
     by_currency: {
       SGD: {
-        months: [{ month: '2026-03', owner_cost_recorded: '960.00', identified_recurring: '0.00', unresolved_irregular: '900.00', adjustments: '0.00', routine_variable_residual: '60.00', reconciles: true, income: '0' }],
+        months: [{ month: '2026-03', owner_cost_recorded: '960.00', identified_recurring: '0.00', trip: '0.00', unresolved_irregular: '900.00', adjustments: '0.00', routine_variable_residual: '60.00', reconciles: true, income: '0' }],
         fixed_recurring_monthly: '0.00', variable_residual_monthly: '60.00', variable_residual_median: '60.00',
         variable_residual_min: '60.00', variable_residual_max: '60.00', irregular_allowance_monthly: '900.00',
         routine_lifestyle_baseline: '60.00', total_observed_monthly: '960.00', net_received_income_monthly: '0.00',
@@ -138,6 +138,7 @@ describe('BaselineView', () => {
       available: true, generation: 'g1', currency: 'SGD', month: '2026-03', owner_cost_recorded: '960.00', reconciles: true,
       parts: [
         { part: 'identified_recurring', total: '0.00', reconciles: true, contributors: [] },
+        { part: 'trip', total: '0.00', reconciles: true, contributors: [] },
         { part: 'unresolved_irregular', total: '900.00', reconciles: true, contributors: [
           { component_id: 'c1', entry_anchor: 'anchor-1', date: '2026-03-20', precision: 'DAY', merchant: 'CORNER SHOP', category_key: 'Unclassified / Unclassified', bucket: 'spending', account: 'acc-1', amount: '900.00' },
         ] },
@@ -154,7 +155,8 @@ describe('BaselineView', () => {
     expect(loadBaselineContributors).toHaveBeenCalledWith('SGD', '2026-03')
     expect(await screen.findByText('Irregular (held out for review) · SGD 900.00')).toBeInTheDocument()
     expect(screen.getByText('Routine residual · SGD 60.00')).toBeInTheDocument()
-    expect(screen.getAllByText('None this month.')).toHaveLength(2)
+    expect(screen.getByText('Trips · SGD 0.00')).toBeInTheDocument()
+    expect(screen.getAllByText('None this month.')).toHaveLength(3)
     expect(screen.getByText('Groceries')).toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: /Open transaction/ })[0])

@@ -1340,6 +1340,22 @@ def _manifest_categories(
                 ),
             ]
         )
+        # Past trips, spread over every month, which a planned trip replaces
+        # in its own months. Trips are lumpy, so the cautious case keeps the
+        # mean too: the highest month would put a trip in every month.
+        if cell.get("trip_allowance_projected"):
+            categories.append(
+                ResidualCategory(
+                    category_id=f"manifest:trip:{currency}",
+                    currency=currency,
+                    mean_monthly=str(cell["trip_allowance_monthly"]),
+                    highest_observed_monthly=str(cell["trip_allowance_monthly"]),
+                    lowest_observed_monthly=str(cell["trip_allowance_min"]),
+                    label="Travel, from past trips",
+                    column=COLUMN_IRREGULAR,
+                    provenance={"source": "fincl.baseline.estimators.baseline_estimate", "term": "trip"},
+                )
+            )
     return categories
 
 

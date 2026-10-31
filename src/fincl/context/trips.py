@@ -122,13 +122,23 @@ def check_context_sequence(
 
     Every anchored transaction must resolve; an assignment names a trip that
     exists at that point; a trip being retired has no manual assignment left
-    once the whole sequence is applied.
+    once the whole sequence is applied, and no planned budget still linked to it.
     """
     trips = {str(row[0]) for row in connection.execute("SELECT trip_id FROM trips")}
+    budgets = {str(row[0]): (str(row[1]), str(row[2])) for row in connection.execute(
+        "SELECT flow, link_id, name FROM planned_flows WHERE link_kind = 'trip'")}
     manual = {str(row[0]): str(row[1]) for row in connection.execute(
         "SELECT entry_id, trip_id FROM entry_trips WHERE trip_id IS NOT NULL")}
     retired: set[str] = set()
     for kind, anchors, payload in items:
+        if kind == "PLANNED_FLOW_SET":
+            link = payload.get("link")
+            if link and link.get("kind") == "trip":
+                budgets[anchors["flow"]] = (str(link["id"]), str(payload.get("name", "")))
+            else:
+                budgets.pop(anchors["flow"], None)
+        elif kind == "PLANNED_FLOW_RETIRE":
+            budgets.pop(anchors["flow"], None)
         if kind not in CONTEXT_DECISION_KINDS:
             continue
         validate_context(kind, anchors, payload)
@@ -154,6 +164,12 @@ def check_context_sequence(
                 raise FinCLError("That trip does not exist")
             trips.discard(anchors["trip"])
             retired.add(anchors["trip"])
+    held = sorted(name for trip, name in budgets.values() if trip in retired)
+    if held:
+        raise FinCLError(
+            f"This trip still has a budget on the Planned tab ({', '.join(held)}); "
+            "remove the budget first, then remove the trip"
+        )
     left = sorted(entry for entry, trip in manual.items() if trip in retired)
     if left:
         raise FinCLError(

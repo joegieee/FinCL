@@ -116,25 +116,29 @@ export function PlannedView({ generation, currencies, categories, onSaved }: {
 
 type Mode = 'day' | 'month' | 'monthly' | 'rows' | 'trip'
 
-function FlowForm({ initial, currencies, categories, accounts, trips, generation, onSaved, onCancel }: {
-  initial: PlannedFlow | null; currencies: string[]; categories: string[]; accounts: AccountOption[]; trips: TripOption[]
+/** A new trip budget starts from the trip: linked to it and dated over its days. */
+export type TripBudgetPrefill = { tripId: string; name: string; start: string; end: string; currency?: string }
+
+function FlowForm({ initial, prefill, currencies, categories, accounts, trips, generation, onSaved, onCancel }: {
+  initial: PlannedFlow | null; prefill?: TripBudgetPrefill; currencies: string[]; categories: string[]; accounts: AccountOption[]; trips: TripOption[]
   generation: string; onSaved: Saved; onCancel: () => void
 }) {
   const [flowId] = useState(() => initial?.flow ?? crypto.randomUUID())
   const [direction, setDirection] = useState<Direction>(initial?.direction ?? 'outflow')
-  const [name, setName] = useState(initial?.name ?? '')
-  const [currency, setCurrency] = useState(initial?.currency ?? currencies[0] ?? 'SGD')
-  const [mode, setMode] = useState<Mode>(initial ? 'rows' : 'day')
+  const [name, setName] = useState(initial?.name ?? (prefill ? `${prefill.name} budget` : ''))
+  const [currency, setCurrency] = useState(initial?.currency ?? prefill?.currency ?? currencies[0] ?? 'SGD')
+  const [mode, setMode] = useState<Mode>(initial || prefill ? 'rows' : 'day')
   const [amount, setAmount] = useState('')
   const [day, setDay] = useState('')
   const [month, setMonth] = useState('')
   const [count, setCount] = useState('3')
-  const [rows, setRows] = useState<OccurrenceDraft[]>(() => initial?.occurrences.map(o => ({ key: o.key, earliest: o.earliest, latest: o.latest, amount: o.planned })) ?? [])
+  const [rows, setRows] = useState<OccurrenceDraft[]>(() => initial?.occurrences.map(o => ({ key: o.key, earliest: o.earliest, latest: o.latest, amount: o.planned }))
+    ?? (prefill ? [{ key: '1', earliest: prefill.start, latest: prefill.end, amount: '' }] : []))
   const [account, setAccount] = useState(initial?.account_id ?? '')
   const [category, setCategory] = useState(initial?.category ?? '')
   const [certainty, setCertainty] = useState<Certainty>(initial?.certainty ?? 'sure')
   const [treatment, setTreatment] = useState<Treatment>(initial?.baseline_treatment ?? 'extra')
-  const [trip, setTrip] = useState(initial?.link?.id ?? '')
+  const [trip, setTrip] = useState(initial?.link?.id ?? prefill?.tripId ?? '')
   const [reason, setReason] = useState('')
   const [impact, setImpact] = useState<PlannedImpact | null>(null)
   const [impactError, setImpactError] = useState('')
@@ -241,6 +245,36 @@ function ImpactSummary({ impact, error }: { impact: PlannedImpact | null; error:
     {impact.months.length > 0 && <div className="table-scroll"><table className="pocket-table"><thead><tr><th>Month</th><th>Base case closing balance changes by</th><th>Cautious case closing balance changes by</th></tr></thead>
       <tbody>{impact.months.map(row => <tr key={row.month}><td>{monthLabel(row.month)}</td><td>{row.base.change ? money(row.base.change, impact.currency) : '—'}</td><td>{row.cautious.change ? money(row.cautious.change, impact.currency) : '—'}</td></tr>)}</tbody></table></div>}
   </div>
+}
+
+/**
+ * The planned-item form on its own, for a page that offers it in place (a
+ * trip's budget): it fetches the choices the form needs. With `flow` it edits
+ * that item; otherwise it starts a new one from `prefill`.
+ */
+export function PlannedFlowEditor({ flow, prefill, currencies, categories, generation, onSaved, onCancel }: {
+  flow?: string; prefill?: TripBudgetPrefill; currencies: string[]; categories: string[]
+  generation: string; onSaved: Saved; onCancel: () => void
+}) {
+  const [accounts, setAccounts] = useState<AccountOption[]>([])
+  const [trips, setTrips] = useState<TripOption[]>([])
+  const [initial, setInitial] = useState<PlannedFlow | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    loadAccountOptions().then(setAccounts).catch(() => {})
+    loadTripOptions().then(setTrips).catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (!flow) return
+    loadPlanned().then(page => {
+      const found = page.flows.find(item => item.flow === flow)
+      if (found) setInitial(found); else setError('That planned item no longer exists.')
+    }).catch(e => setError((e as Error).message))
+  }, [flow])
+  if (error) return <p className="form-error" role="alert">{error}</p>
+  if (flow && !initial) return <p className="muted-note">Loading the budget…</p>
+  return <FlowForm initial={initial} prefill={prefill} currencies={currencies} categories={categories}
+    accounts={accounts} trips={trips} generation={generation} onSaved={onSaved} onCancel={onCancel}/>
 }
 
 type Action = 'match' | 'done' | 'cancelled' | 'reopen' | 'remove' | null

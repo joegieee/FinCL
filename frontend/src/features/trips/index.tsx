@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { MapPinned, Plus, X } from 'lucide-react'
+import { AlertTriangle, MapPinned, Plus, X } from 'lucide-react'
 import { AsyncView } from '@/components/AsyncView'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -7,9 +7,11 @@ import { Card } from '@/components/ui/card'
 import { dateLabel } from '@/lib/format'
 import { useBatchCommand, useLedgerCommand, type BatchItem } from '@/lib/command'
 import { reportedMoney, WorkspaceReportingDetails } from '@/lib/workspaceReporting'
+import { PlannedFlowEditor } from '@/features/planned'
+import { flowRetire } from '@/features/planned/api'
 import {
   countryName, countrySet, loadCountries, loadTrip, loadTrips, tripAssign, tripAssignRetire, tripRetire,
-  type ContextRow, type TripDetail, type TripDraft, type TripStatus, type TripSummary, type TripsPage,
+  type ContextRow, type TripBudget, type TripDetail, type TripDraft, type TripStatus, type TripSummary, type TripsPage,
 } from './api'
 
 const STATUS: Record<TripStatus, string> = { upcoming: 'Upcoming', ongoing: 'Under way', past: 'Past' }
@@ -22,7 +24,7 @@ type Saved = (status: string) => void | Promise<void>
  * several matching trips wait for a choice. Country is never guessed from
  * currency or merchant: it is set here, explicitly, per transaction.
  */
-export function TripsView({ generation, onSaved }: { generation: string; onSaved: Saved }) {
+export function TripsView({ generation, currencies, categories, onSaved }: { generation: string; currencies: string[]; categories: string[]; onSaved: Saved }) {
   const [page, setPage] = useState<TripsPage | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -53,10 +55,13 @@ export function TripsView({ generation, onSaved }: { generation: string; onSaved
             <span className="trip-card-totals">{Object.keys(trip.totals_by_currency).length
               ? Object.entries(trip.totals_by_currency).map(([currency, cell]) => <span key={currency}>{reportedMoney(cell, 'net_cost', currency)} <small>({currency} pocket)</small></span>)
               : <small>Nothing assigned yet</small>}</span>
+            {trip.budgets.map(cell => <small key={cell.currency} className="trip-card-budget">
+              Budget {reportedMoney(cell, 'planned', cell.currency)} · spent {reportedMoney(cell, 'actual', cell.currency)} · {cell.over_budget ? <strong>over by {reportedMoney(cell, 'over_plan', cell.currency)}</strong> : <>left {reportedMoney(cell, 'remaining', cell.currency)}</>}
+              {cell.missed && ' · date passed, not settled'}</small>)}
           </button>
         </li>)}</ul>
         <p className="muted-note">{data.lens_note}</p>
-        {selected && data.trips.some(t => t.trip_id === selected) && <TripDetailView key={selected} tripId={selected} codes={codes} generation={generation} onSaved={onSaved} onEdit={trip => setEditing(trip)} onClose={() => setSelected(null)}/>}
+        {selected && data.trips.some(t => t.trip_id === selected) && <TripDetailView key={selected} tripId={selected} codes={codes} currencies={currencies} categories={categories} generation={generation} onSaved={onSaved} onEdit={trip => setEditing(trip)} onClose={() => setSelected(null)}/>}
       </>}
     </AsyncView>
   </div>
@@ -96,7 +101,7 @@ function TripForm({ initial, codes, generation, onSaved, onCancel }: { initial: 
 type Action = 'country' | 'assign' | 'exclude' | 'clear'
 const ACTION_LABEL: Record<Action, string> = { country: 'Set country', assign: 'Assign to this trip', exclude: 'Exclude from every trip', clear: 'Return to automatic' }
 
-function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }: { tripId: string; codes: string[]; generation: string; onSaved: Saved; onEdit: (trip: TripSummary) => void; onClose: () => void }) {
+function TripDetailView({ tripId, codes, currencies, categories, generation, onSaved, onEdit, onClose }: { tripId: string; codes: string[]; currencies: string[]; categories: string[]; generation: string; onSaved: Saved; onEdit: (trip: TripSummary) => void; onClose: () => void }) {
   const [detail, setDetail] = useState<TripDetail | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -105,6 +110,8 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
   const [country, setCountry] = useState('')
   const [reason, setReason] = useState('')
   const [reviewed, setReviewed] = useState<BatchItem[] | null>(null)
+  const [editor, setEditor] = useState<{ flow?: string } | null>(null)
+  const [removing, setRemoving] = useState<string | null>(null)
   const batch = useBatchCommand(generation, async status => { setChecked(new Set()); setReviewed(null); await onSaved(status) })
 
   const load = useCallback(() => {
@@ -135,8 +142,15 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
     setReviewed(items)
   }
 
-  async function retireTrip() {
+  async function removeBudget(flow: string) {
     if (!detail) return
+    const why = `Removed the budget for ${detail.trip.name}`
+    setRemoving(null)
+    await batch.submit([flowRetire(flow, why)], why)
+  }
+
+  async function retireTrip() {
+    if (!detail || detail.trip.budgets.length > 0) return
     const why = reason.trim() || `Removed trip ${detail.trip.name}`
     const manual = detail.manual_assignments.map(r => tripAssignRetire(r.anchor, why))
     await batch.submit([...manual, tripRetire(tripId, why)], why)
@@ -152,7 +166,16 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
         {Object.keys(d.trip.totals_by_currency).length > 0 ? <dl className="baseline-metrics">{Object.entries(d.trip.totals_by_currency).map(([currency, cell]) => <div key={currency}><dt>{currency} pocket · cost / refunds / net</dt><dd>{reportedMoney(cell, 'gross_cost', currency)} · {reportedMoney(cell, 'refunds', currency)} · <strong>{reportedMoney(cell, 'net_cost', currency)}</strong></dd></div>)}</dl>
           : <p className="muted-note">Nothing is assigned to this trip yet.</p>}
         <p className="muted-note">{d.lens_note}</p>
-        <section className="trip-budget" aria-label="Budget"><h3>Budget</h3><p className="muted-note">No budget for this trip yet.</p></section>
+        {d.trip.todo && <p className="muted-note"><AlertTriangle size={13}/> {d.trip.todo.text}. Set their country or assign them below.</p>}
+        <section className="trip-budget" aria-label="Budget"><h3>Budget</h3>
+          {d.trip.budgets.length === 0 && <p className="muted-note">No budget for this trip yet.</p>}
+          {d.trip.budgets.map(cell => <BudgetCell key={cell.currency} cell={cell} removing={removing} busy={batch.busy}
+            onChange={flow => setEditor({ flow })} onAskRemove={setRemoving} onRemove={flow => void removeBudget(flow)}/>)}
+          {!editor && d.trip.budgets.length === 0 && <div className="row-actions"><Button variant="outline" size="sm" onClick={() => setEditor({})}>Add a budget</Button></div>}
+          {editor && <PlannedFlowEditor key={editor.flow ?? 'new'} flow={editor.flow} currencies={currencies} categories={categories} generation={generation}
+            prefill={{ tripId, name: d.trip.name, start: d.trip.start_on, end: d.trip.end_on, currency: Object.keys(d.trip.totals_by_currency)[0] }}
+            onSaved={async status => { setEditor(null); await onSaved(status) }} onCancel={() => setEditor(null)}/>}
+        </section>
         {d.by_category.length > 0 && <div className="table-scroll"><table className="pocket-table"><thead><tr><th>Category</th><th>Pocket</th><th>Cost</th></tr></thead>
           <tbody>{d.by_category.map((row, i) => <tr key={i}><td>{row.category_key}</td><td>{row.currency}</td><td>{reportedMoney(row, 'cost_amount', row.currency)}</td></tr>)}</tbody></table></div>}
         <RowSection title="In this trip" rows={d.contributors} checked={checked} onToggle={toggle} empty="No transactions yet."/>
@@ -173,10 +196,38 @@ function TripDetailView({ tripId, codes, generation, onSaved, onEdit, onClose }:
         {reviewed && <div className="preview" role="status"><p>{ACTION_LABEL[action]}{action === 'country' ? ` to ${country ? `${country} (${countryName(country)})` : 'unknown'}` : ''} on {reviewed.length} transaction{reviewed.length === 1 ? '' : 's'}: {[...checked].map(a => rows.get(a)?.merchant).filter(Boolean).slice(0, 5).join(', ')}{checked.size > 5 ? '…' : ''}.</p>
           <Button disabled={batch.busy} onClick={() => void batch.submit(reviewed, reason.trim())}>{batch.busy ? 'Saving…' : `Save ${reviewed.length} change${reviewed.length === 1 ? '' : 's'}`}</Button></div>}
         {batch.error && <div className="alert error" role="alert"><p>{batch.error}</p>{batch.submitted && <Button variant="outline" onClick={() => void batch.retry()}>Retry same save</Button>}</div>}
-        <details className="trip-retire"><summary>Remove this trip</summary><p className="muted-note">Its {d.manual_assignments.length} manual assignment(s) are retired in the same save{d.manual_assignments.some(m => !m.counted) && ', including ones no longer counted as trip cost'}; automatic ones simply stop matching. Transactions and countries are kept.</p><Button variant="outline" disabled={batch.busy} onClick={() => void retireTrip()}>Remove trip</Button></details>
+        <details className="trip-retire"><summary>Remove this trip</summary><p className="muted-note">Its {d.manual_assignments.length} manual assignment(s) are retired in the same save{d.manual_assignments.some(m => !m.counted) && ', including ones no longer counted as trip cost'}; automatic ones simply stop matching. Transactions and countries are kept.</p>{d.trip.budgets.length > 0
+          ? <p className="form-error" role="status">This trip still has a budget. Remove the budget above first, then remove the trip.</p>
+          : <Button variant="outline" disabled={batch.busy} onClick={() => void retireTrip()}>Remove trip</Button>}</details>
       </>}
     </AsyncView>
   </Card>
+}
+
+function BudgetCell({ cell, removing, busy, onChange, onAskRemove, onRemove }: {
+  cell: TripBudget; removing: string | null; busy: boolean
+  onChange: (flow: string) => void; onAskRemove: (flow: string | null) => void; onRemove: (flow: string) => void
+}) {
+  const { currency } = cell
+  return <div className="trip-budget-cell">
+    <dl className="baseline-metrics">
+      <div><dt>Budget · {currency}</dt><dd>{reportedMoney(cell, 'planned', currency)}</dd></div>
+      <div><dt>Spent so far</dt><dd>{reportedMoney(cell, 'actual', currency)}</dd></div>
+      {cell.over_budget
+        ? <div><dt>Over budget by</dt><dd><strong>{reportedMoney(cell, 'over_plan', currency)}</strong></dd></div>
+        : <div><dt>Remaining</dt><dd>{reportedMoney(cell, 'remaining', currency)}</dd></div>}
+    </dl>
+    {cell.over_budget && <p className="form-error" role="status">Spending is over this budget.</p>}
+    {cell.missed && <p className="muted-note"><AlertTriangle size={13}/> The budget’s dates have passed with money unspent. It stays in the forecast until you mark it done on the Planned tab.</p>}
+    {cell.unvalued_count > 0 && <p className="muted-note">{cell.unvalued_count} day{cell.unvalued_count === 1 ? '' : 's'} of spending in another currency {cell.unvalued_count === 1 ? 'has' : 'have'} no exchange rate and {cell.unvalued_count === 1 ? 'is' : 'are'} left out of the spent figure.</p>}
+    {cell.flows.map(f => <div key={f.flow} className="row-actions">
+      <span>{f.name}</span>
+      <Button variant="outline" size="sm" aria-label={`Change budget ${f.name}`} onClick={() => onChange(f.flow)}>Change budget</Button>
+      {removing === f.flow
+        ? <><Button size="sm" disabled={busy} onClick={() => onRemove(f.flow)}>Confirm remove budget</Button><Button variant="ghost" size="sm" onClick={() => onAskRemove(null)}>Keep</Button></>
+        : <Button variant="ghost" size="sm" aria-label={`Remove budget ${f.name}`} onClick={() => onAskRemove(f.flow)}>Remove budget</Button>}
+    </div>)}
+  </div>
 }
 
 // Amounts stay exact decimal text from the server; this only reads whether one is zero.
