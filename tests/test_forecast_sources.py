@@ -211,7 +211,6 @@ class AnswerFreshnessTests(unittest.TestCase):
 
 class PlannedInTheAnswerTests(unittest.TestCase):
     def test_planned_money_reaches_the_breakdown_the_upside_and_the_todos(self) -> None:
-        from fincl.planned.forecast import planned_source
         from fincl.planning.sufficiency import sufficiency_page
 
         database = rent_ledger()
