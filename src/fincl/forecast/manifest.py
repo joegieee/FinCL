@@ -702,6 +702,9 @@ def _ambiguous_obligations(obligations: list[dict[str, Any]]) -> list[dict[str, 
         date_kind = o.get("date_basis", {}).get("kind")
         if date_kind in _AMBIGUOUS_DATE_KINDS:
             reasons.append(f"date basis is '{date_kind}'")
+        # Only the part of a debt its repayment plan leaves undated is a gap.
+        if o.get("unscheduled_remainder"):
+            reasons.append(o["unscheduled_remainder"]["reason"])
         if reasons:
             ambiguous.append(
                 {

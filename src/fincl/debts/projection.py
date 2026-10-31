@@ -34,8 +34,11 @@ from .models import (
     PERSONAL_DEBT_EVENT_SET,
     PERSONAL_DEBT_OPEN,
     PERSONAL_DEBT_REOPEN,
+    PERSONAL_DEBT_SCHEDULE_RETIRE,
+    PERSONAL_DEBT_SCHEDULE_SET,
     events_for_direction,
 )
+from .schedule import clear_schedule, write_schedule
 
 
 def _debt_row(connection: sqlite3.Connection, debt_id: str) -> sqlite3.Row:
@@ -327,6 +330,15 @@ def apply_debt(
             "lifecycle_seq = ?, reason = ? WHERE debt_id = ?",
             (journal_seq, payload["reason"], anchors["debt"]),
         )
+        return
+
+    if decision_kind == PERSONAL_DEBT_SCHEDULE_SET:
+        _debt_row(connection, anchors["debt"])
+        write_schedule(connection, anchors["debt"], payload, journal_seq)
+        return
+
+    if decision_kind == PERSONAL_DEBT_SCHEDULE_RETIRE:
+        clear_schedule(connection, anchors["debt"])
         return
 
     raise FinCLError(f"{decision_kind} is not a personal-debt decision")  # pragma: no cover

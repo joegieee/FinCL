@@ -3471,6 +3471,70 @@
         }
       }
     },
+    "/api/v1/debts/{debt_id}/commitment-schedule": {
+      "get": {
+        "summary": "Debt Commitment Schedule",
+        "operationId": "debt_commitment_schedule_api_v1_debts__debt_id__commitment_schedule_get",
+        "parameters": [
+          {
+            "name": "debt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Debt Id"
+            }
+          },
+          {
+            "name": "commitment",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commitment"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Debt Commitment Schedule Api V1 Debts  Debt Id  Commitment Schedule Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/debts/{debt_id}/events/{event_id}": {
       "get": {
         "summary": "Debt Event Read",
@@ -8261,6 +8325,70 @@
         }
       }
     },
+    "/api/v1/reporting/workspaces/debts/{debt_id}/commitment-schedule": {
+      "get": {
+        "summary": "Reported Workspace Debt Commitment Schedule",
+        "operationId": "reported_workspace_debt_commitment_schedule_api_v1_reporting_workspaces_debts__debt_id__commitment_schedule_get",
+        "parameters": [
+          {
+            "name": "debt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Debt Id"
+            }
+          },
+          {
+            "name": "commitment",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Commitment"
+            }
+          },
+          {
+            "name": "generation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Generation"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportedWorkspace"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/workspaces/debts/{debt_id}/events/{event_id}": {
       "get": {
         "summary": "Reported Workspace Debt Event Read",
@@ -10186,7 +10314,10 @@
               "ENTRY_TRIP_RETIRE",
               "PLANNED_MATCH_RETIRE",
               "PLANNED_OCCURRENCE_RESOLVE_RETIRE",
-              "PLANNED_FLOW_RETIRE"
+              "PLANNED_FLOW_RETIRE",
+              "PERSONAL_DEBT_SCHEDULE_SET",
+              "PERSONAL_DEBT_SCHEDULE_RETIRE",
+              "RECURRING_COMMITMENT_SET"
             ],
             "title": "Kind"
           },
@@ -11385,6 +11516,8 @@
               "ENTRY_RESIDUAL_SET",
               "ENTRY_RESIDUAL_RETIRE",
               "INBOUND_CLASSIFICATION_RETIRE",
+              "PERSONAL_DEBT_SCHEDULE_SET",
+              "PERSONAL_DEBT_SCHEDULE_RETIRE",
               "CARD_FACILITY_SET",
               "CARD_FACILITY_RETIRE",
               "CARD_LIMIT_OBSERVATION_SET",

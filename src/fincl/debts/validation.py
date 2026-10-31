@@ -28,8 +28,11 @@ from .models import (
     PERSONAL_DEBT_EVENT_SET,
     PERSONAL_DEBT_OPEN,
     PERSONAL_DEBT_REOPEN,
+    PERSONAL_DEBT_SCHEDULE_RETIRE,
+    PERSONAL_DEBT_SCHEDULE_SET,
     events_for_direction,
 )
+from .schedule import check_plan_shape
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -279,6 +282,24 @@ def _validate_inbound_retire(anchors: dict[str, str], payload: dict[str, Any]) -
     _reason(payload)
 
 
+def _validate_schedule(kind: str, anchors: dict[str, str], payload: dict[str, Any]) -> None:
+    if set(anchors) != {"debt"}:
+        raise FinCLError(f"{kind} needs a single debt anchor")
+    _uuid(anchors["debt"], "the debt id")
+    if kind == PERSONAL_DEBT_SCHEDULE_RETIRE:
+        if set(payload) != {"reason"}:
+            raise FinCLError("PERSONAL_DEBT_SCHEDULE_RETIRE payload is exactly {reason}")
+        _reason(payload)
+        return
+    if set(payload) != {"effective_from", "plan", "reason"}:
+        raise FinCLError("PERSONAL_DEBT_SCHEDULE_SET payload is exactly {effective_from, plan, reason}")
+    effective_from = _calendar_date(payload["effective_from"], "effective_from")
+    rows = check_plan_shape(payload["plan"])
+    if effective_from.isoformat() > rows[0][0]:
+        raise FinCLError("effective_from may not be after the first payment")
+    _reason(payload)
+
+
 def validate_debt_payload(
     kind: str, anchors: dict[str, str], payload: dict[str, Any]
 ) -> None:
@@ -296,5 +317,7 @@ def validate_debt_payload(
         _validate_residual(kind, anchors, payload)
     elif kind == INBOUND_CLASSIFICATION_RETIRE:
         _validate_inbound_retire(anchors, payload)
+    elif kind in {PERSONAL_DEBT_SCHEDULE_SET, PERSONAL_DEBT_SCHEDULE_RETIRE}:
+        _validate_schedule(kind, anchors, payload)
     else:  # pragma: no cover - guarded by the dispatcher
         raise FinCLError(f"{kind} is not a personal-debt decision")

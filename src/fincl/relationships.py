@@ -74,6 +74,8 @@ BATCH_CHILD_KINDS = frozenset(
         *CONTEXT_DECISION_KINDS,
         # Retiring a planned item together with its matched payments.
         PLANNED_MATCH_RETIRE, PLANNED_OCCURRENCE_RESOLVE_RETIRE, PLANNED_FLOW_RETIRE,
+        # Ending a recurring commitment together with the debt plan that replaces it.
+        "RECURRING_COMMITMENT_SET",
     }
 )
 
@@ -346,7 +348,7 @@ def preview_batch(
     from .categorization import CATEGORIZATION_DECISION_KINDS, validate_payload
     from .common import resolve_category
     from .context.trips import check_context_sequence, validate_context
-    from .debts.preview import check_expense_category
+    from .debts.preview import check_commitment_end, check_expense_category
     from .debts.validation import validate_debt_payload
     from .decisions import resolve_anchor
     from .financial_roles import validate_financial_role
@@ -372,6 +374,9 @@ def preview_batch(
                 validate_debt_payload(kind, anchors, payload)
                 check_expense_category(kind, payload, custom_categories)
                 debt_items.append((index, kind, anchors, payload))
+                continue
+            if kind == "RECURRING_COMMITMENT_SET":
+                check_commitment_end(connection, anchors, payload)
                 continue
             if kind in FINANCIAL_ROLE_DECISION_KINDS:
                 validate_financial_role(kind, anchors, payload)

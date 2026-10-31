@@ -1281,6 +1281,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/debts/{debt_id}/commitment-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Debt Commitment Schedule */
+        get: operations["debt_commitment_schedule_api_v1_debts__debt_id__commitment_schedule_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/debts/{debt_id}/events/{event_id}": {
         parameters: {
             query?: never;
@@ -2775,6 +2792,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reporting/workspaces/debts/{debt_id}/commitment-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reported Workspace Debt Commitment Schedule */
+        get: operations["reported_workspace_debt_commitment_schedule_api_v1_reporting_workspaces_debts__debt_id__commitment_schedule_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/workspaces/debts/{debt_id}/events/{event_id}": {
         parameters: {
             query?: never;
@@ -3346,7 +3380,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_EVENT_SET" | "ENTRY_RESIDUAL_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "ENTRY_COUNTRY_SET" | "ENTRY_COUNTRY_RETIRE" | "TRIP_SET" | "TRIP_RETIRE" | "ENTRY_TRIP_SET" | "ENTRY_TRIP_RETIRE" | "PLANNED_MATCH_RETIRE" | "PLANNED_OCCURRENCE_RESOLVE_RETIRE" | "PLANNED_FLOW_RETIRE";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_OVERRIDE_RETIRE" | "INBOUND_CLASSIFICATION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_EVENT_SET" | "ENTRY_RESIDUAL_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "ENTRY_COUNTRY_SET" | "ENTRY_COUNTRY_RETIRE" | "TRIP_SET" | "TRIP_RETIRE" | "ENTRY_TRIP_SET" | "ENTRY_TRIP_RETIRE" | "PLANNED_MATCH_RETIRE" | "PLANNED_OCCURRENCE_RESOLVE_RETIRE" | "PLANNED_FLOW_RETIRE" | "PERSONAL_DEBT_SCHEDULE_SET" | "PERSONAL_DEBT_SCHEDULE_RETIRE" | "RECURRING_COMMITMENT_SET";
             /** Anchors */
             anchors: {
                 [key: string]: string;
@@ -3700,7 +3734,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT" | "CATEGORY_DETAILS_SET" | "CATEGORY_ARCHIVE_SET" | "ACCOUNT_SCOPE_SET" | "ACCOUNT_DETAILS_SET" | "ACCOUNT_ALIAS_SET" | "ACCOUNT_ALIAS_RETIRE" | "REVIEW_DEFER_SET" | "REVIEW_DEFER_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_DETAILS_SET" | "PERSONAL_DEBT_EVENT_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_SET" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "CARD_FACILITY_SET" | "CARD_FACILITY_RETIRE" | "CARD_LIMIT_OBSERVATION_SET" | "CARD_LIMIT_OBSERVATION_RETIRE" | "CARD_PAYMENT_ALLOCATION_SET" | "CARD_PAYMENT_ALLOCATION_RETIRE" | "CARD_REPAYMENT_PLAN_SET" | "CARD_REPAYMENT_PLAN_RETIRE" | "INSTALLMENT_PLAN_SET" | "INSTALLMENT_PLAN_RETIRE" | "INSTALLMENT_ALLOCATION_SET" | "INSTALLMENT_ALLOCATION_RETIRE" | "INSTALLMENT_SETTLEMENT_SET" | "INSTALLMENT_SETTLEMENT_RETIRE" | "BUDGET_REVISION_SET" | "BUDGET_ARCHIVE_SET" | "GOAL_DETAILS_SET" | "GOAL_OBSERVATION_SET" | "GOAL_OBSERVATION_RETIRE" | "GOAL_ARCHIVE_SET" | "RECURRING_COMMITMENT_SET" | "RECURRING_CANDIDATE_DISMISS" | "RECURRING_OCCURRENCE_SET" | "RECURRING_OCCURRENCE_RETIRE" | "RECURRING_OCCURRENCE_AMOUNT_SET" | "RECURRING_OCCURRENCE_AMOUNT_RETIRE" | "BALANCE_OBSERVATION_SET" | "BALANCE_OBSERVATION_RETIRE" | "MOVEMENT_COVERAGE_CERTIFY" | "MOVEMENT_COVERAGE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE" | "REPORTING_CURRENCY_SET" | "FORECAST_MATCH_SET" | "FORECAST_MATCH_RETIRE" | "SINKING_FUND_ALLOCATION_SET" | "SINKING_FUND_ALLOCATION_RETIRE" | "RESERVE_POLICY_SET" | "ENTRY_COUNTRY_SET" | "ENTRY_COUNTRY_RETIRE" | "TRIP_SET" | "TRIP_RETIRE" | "ENTRY_TRIP_SET" | "ENTRY_TRIP_RETIRE" | "REPORT_DEFINITION_SET" | "REPORT_DEFINITION_RETIRE" | "PLANNED_FLOW_SET" | "PLANNED_FLOW_RETIRE" | "PLANNED_MATCH_SET" | "PLANNED_MATCH_RETIRE" | "PLANNED_OCCURRENCE_RESOLVE_SET" | "PLANNED_OCCURRENCE_RESOLVE_RETIRE";
+            kind: "CATEGORY_OVERRIDE" | "CATEGORY_CREATE" | "PLAN_SET" | "INBOUND_CLASSIFICATION" | "TRANSFER_DECISION" | "DUPLICATE_CONFIRM" | "DUPLICATE_REJECT" | "DUPLICATE_RETIRE" | "CATEGORY_OVERRIDE_RETIRE" | "REFUND_ALLOCATION_SET" | "REFUND_ALLOCATION_RETIRE" | "REFUND_LINK_REJECT" | "CATEGORY_DETAILS_SET" | "CATEGORY_ARCHIVE_SET" | "ACCOUNT_SCOPE_SET" | "ACCOUNT_DETAILS_SET" | "ACCOUNT_ALIAS_SET" | "ACCOUNT_ALIAS_RETIRE" | "REVIEW_DEFER_SET" | "REVIEW_DEFER_RETIRE" | "MERCHANT_ALIAS_SET" | "MERCHANT_ALIAS_RETIRE" | "CATEGORY_RULE_SET" | "CATEGORY_RULE_RETIRE" | "PERSONAL_DEBT_OPEN" | "PERSONAL_DEBT_DETAILS_SET" | "PERSONAL_DEBT_EVENT_SET" | "PERSONAL_DEBT_EVENT_RETIRE" | "PERSONAL_DEBT_CLOSE" | "PERSONAL_DEBT_REOPEN" | "ENTRY_RESIDUAL_SET" | "ENTRY_RESIDUAL_RETIRE" | "INBOUND_CLASSIFICATION_RETIRE" | "PERSONAL_DEBT_SCHEDULE_SET" | "PERSONAL_DEBT_SCHEDULE_RETIRE" | "CARD_FACILITY_SET" | "CARD_FACILITY_RETIRE" | "CARD_LIMIT_OBSERVATION_SET" | "CARD_LIMIT_OBSERVATION_RETIRE" | "CARD_PAYMENT_ALLOCATION_SET" | "CARD_PAYMENT_ALLOCATION_RETIRE" | "CARD_REPAYMENT_PLAN_SET" | "CARD_REPAYMENT_PLAN_RETIRE" | "INSTALLMENT_PLAN_SET" | "INSTALLMENT_PLAN_RETIRE" | "INSTALLMENT_ALLOCATION_SET" | "INSTALLMENT_ALLOCATION_RETIRE" | "INSTALLMENT_SETTLEMENT_SET" | "INSTALLMENT_SETTLEMENT_RETIRE" | "BUDGET_REVISION_SET" | "BUDGET_ARCHIVE_SET" | "GOAL_DETAILS_SET" | "GOAL_OBSERVATION_SET" | "GOAL_OBSERVATION_RETIRE" | "GOAL_ARCHIVE_SET" | "RECURRING_COMMITMENT_SET" | "RECURRING_CANDIDATE_DISMISS" | "RECURRING_OCCURRENCE_SET" | "RECURRING_OCCURRENCE_RETIRE" | "RECURRING_OCCURRENCE_AMOUNT_SET" | "RECURRING_OCCURRENCE_AMOUNT_RETIRE" | "BALANCE_OBSERVATION_SET" | "BALANCE_OBSERVATION_RETIRE" | "MOVEMENT_COVERAGE_CERTIFY" | "MOVEMENT_COVERAGE_RETIRE" | "ENTRY_ROLE_SET" | "ENTRY_ROLE_RETIRE" | "ROLE_RULE_SET" | "ROLE_RULE_RETIRE" | "INBOUND_RULE_SET" | "INBOUND_RULE_RETIRE" | "REPORTING_CURRENCY_SET" | "FORECAST_MATCH_SET" | "FORECAST_MATCH_RETIRE" | "SINKING_FUND_ALLOCATION_SET" | "SINKING_FUND_ALLOCATION_RETIRE" | "RESERVE_POLICY_SET" | "ENTRY_COUNTRY_SET" | "ENTRY_COUNTRY_RETIRE" | "TRIP_SET" | "TRIP_RETIRE" | "ENTRY_TRIP_SET" | "ENTRY_TRIP_RETIRE" | "REPORT_DEFINITION_SET" | "REPORT_DEFINITION_RETIRE" | "PLANNED_FLOW_SET" | "PLANNED_FLOW_RETIRE" | "PLANNED_MATCH_SET" | "PLANNED_MATCH_RETIRE" | "PLANNED_OCCURRENCE_RESOLVE_SET" | "PLANNED_OCCURRENCE_RESOLVE_RETIRE";
             /** Anchors */
             anchors: {
                 [key: string]: string;
@@ -7245,6 +7279,40 @@ export interface operations {
             };
         };
     };
+    debt_commitment_schedule_api_v1_debts__debt_id__commitment_schedule_get: {
+        parameters: {
+            query: {
+                commitment: string;
+                generation?: string | null;
+            };
+            header?: never;
+            path: {
+                debt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     debt_event_read_api_v1_debts__debt_id__events__event_id__get: {
         parameters: {
             query?: {
@@ -9763,6 +9831,40 @@ export interface operations {
         parameters: {
             query?: {
                 as_of?: string | null;
+                generation?: string | null;
+            };
+            header?: never;
+            path: {
+                debt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportedWorkspace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reported_workspace_debt_commitment_schedule_api_v1_reporting_workspaces_debts__debt_id__commitment_schedule_get: {
+        parameters: {
+            query: {
+                commitment: string;
                 generation?: string | null;
             };
             header?: never;

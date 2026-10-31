@@ -8,6 +8,7 @@ import { dateLabel } from '@/lib/format'
 import { CorrectEventForm, RemoveEventForm } from './CorrectEvent'
 import { EventForm } from './EventForm'
 import { NewDebtForm } from './NewDebtForm'
+import { RepaymentPlan } from './Plan'
 import { SplitBillForm } from './SplitBillForm'
 import {
   RECONCILIATION_LABEL,
@@ -31,7 +32,9 @@ function DebtRow({ debt, onOpen }: { debt: DebtCard; onOpen: (id: string) => voi
           {debt.reconciliation_status === 'opening_balance_only'
             ? 'Opening balance'
             : RECONCILIATION_LABEL[debt.reconciliation_status] ?? debt.reconciliation_status}
-          {debt.due_on ? ` · due ${dateLabel(debt.due_on)}` : debt.direction === 'PAYABLE' && debt.status === 'OPEN' ? ' · no due date — not in the forecast' : ''}
+          {debt.plan?.next_due
+            ? ` · next payment ${dateLabel(debt.plan.next_due)}${debt.plan.overdue_count ? ' · overdue' : ''}`
+            : debt.due_on ? ` · due ${dateLabel(debt.due_on)}` : debt.direction === 'PAYABLE' && debt.status === 'OPEN' ? ' · no due date — not in the forecast' : ''}
         </small>
       </span>
       <span className="debt-row-amount">
@@ -177,7 +180,8 @@ function DebtDetailView({
   const [recording, setRecording] = useState(startRecording)
   // An event being corrected or removed; every other control waits.
   const [correcting, setCorrecting] = useState<{ event: DebtEvent; remove: boolean } | null>(null)
-  const busy = recording || correcting !== null
+  const [planOpen, setPlanOpen] = useState(false)
+  const busy = recording || correcting !== null || planOpen
   async function corrected(status: string) { setCorrecting(null); await onSaved(status) }
   return (
     <Card className="debt-detail"><WorkspaceReportingDetails data={detail}/>
@@ -206,6 +210,7 @@ function DebtDetailView({
           {' '}The forecast projects the commitment and this debt’s remaining principal separately, so the same repayments are counted twice.
         </p>
       ) : null}
+      {!recording && !correcting && <RepaymentPlan detail={detail} generation={generation} onSaved={onSaved} onBusy={setPlanOpen} />}
       {correcting && (correcting.remove
         ? <RemoveEventForm detail={detail} event={correcting.event} generation={generation}
             onCancel={() => setCorrecting(null)} onSaved={corrected} />

@@ -2375,6 +2375,13 @@ def _cash_timeline(
         and (obligation.get("date_basis") or {}).get("value") is not None
         and str(obligation["date_basis"]["value"]) <= str(cutoff)
     ]
+    unpaid_debts = [
+        obligation for obligation in obligations.get("obligations", [])
+        if obligation["origin"] == "personal_debt" and obligation.get("direction") == "outflow"
+        and obligation.get("stays_visible", True)
+        and (obligation.get("date_basis") or {}).get("value") is not None
+        and str(obligation["date_basis"]["value"]) <= str(cutoff)
+    ]
     card_requirements = {
         detail: (card, code)
         for card in missing_cards
@@ -2397,9 +2404,27 @@ def _cash_timeline(
         }
         for obligation in receivables
     ]
+    overdue_debt_items = [
+        {
+            "kind": "needs_review", "output": "debt_overdue", "currency": obligation["currency"],
+            "rank": 56, "action": "Record whether this debt was paid",
+            "detail": f"{obligation['label']} was due on {obligation['date_basis']['value']}",
+            "obligation_id": obligation["obligation_id"],
+            "todo": {
+                "key": "debt-overdue", "page": "Debts",
+                "title": "Did you pay the debt that was due?",
+                "detail": (
+                    f"{obligation['label']} was due on {obligation['date_basis']['value']} and is counted "
+                    "on the first day ahead. Record the repayment if you made it, or change the "
+                    "plan or the date."
+                ),
+            },
+        }
+        for obligation in unpaid_debts
+    ]
     result["action_items"] = sorted(
         [
-            *_action_items(manifest, card_limits), *receivable_items,
+            *_action_items(manifest, card_limits), *receivable_items, *overdue_debt_items,
             *_overlap_items(obligations),
             *(item for source in extra for item in source.action_items),
         ],
