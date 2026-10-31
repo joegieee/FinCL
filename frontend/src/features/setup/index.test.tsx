@@ -39,6 +39,17 @@ vi.mock('@/features/baseline/api', async (importOriginal) => {
   return { ...actual, loadBaselineReadiness: () => loadBaselineReadiness() }
 })
 
+const loadAccounts = vi.fn()
+vi.mock('@/features/accounts/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/accounts/api')>()
+  return { ...actual, loadAccounts: () => loadAccounts() }
+})
+const apiMock = vi.fn()
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>()
+  return { ...actual, api: (path: string, body?: unknown) => apiMock(path, body) }
+})
+
 const { SetupView } = await import('./index')
 
 function coverage(over: Record<string, unknown> = {}) {
@@ -69,6 +80,8 @@ beforeEach(() => {
   refreshImports.mockReset(); refreshImports.mockResolvedValue({})
   loadCoverageReport.mockRejectedValue(new Error('no coverage in this test'))
   loadBaselineReadiness.mockRejectedValue(new Error('no readiness in this test'))
+  loadAccounts.mockRejectedValue(new Error('no accounts in this test'))
+  apiMock.mockReset(); apiMock.mockResolvedValue({ status: 'applied' })
 })
 
 describe('SetupView', () => {
@@ -211,6 +224,45 @@ describe('SetupView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Import a statement/ }))
     expect(document.activeElement).toBe(screen.getByLabelText('Statement files'))
+  })
+
+  it('offers to close a stopped account, keeping its name, and reloads the card', async () => {
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [] })
+    loadCoverageReport.mockResolvedValue(coverage())
+    const pocket = { account_id: 'acct_revolut_current', display_name: 'Revolut Current', missing_intervals: [{ start: '2026-08-01', end: '2026-08-31' }] }
+    loadBaselineReadiness.mockResolvedValue({ pockets: [{ ...pocket, stopped: true }] })
+    loadAccounts.mockResolvedValue({ generation: 'g1', accounts: [{
+      id: 'acct_revolut_current', display_name: 'My Revolut', archived_on: '',
+      pockets: [{ pocket: 'SGD', observed_end: '2026-07-31' }],
+    }] })
+    const onImported = vi.fn()
+    render(<SetupView onImported={onImported} generation="g1" />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'This account is closed' }))
+    expect(screen.getByLabelText('Closed on')).toHaveValue('2026-07-31')
+    fireEvent.click(screen.getByRole('button', { name: 'Preview' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark closed' }))
+
+    await waitFor(() => expect(onImported).toHaveBeenCalled())
+    expect(apiMock).toHaveBeenCalledWith('commands', expect.objectContaining({
+      kind: 'ACCOUNT_DETAILS_SET', anchors: { account: 'acct_revolut_current' },
+      payload: { display_name: 'My Revolut', archived_on: '2026-07-31', reason: 'Account closed' },
+    }))
+  })
+
+  it('does not offer to close an account that is only missing a middle month', async () => {
+    loadSetup.mockResolvedValue(SETUP)
+    loadImports.mockResolvedValue({ generation: 'g1', imports: [] })
+    loadCoverageReport.mockResolvedValue(coverage())
+    loadBaselineReadiness.mockResolvedValue({ pockets: [
+      { account_id: 'acct_revolut_current', display_name: 'Revolut Current', stopped: false, missing_intervals: [{ start: '2026-08-01', end: '2026-08-31' }] },
+    ] })
+    loadAccounts.mockResolvedValue({ generation: 'g1', accounts: [{ id: 'acct_revolut_current', display_name: 'Revolut Current', pockets: [] }] })
+    render(<SetupView onImported={() => {}} generation="g1" />)
+
+    await screen.findByText('Aug 2026')
+    expect(screen.queryByRole('button', { name: 'This account is closed' })).toBeNull()
   })
 
   it('does not count a quarantined file as accepted and says what each file did', async () => {

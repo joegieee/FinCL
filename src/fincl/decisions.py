@@ -77,6 +77,7 @@ from .reports.definitions import REPORT_DECISION_KINDS, apply_report
 from .reserve.models import RESERVE_DECISION_KINDS
 from .reserve.projection import apply_reserve_policy_decision
 from .reserve.validation import validate_reserve_payload
+from .supersession import anchor_redirects, redirect_record
 
 # As with `fincl.funds`, only the journal side is imported: `fincl.variance`
 # also exposes the Stage 5A read, which composes the Stage 3 forecast engine and
@@ -339,11 +340,14 @@ def replay_journal(connection: sqlite3.Connection, journal_path: Path | None = N
             if _table_exists(connection, table):
                 connection.execute(f"DELETE FROM {table}")
         custom: set[str] = set()
+        # A decision on a row of a superseded statement applies to the same row
+        # of the statement that carries it, so superseding never drops one.
+        redirects = anchor_redirects(connection) if _table_exists(connection, "statements") else {}
         for record in records:
             if record.decision_kind == "CATEGORY_CREATE":
                 from .custom_categories import validate_creation
                 custom.add(validate_creation(record.anchors, record.payload, frozenset(custom)))
-            _apply_record(connection, record, frozenset(custom))
+            _apply_record(connection, redirect_record(record, redirects), frozenset(custom))
         if _table_exists(connection, "relationship_decisions"):
             resolve_relationships(connection)
         if _table_exists(connection, "personal_debts"):

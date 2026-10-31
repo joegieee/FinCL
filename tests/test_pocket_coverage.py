@@ -125,6 +125,27 @@ class PocketCoverageTests(unittest.TestCase):
             (before["verdict"], before["starts_on"], before["starting_total"], before["base"]["lowest"]),
         )
 
+    def test_an_account_whose_statements_stopped_is_flagged_until_it_is_closed(self) -> None:
+        self.import_revolut(range(1, 8))
+        self.assertEqual(self.import_trust("trust_savings.pdf"), "ACCEPTED")
+        refresh_ledger(self.database)
+
+        def stopped() -> dict[str, bool]:
+            readiness = baseline_readiness(self.database, today=_TODAY)
+            return {p["account_id"]: p["stopped"] for p in readiness["pockets"]}
+
+        self.assertEqual(stopped(), {"acct_revolut_current": True, "trust-savings": False})
+        append_decision(
+            default_journal_path(self.database), decision_kind="ACCOUNT_DETAILS_SET",
+            anchors={"account": "acct_revolut_current"},
+            payload={"display_name": "Revolut Current", "archived_on": "2026-07-31",
+                     "reason": "closed"},
+            policy_version="v05", snapshot="pocket coverage test",
+        )
+        refresh_ledger(self.database)
+
+        self.assertEqual(stopped(), {"acct_revolut_current": False, "trust-savings": False})
+
     def test_an_archived_account_does_not_hold_the_window_back(self) -> None:
         self.import_revolut(range(1, 8))
         self.assertEqual(self.import_trust("trust_savings.pdf"), "ACCEPTED")

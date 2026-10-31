@@ -296,6 +296,11 @@ def baseline_readiness_from(connection: sqlite3.Connection, *, today: date) -> d
         )
         span_starts.append(span_start)
         span_ends.append(span_end)
+        last_evidence = periods[-1].end if periods else observed_end
+        stopped = bool(
+            not stated_end and evidence_end and last_evidence
+            and _month_of(last_evidence) < _month_of(evidence_end)
+        )
 
         per_month = _entries_per_month(connection, account_id, currency_pocket)
         months: list[dict[str, Any]] = []
@@ -348,6 +353,7 @@ def baseline_readiness_from(connection: sqlite3.Connection, *, today: date) -> d
                 "missing_intervals": [
                     interval.as_dict() for interval in _merge_missing_runs(missing_months)
                 ],
+                "stopped": stopped,
                 "warnings": warnings,
             }
         )
