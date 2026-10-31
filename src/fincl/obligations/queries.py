@@ -32,6 +32,7 @@ from ..cards.cash_conversion import _statement_rows
 from ..cards.models import ROLE_PAYMENT_DUE, ROLE_PAYMENT_DUE_DATE
 from ..db import connect_readonly
 from ..debts.queries import _balance_minor, overlapping_commitments
+from ..debts.schedule import obligation_rows, schedule_state
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..intervals import month_span
@@ -116,10 +117,11 @@ def _baseline_portions_from(
 def _debt_obligations(connection: sqlite3.Connection, as_of: str) -> list[dict[str, Any]]:
     """Personal debts and receivables.
 
-    A debt states a lump-sum principal and, optionally, one due date; nothing in
-    the journal derives a repayment schedule from it, so the amount basis stays
-    a lump sum and says so.  Recorded payments are the debt's own decrease
-    events, which is the only payment evidence this source has.
+    A debt states a lump-sum principal and, optionally, one due date, so the
+    amount basis is a lump sum and says so, until the owner gives it a repayment
+    plan: then the rows still owed replace the lump sum.  Recorded payments are
+    the debt's own decrease events, which is the only payment evidence this
+    source has, and they are what pays the plan's rows.
     """
     result: list[dict[str, Any]] = []
     overlaps = overlapping_commitments(connection)
@@ -144,11 +146,17 @@ def _debt_obligations(connection: sqlite3.Connection, as_of: str) -> list[dict[s
             if int(row["signed"]) < 0 and str(row["effective_on"]) <= as_of
         ]
         closed = str(debt["status"]) == "CLOSED"
+        plan = None if closed else schedule_state(connection, str(debt["debt_id"]), as_of=as_of)
+        planned_rows = obligation_rows(plan) if plan is not None else []
         basis = resolve_amount_basis(
-            lump_sum=remaining, schedule=None, currency=str(debt["currency"])
+            lump_sum=remaining, schedule=planned_rows or None, currency=str(debt["currency"])
         )
+        dated = [row["due_on"] for row in planned_rows if row["due_on"] is not None]
+        # The next row still owed stands in for the debt's own due date.
+        due_on = min(dated) if dated else (None if planned_rows else debt["due_on"])
+        remainder = plan["unscheduled_remainder"] if plan is not None else None
         state = payment_state(
-            due_on=debt["due_on"],
+            due_on=due_on,
             as_of=as_of,
             payment_count=len(payments),
             remaining=remaining,
@@ -163,10 +171,22 @@ def _debt_obligations(connection: sqlite3.Connection, as_of: str) -> list[dict[s
                 "label": str(debt["counterparty_label"]),
                 "currency": str(debt["currency"]),
                 "direction": "outflow" if debt["direction"] == "PAYABLE" else "inflow",
-                "date_basis": {
-                    "kind": "stated_due_date" if debt["due_on"] else "no_stated_date",
-                    "value": debt["due_on"],
-                },
+                "date_basis": (
+                    {"kind": "scheduled_due_date", "value": due_on}
+                    if dated
+                    else {
+                        "kind": "stated_due_date" if debt["due_on"] else "no_stated_date",
+                        "value": debt["due_on"],
+                    }
+                ),
+                **(
+                    {"unscheduled_remainder": {
+                        "amount": remainder["amount"],
+                        "reason": "the repayment plan does not cover all of what is owed, "
+                                  "and the debt has no due date for the rest",
+                    }}
+                    if remainder is not None and remainder["due_on"] is None else {}
+                ),
                 "actual_payments": {
                     "count": len(payments),
                     "total": _payments_total(payments),
