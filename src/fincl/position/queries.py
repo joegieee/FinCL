@@ -11,7 +11,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..db import connect_readonly
+from ..db import connect_readonly, database_path
+from ..decision_journal import default_journal_path, read_records
 from ..money import ExactMoney, exact_sum, format_decimal
 from ..read_cache import per_request
 from .models import STALE_AFTER_DAYS
@@ -20,6 +21,22 @@ _LIQUID_SOURCE_TYPES = frozenset({
     "REVOLUT_PDF", "DBS_CONSOLIDATED", "DBS_PAYLAH",
     "MARI_SAVINGS", "TRUST_SAVINGS",
 })
+
+
+def _archived_accounts(connection: sqlite3.Connection) -> dict[str, str]:
+    """Account -> the day the user marked it closed (latest details decision)."""
+    archived: dict[str, str] = {}
+    for record in read_records(default_journal_path(database_path(connection))):
+        if record.decision_kind == "ACCOUNT_DETAILS_SET":
+            archived[record.anchors["account"]] = str(record.payload.get("archived_on") or "")
+        elif record.decision_kind == "ACCOUNT_DETAILS_RETIRE":
+            archived.pop(record.anchors["account"], None)
+    return {account: day for account, day in archived.items() if day}
+
+
+def _last_balance_is_zero(boundaries: list[dict[str, Any]], today: date) -> bool:
+    known = [boundary for boundary in boundaries if boundary["as_of"] <= today.isoformat()]
+    return bool(known) and known[-1]["coefficient"] == 0
 
 
 def _money(coefficient: int, scale: int) -> ExactMoney:
@@ -522,6 +539,7 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
     scopes = set(boundary_map) | {
         (row["account_id"], row["currency_pocket"]) for row in entries
     }
+    archived = _archived_accounts(connection)
     liquid_scopes: set[tuple[str, str]] = set()
     exclusions: dict[tuple[str, str], str] = {}
     for key in scopes:
@@ -531,6 +549,10 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
             exclusions[key] = "credit-card facility balance is an obligation, not cash"
         elif source_type not in _LIQUID_SOURCE_TYPES:
             exclusions[key] = "account product is not supported as liquid cash"
+        elif key[0] in archived and _last_balance_is_zero(boundary_map.get(key, []), today):
+            # Closed by the user, and its last known balance is nil: nothing
+            # to wait on. A closed account still holding a balance stays in.
+            exclusions[key] = "account closed with a zero balance"
         else:
             liquid_scopes.add(key)
     paired, transfer_links = _paired_liquid_entries(connection, liquid_scopes)
@@ -577,6 +599,7 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
             "coverage_status": "unsupported", "best_supported_cutoff": None,
             "best_supported_balance": None, "best_supported_basis": None,
             "blocking_reason": None,
+            "archived_on": archived.get(key[0]) if liquid else None,
         })
     included = [p for p in pockets if p["liquid"]]
     periods_by_key = {

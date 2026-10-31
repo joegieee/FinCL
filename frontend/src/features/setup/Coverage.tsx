@@ -139,6 +139,16 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
                     {row.name}
                     {row.freshness && <small>{row.freshness.currencies.join(' · ')}</small>}
                     {row.freshness?.holds_back_start && <Badge variant="outline" className="review-badge">Holding the start back</Badge>}
+                    {row.freshness?.closed_with.map(held => (
+                      <p key={held.currency_pocket} className="muted-note">
+                        Marked closed on {dateLabel(row.freshness!.archived_on!)} with {held.currency_pocket} {held.balance} still recorded,
+                        so it still counts. Record its balance to settle that.{' '}
+                        <Button variant="outline" size="sm" onClick={() => {
+                          const match = pockets.find(p => p.account_id === row.account && p.currency_pocket === held.currency_pocket)
+                          if (match) setObserving(match)
+                        }}>Record balance</Button>
+                      </p>
+                    ))}
                   </td>
                   <td>
                     {row.freshness?.evidence_through

@@ -183,6 +183,9 @@ export type AccountFreshness = {
   stale: boolean
   basis: 'statement' | 'observation' | 'certification' | null
   holds_back_start: boolean
+  /** The day the account was marked closed, and the balance still recorded on it. */
+  archived_on: string | null
+  closed_with: { currency_pocket: string; balance: string }[]
 }
 
 export const loadCoverageReport = () => api<CoverageReport>('position/coverage')
