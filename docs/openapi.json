@@ -6637,6 +6637,44 @@
         }
       }
     },
+    "/api/v1/planned/impact": {
+      "post": {
+        "summary": "Planned Impact",
+        "operationId": "planned_impact_api_v1_planned_impact_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlannedImpactDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Planned Impact Api V1 Planned Impact Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/reporting/workspaces/baseline/readiness": {
       "get": {
         "summary": "Reported Workspace Baseline Readiness Read",
@@ -14135,6 +14173,33 @@
           "remaining"
         ],
         "title": "Plan"
+      },
+      "PlannedImpactDraft": {
+        "properties": {
+          "flow": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flow"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "payload"
+        ],
+        "title": "PlannedImpactDraft",
+        "description": "A draft ``PLANNED_FLOW_SET``: ``flow`` names the item being edited, if any."
       },
       "PrintedConversionOut": {
         "properties": {

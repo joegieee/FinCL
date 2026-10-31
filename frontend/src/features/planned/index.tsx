@@ -9,10 +9,10 @@ import { useBatchCommand, useLedgerCommand } from '@/lib/command'
 import { dateLabel } from '@/lib/format'
 import { reportedMoney, WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import {
-  flowSet, loadAccountOptions, loadCandidates, loadPlanned, loadTripOptions, matchRetire, matchSet, monthLabel,
+  flowSet, loadAccountOptions, loadCandidates, loadImpact, loadPlanned, loadTripOptions, matchRetire, matchSet, monthLabel,
   monthlyRows, monthWindow, nextKey, resolveRetire, resolveSet, retireFlowItems, validAmount,
   type AccountOption, type Certainty, type Direction, type FlowDraft, type MatchCandidates, type OccurrenceDraft,
-  type OccurrenceState, type PlannedFlow, type PlannedOccurrence, type PlannedPage, type Treatment, type TripOption,
+  type OccurrenceState, type PlannedFlow, type PlannedImpact, type PlannedOccurrence, type PlannedPage, type Treatment, type TripOption,
 } from './api'
 
 type Saved = (status: string) => void | Promise<void>
@@ -114,7 +114,7 @@ export function PlannedView({ generation, currencies, categories, onSaved }: {
   </div>
 }
 
-type Mode = 'day' | 'month' | 'monthly' | 'rows'
+type Mode = 'day' | 'month' | 'monthly' | 'rows' | 'trip'
 
 function FlowForm({ initial, currencies, categories, accounts, trips, generation, onSaved, onCancel }: {
   initial: PlannedFlow | null; currencies: string[]; categories: string[]; accounts: AccountOption[]; trips: TripOption[]
@@ -136,11 +136,15 @@ function FlowForm({ initial, currencies, categories, accounts, trips, generation
   const [treatment, setTreatment] = useState<Treatment>(initial?.baseline_treatment ?? 'extra')
   const [trip, setTrip] = useState(initial?.link?.id ?? '')
   const [reason, setReason] = useState('')
+  const [impact, setImpact] = useState<PlannedImpact | null>(null)
+  const [impactError, setImpactError] = useState('')
   const cmd = useLedgerCommand(generation, onSaved)
   const outflow = direction === 'outflow'
+  const linked = outflow ? trips.find(t => t.trip_id === trip) : undefined
 
   const occurrences: OccurrenceDraft[] = mode === 'day' ? (day ? [{ key: '1', earliest: day, latest: day, amount }] : [])
     : mode === 'month' ? (month ? [{ key: '1', ...monthWindow(month), amount }] : [])
+    : mode === 'trip' ? (linked ? [{ key: '1', earliest: linked.start_on, latest: linked.end_on, amount }] : [])
     : rows
   const rowsValid = occurrences.length > 0 && occurrences.every(row => row.earliest && row.latest && row.earliest <= row.latest && validAmount(row.amount))
   const draft: FlowDraft = {
@@ -150,6 +154,20 @@ function FlowForm({ initial, currencies, categories, accounts, trips, generation
   }
   const ready = Boolean(draft.name && draft.reason && rowsValid)
   const changed = () => cmd.reset()
+  const draftKey = JSON.stringify(draft)
+  useEffect(() => {
+    setImpact(null); setImpactError('')
+    if (!cmd.previewed) return
+    let current = true
+    loadImpact(flowId, draft).then(result => { if (current) setImpact(result) }).catch(e => { if (current) setImpactError((e as Error).message) })
+    return () => { current = false }
+  }, [cmd.previewed, draftKey, flowId])
+  function pickTrip(id: string) {
+    setTrip(id); changed()
+    const picked = trips.find(t => t.trip_id === id)
+    if (picked && !initial && (mode === 'trip' || (mode === 'day' && !day) || (mode === 'month' && !month))) setMode('trip')
+    else if (!picked && mode === 'trip') setMode('day')
+  }
   function edit<T>(set: (value: T) => void) { return (value: T) => { set(value); changed() } }
   function editRow(index: number, patch: Partial<OccurrenceDraft>) {
     setRows(current => current.map((row, i) => i === index ? { ...row, ...patch, ...(patch.earliest && row.earliest === row.latest ? { latest: patch.earliest } : {}) } : row)); changed()
@@ -168,11 +186,12 @@ function FlowForm({ initial, currencies, categories, accounts, trips, generation
         {[...new Set([currency, ...currencies])].map(code => <option key={code} value={code}>{code}</option>)}</select></label>
       <label>When<select value={mode} onChange={e => edit(setMode)(e.target.value as Mode)}>
         <option value="day">On a date</option><option value="month">Sometime in a month</option>
-        <option value="monthly">Every month for a while</option>{(initial || mode === 'rows') && <option value="rows">Dates listed below</option>}</select></label>
+        <option value="monthly">Every month for a while</option>{linked && <option value="trip">During the trip</option>}{(initial || mode === 'rows') && <option value="rows">Dates listed below</option>}</select></label>
       {mode === 'day' && <label>Date<input type="date" value={day} onChange={e => edit(setDay)(e.target.value)}/></label>}
       {mode === 'month' && <label>Month<input type="month" value={month} onChange={e => edit(setMonth)(e.target.value)}/></label>}
       {mode === 'monthly' && <label>First date<input type="date" value={day} onChange={e => edit(setDay)(e.target.value)}/></label>}
       {mode === 'monthly' && <label>How many months<input type="number" min={1} max={60} value={count} onChange={e => edit(setCount)(e.target.value)}/></label>}
+      {mode === 'trip' && linked && <p className="muted-note">{dateLabel(linked.start_on)} – {dateLabel(linked.end_on)}, the dates of {linked.name}.</p>}
       {mode !== 'rows' && <label>Amount<input inputMode="decimal" value={amount} onChange={e => edit(setAmount)(e.target.value.trim())} placeholder="1200.00"/></label>}
       <label>{outflow ? 'Paid from' : 'Paid into'}<select value={account} onChange={e => edit(setAccount)(e.target.value)}>
         <option value="">Not decided</option>
@@ -183,7 +202,7 @@ function FlowForm({ initial, currencies, categories, accounts, trips, generation
         {(Object.keys(CERTAINTY_LABEL) as Certainty[]).map(c => <option key={c} value={c}>{CERTAINTY_LABEL[c]}</option>)}</select></label>
       {outflow && <label>Compared with usual spending<select value={treatment} onChange={e => edit(setTreatment)(e.target.value as Treatment)}>
         {(Object.keys(TREATMENT_LABEL) as Treatment[]).map(t => <option key={t} value={t}>{TREATMENT_LABEL[t]}</option>)}</select></label>}
-      {outflow && <label>Trip<select value={trip} onChange={e => edit(setTrip)(e.target.value)}>
+      {outflow && <label>Trip<select value={trip} onChange={e => pickTrip(e.target.value)}>
         <option value="">Not part of a trip</option>{trips.map(t => <option key={t.trip_id} value={t.trip_id}>{t.name}</option>)}</select></label>}
       <label>Reason<input value={reason} onChange={e => edit(setReason)(e.target.value)} placeholder="Why you expect it"/></label>
     </div>
@@ -201,9 +220,27 @@ function FlowForm({ initial, currencies, categories, accounts, trips, generation
     {occurrences.some(row => row.amount && !validAmount(row.amount)) && <p className="form-error" role="alert">Amounts are positive, with at most two decimal places.</p>}
     {cmd.previewed && <div className="preview" role="status"><p>{initial ? 'Updates' : 'Adds'} “{draft.name}”, {outflow ? 'going out' : 'coming in'}: {draft.occurrences.map(row => `${money(row.amount, currency)} (${when(row)})`).join(', ')}.
       {' '}{outflow ? `${TREATMENT_LABEL[draft.baseline_treatment]}. ` : ''}{CERTAINTY_LABEL[certainty]}: {CERTAINTY_HELP[direction][certainty]}</p></div>}
+    {cmd.previewed && <ImpactSummary impact={impact} error={impactError}/>}
     {cmd.error && <p className="form-error" role="alert">{cmd.error}</p>}
     <div className="row-actions"><Button disabled={!ready || cmd.busy} onClick={() => void cmd.act(flowSet(flowId, draft))}>{cmd.busy ? 'Working…' : cmd.previewed ? 'Save planned item' : 'Preview planned item'}</Button></div>
   </Card>
+}
+
+function ImpactSummary({ impact, error }: { impact: PlannedImpact | null; error: string }) {
+  if (error) return <p className="muted-note" role="status">We couldn’t work out the effect on your answer: {error}</p>
+  if (!impact) return <p className="muted-note" role="status">Working out the effect on your answer…</p>
+  const { before, after } = impact
+  const cases = [['Base case', 'base'], ['Cautious case', 'cautious']] as const
+  const lowest = (answer: PlannedImpact['after'], key: 'base' | 'cautious') => {
+    const cell = answer[key]
+    return cell.lowest ? `${money(cell.lowest, answer.reporting_currency ?? impact.currency)}${cell.lowest_on ? ` on ${dateLabel(cell.lowest_on)}` : ''}` : 'not available'
+  }
+  return <div className="preview planned-impact" role="status">
+    <p><strong>Will I have enough?</strong> {before.answer ?? 'Not available'} before, <strong>{after.answer ?? 'not available'}</strong> with this{impact.flips ? ' — this changes the answer.' : '.'}</p>
+    <ul>{cases.map(([label, key]) => <li key={key}>{label}: lowest point {lowest(before, key)} before, {lowest(after, key)} with this.</li>)}</ul>
+    {impact.months.length > 0 && <div className="table-scroll"><table className="pocket-table"><thead><tr><th>Month</th><th>Base case closing balance changes by</th><th>Cautious case closing balance changes by</th></tr></thead>
+      <tbody>{impact.months.map(row => <tr key={row.month}><td>{monthLabel(row.month)}</td><td>{row.base.change ? money(row.base.change, impact.currency) : '—'}</td><td>{row.cautious.change ? money(row.cautious.change, impact.currency) : '—'}</td></tr>)}</tbody></table></div>}
+  </div>
 }
 
 type Action = 'match' | 'done' | 'cancelled' | 'reopen' | 'remove' | null

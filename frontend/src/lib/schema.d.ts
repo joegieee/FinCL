@@ -2260,6 +2260,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/planned/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Planned Impact */
+        post: operations["planned_impact_api_v1_planned_impact_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reporting/workspaces/baseline/readiness": {
         parameters: {
             query?: never;
@@ -4521,6 +4538,18 @@ export interface components {
             actual: string | null;
             /** Remaining */
             remaining: string | null;
+        };
+        /**
+         * PlannedImpactDraft
+         * @description A draft ``PLANNED_FLOW_SET``: ``flow`` names the item being edited, if any.
+         */
+        PlannedImpactDraft: {
+            /** Flow */
+            flow?: string | null;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
         };
         /** PrintedConversionOut */
         PrintedConversionOut: {
@@ -8832,6 +8861,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    planned_impact_api_v1_planned_impact_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlannedImpactDraft"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
