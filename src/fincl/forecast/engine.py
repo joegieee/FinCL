@@ -35,6 +35,7 @@ import sqlite3
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -1342,6 +1343,43 @@ def _manifest_categories(
     return categories
 
 
+def _overlap_items(obligations: dict[str, Any]) -> list[dict[str, Any]]:
+    """A dated debt whose repayments a recurring commitment also projects.
+
+    Only a debt the forecast actually pays on a date counts: an undated one is
+    not in the path, so the commitment is not repeating anything there.
+    """
+    items: list[dict[str, Any]] = []
+    for obligation in obligations.get("obligations", []):
+        overlapping = obligation.get("overlapping_commitments") or []
+        remaining = obligation.get("remaining_amount")
+        due_on = (obligation.get("date_basis") or {}).get("value")
+        if (
+            not overlapping or obligation.get("direction") != "outflow"
+            or not obligation.get("stays_visible", True) or due_on is None
+            or remaining is None or Decimal(str(remaining["value"])) == 0
+        ):
+            continue
+        names = ", ".join(f"“{item['name']}”" for item in overlapping)
+        debt_id = obligation["source"]["id"]
+        items.append({
+            "kind": "needs_review", "output": "debt_overlap", "currency": obligation["currency"],
+            "rank": 57, "action": "Use one record for these repayments",
+            "detail": f"{obligation['label']} is repaid by {names}",
+            "obligation_id": obligation["obligation_id"],
+            "todo": {
+                "key": f"debt-overlap:{debt_id}", "page": "Debts", "anchor": f"debt-{debt_id}",
+                "title": f"Count {obligation['label']} once",
+                "detail": (
+                    f"The recurring commitment {names} repeats the payments recorded on this debt, so the "
+                    f"forecast counts it every month and also the {remaining['value']} {obligation['currency']} "
+                    f"still owed on {due_on}. Open the debt to use the commitment as its repayment schedule."
+                ),
+            },
+        })
+    return items
+
+
 def _action_items(manifest: dict[str, Any], card_limits: Sequence[str] = ()) -> list[dict[str, Any]]:
     """Turn unresolved forecast inputs into output-owned, actionable gaps.
 
@@ -2339,6 +2377,7 @@ def _cash_timeline(
     result["action_items"] = sorted(
         [
             *_action_items(manifest, card_limits), *receivable_items,
+            *_overlap_items(obligations),
             *(item for source in extra for item in source.action_items),
         ],
         key=lambda item: (-item["rank"], item["output"], item["detail"]),
