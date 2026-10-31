@@ -53,6 +53,7 @@ class MariStatement:
     statement_date: date
     due_date: date
     previous_balance: Decimal = Decimal("0.00")
+    credit_limit: Decimal = Decimal("500.00")
     sections: dict[str, list[MariRow]] = field(default_factory=dict)
 
 
@@ -68,15 +69,23 @@ def _money(value: Decimal) -> str:
     return f"{value:.2f}"
 
 
-def mari_card_pdf_bytes(statement: MariStatement) -> bytes:
+def statement_outstanding(statement: MariStatement) -> Decimal:
+    return _buckets_and_outstanding(statement)[1]
+
+
+def _buckets_and_outstanding(statement: MariStatement) -> tuple[dict[str, Decimal], Decimal]:
     buckets = {letter: Decimal("0.00") for letter in _LETTER_X}
     buckets["A"] = statement.previous_balance
     for heading, rows in statement.sections.items():
         buckets[_SECTION_BUCKET[heading]] += sum((abs(r.amount) for r in rows), Decimal("0.00"))
-    outstanding = sum((_SIGNS[k] * v for k, v in buckets.items()), Decimal("0.00"))
+    return buckets, sum((_SIGNS[k] * v for k, v in buckets.items()), Decimal("0.00"))
+
+
+def mari_card_pdf_bytes(statement: MariStatement) -> bytes:
+    buckets, outstanding = _buckets_and_outstanding(statement)
 
     buffer = io.BytesIO()
-    canvas = Canvas(buffer, pagesize=A4)
+    canvas = Canvas(buffer, pagesize=A4, invariant=1)
     height = A4[1]
     canvas.setFont("Helvetica", 9)
 
@@ -92,7 +101,7 @@ def mari_card_pdf_bytes(statement: MariStatement) -> bytes:
     minimum = min(outstanding, Decimal("30.00"))
     at(
         48, 123,
-        f"MARI CREDIT CARD {_long(statement.statement_date)} 500.00 {_money(outstanding)} "
+        f"MARI CREDIT CARD {_long(statement.statement_date)} {_money(statement.credit_limit)} {_money(outstanding)} "
         f"{_money(minimum)} {_long(statement.due_date)}",
     )
     at(222, 149, "STATEMENT SUMMARY")
@@ -108,6 +117,10 @@ def mari_card_pdf_bytes(statement: MariStatement) -> bytes:
         at(250, top, heading)
         top += 16
         for row in rows:
+            if top > height - 110:
+                canvas.showPage()
+                canvas.setFont("Helvetica", 9)
+                top = 60.0
             at(302, top, row.above)
             top += 12
             at(48, top, _day(row.posted))

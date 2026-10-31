@@ -37,8 +37,11 @@ flowchart LR
 
 ## Try the demo
 
-The demo is an isolated ledger built from synthetic statements, so you can
-explore the app without any of your own data. It needs uv and Node.js:
+The demo is an isolated ledger built from entirely invented statements, so you
+can explore and develop the app without any real data. It has the shape of a
+lived-in ledger: six accounts on different statement cycles, money moving between
+them, a card with installment plans, and to-dos left open on purpose. It needs uv
+and Node.js:
 
 ```sh
 uv sync --locked
@@ -48,8 +51,12 @@ uv run python scripts/create_demo.py /tmp/fincl-demo
 uv run fincl serve --database /tmp/fincl-demo/demo.sqlite3 --demo --open
 ```
 
-Edits persist in the demo ledger. See [frontend setup and scope](frontend/README.md)
-for more on the demo and the app's launch and session behaviour.
+Edits persist in the demo ledger. Statements end a month or two before the build
+date, so delete the directory and build it again to bring it forward. For
+hot-reloading development, `uv run python scripts/dev.py` builds the same ledger
+in `demo-ledger/` and serves only a ledger built this way. See
+[frontend setup and scope](frontend/README.md) for more on the demo and the app's
+launch and session behaviour.
 
 ## Use it with your own statements
 

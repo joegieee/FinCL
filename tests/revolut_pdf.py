@@ -153,7 +153,13 @@ class _Writer:
         return self.buffer.getvalue()
 
 
-def revolut_pdf_bytes(rows: list[list[str]] = GOOD_ROWS) -> bytes:
+def revolut_pdf_bytes(
+    rows: list[list[str]] = GOOD_ROWS, *, period: tuple[datetime, datetime] | None = None
+) -> bytes:
+    """Render ``rows``. ``period`` prints that span; the default is the rows' own dates.
+
+    A row may carry an eleventh column, ``"12.00 EUR"``: the amount it paid abroad.
+    """
     writer = _Writer()
     by_currency: dict[str, list[list[str]]] = {}
     for row in rows:
@@ -184,7 +190,8 @@ def revolut_pdf_bytes(rows: list[list[str]] = GOOD_ROWS) -> bytes:
         writer.feed()
 
         dates = [_row_date(r) for r in currency_rows]
-        span = f"from {_long_date(min(dates))} to {_long_date(max(dates))}"
+        first_day, last_day = period or (min(dates), max(dates))
+        span = f"from {_long_date(first_day)} to {_long_date(last_day)}"
 
         for state in ("COMPLETED", "PENDING", "REVERTED"):
             section_rows = [r for r in currency_rows if r[8] == state]
@@ -223,6 +230,9 @@ def revolut_pdf_bytes(rows: list[list[str]] = GOOD_ROWS) -> bytes:
                 if fee != 0:
                     counterpart = amount if delta < 0 else amount  # merchant / gross
                     writer.canvas.drawString(_DESC_X, writer.y, f"Fee: {_fmt(abs(fee))} {_fmt(abs(counterpart))}")
+                    writer.feed(12.0)
+                if len(row) > 10:
+                    writer.canvas.drawString(_DESC_X, writer.y, f"Revolut Rate {row[10]}")
                     writer.feed(12.0)
                 if card:
                     writer.canvas.drawString(_DESC_X, writer.y, "Card: 400000******1234")
