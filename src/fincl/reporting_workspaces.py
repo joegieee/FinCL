@@ -236,6 +236,8 @@ def annotate_workspace(native: dict[str, Any], *, context: ReportingContext, res
                 purpose = ValuationPurpose.FORECAST
             # A planned amount is a forward figure; a matched payment or a
             # trip's spend is a dated flow.
+            if resource.startswith("trips") and "budgets" in path and key in {"planned", "remaining"}:
+                purpose = ValuationPurpose.FORECAST
             if resource == "planned":
                 purpose = ValuationPurpose.FLOW if any(part in path for part in ("matches", "actual_parts")) \
                     else ValuationPurpose.FORECAST

@@ -277,6 +277,86 @@ class TripTests(unittest.TestCase):
         self.command("ENTRY_TRIP_SET", {"entry": self.anchor("Advance booking")}, {"trip": trip_a, "reason": "Booked ahead"})
         return trip_a
 
+    def budget(self, trip_id: str, amount: str, *, name: str = "Trip A budget", start: str = "2026-01-10",
+               end: str = "2026-01-15") -> str:
+        flow = str(uuid.uuid4())
+        self.command("PLANNED_FLOW_SET", {"flow": flow}, {
+            "name": name, "direction": "outflow", "currency": "SGD", "account_id": None, "category": None,
+            "occurrences": [{"key": "1", "earliest": start, "latest": end, "amount": amount}],
+            "certainty": "sure", "baseline_treatment": "extra", "link": {"kind": "trip", "id": trip_id},
+            "reason": "Synthetic budget",
+        })
+        return flow
+
+    def test_a_trips_budget_reads_against_its_spend(self) -> None:
+        self.rates("SGD", [{"base_currency": "USD", "period": "2026-01", "rate": "1.20"}])
+        trip_a = self.spending_trip()
+        self.assertEqual(self.detail(trip_a)["trip"]["budgets"], [])
+        # The cash cutoff is 2026-01-11, so a budget ending then has passed.
+        flow = self.budget(trip_a, "700.00", end="2026-01-11")
+        (cell,) = self.detail(trip_a)["trip"]["budgets"]
+        self.assertEqual((cell["currency"], cell["planned"], cell["actual"], cell["remaining"], cell["over_plan"]),
+                         ("SGD", "700.00", "619.00", "81.00", None))
+        self.assertEqual((cell["over_budget"], cell["missed"], cell["unvalued_count"]), (False, True, 0))
+        self.assertEqual([(f["flow"], f["name"]) for f in cell["flows"]], [(flow, "Trip A budget")])
+        self.assertEqual(self.client.get("/api/v1/trips").json()["trips"][0]["budgets"], [cell])
+        reported = self.client.get(f"/api/v1/reporting/workspaces/trips/{trip_a}")
+        values = {tuple(a["path"]): a["value"] for a in reported.json()["amounts"]}
+        self.assertEqual(values[("trip", "budgets", 0, "planned")]["purpose"], "forecast")
+        self.assertEqual(values[("trip", "budgets", 0, "actual")]["purpose"], "flow")
+
+        self.command("PLANNED_FLOW_SET", {"flow": flow}, {
+            "name": "Trip A budget", "direction": "outflow", "currency": "SGD", "account_id": None, "category": None,
+            "occurrences": [{"key": "1", "earliest": "2026-01-10", "latest": "2026-01-15", "amount": "500.00"}],
+            "certainty": "sure", "baseline_treatment": "extra", "link": {"kind": "trip", "id": trip_a},
+            "reason": "Smaller budget",
+        })
+        (cell,) = self.detail(trip_a)["trip"]["budgets"]
+        self.assertEqual((cell["remaining"], cell["over_plan"], cell["over_budget"]), ("0.00", "119.00", True))
+
+    def test_a_budget_whose_dates_are_ahead_is_not_missed_and_a_done_one_has_nothing_left(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        flow = self.budget(trip_a, "300.00", start="2027-06-01", end="2027-06-10")
+        (cell,) = self.detail(trip_a)["trip"]["budgets"]
+        self.assertEqual((cell["planned"], cell["actual"], cell["remaining"], cell["missed"]),
+                         ("300.00", "0.00", "300.00", False))
+        self.command("PLANNED_OCCURRENCE_RESOLVE_SET", {"flow": flow, "occurrence": "1"},
+                     {"outcome": "done", "reason": "Trip shortened"})
+        (cell,) = self.detail(trip_a)["trip"]["budgets"]
+        self.assertEqual((cell["remaining"], cell["missed"]), ("0.00", False))
+
+    def test_a_trip_with_a_budget_is_not_retired_until_the_budget_is(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        flow = self.budget(trip_a, "300.00")
+        refused = self.command("TRIP_RETIRE", {"trip": trip_a}, {"reason": "Cancelled"}, status=422)
+        self.assertIn("remove the budget first", refused.text)
+        self.batch([
+            {"kind": "TRIP_RETIRE", "anchors": {"trip": trip_a}, "payload": {"reason": "Cancelled"}},
+        ], status=422)
+        self.batch([
+            {"kind": "PLANNED_FLOW_RETIRE", "anchors": {"flow": flow}, "payload": {"reason": "Cancelled"}},
+            {"kind": "TRIP_RETIRE", "anchors": {"trip": trip_a}, "payload": {"reason": "Cancelled"}},
+        ])
+        self.assertEqual(self.client.get("/api/v1/trips").json()["trips"], [])
+
+    def test_a_past_trip_with_spending_in_its_dates_but_unplaced_has_a_todo(self) -> None:
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        unplaced = len(self.detail(trip_a)["review"]["missing_country"])
+        todo = self.detail(trip_a)["trip"]["todo"]
+        self.assertEqual((todo["kind"], todo["trip_id"], todo["count"]), ("assign_trip_spend", trip_a, unplaced))
+        self.assertEqual(self.client.get("/api/v1/trips").json()["todos"], [todo])
+        for description in ("Meal", "Lodging", "Taxi", "Diner"):
+            self.country(description, "FR")
+        self.country("Lodging", "FR", inflow=True)
+        self.assertIsNone(self.detail(trip_a)["trip"]["todo"])
+        self.assertEqual(self.client.get("/api/v1/trips").json()["todos"], [])
+
+    def test_an_upcoming_trip_has_no_todo(self) -> None:
+        self.addCleanup(clock.pin, None)
+        clock.pin(date.fromisoformat("2026-01-09"))
+        trip_a = self.trip("Trip A", "2026-01-10", "2026-01-15", ["FR"])
+        self.assertIsNone(self.detail(trip_a)["trip"]["todo"])
+
     def test_trip_spend_nets_refunds_and_converts_other_pockets_through_as_of(self) -> None:
         self.rates("SGD", [{"base_currency": "USD", "period": "2026-01", "rate": "1.20"}])
         trip_a = self.spending_trip()

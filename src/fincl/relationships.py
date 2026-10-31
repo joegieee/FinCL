@@ -426,7 +426,11 @@ def preview_batch(
 
     context_items = [(str(i["kind"]), dict(i["anchors"]), dict(i["payload"])) for i in items if i["kind"] in CONTEXT_DECISION_KINDS]
     if context_items:
-        check_context_sequence(connection, context_items, lambda anchor: resolve_anchor(connection, anchor))
+        # Planned items ride along so a trip is not retired from under its budget.
+        budget_items = [(str(i["kind"]), dict(i["anchors"]), dict(i["payload"])) for i in items
+                        if i["kind"] in {"PLANNED_FLOW_SET", "PLANNED_FLOW_RETIRE"}]
+        check_context_sequence(connection, [*budget_items, *context_items] if budget_items else context_items,
+                               lambda anchor: resolve_anchor(connection, anchor))
     planned_items = [(str(i["kind"]), dict(i["anchors"]), dict(i["payload"])) for i in items if i["kind"] in PLANNED_DECISION_KINDS]
     if planned_items:
         check_planned_sequence(connection, planned_items, lambda anchor: resolve_anchor(connection, anchor), custom_categories)

@@ -28,6 +28,7 @@ from ..db import connect_readonly
 from ..errors import FinCLError
 from ..generation import current_generation
 from ..money import ExactMoney
+from .budget import trip_budgets, unassigned_todo
 from .countries import COUNTRY_LIST_VERSION
 
 LENS = "recorded_flow"
@@ -142,7 +143,10 @@ def _status(trip: dict[str, Any], today: date) -> str:
     return "past" if today > date.fromisoformat(trip["end_on"]) else "ongoing"
 
 
-def _summary(trip: dict[str, Any], members: list[dict[str, Any]], review_count: int, today: date) -> dict[str, Any]:
+def _summary(
+    trip: dict[str, Any], members: list[dict[str, Any]], review: list[dict[str, Any]], today: date,
+    budgets: list[dict[str, Any]],
+) -> dict[str, Any]:
     totals: dict[str, dict[str, Any]] = {}
     parts: dict[tuple[str, str, str], list[Any]] = {}
     for entry in members:
@@ -156,11 +160,14 @@ def _summary(trip: dict[str, Any], members: list[dict[str, Any]], review_count: 
                 part = parts.setdefault((entry["end"], entry["currency"], kind), [Decimal(0), 2])
                 part[0] += value
                 part[1] = max(part[1], entry["scale"])
+    status = _status(trip, today)
     return {
         **{key: trip[key] for key in ("trip_id", "name", "start_on", "end_on", "countries", "reason")},
-        "status": _status(trip, today),
+        "status": status,
         "entry_count": len(members),
-        "review_count": review_count,
+        "review_count": len(review),
+        "todo": unassigned_todo(trip, review, status),
+        "budgets": budgets,
         "totals_by_currency": {
             currency: {
                 "gross_cost": _text(cell["gross"], cell["scale"]),
@@ -186,13 +193,17 @@ def _review(trip_id: str, entries: dict[str, dict[str, Any]]) -> list[dict[str, 
 def trips_page_from(connection: sqlite3.Connection, *, today: date, expected: str | None = None) -> dict[str, Any]:
     state = _load(connection, expected)
     entries = state["entries"]
+    budgets = trip_budgets(connection, state, today=today)
+    trips = [
+        _summary(trip, [e for e in entries.values() if e["trip"] == trip_id], _review(trip_id, entries), today,
+                 budgets.get(trip_id, []))
+        for trip_id, trip in state["trips"].items()
+    ]
     return {
         "generation": state["token"], "lens": LENS, "lens_note": LENS_NOTE,
         "assignment_policy": ASSIGNMENT_POLICY, "country_list_version": COUNTRY_LIST_VERSION,
-        "trips": [
-            _summary(trip, [e for e in entries.values() if e["trip"] == trip_id], len(_review(trip_id, entries)), today)
-            for trip_id, trip in state["trips"].items()
-        ],
+        "trips": trips,
+        "todos": [trip["todo"] for trip in trips if trip["todo"]],
     }
 
 
@@ -216,7 +227,7 @@ def trip_detail_from(
     return {
         "generation": state["token"], "lens": LENS, "lens_note": LENS_NOTE,
         "assignment_policy": ASSIGNMENT_POLICY, "country_list_version": COUNTRY_LIST_VERSION,
-        "trip": _summary(trip, members, len(review), today),
+        "trip": _summary(trip, members, review, today, trip_budgets(connection, state, today=today).get(trip_id, [])),
         "by_category": [
             {"currency": currency, "category_key": category, "cost_amount": _text(value, scale)}
             for (currency, category), (value, scale) in sorted(by_category.items(), key=lambda item: (item[0][0], -item[1][0]))
