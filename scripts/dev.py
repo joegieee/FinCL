@@ -1,7 +1,7 @@
 """Hot-reloading development server over a synthetic demo ledger. Never touches var/.
 
     uv run python scripts/dev.py                      # demo-ledger/, created on first run
-    uv run python scripts/dev.py --database PATH      # an existing throwaway ledger
+    uv run python scripts/dev.py --database PATH      # another ledger built by create_demo
     uv run python scripts/dev.py --no-vite            # backend only
 
 Runs two processes:
@@ -15,8 +15,8 @@ Runs two processes:
 process, so every restart would log the browser out. Here they are pinned to
 fixed values instead, and ``/dev-login`` hands out the cookie, so one visit to
 http://127.0.0.1:5173/dev-login survives every reload. That is only acceptable
-for a loopback server over a synthetic ledger, so a ledger under ``var/`` is
-refused.
+for a loopback server over a synthetic ledger, so only a ledger built by
+``scripts/create_demo.py`` is served.
 """
 
 from __future__ import annotations
@@ -71,14 +71,18 @@ def app_factory() -> Any:
 
 def _resolve_database(requested: Path | None) -> Path:
     database = (requested or DEFAULT_DATABASE).expanduser().resolve()
-    if database.is_relative_to(REPO / "var"):
-        sys.exit("Refusing a ledger under var/: the dev server pins its session token.")
+    sys.path.insert(0, str(SCRIPTS))
+    from create_demo import SYNTHETIC_MARKER, create_demo
+
     if database.exists():
-        return database
+        if (database.parent / SYNTHETIC_MARKER).exists():
+            return database
+        sys.exit(
+            f"Refusing {database}: it was not built by scripts/create_demo.py, and the dev "
+            "server pins its session token. To replace an older demo, delete demo-ledger/."
+        )
     if requested is not None:
         sys.exit(f"No ledger at {database}. Omit --database to build the demo.")
-    sys.path.insert(0, str(SCRIPTS))
-    from create_demo import create_demo
 
     print(f"Building the demo ledger in {database.parent} …")
     return create_demo(database.parent).resolve()
