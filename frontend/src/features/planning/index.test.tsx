@@ -36,7 +36,7 @@ function budgetsPage(over: Record<string, unknown> = {}) {
     generation: 'g1', month: '2026-03', currency: 'SGD', month_covered: true, month_complete: false,
     budgets: [{
       plan: 'b1', name: 'Dining', currency: 'SGD', category_key: 'Food & Dining / Groceries',
-      effective_month: '2026-01', limit: '300.00', actual: '120.00', remaining: null,
+      effective_month: '2026-01', limit: '300.00', actual: '120.00', remaining: null, over_limit: null,
       archived: false, status: 'observed_so_far',
     }],
     ...over,
@@ -72,6 +72,20 @@ describe('PlanningView', () => {
     expect(await screen.findByText('Dining')).toBeInTheDocument()
     expect(screen.getByText('SGD 120.00')).toBeInTheDocument()
     expect(screen.getByText(/no confident remaining for an incomplete month/i)).toBeInTheDocument()
+  })
+
+  it('labels a complete month over or left by the server flag', async () => {
+    setup()
+    const row = { plan: 'b1', name: 'Dining', currency: 'SGD', category_key: null, effective_month: '2026-01',
+      limit: '100.00', actual: '130.00', archived: false, status: 'settled' }
+    loadBudgets.mockResolvedValue(budgetsPage({ month_complete: true, budgets: [
+      { ...row, remaining: '-30.00', over_limit: true },
+      { ...row, plan: 'b2', name: 'Travel', actual: '80.00', remaining: '20.00', over_limit: false },
+    ] }))
+    render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={() => {}} />)
+    await screen.findByText('Dining')
+    expect(screen.getByText('−SGD 30.00 over')).toBeInTheDocument()
+    expect(screen.getByText('SGD 20.00 left')).toBeInTheDocument()
   })
 
   it('revises a budget through preview then commit with a fresh revision id', async () => {

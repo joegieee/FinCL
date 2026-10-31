@@ -100,7 +100,8 @@ def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]
             budgets.append({"plan": plan, "name": payload["name"], "currency": currency,
                             "category_key": category_key, "effective_month": None,
                             "limit": _money(limit), "actual": _money(actual),
-                            "remaining": _money(limit-actual) if complete else None, "archived": False,
+                            "remaining": _money(limit-actual) if complete else None,
+                            "over_limit": actual > limit if complete else None, "archived": False,
                             "legacy_undated": True, "status": "settled" if complete else "observed_so_far" if month_covered else "coverage_unknown"})
         for plan, rows in by_plan.items():
             effective = None
@@ -124,6 +125,7 @@ def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]
                 "limit": _money(limit_cents),
                 "actual": _money(actual_cents),
                 "remaining": _money(limit_cents - actual_cents) if complete else None,
+                "over_limit": actual_cents > limit_cents if complete else None,
                 "archived": archived,
                 "legacy_undated": False,
                 "status": (

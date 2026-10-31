@@ -120,7 +120,7 @@ function BudgetRow({ budget, generation, categories, disabled, onSaved }: {
         <span style={{ width: `${pct}%` }} />
       </div>
       <small>{budget.remaining !== null
-        ? `${reportedMoney(budget, 'remaining', budget.currency)} ${Number(budget.remaining) < 0 ? 'over' : 'left'}`
+        ? `${reportedMoney(budget, 'remaining', budget.currency)} ${budget.over_limit ? 'over' : 'left'}`
         : 'Observed spending so far — no confident remaining for an incomplete month.'}</small>
       <div className="row-actions">
         <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setMode(m => m === 'revise' ? 'idle' : 'revise')}>Revise</Button>

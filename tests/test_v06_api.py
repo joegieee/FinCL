@@ -7,6 +7,9 @@ import uuid
 from datetime import date
 
 from fincl import clock
+from fincl.document_service import DocumentImportService
+from fincl.refresh import refresh_ledger
+from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 from tests.test_api import ApiTestBase
 
 
@@ -44,6 +47,30 @@ class PlanningApiTests(ApiTestBase):
         history = self.client.get(f"/api/v1/budgets/{plan}/history").json()
         self.assertEqual(len(history["revisions"]), 1)
         self.assertEqual(history["revisions"][0]["limit"], "100.00")
+
+    def test_a_complete_month_says_whether_each_budget_went_over(self) -> None:
+        rows = [["Topup", "Current", "2026-01-21 10:00:00", "2026-01-21 10:00:01",
+                 "Seed", "10.00", "0.00", "SGD", "COMPLETED", "435.75"],
+                ["Card Payment", "Current", "2026-01-31 10:00:00", "2026-01-31 10:00:01",
+                 "Grocer", "-5.75", "0.00", "SGD", "COMPLETED", "430.00"]]
+        later = self.root / "late-january.pdf"
+        later.write_bytes(csv_bytes(rows))
+        DocumentImportService.plaintext_phase2(self.database, self.root / "evidence").import_revolut_pdf(later)
+        refresh_ledger(self.database)
+        plans = {}
+        for limit in ("100.00", "50.00"):
+            plans[limit] = str(uuid.uuid4())
+            self.command(
+                "BUDGET_REVISION_SET", {"plan": plans[limit], "revision": str(uuid.uuid4())},
+                {"effective_month": "2026-01", "name": f"Limit {limit}", "currency": "SGD",
+                 "category_key": None, "limit": limit, "reason": "set"},
+            )
+        page = self.client.get("/api/v1/budgets?month=2026-01&currency=SGD").json()
+        by_plan = {b["plan"]: b for b in page["budgets"]}
+        self.assertEqual(
+            [(by_plan[plans[limit]]["remaining"], by_plan[plans[limit]]["over_limit"]) for limit in plans],
+            [("20.00", False), ("-30.00", True)],
+        )
 
     def test_goals_read_today_from_the_pinned_clock(self) -> None:
         plan = str(uuid.uuid4())

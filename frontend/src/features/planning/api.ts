@@ -10,6 +10,8 @@ export type BudgetCard = {
   limit: string
   actual: string
   remaining: string | null
+  /** Whether a complete month went past the limit; null while the month is incomplete. */
+  over_limit: boolean | null
   archived: boolean
   status: 'settled' | 'observed_so_far' | 'coverage_unknown' | 'archived'
   legacy_undated: boolean
