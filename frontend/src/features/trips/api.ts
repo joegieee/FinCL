@@ -12,6 +12,22 @@ export type TripTotals = { gross_cost: string; refunds: string; net_cost: string
 
 export type TripStatus = 'upcoming' | 'ongoing' | 'past'
 
+/** What the planned items linked to a trip add up to in one currency, against its spend so far. */
+export type TripBudget = {
+  currency: string
+  as_of: string
+  planned: string
+  actual: string
+  remaining: string
+  over_plan: string | null
+  over_budget: boolean
+  missed: boolean
+  unvalued_count: number
+  flows: { flow: string; name: string; certainty: string; earliest: string | null; latest: string | null }[]
+}
+
+export type TripTodo = { kind: 'assign_trip_spend'; trip_id: string; name: string; count: number; text: string }
+
 export type TripSummary = {
   trip_id: string
   name: string
@@ -23,6 +39,8 @@ export type TripSummary = {
   entry_count: number
   review_count: number
   totals_by_currency: Record<string, TripTotals>
+  budgets: TripBudget[]
+  todo: TripTodo | null
 }
 
 export type ContextRow = {
@@ -47,7 +65,7 @@ export type ContextRow = {
 export type ManualAssignment = { anchor: string; on: string; counted: boolean }
 
 type Envelope = { generation: string; lens: string; lens_note: string; country_list_version: string }
-export type TripsPage = Envelope & { trips: TripSummary[] }
+export type TripsPage = Envelope & { trips: TripSummary[]; todos: TripTodo[] }
 export type TripDetail = Envelope & {
   trip: TripSummary
   by_category: { currency: string; category_key: string; cost_amount: string }[]
