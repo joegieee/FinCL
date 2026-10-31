@@ -18,6 +18,37 @@ export type DebtCard = {
   last_event: { kind: string; effective_on: string } | null
   reconciliation_status: string
   event_count: number
+  /** The repayment plan's headline, when the debt has one. */
+  plan?: { next_due: string | null; overdue_count: number; unscheduled_remainder: boolean } | null
+}
+
+export type PlanRowState = 'paid' | 'part_paid' | 'overdue' | 'upcoming' | 'trimmed'
+
+export type PlanRow = {
+  schedule_index: number
+  due_on: string
+  amount: string
+  paid: string
+  remaining: string
+  /** How much of the row the principal no longer needs. */
+  trimmed: string
+  was_trimmed: boolean
+  state: PlanRowState
+  overdue: boolean
+}
+
+/** A debt's repayment plan as the server reads it: every amount is computed there. */
+export type PlanState = {
+  effective_from: string
+  plan_kind: 'rows' | 'series'
+  reason: string
+  rows: PlanRow[]
+  remaining_principal: string
+  scheduled_remaining: string
+  /** What the rows do not cover; dated when the debt has its own due date. */
+  unscheduled_remainder: { amount: string; due_on: string | null; overdue: boolean } | null
+  next_due: string | null
+  overdue_count: number
 }
 
 export type DebtEvent = {
@@ -48,7 +79,7 @@ export type OverlappingCommitment = { commitment: string; name: string; payments
 export type DebtDetail = {
   generation: string
   as_of: string
-  debt: DebtCard & { principal_history: DebtEvent[]; reason: string; overlapping_commitments?: OverlappingCommitment[] }
+  debt: DebtCard & { principal_history: DebtEvent[]; reason: string; overlapping_commitments?: OverlappingCommitment[]; schedule?: PlanState | null }
 }
 
 /** Every debt, following the server's pages: the lists, the split form and the
@@ -283,6 +314,7 @@ export type DraftDebt = {
   after: { status: string; closed_on: string | null; remaining: string }
   events: (TimelineEvent & { change: 'added' | 'changed' | 'balance' | null; balance_before: string | null })[]
   removed: TimelineEvent[]
+  schedule?: { before: PlanState | null; after: PlanState | null }
 }
 
 export type DraftPreview = { generation: string; items: DraftItem[]; debts: DraftDebt[] }
@@ -332,4 +364,23 @@ export function aroundClosed(
 
 export function kindLabel(kind: string): string {
   return [...EVENT_KINDS.PAYABLE, ...EVENT_KINDS.RECEIVABLE].find(spec => spec.kind === kind)?.label ?? kind
+}
+
+/** The draft that makes a recurring commitment the debt's repayment plan and
+ * ends the commitment; the server works out every row and amount. */
+export function loadCommitmentSchedule(debtId: string, commitment: string, generation: string): Promise<{ generation: string; items: DraftItem[] }> {
+  const q = new URLSearchParams({ commitment, generation })
+  return api(`debts/${encodeURIComponent(debtId)}/commitment-schedule?` + q)
+}
+
+export const PLAN_STATE_LABEL: Record<PlanRowState, string> = {
+  paid: 'Paid', part_paid: 'Part paid', overdue: 'Overdue', upcoming: 'Upcoming', trimmed: 'Not needed',
+}
+
+export type PlanCadence = 'monthly' | 'weekly' | 'fortnightly'
+
+/** The cadence in the shape the server expects, anchored on the first payment's date. */
+export function cadenceSchedule(cadence: PlanCadence, start: string): Record<string, unknown> {
+  if (cadence === 'monthly') return { kind: 'monthly', day: Number(start.slice(8, 10)), anchor_on: start }
+  return { kind: 'interval_weeks', weeks: cadence === 'weekly' ? 1 : 2, anchor_on: start }
 }

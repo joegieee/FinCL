@@ -130,6 +130,8 @@ def schedule_state(
             "amount": money(state["amount"]),
             "paid": money(state["paid"]),
             "remaining": money(state["remaining"]),
+            "trimmed": money(state.get("trimmed", 0)),
+            "was_trimmed": state.get("trimmed", 0) > 0,
             "state": kind,
             "overdue": kind == "overdue",
         })
