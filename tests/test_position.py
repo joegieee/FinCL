@@ -159,6 +159,18 @@ class PositionReadTests(unittest.TestCase):
             "intervening movements do not reconcile the balance boundaries",
         )
 
+    def test_a_quiet_pocket_closes_on_its_printed_balance(self) -> None:
+        root = Path(tempfile.mkdtemp())
+        database = root / "ledger.sqlite3"
+        source = root / "revolut.pdf"
+        source.write_bytes(csv_bytes(_ROWS, quiet={"EUR": "100.00"}))
+        DocumentImportService.plaintext_phase2(database, root / "evidence").import_revolut_pdf(source)
+        refresh_ledger(database)
+
+        page = position_page(database, today=date(2026, 3, 5))
+
+        self.assertEqual(page["liquid_total"]["EUR"], "100.00")
+
     def test_latest_printed_running_balance_is_the_pocket_basis(self) -> None:
         database = _ledger(_ROWS)
 

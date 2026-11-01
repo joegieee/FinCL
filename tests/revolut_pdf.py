@@ -154,11 +154,13 @@ class _Writer:
 
 
 def revolut_pdf_bytes(
-    rows: list[list[str]] = GOOD_ROWS, *, period: tuple[datetime, datetime] | None = None
+    rows: list[list[str]] = GOOD_ROWS, *, period: tuple[datetime, datetime] | None = None,
+    quiet: dict[str, str] | None = None,
 ) -> bytes:
     """Render ``rows``. ``period`` prints that span; the default is the rows' own dates.
 
     A row may carry an eleventh column, ``"12.00 EUR"``: the amount it paid abroad.
+    ``quiet`` adds pockets that hold a balance and printed no rows, by currency.
     """
     writer = _Writer()
     by_currency: dict[str, list[list[str]]] = {}
@@ -238,6 +240,19 @@ def revolut_pdf_bytes(
                     writer.canvas.drawString(_DESC_X, writer.y, "Card: 400000******1234")
                     writer.feed(12.0)
 
+        writer.feed()
+
+    for currency, balance in (quiet or {}).items():
+        writer.line(_DATE_X, f"{currency} Statement")
+        writer.feed()
+        writer.line(_DATE_X, "Balance summary")
+        writer.feed()
+        writer.line(_DATE_X, "Total")
+        writer.canvas.drawString(_DATE_X + 40, writer.y, balance)
+        writer.right(_OUT_R, "0.00")
+        writer.right(_IN_R, "0.00")
+        writer.right(_BAL_R, balance)
+        writer.feed()
         writer.feed()
 
     writer.line(_DATE_X, "Report lost or stolen card")

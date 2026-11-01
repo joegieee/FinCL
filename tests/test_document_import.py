@@ -36,6 +36,7 @@ from fincl.documents import (
     DocumentSection,
     _reconcile_dbs,
     _reconcile_mari_card,
+    _reconcile_revolut_pdf,
     _reconcile_trust,
     parse_dbs_consolidated,
     parse_mari_card,
@@ -540,6 +541,33 @@ class MissingEquationTests(unittest.TestCase):
         self.assertEqual(
             [problem.code for problem in problems], ["DBS_SECTION_CLOSE_MISSING"] * 2
         )
+
+    def test_a_revolut_pocket_holding_a_balance_with_no_rows_is_accepted(self) -> None:
+        parsed = parse_revolut_pdf(revolut_pdf.revolut_pdf_bytes(quiet={"EUR": "100.00"}))
+
+        self.assertTrue(parsed.accepted)
+        check = next(
+            check for check in parsed.checks
+            if check.currency_pocket == "EUR" and check.check_type == "STATEMENT_BALANCE"
+        )
+        self.assertEqual(check.actual.text, "100.00")
+
+    def test_a_revolut_pocket_with_printed_activity_and_no_rows_is_refused(self) -> None:
+        parsed = parse_revolut_pdf(revolut_pdf.revolut_pdf_bytes())
+        summary = next(
+            record for record in parsed.records
+            if record.record_kind == "SUMMARY" and record.currency_raw == "USD"
+        )
+        summary.raw_fields = {**summary.raw_fields, "money_in": "5.00"}
+        records = [
+            record for record in parsed.records
+            if not (record.record_kind == "TRANSACTION" and record.currency_raw == "USD")
+        ]
+        problems: list[DocumentProblem] = []
+
+        _reconcile_revolut_pdf(records, parsed.sections, problems)
+
+        self.assertIn("REVOLUT_PDF_BALANCE_MISMATCH", {problem.code for problem in problems})
 
     def test_trust_activity_without_its_balances_is_refused(self) -> None:
         section = DocumentSection(2, "SAVINGS_LEDGER", "SGD", "Savings", 1, 1)

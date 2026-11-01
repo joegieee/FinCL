@@ -3374,6 +3374,14 @@ def _reconcile_revolut_pdf(
     for section in sections:
         if section.currency and section.currency not in currencies:
             currencies.append(section.currency)
+    # A pocket with no rows prints a summary but no section heading.
+    for record in records:
+        if (
+            record.record_kind == "SUMMARY"
+            and record.currency_raw
+            and record.currency_raw not in currencies
+        ):
+            currencies.append(record.currency_raw)
     for currency in currencies:
         summary = next(
             (
@@ -3403,20 +3411,29 @@ def _reconcile_revolut_pdf(
         money_out = _revolut_money(str(summary.raw_fields["money_out"]))
         money_in = _revolut_money(str(summary.raw_fields["money_in"]))
         closing = _revolut_money(str(summary.raw_fields["closing"]))
-        summary_zero = all(
-            value.coefficient == 0 for value in (opening, money_out, money_in, closing)
-        )
         if not transactions:
-            # A currency pocket that only ever held a zero balance (for example
-            # a foreign-currency section) prints a zero summary and no
-            # transaction heading. That is valid; there is nothing to check.
-            if not summary_zero:
+            # A quiet pocket prints a summary and no rows. All zero there is
+            # nothing to check; a held balance must carry through unchanged and
+            # is the pocket's close.
+            if money_out.coefficient or money_in.coefficient:
                 problems.append(
                     DocumentProblem(
                         "BLOCKING",
                         "REVOLUT_PDF_BALANCE_MISMATCH",
-                        "a Revolut currency pocket has a non-zero summary but no transactions",
+                        "a Revolut currency pocket prints money in or out but no transactions",
                         {"currency": currency},
+                    )
+                )
+            elif opening.coefficient or closing.coefficient:
+                checks.append(
+                    _make_check(
+                        currency,
+                        "STATEMENT_BALANCE",
+                        REVOLUT_PDF_BALANCE_EQUATION_VERSION,
+                        opening,
+                        closing,
+                        True,
+                        {"currency": currency, "rows": 0},
                     )
                 )
             continue
