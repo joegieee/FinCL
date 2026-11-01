@@ -561,7 +561,9 @@ def _match_suggestions(
                     "exact_amount": difference == 0,
                     "days_from_window": distance,
                     "match_kind": MATCH_FULL if amount >= outstanding else MATCH_PARTIAL,
-                    "suggested_amount": format_decimal(min(amount, outstanding), scale),
+                    # The whole movement, not the outstanding amount: capping it
+                    # would score an overrun as an exact match.
+                    "suggested_amount": format_decimal(amount, scale),
                 },
             ))
         scored.sort(key=lambda item: (item[0], item[1], item[2]["movement_id"]))

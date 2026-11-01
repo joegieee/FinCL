@@ -1021,6 +1021,21 @@ class MatchSuggestionTests(unittest.TestCase):
         self.assertEqual(best["days_from_window"], 0)
         self.assertEqual(best["match_kind"], "full")
 
+    def test_a_full_suggestion_binds_the_whole_movement(self) -> None:
+        """Capped at the 700 forecast, the 800 paid would score as an exact match."""
+        best = self.suggestions["groceries:2026-02"]["candidates"][0]
+        self.assertEqual((best["amount"], best["match_kind"]), ("800.00", "full"))
+        self.assertEqual(best["suggested_amount"], "800.00")
+
+        _match(self.database, match="m-groceries", event_id="groceries:2026-02",
+               movement=best["movement_id"], on=best["on"],
+               amount=best["suggested_amount"], kind=best["match_kind"])
+        _replay(self.database)
+        page = forecast_variance_page(self.database, snapshot="snap-1", as_of=self.AS_OF)
+
+        self.assertEqual(_event(page, "groceries:2026-02")["actual"], "800.00")
+        self.assertEqual(_cell(_month(page, "2026-02"), FLOW_LIFESTYLE)["actual"], "800.00")
+
     def test_a_late_movement_is_still_offered_with_its_distance_stated(self) -> None:
         """A late salary is exactly the case worth surfacing, not hiding."""
         offered = self.suggestions["salary:2026-03"]
