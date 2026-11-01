@@ -143,6 +143,12 @@ def _spending(books: Books) -> None:
             books.dbs.append(Row(paid, "Top-up to PayLah!", -amount))
             books.wallet.append(Row(paid, "TOP UP WALLET FROM MY ACCOUNT", amount))
             books.wallet.append(Row(paid, "SEND MONEY TO JAMIE SYNTHETIC", -amount))
+        if index == 1:
+            paid = month.replace(day=18)
+            books.dbs.append(Row(paid, "Top-up to PayLah!", Decimal("-30.00")))
+            books.wallet.append(Row(paid, "TOP UP WALLET FROM MY ACCOUNT", Decimal("30.00")))
+            books.wallet.append(Row(paid, "SEND MONEY TO MY ACCOUNT", Decimal("-30.00")))
+            books.dbs.append(Row(paid, "Funds Transfer", Decimal("30.00"), ("SEND BACK FROM PAYLAH! :", "00000000")))
         if index % 3 == 1:
             books.wallet.append(Row(month.replace(day=rng.randint(10, last)), "REFUND FROM NOODLE HOUSE", _money(rng, 2, 6)))
         if index % 4 == 2:
@@ -169,6 +175,9 @@ def _trip_spend(books: Books) -> None:
     rng = books.rng
     trip = books.months[5]
     books.trust.append(TrustRow(trip.replace(day=4), "JAMIE SYNTHETIC", Decimal("320.00")))
+    books.dbs.append(Row(trip.replace(day=3), "FAST Payment / Receipt", Decimal("-150.00"),
+                         ("TRUS:0000000000:I-BANK", "TRANSFER")))
+    books.trust.append(TrustRow(trip.replace(day=3), "SYNTHETIC HOLDER", Decimal("150.00")))
     for day in (11, 12, 14):
         foreign = _money(rng, 12, 48)
         books.trust.append(TrustRow(trip.replace(day=day), rng.choice(ABROAD_MERCHANTS).upper(),
@@ -278,6 +287,10 @@ def _card(books: Books) -> None:
                                  ("TO: MARIBANK SINGAPORE", token)))
             books.savings.append(SavingsRow(repaid - timedelta(days=2), "SYNTHETIC HOLDER", deposit, ("PayNow Transfer", f"REF {token}")))
             books.savings.append(SavingsRow(repaid, "Mari Credit Card", -previous, ("Repayment",)))
+            if cycle == 2:
+                books.savings.append(SavingsRow(repaid, "Holder", Decimal("-25.00"), ("PayNow Transfer", "From Synthetic Holder")))
+                books.dbs.append(Row(repaid, "FAST Payment / Receipt", Decimal("25.00"),
+                                     ("INCOMING PAYNOW REF 0000001", "FROM: SYNTHETIC HOLDER")))
         plans = []
         for plan in (long_plan, converted, short_plan):
             if plan is None or plan["number"] > plan["term"]:

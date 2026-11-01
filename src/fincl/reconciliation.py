@@ -36,6 +36,9 @@ DBS_REVOLUT_OUTBOUND_TRANSFER_LINK_VERSION = (
 )
 DBS_MARIBANK_PAYNOW_TOPUP_LINK_VERSION = "dbs-maribank-paynow-topup-reference-token-amount-v1"
 MARI_SAVINGS_CARD_REPAYMENT_LINK_VERSION = "mari-savings-card-repayment-exact-amount-day-v1"
+MARI_DBS_PAYNOW_LINK_VERSION = "mari-dbs-paynow-sender-exact-amount-day-v1"
+PAYLAH_DBS_SEND_BACK_LINK_VERSION = "paylah-dbs-send-back-exact-amount-day-v1"
+DBS_TRUST_TRANSFER_LINK_VERSION = "dbs-trust-fast-transfer-exact-amount-day-v1"
 REVOLUT_EXCHANGE_LINK_VERSION = "revolut-exchange-started-at-pockets-v1"
 AMBIGUOUS_MUTUAL_MATCH = "AMBIGUOUS_MUTUAL_MATCH"
 SELECTION_LOST = "SELECTION_LOST"
@@ -119,6 +122,30 @@ MARI_SAVINGS_CARD_REPAYMENT_LINKER = SameCurrencyLinker(
     EligibleLinkLeg("MARI_CARD", "SGD", "IN", frozenset({"TRANSFER"})),
     max_days=0,
 )
+# MariBank savings PayNow received by DBS. Both legs print the sender's name; the
+# payee on the MariBank row is a free-text nickname, so third-party payments share
+# this row shape and only the sender name, day and amount tell the two apart.
+MARI_DBS_PAYNOW_LINKER = SameCurrencyLinker(
+    MARI_DBS_PAYNOW_LINK_VERSION,
+    EligibleLinkLeg("MARI_SAVINGS", "SGD", "OUT", frozenset({"TRANSFER"})),
+    EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "IN", frozenset({"TRANSFER"})),
+    max_days=0,
+)
+PAYLAH_DBS_SEND_BACK_LINKER = SameCurrencyLinker(
+    PAYLAH_DBS_SEND_BACK_LINK_VERSION,
+    EligibleLinkLeg("DBS_PAYLAH", "SGD", "OUT", frozenset({"TRANSFER"})),
+    EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "IN", frozenset({"TRANSFER"})),
+    max_days=0,
+)
+# DBS prints the destination bank's ``TRUS:`` code. Trust prints only the sender's
+# name on the credit and gives it no transfer event kind, so the day and amount
+# carry the match.
+DBS_TRUST_TRANSFER_LINKER = SameCurrencyLinker(
+    DBS_TRUST_TRANSFER_LINK_VERSION,
+    EligibleLinkLeg("DBS_CONSOLIDATED", "SGD", "OUT", frozenset({"TRANSFER"})),
+    EligibleLinkLeg("TRUST_SAVINGS", "SGD", "IN", frozenset({"OTHER"})),
+    max_days=0,
+)
 REVOLUT_EXCHANGE_LINKER = ExchangeLinker(
     REVOLUT_EXCHANGE_LINK_VERSION,
     EligibleLinkLeg("REVOLUT_PDF", None, "OUT", frozenset({"EXCHANGE"})),
@@ -131,6 +158,9 @@ AUTOMATIC_SAME_CURRENCY_LINK_METHODS = (
     DBS_REVOLUT_PAYNOW_TOPUP_LINKER.method_version,
     DBS_MARIBANK_PAYNOW_TOPUP_LINKER.method_version,
     MARI_SAVINGS_CARD_REPAYMENT_LINKER.method_version,
+    MARI_DBS_PAYNOW_LINKER.method_version,
+    PAYLAH_DBS_SEND_BACK_LINKER.method_version,
+    DBS_TRUST_TRANSFER_LINKER.method_version,
     DBS_REVOLUT_OUTBOUND_TRANSFER_LINK_VERSION,
 )
 
@@ -178,7 +208,6 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
           AND s.source_type = 'DBS_CONSOLIDATED'
           AND s.selection_state = 'SELECTED'
           AND e.analytics_eligible = 1
-          AND e.economic_direction = 'OUT'
         """
     ).fetchall()
     paylah_rows = connection.execute(
@@ -193,7 +222,6 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
           AND s.source_type = 'DBS_PAYLAH'
           AND s.selection_state = 'SELECTED'
           AND e.analytics_eligible = 1
-          AND e.economic_direction = 'IN'
         """
     ).fetchall()
     revolut_rows = connection.execute(
@@ -222,6 +250,20 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
         JOIN statements s ON s.id = e.statement_id
         WHERE e.source_family = 'DOCUMENT'
           AND s.source_type IN ('MARI_SAVINGS', 'MARI_CARD')
+          AND s.selection_state = 'SELECTED'
+          AND e.analytics_eligible = 1
+        """
+    ).fetchall()
+    trust_rows = connection.execute(
+        """
+        SELECT e.id, substr(e.effective_at, 1, 10) AS posted_date, e.currency_pocket,
+               e.amount_coefficient, e.amount_scale, e.amount_text, e.event_kind,
+               e.economic_direction, s.source_type, r.description_raw
+        FROM ledger_entries e
+        JOIN document_records r ON r.id = e.document_record_id
+        JOIN statements s ON s.id = e.statement_id
+        WHERE e.source_family = 'DOCUMENT'
+          AND s.source_type = 'TRUST_SAVINGS'
           AND s.selection_state = 'SELECTED'
           AND e.analytics_eligible = 1
         """
@@ -282,6 +324,43 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
         and "REPAYMENT" in (row["description_raw"] or "").upper()
         and "MONEYSEND" not in (row["description_raw"] or "").upper()
     ]
+    maribank_paynow_sends = [
+        row
+        for row in mari_rows
+        if MARI_DBS_PAYNOW_LINKER.left.matches(row)
+        and _paynow_sender(row["description_raw"]) is not None
+    ]
+    dbs_paynow_receipts = [
+        row
+        for row in dbs_rows
+        if MARI_DBS_PAYNOW_LINKER.right.matches(row)
+        and "INCOMING PAYNOW" in (row["description_raw"] or "").upper()
+        and _paynow_sender(row["description_raw"]) is not None
+    ]
+    paylah_send_backs = [
+        row
+        for row in paylah_rows
+        if PAYLAH_DBS_SEND_BACK_LINKER.left.matches(row)
+        and "SEND MONEY TO MY ACCOUNT" in (row["description_raw"] or "").upper()
+    ]
+    dbs_send_back_receipts = [
+        row
+        for row in dbs_rows
+        if PAYLAH_DBS_SEND_BACK_LINKER.right.matches(row)
+        and "SEND BACK FROM PAYLAH" in (row["description_raw"] or "").upper()
+    ]
+    dbs_trust_transfers = [
+        row
+        for row in dbs_rows
+        if DBS_TRUST_TRANSFER_LINKER.left.matches(row)
+        and "TRUS:" in (row["description_raw"] or "").upper()
+    ]
+    trust_receipts = [
+        row
+        for row in trust_rows
+        if DBS_TRUST_TRANSFER_LINKER.right.matches(row)
+        and (row["description_raw"] or "").strip().upper() != "INTEREST"
+    ]
     candidates = [
         *_candidate_pairs(
             dbs_topups,
@@ -316,6 +395,25 @@ def refresh_automatic_transfer_links(connection: sqlite3.Connection) -> int:
             card_repayment_credits,
             MARI_SAVINGS_CARD_REPAYMENT_LINKER.method_version,
             max_days=MARI_SAVINGS_CARD_REPAYMENT_LINKER.max_days,
+        ),
+        *_candidate_pairs(
+            maribank_paynow_sends,
+            dbs_paynow_receipts,
+            MARI_DBS_PAYNOW_LINKER.method_version,
+            max_days=MARI_DBS_PAYNOW_LINKER.max_days,
+            key=lambda row: _paynow_sender(row["description_raw"]),
+        ),
+        *_candidate_pairs(
+            paylah_send_backs,
+            dbs_send_back_receipts,
+            PAYLAH_DBS_SEND_BACK_LINKER.method_version,
+            max_days=PAYLAH_DBS_SEND_BACK_LINKER.max_days,
+        ),
+        *_candidate_pairs(
+            dbs_trust_transfers,
+            trust_receipts,
+            DBS_TRUST_TRANSFER_LINKER.method_version,
+            max_days=DBS_TRUST_TRANSFER_LINKER.max_days,
         ),
     ]
     candidates = _resolve_balanced_paylah_topups(connection, candidates)
@@ -388,6 +486,15 @@ def _paynow_reference_token(description: str | None) -> str | None:
         ):
             return token.upper()
     return None
+
+
+_PAYNOW_SENDER_RE = re.compile(r"(?:PAYNOW TRANSFER FROM |FROM: )([^\n]+)", re.IGNORECASE)
+
+
+def _paynow_sender(description: str | None) -> str | None:
+    """The sender name a PayNow row prints, uppercased and whitespace-trimmed."""
+    match = _PAYNOW_SENDER_RE.search(description or "")
+    return match.group(1).strip().upper() if match else None
 
 
 def _is_dbs_maribank_paynow(description: str | None) -> bool:
@@ -713,7 +820,7 @@ def _candidate_pairs(
 
 
 def _reference_keys_match(left: str, right: str) -> bool:
-    """Equal, or a shared >=20-char prefix (one statement truncated the token)."""
+    """Equal, or a shared >=20-char prefix (one statement truncated the value)."""
     return left == right or (
         min(len(left), len(right)) >= 20
         and (left.startswith(right) or right.startswith(left))

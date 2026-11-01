@@ -133,8 +133,9 @@ one-use launch key and session gate.
   - Revolut PDFs: per-currency-pocket running balances and lifecycle
     preservation.
 - **Transfer links.** Narrow deterministic DBS-to-PayLah, DBS-to-Revolut,
-  DBS-to-MariBank (PayNow reference token + amount) and MariBank-to-Mari-card
-  repayment links. DBS debit-card Revolut top-ups match on the card-transaction
+  DBS-to-MariBank (PayNow reference token + amount), MariBank-to-Mari-card
+  repayment, MariBank-to-DBS (PayNow sender name + amount), PayLah-to-DBS
+  send-back and DBS-to-Trust (destination code + amount) links. DBS debit-card Revolut top-ups match on the card-transaction
   date printed in the merchant line (DBS posts the debit days later), not the
   posting date. Ambiguous matches are `PROPOSED` for review rather than
   guessed, except a balanced same-day group of identical DBS-to-PayLah top-ups

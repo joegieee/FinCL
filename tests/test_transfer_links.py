@@ -23,7 +23,10 @@ from fincl.reconciliation import (
     DBS_REVOLUT_LEGACY_LINK_VERSION,
     DBS_REVOLUT_OUTBOUND_TRANSFER_LINK_VERSION,
     DBS_REVOLUT_PAYNOW_TOPUP_LINK_VERSION,
+    DBS_TRUST_TRANSFER_LINK_VERSION,
+    MARI_DBS_PAYNOW_LINK_VERSION,
     MARI_SAVINGS_CARD_REPAYMENT_LINK_VERSION,
+    PAYLAH_DBS_SEND_BACK_LINK_VERSION,
     refresh_automatic_transfer_links,
 )
 
@@ -42,6 +45,22 @@ GENERIC_DESCRIPTION = (
 PAYLAH_TOPUP_DBS_DESCRIPTION = (
     "Advice Funds Transfer\nTOP-UP TO PAYLAH! :\nPAT\nVALUE DATE : 03/05/2026"
 )
+MARI_PAYNOW_DESCRIPTION = "Pat PayNow Transfer From Pat Synthetic"
+DBS_PAYNOW_RECEIPT_DESCRIPTION = (
+    "Advice FAST Payment / Receipt\nINCOMING PAYNOW REF 1000004\n"
+    "FROM: PAT SYNTHETIC\nFROM PAT SYNTHETIC\nOTHER"
+)
+DBS_SEND_BACK_DESCRIPTION = "Advice Funds Transfer\nSEND BACK FROM PAYLAH! :\n00000000"
+DBS_TRUST_DESCRIPTION = (
+    "Advice FAST Payment / Receipt\nTRUS:0000000000:I-BANK\nTRANSFER\n1000005\nOTHER"
+)
+
+
+_DIRECT_ACCOUNTS = {
+    "MARI_SAVINGS": "acct-mari-sav",
+    "MARI_CARD": "acct-mari-card",
+    "TRUST_SAVINGS": "acct-trust",
+}
 
 
 def _insert(connection: sqlite3.Connection, table: str, **columns: object) -> None:
@@ -90,6 +109,7 @@ class _Ledger:
             ("acct-mari-sav", "MARI_SAVINGS", "MariBank Savings"),
             ("acct-mari-card", "MARI_CARD", "Mari Credit Card"),
             ("acct-paylah", "DBS_PAYLAH", "DBS PayLah!"),
+            ("acct-trust", "TRUST_SAVINGS", "Trust Savings"),
         ):
             _insert(
                 connection,
@@ -269,6 +289,8 @@ class _Ledger:
         amount: str = "2.00",
         posted_date: str = "2026-01-27",
         description: str = "TOP UP WALLET FROM MY ACCOUNT",
+        event_kind: str = "TOPUP",
+        economic_direction: str = "IN",
         analytics_eligible: int = 1,
     ) -> str:
         coefficient = int(round(float(amount) * 100))
@@ -315,8 +337,8 @@ class _Ledger:
             amount_text=amount,
             amount_coefficient=coefficient,
             amount_scale=2,
-            event_kind="TOPUP",
-            economic_direction="IN",
+            event_kind=event_kind,
+            economic_direction=economic_direction,
             lifecycle_state="COMPLETED",
             analytics_eligible=analytics_eligible,
         )
@@ -347,7 +369,7 @@ class _Ledger:
             id=statement_id,
             extraction_run_id=run_id,
             evidence_sha256=sha,
-            account_id="acct-mari-sav" if source_type == "MARI_SAVINGS" else "acct-mari-card",
+            account_id=_DIRECT_ACCOUNTS[source_type],
             institution="MariBank",
             source_type=source_type,
             statement_date="2026-01-31",
@@ -408,7 +430,7 @@ class _Ledger:
             document_record_id=record_id,
             statement_id=statement_id,
             natural_anchor=f"{sha}:mari-anchor-{anchor_seq}:{anchor_seq}",
-            account_id="acct-mari-sav" if source_type == "MARI_SAVINGS" else "acct-mari-card",
+            account_id=_DIRECT_ACCOUNTS[source_type],
             currency_pocket=currency_pocket,
             effective_at=posted_date,
             effective_precision="DAY",
@@ -556,6 +578,117 @@ class BrandedTransferLinkTests(unittest.TestCase):
         self.assertEqual(links[0]["method_version"], DBS_REVOLUT_CARD_TOPUP_LINK_VERSION)
         self.assertEqual(links[0]["status"], "CONFIRMED")
         self.assertEqual((links[0]["left_entry_id"], links[0]["right_entry_id"]), (dbs, rev))
+
+    def _maribank_send(self, *, amount: str = "-100.00", description: str = MARI_PAYNOW_DESCRIPTION) -> str:
+        run_id, statement_id = self.ledger.mari_statement("MARI_SAVINGS")
+        return self.ledger.mari_entry(
+            run_id, statement_id, source_type="MARI_SAVINGS", description=description,
+            amount=amount, economic_direction="OUT",
+        )
+
+    def _dbs_receipt(self, description: str, *, amount: str = "100.00", posted_date: str = "2026-01-27") -> str:
+        run_id, statement_id = self.ledger.dbs_statement()
+        return self.ledger.dbs_entry(
+            run_id, statement_id, description=description, amount=amount,
+            posted_date=posted_date, economic_direction="IN", event_kind="TRANSFER",
+        )
+
+    def test_maribank_paynow_links_the_dbs_receipt_from_the_same_sender(self) -> None:
+        mari = self._maribank_send()
+        dbs = self._dbs_receipt(DBS_PAYNOW_RECEIPT_DESCRIPTION)
+
+        refresh_automatic_transfer_links(self.connection)
+
+        links = self._links()
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0]["method_version"], MARI_DBS_PAYNOW_LINK_VERSION)
+        self.assertEqual(links[0]["status"], "CONFIRMED")
+        self.assertEqual((links[0]["left_entry_id"], links[0]["right_entry_id"]), (mari, dbs))
+
+    def test_maribank_paynow_ignores_a_dbs_receipt_from_someone_else(self) -> None:
+        self._maribank_send()
+        self._dbs_receipt(DBS_PAYNOW_RECEIPT_DESCRIPTION.replace("PAT SYNTHETIC", "SAM OTHER"))
+
+        refresh_automatic_transfer_links(self.connection)
+
+        self.assertEqual(self._links(), [])
+
+    def test_maribank_paynow_needs_the_same_day(self) -> None:
+        self._maribank_send()
+        self._dbs_receipt(DBS_PAYNOW_RECEIPT_DESCRIPTION, posted_date="2026-01-28")
+
+        refresh_automatic_transfer_links(self.connection)
+
+        self.assertEqual(self._links(), [])
+
+    def test_identical_same_day_maribank_paynows_are_proposed(self) -> None:
+        self._maribank_send()
+        self._maribank_send()
+        self._dbs_receipt(DBS_PAYNOW_RECEIPT_DESCRIPTION)
+        self._dbs_receipt(DBS_PAYNOW_RECEIPT_DESCRIPTION)
+
+        refresh_automatic_transfer_links(self.connection)
+
+        self.assertEqual([link["status"] for link in self._links()], ["PROPOSED"] * 4)
+
+    def test_paylah_send_back_links_its_dbs_receipt(self) -> None:
+        run_id, statement_id = self.ledger.paylah_statement()
+        paylah = self.ledger.paylah_topup(
+            run_id, statement_id, amount="-100.00", description="SEND MONEY TO MY ACCOUNT",
+            event_kind="TRANSFER", economic_direction="OUT",
+        )
+        dbs = self._dbs_receipt(DBS_SEND_BACK_DESCRIPTION)
+
+        refresh_automatic_transfer_links(self.connection)
+
+        links = self._links()
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0]["method_version"], PAYLAH_DBS_SEND_BACK_LINK_VERSION)
+        self.assertEqual((links[0]["left_entry_id"], links[0]["right_entry_id"]), (paylah, dbs))
+
+    def test_paylah_send_to_a_person_is_out_of_scope(self) -> None:
+        run_id, statement_id = self.ledger.paylah_statement()
+        self.ledger.paylah_topup(
+            run_id, statement_id, amount="-100.00", description="SEND MONEY TO SAM",
+            event_kind="TRANSFER", economic_direction="OUT",
+        )
+        self._dbs_receipt(DBS_SEND_BACK_DESCRIPTION)
+
+        refresh_automatic_transfer_links(self.connection)
+
+        self.assertEqual(self._links(), [])
+
+    def _trust_credit(self, description: str, *, amount: str = "100.00") -> str:
+        run_id, statement_id = self.ledger.mari_statement("TRUST_SAVINGS")
+        return self.ledger.mari_entry(
+            run_id, statement_id, source_type="TRUST_SAVINGS", description=description,
+            amount=amount, economic_direction="IN", event_kind="OTHER",
+        )
+
+    def test_dbs_transfer_links_its_trust_credit(self) -> None:
+        run_id, statement_id = self.ledger.dbs_statement()
+        dbs = self.ledger.dbs_entry(
+            run_id, statement_id, description=DBS_TRUST_DESCRIPTION, amount="-100.00"
+        )
+        trust = self._trust_credit("SYNTHETIC PAT")
+
+        refresh_automatic_transfer_links(self.connection)
+
+        links = self._links()
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0]["method_version"], DBS_TRUST_TRANSFER_LINK_VERSION)
+        self.assertEqual((links[0]["left_entry_id"], links[0]["right_entry_id"]), (dbs, trust))
+
+    def test_trust_interest_is_not_a_transfer_credit(self) -> None:
+        run_id, statement_id = self.ledger.dbs_statement()
+        self.ledger.dbs_entry(
+            run_id, statement_id, description=DBS_TRUST_DESCRIPTION, amount="-100.00"
+        )
+        self._trust_credit("Interest")
+
+        refresh_automatic_transfer_links(self.connection)
+
+        self.assertEqual(self._links(), [])
 
     def test_paynow_topup_links_one_eligible_revolut_credit(self) -> None:
         run_id, statement_id = self.ledger.dbs_statement()
