@@ -58,5 +58,5 @@ test('phone navigation and transaction dialog remain usable', async ({ page }) =
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Every recorded transaction.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Transactions' })).toBeVisible()
 })

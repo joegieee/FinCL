@@ -152,7 +152,7 @@ describe('PlanningView', () => {
     fireEvent.change(form.getByLabelText('From month'), { target: { value: '2020-01' } })
     fireEvent.change(form.getByLabelText('Monthly limit'), { target: { value: '500.00' } })
 
-    await waitFor(() => expect(screen.getByText(/BACKDATING AFFECTS 1 MONTH/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/Backdating affects 1 MONTH/i)).toBeInTheDocument())
     expect(screen.getByText('2020-01')).toBeInTheDocument()
     expect(loadBackdatePreview).toHaveBeenCalledWith('b1', '2020-01', '500.00', 'SGD', 'Food & Dining / Groceries')
   })

@@ -25,7 +25,7 @@ async function upload(page: Page, ...names: string[]) {
 
 async function openTransactions(page: Page, search: string) {
   await page.goto('/?view=Transactions&start=2025-09-01&end=2026-09-13&currency=SGD')
-  await expect(page.getByRole('heading', { name: 'Every recorded transaction.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Transactions' })).toBeVisible()
   const filtered = page.waitForResponse(response => {
     if (!response.url().includes('/api/v1/reporting/transactions?')) return false
     return new URL(response.url()).searchParams.get('search') === search.trim()
@@ -252,7 +252,7 @@ test('desktop: isolated income, recurring payer suggestion, grouped save-next an
   await dialog.getByLabel('Spending need').selectOption('essential')
   await dialog.getByLabel(/Reason/).fill('Synthetic reusable rule acceptance')
   await dialog.getByRole('button', { name: /Also save a reusable rule/ }).click()
-  await dialog.getByRole('button', { name: 'Check for a reusable predicate' }).click()
+  await dialog.getByRole('button', { name: 'Check for a reusable rule' }).click()
   // Scope this to the rule's own predicate fieldset. The dialog also renders
   // the "What is this?" nature radios above the form, and an unscoped
   // getByRole('radio').first() picks the already-checked "ordinary" one --

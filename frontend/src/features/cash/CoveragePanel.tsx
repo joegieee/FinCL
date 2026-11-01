@@ -57,7 +57,7 @@ export function CoveragePanel({
     <Card className="cash-coverage-card">
       <div className="panel-title">
         <div>
-          <p className="eyebrow">EVIDENCE COVERAGE</p>
+          <p className="eyebrow">Evidence coverage</p>
           <h2>
             {summary.status === 'complete'
               ? 'Every liquid pocket is proven'
@@ -107,7 +107,7 @@ export function CoveragePanel({
 
       {remedies.length > 0 && (
         <div className="coverage-remedies">
-          <p className="eyebrow">WHAT WOULD CLOSE THE GAP</p>
+          <p className="eyebrow">What would close the gap</p>
           <ul className="remedy-list">
             {remedies.map((remedy, index) => {
               const Icon = ACTION_ICON[remedy.action]
@@ -153,7 +153,7 @@ export function CoveragePanel({
 
       {certifications.length > 0 && (
         <div className="coverage-certifications">
-          <p className="eyebrow">RANGES YOU HAVE CERTIFIED AS QUIET</p>
+          <p className="eyebrow">Ranges you have certified as quiet</p>
           <ul className="issue-list">
             {certifications.map(certification => (
               <li key={certification.certification}>

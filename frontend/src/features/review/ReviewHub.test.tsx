@@ -45,7 +45,7 @@ describe('ReviewHub', () => {
     render(<ReviewHub freshness="current" onSaved={onSaved} />)
     await screen.findByText('Unreadable row')
 
-    const sourceCard = within(screen.getByText('SOURCE & COVERAGE').closest('.review-queue') as HTMLElement)
+    const sourceCard = within(screen.getByText('Source & coverage').closest('.review-queue') as HTMLElement)
     fireEvent.click(sourceCard.getByRole('button', { name: 'Later' }))
     await sourceCard.findByRole('button', { name: 'Confirm' })
     fireEvent.click(sourceCard.getByRole('button', { name: 'Confirm' }))

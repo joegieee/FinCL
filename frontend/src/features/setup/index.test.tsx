@@ -187,7 +187,7 @@ describe('SetupView', () => {
     fireEvent.change(screen.getByLabelText('Statement files'), { target: { files } })
     fireEvent.click(screen.getByRole('button', { name: 'Upload statements' }))
     expect(await screen.findByText('recognised as Mari Credit Card — PDF statement')).toBeInTheDocument()
-    expect(screen.getByText('NOT RECOGNISED')).toBeInTheDocument()
+    expect(screen.getByText('Not recognised')).toBeInTheDocument()
     expect(screen.getByText(/Choose its type and upload it again/)).toBeInTheDocument()
     expect(submitImport).toHaveBeenCalledWith('AUTO', files)
   })

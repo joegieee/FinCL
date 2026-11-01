@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { reasonText } from '@/lib/limitations'
 import type { components } from '@/lib/api'
 
 // Generated wire shapes, now that step 04 exposes them through real routes
@@ -55,7 +56,7 @@ export function Money({ value }: { value: ValuedMoneyDTO }) {
     return <span className="money money-unavailable">
       <span aria-hidden="true">—</span>
       <span className="money-unavailable-detail">
-        <strong>{value.unavailable.reason}</strong>
+        <strong>{reasonText(value.unavailable.reason)}</strong>
         <span>{value.unavailable.message}</span>
         <span className="money-remedy">{value.unavailable.remedy}</span>
       </span>
@@ -132,7 +133,7 @@ export function ConsolidatedMoney({
             <div key={index}>
               <dt>{detail.currency}{detail.period ? ` · ${detail.period}` : ''}</dt>
               <dd>
-                {detail.reasons.join(', ')}
+                {detail.reasons.map(reasonText).join(', ')}
                 {detail.remedies.length > 0 && (
                   <span className="money-remedy"> {detail.remedies.join(' ')}</span>
                 )}
@@ -156,7 +157,7 @@ export function ConsolidatedMoney({
     <span aria-hidden="true">—</span>
     <span className="money-unavailable-detail">
       <strong>Not available</strong>
-      {unavailableReasons.length > 0 && <span>{unavailableReasons.join(', ')}</span>}
+      {unavailableReasons.length > 0 && <span>{unavailableReasons.map(reasonText).join(' ')}</span>}
     </span>
     {excludedDisclosure}
   </span>

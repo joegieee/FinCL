@@ -91,7 +91,7 @@ function ReportPanel({ report, generation, onEdit, onClose, onRetired }: {
 
   return <Card className="controls-card report-panel">
     <div className="panel-title">
-      <div><p className="eyebrow">SAVED REPORT</p><h2>{report.name}</h2></div>
+      <div><p className="eyebrow">Saved report</p><h2>{report.name}</h2></div>
       <div className="row-actions">
         <Button variant="outline" size="sm" onClick={onEdit}><Pencil size={14}/> Edit</Button>
         <Button variant="outline" size="sm" onClick={() => setDeleting(true)}><Trash2 size={14}/> Delete</Button>
@@ -230,7 +230,7 @@ function ReportForm({ initial, generation, categories, accounts, currencies, onS
   }
 
   return <Card className="controls-card report-form">
-    <div className="panel-title"><div><p className="eyebrow">{initial ? 'EDIT REPORT' : 'NEW REPORT'}</p><h2>{initial ? initial.name : 'What to show'}</h2></div>
+    <div className="panel-title"><div><p className="eyebrow">{initial ? 'Edit report' : 'New report'}</p><h2>{initial ? initial.name : 'What to show'}</h2></div>
       <Button variant="ghost" size="sm" onClick={onCancel} aria-label="Close report form"><X size={15}/></Button></div>
     <div className="report-body">
       <div className="form-grid">

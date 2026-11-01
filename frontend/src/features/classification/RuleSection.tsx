@@ -130,7 +130,7 @@ export function RuleSection({ generation, anchors, category, costBehavior, need,
     {!categoryEligible && !roleEligible && <p className="muted-note">Choose a category, spending pattern, or spending need above to enable a reusable rule for it.</p>}
     {(categoryEligible || roleEligible) && <>
       {options === null && <Button type="button" variant="outline" size="sm" disabled={disabled || checking || !anchors.length} onClick={() => void checkPredicate()}>
-        {checking ? 'Checking selection…' : 'Check for a reusable predicate'}
+        {checking ? 'Checking selection…' : 'Check for a reusable rule'}
       </Button>}
       {checkError && <p className="form-error" role="alert">{checkError}</p>}
       {options !== null && unavailableReason && <p className="muted-note">{unavailableReason}.</p>}

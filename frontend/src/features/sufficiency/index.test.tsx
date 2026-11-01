@@ -254,7 +254,7 @@ describe('SufficiencyView', () => {
     const onOpenObligations = vi.fn()
     render(<SufficiencyView generation="gen-1" onOpenObligations={onOpenObligations} />)
 
-    expect(await screen.findByText('WHAT THIS ASSUMES')).toBeInTheDocument()
+    expect(await screen.findByText('What this assumes')).toBeInTheDocument()
     expect(screen.getByText(/at 1 USD = 1.25 SGD/)).toBeInTheDocument()
     expect(screen.getByText(/likely, so left out of the cautious case/)).toBeInTheDocument()
     expect(screen.getByText(/Alex · 15 Mar 2026/)).toBeInTheDocument()

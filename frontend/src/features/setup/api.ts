@@ -1,4 +1,5 @@
 import { api, uploadFiles, uploadFxRates } from '@/lib/api'
+import { humanize } from '@/lib/limitations'
 
 export type SetupOptions = {
   state: string
@@ -87,6 +88,8 @@ export const ADAPTERS: { id: string; label: string }[] = [
   { id: 'MARI_CARD', label: 'Mari Credit Card — PDF statement' },
   { id: 'TRUST_SAVINGS', label: 'Trust Bank — PDF statement' },
 ]
+
+export function adapterLabel(id: string) { return ADAPTERS.find(adapter => adapter.id === id)?.label ?? humanize(id) }
 
 export const MAX_FILES = 20
 export const MAX_BYTES = 50 * 1024 * 1024

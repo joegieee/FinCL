@@ -71,7 +71,7 @@ function BudgetsSection({ month, setMonth, generation, disabled, categories, onS
   return (
     <Card className="planning-section">
       <div className="panel-title">
-        <div><p className="eyebrow">MONTHLY BUDGETS</p><h2>Limits for {month}</h2></div>
+        <div><p className="eyebrow">Monthly budgets</p><h2>Limits for {month}</h2></div>
         <div className="row-actions">
           <label className="month-pick">Month<Input type="month" value={month} onChange={e => setMonth(e.target.value)} /></label>
           <Button variant="ghost" size="sm" onClick={reload} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /></Button>
@@ -202,7 +202,7 @@ function BackdateImpact({ plan, effectiveMonth, limit, currency, categoryKey }: 
   if (data.affected_months.length === 0) return <p className="muted-note">{data.note ?? 'No earlier displayed month changes.'}</p>
   return (
     <div className="history-panel">
-      <p className="eyebrow">BACKDATING AFFECTS {data.affected_months.length} MONTH{data.affected_months.length === 1 ? '' : 'S'}</p>
+      <p className="eyebrow">Backdating affects {data.affected_months.length} month{data.affected_months.length === 1 ? '' : 's'}</p>
       <table className="occurrence-table">
         <thead><tr><th>Month</th><th>Limit</th><th>Actual</th><th>Remaining</th></tr></thead>
         <tbody>
@@ -229,13 +229,13 @@ function BudgetHistoryPanel({ plan }: { plan: string }) {
   if (!data) return <p className="muted-note">Loading history…</p>
   return (
     <div className="history-panel">
-      <p className="eyebrow">DATED REVISIONS</p>
+      <p className="eyebrow">Dated revisions</p>
       <ul>
         {data.revisions.map(r => <li key={r.revision}>{r.effective_month}: {reportedMoney(r, 'limit', r.currency)} · {r.category_key ?? 'all + fees'} · “{r.name}”</li>)}
       </ul>
       {data.archive_periods.length > 0 && (
         <>
-          <p className="eyebrow">ARCHIVE</p>
+          <p className="eyebrow">Archive</p>
           <ul>{data.archive_periods.map((a, i) => <li key={i}>{a.effective_month}: {a.archived ? 'archived' : 'restored'}</li>)}</ul>
         </>
       )}
@@ -252,7 +252,7 @@ function GoalsSection({ generation, disabled, onSaved }: {
   return (
     <Card className="planning-section">
       <div className="panel-title">
-        <div><p className="eyebrow">SAVINGS GOALS</p><h2>Manually recorded progress</h2></div>
+        <div><p className="eyebrow">Savings goals</p><h2>Manually recorded progress</h2></div>
         <div className="row-actions">
           <Button variant="ghost" size="sm" onClick={reload} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /></Button>
           <Button size="sm" disabled={disabled} onClick={() => setCreating(v => !v)}>{creating ? 'Cancel' : 'New goal'}</Button>
@@ -450,12 +450,12 @@ function RecurringSection({ generation, disabled, onSaved }: { generation: strin
   return (
     <Card className="planning-section">
       <div className="panel-title">
-        <div><p className="eyebrow">RECURRING COMMITMENTS</p><h2>Confirmed schedules</h2></div>
+        <div><p className="eyebrow">Recurring commitments</p><h2>Confirmed schedules</h2></div>
         <Button variant="ghost" size="sm" onClick={reload} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /></Button>
       </div>
       {error && <div className="alert error" role="alert"><p>{error}</p></div>}
       {data && (data.candidates ?? []).length > 0 && <div className="history-panel">
-        <p className="eyebrow">CANDIDATES — REVIEW BEFORE CONFIRMING</p>
+        <p className="eyebrow">Candidates — review before confirming</p>
         {(data.candidates ?? []).map(candidate => <CandidateReview key={candidate.candidate} candidate={candidate}
           generation={generation} disabled={disabled} onSaved={async s => { await onSaved(s); reload() }} />)}
       </div>}

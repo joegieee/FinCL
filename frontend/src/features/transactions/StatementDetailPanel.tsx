@@ -24,7 +24,7 @@ export function StatementDetailPanel({ row }: { row: TransactionRowOut }) {
   const d = row.statement_detail
   return (
     <div className="statement-detail-panel">
-      <span className="eyebrow">ORIGINAL STATEMENT DETAIL</span>
+      <span className="eyebrow">Original statement detail</span>
       <dl className="detail-list">
         <div><dt>Original purchase</dt><dd>{exact(d.original, 'Not recoverable from the statement')}</dd></div>
         <div><dt>Native settlement</dt><dd>{d.settled.currency} {d.settled.amount_text}</dd></div>

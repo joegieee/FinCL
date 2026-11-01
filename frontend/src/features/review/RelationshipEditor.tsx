@@ -40,7 +40,7 @@ export function RelationshipEditor({
     <Card className="recurring-card">{review && <WorkspaceReportingDetails data={review}/>}
       <div className="panel-title">
         <div>
-          <p className="eyebrow">POSSIBLE DUPLICATES</p>
+          <p className="eyebrow">Possible duplicates</p>
           <h2>{review ? `${review.total} pair${review.total === 1 ? '' : 's'} across imports` : 'Loading…'}</h2>
         </div>
       </div>
@@ -106,13 +106,13 @@ function DuplicateRow({
     <div className="proposal">
       <div className="proposal-legs">
         <div>
-          <span className="eyebrow">PRIMARY (KEPT)</span>
+          <span className="eyebrow">Primary (kept)</span>
           <strong>{p.merchant}</strong>
           <small>{p.account} · {p.date} · {reportedMoney(p, 'amount', p.currency)}</small>
           <small className="anchor">{p.primary}</small>
         </div>
         <div>
-          <span className="eyebrow">CANDIDATE</span>
+          <span className="eyebrow">Candidate</span>
           <strong>{p.merchant}</strong>
           <small>{p.account} · {p.date} · {reportedMoney(p, 'amount', p.currency)}</small>
           <small className="anchor">{p.candidate}</small>

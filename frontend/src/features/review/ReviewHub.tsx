@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { AsyncView } from '@/components/AsyncView'
 import { api } from '@/lib/api'
 import { useLedgerCommand } from '@/lib/command'
+import { humanize } from '@/lib/limitations'
 
 type Issue = {
   queue: string
@@ -92,11 +93,11 @@ function ReviewHubContent({ page, disabled, afterSave, unclassified, onOpenCateg
         )}
       </div>
       <p className="muted-note">Each number counts issues in one queue. Queues are independent and never added together.</p>
-      {unclassified !== null && <Card className="review-categorization-summary"><div><p className="eyebrow">CATEGORIZATION BACKLOG</p><h2>{unclassified} active transaction{unclassified === 1 ? ' needs' : 's need'} a category</h2><p>Ordinary unclassified transactions are grouped in Categorization, not added one by one to Review.</p></div>{onOpenCategorization && <Button variant="outline" onClick={onOpenCategorization}>Open Inbox</Button>}</Card>}
+      {unclassified !== null && <Card className="review-categorization-summary"><div><p className="eyebrow">Categorization backlog</p><h2>{unclassified} active transaction{unclassified === 1 ? ' needs' : 's need'} a category</h2><p>Ordinary unclassified transactions are grouped in Categorization, not added one by one to Review.</p></div>{onOpenCategorization && <Button variant="outline" onClick={onOpenCategorization}>Open Inbox</Button>}</Card>}
 
       {queues.map(queue => (
         <Card key={queue} className="review-queue">
-          <div className="panel-title"><div><p className="eyebrow">{(QUEUE_LABEL[queue] ?? queue).toUpperCase()}</p><h2>{active.filter(i => i.queue === queue).length} to look at</h2></div></div>
+          <div className="panel-title"><div><p className="eyebrow">{(QUEUE_LABEL[queue] ?? queue)}</p><h2>{active.filter(i => i.queue === queue).length} to look at</h2></div></div>
           {active.filter(i => i.queue === queue).map(issue => (
             <IssueRow key={issue.issue_key} issue={issue} generation={page.generation} disabled={disabled} onSaved={afterSave} />
           ))}
@@ -105,7 +106,7 @@ function ReviewHubContent({ page, disabled, afterSave, unclassified, onOpenCateg
 
       {showDeferred && deferred.length > 0 && (
         <Card className="review-queue">
-          <div className="panel-title"><div><p className="eyebrow">DEFERRED</p><h2>{deferred.length} set aside</h2></div></div>
+          <div className="panel-title"><div><p className="eyebrow">Deferred</p><h2>{deferred.length} set aside</h2></div></div>
           {deferred.map(issue => (
             <IssueRow key={issue.issue_key} issue={issue} generation={page.generation} disabled={disabled} onSaved={afterSave} />
           ))}
@@ -127,7 +128,7 @@ function IssueRow({ issue, generation, disabled, onSaved }: {
   return (
     <div className="issue-row">
       <div>
-        <Badge variant="outline" className={issue.status === 'BLOCKING' ? 'review-badge' : ''}>{issue.status}</Badge>
+        <Badge variant="outline" className={issue.status === 'BLOCKING' ? 'review-badge' : ''}>{humanize(issue.status)}</Badge>
         <strong>{issue.title}</strong>
         <p>{issue.detail}</p>
         <small className="mono">{issue.issue_key}</small>
@@ -165,7 +166,7 @@ function UndoPanel({ generation, disabled, onSaved }: {
 
   return (
     <Card className="undo-panel">
-      <div className="panel-title"><div><p className="eyebrow">UNDO A DECISION</p><h2>Preview a supported inverse against the current ledger</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">Undo a decision</p><h2>Preview a supported inverse against the current ledger</h2></div></div>
       <form onSubmit={e => { e.preventDefault(); void lookup() }}>
         <label>Decision
           <select value={sequence} onChange={e => { setSequence(e.target.value); setPreview(null); cmd.reset() }}>

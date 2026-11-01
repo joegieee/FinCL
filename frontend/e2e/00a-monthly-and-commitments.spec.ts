@@ -40,7 +40,7 @@ test('monthly routine: import, review what it created, and read the answer', asy
 
   // And the import's own result leads to the decisions it created.
   await page.getByRole('button', { name: 'Review new transactions' }).click()
-  await expect(page.getByRole('heading', { name: 'Teach it once.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Categorization' })).toBeVisible()
 
   // A payer never seen before. Choosing "Income" for all matching inflows
   // saves a rule, which only ever suggests; the inflow on screen must still be
@@ -65,10 +65,10 @@ test('monthly routine: import, review what it created, and read the answer', asy
   await expect(page.locator('.candidate-card', { hasText: 'BOOKSHOP SYNTHETIC' })).toHaveCount(0)
 
   await openTab(page, 'Review')
-  await expect(page.getByRole('heading', { name: 'What needs a decision.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Review' })).toBeVisible()
 
   await openTab(page, 'Will I have enough')
-  await expect(page.getByText('WILL I HAVE ENOUGH?', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Will I have enough?' })).toBeVisible()
   await expect(page.getByText('Not enough evidence to say')).toHaveCount(0)
 })
 

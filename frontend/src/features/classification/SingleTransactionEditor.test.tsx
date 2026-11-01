@@ -377,7 +377,7 @@ describe('EntryDialog — optional reusable rule (Step 7)', () => {
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Weekly shop' } })
 
     fireEvent.click(screen.getByRole('button', { name: /Also save a reusable rule/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Check for a reusable predicate/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Check for a reusable rule/ }))
     await screen.findByText('All transactions from this merchant')
     fireEvent.click(screen.getByText('All transactions from this merchant'))
     fireEvent.click(screen.getByLabelText('Reusable category rule', { exact: false }))

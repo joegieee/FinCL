@@ -37,7 +37,7 @@ export function RelationshipReview({ candidate, records, generation, disabled, o
   const isInstallment = candidate.kind === 'installment_chain' || candidate.kind === 'installment_ambiguous'
   return <Card className="categorization-panel candidate-review" role="region" aria-label={`Review ${candidate.label}`}>
     <div className="candidate-review-header"><div className="panel-title"><div>
-      <p className="eyebrow">{isInstallment ? 'POSSIBLE INSTALLMENT PLAN' : 'POSSIBLE DEBT MOVEMENTS'}</p>
+      <p className="eyebrow">{isInstallment ? 'Possible installment plan' : 'Possible debt movements'}</p>
       <h2>{candidate.label}</h2>
       {candidate.relationship_basis && <p className="muted-note">{candidate.relationship_basis}</p>}
     </div>

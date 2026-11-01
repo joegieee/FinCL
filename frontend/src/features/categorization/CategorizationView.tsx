@@ -243,7 +243,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
     {summary && <CoverageSummary summary={summary}/>}
     <div className="categorization-split">
       <Card className="candidate-list" onKeyDown={onListKeyDown}>
-        <div className="panel-title"><div><p className="eyebrow"><span>CATEGORIZATION INBOX</span> · ALL SELECTED HISTORY</p><h2>{page ? (focus === 'category' ? `${page.total} group${page.total === 1 ? '' : 's'} need${page.total === 1 ? 's' : ''} review` : `${page.total} group${page.total === 1 ? '' : 's'} match${page.total === 1 ? 'es' : ''} ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2><p className="muted-note">Covers every imported statement, all dates and currencies. Rules also apply to future imports. Pending, reverted and superseded rows are shown but not counted as active.</p></div></div>
+        <div className="panel-title"><div><p className="eyebrow"><span>Categorization inbox</span> · all selected history</p><h2>{page ? (focus === 'category' ? `${page.total} group${page.total === 1 ? '' : 's'} need${page.total === 1 ? 's' : ''} review` : `${page.total} group${page.total === 1 ? '' : 's'} match${page.total === 1 ? 'es' : ''} ${FOCUSES.find(f => f.value === focus)?.label.toLowerCase()}`) : 'Loading groups…'}</h2><p className="muted-note">Covers every imported statement, all dates and currencies. Rules also apply to future imports. Pending, reverted and superseded rows are shown but not counted as active.</p></div></div>
         {!page?.candidates.length && (focus === 'debts'
           ? <p className="empty-line">Nothing to propose. A movement shows up here once you have recorded an earlier one with the same payee against an open debt; record the first one from its transaction's "What is this?" choice.</p>
           : focus === 'installments'
@@ -253,7 +253,7 @@ export function CategorizationView({ generation, freshness, categories, accounts
           {' '}Check the <Button variant="link" size="sm" onClick={onOpenRules}>Rules</Button> page for existing rules, or browse <Button variant="link" size="sm" onClick={onOpenTransactions}>Transactions</Button> directly.
         </p>)}
         {page && !page.candidates.length && focus === 'category' && onOpenNext && <div className="inbox-next">
-          <p className="eyebrow">NEXT</p>
+          <p className="eyebrow">Next</p>
           <p>Confirm any proposed transfers, then see whether your cash covers what is coming.</p>
           <div className="dialog-actions">
             <Button variant="outline" onClick={() => onOpenNext('Review')}>Open Review</Button>
@@ -681,7 +681,7 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
   }, [])
   const visibleRecords = showAllRecords ? records : records.slice(0, 5)
   return <div className="categorization-panel candidate-review" role="region" aria-label={`Review ${detail.candidate.label}`} ref={panelRef}>
-    <div className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">REVIEW GROUP</p><h2>{detail.candidate.label}{detail.candidate.kind === 'merchant' && detail.candidate.merchant_key && <>
+    <div className="candidate-review-header"><div className="panel-title"><div><p className="eyebrow">Review group</p><h2>{detail.candidate.label}{detail.candidate.kind === 'merchant' && detail.candidate.merchant_key && <>
       <MerchantRenameControl generation={generation} merchantKey={detail.candidate.merchant_key} currentLabel={detail.candidate.label} disabled={disabled} onSaved={onSaved} />
       <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => setMerging(true)}>Same merchant as…</Button>
     </>}</h2><p className="muted-note">{detail.candidate.transaction_count === 1 ? '1 transaction' : `${detail.candidate.transaction_count} similar transactions`}. Choose exactly what should change — a preview refreshes automatically.</p></div>

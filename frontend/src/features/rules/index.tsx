@@ -70,7 +70,7 @@ function RulesContent({ page, generation, categories, disabled, loading, load, a
 
       {inactiveRules.length > 0 && (
         <Card className="rules-list inactive-rules">
-          <div className="panel-title"><div><p className="eyebrow">INACTIVE RULES</p><h2>{inactiveRules.length} retired rule{inactiveRules.length === 1 ? '' : 's'}</h2></div></div>
+          <div className="panel-title"><div><p className="eyebrow">Inactive rules</p><h2>{inactiveRules.length} retired rule{inactiveRules.length === 1 ? '' : 's'}</h2></div></div>
           {inactiveRules.map(rule => <InactiveRuleRow key={rule.rule_id} rule={rule} generation={generation} disabled={disabled} onSaved={afterSave} />)}
         </Card>
       )}
@@ -104,7 +104,7 @@ function GroupedRulesPanel({ generation, categories, disabled, onSaved }: {
 
   return (
     <Card className="rules-list">
-      <div className="panel-title"><div><p className="eyebrow">RULES</p><h2>Category, spending pattern/need and incoming type, one row per predicate</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">Rules</p><h2>Category, spending pattern/need and incoming type, one row per match</h2></div></div>
       {error && <p className="form-error" role="alert">{error}</p>}
       {rows?.length === 0 && <div className="empty"><SlidersHorizontal size={22} /><h3>No rules yet</h3><p>Build one above, or from Categorization's "All matching transactions, now and later" scope.</p></div>}
       {(rows ?? []).map(row => <GroupedRuleRowView key={row.rule_id} row={row} generation={generation} categories={categories} disabled={disabled} onSaved={afterSave} />)}
@@ -260,7 +260,7 @@ function InactiveRuleRow({ rule, generation, disabled, onSaved }: {
     <div className="rule-row inactive-rule-row">
       <div>
         <strong>{ruleSentence(rule.match)} → {category}</strong>
-        <p>Not active. Restore the same predicate and category with a new journal reason.</p>
+        <p>Not active. Restore the same match and category with a new reason.</p>
         <label>Reason<Input required maxLength={2000} value={reason} disabled={command.attempted} onChange={e => { setReason(e.target.value); setCompiled(null); command.reset() }} placeholder="Why restore this rule?" /></label>
         {compiled && !command.previewed && <p className="muted-note">Reactivation will assign {compiled.impact.effective_assignments} matching transaction{compiled.impact.effective_assignments === 1 ? '' : 's'}; {compiled.impact.newly_categorized + compiled.impact.recategorized} will change.</p>}
         {compiled && command.previewed && <p className="muted-note">Ready to restore this rule.</p>}
@@ -319,7 +319,7 @@ function RuleBuilder({ generation, categories, disabled, onSaved }: {
 
   return (
     <Card className="rule-builder">
-      <div className="panel-title"><div><p className="eyebrow">NEW RULE</p><h2>Assign a category to matching transactions</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">New rule</p><h2>Assign a category to matching transactions</h2></div></div>
       <form onChange={() => { setCompiled(null); cmd.reset() }} onSubmit={e => { e.preventDefault(); if (compiled) void cmd.act(compiled.command); else void check() }}>
         <div className="form-row-3">
           <label>Match on
@@ -515,7 +515,7 @@ function AliasBuilder({ page, disabled, onSaved }: {
 
   return (
     <Card className="alias-section">
-      <div className="panel-title"><div><p className="eyebrow">MERCHANT ALIASES</p><h2>Map raw statement text to one canonical merchant</h2></div>
+      <div className="panel-title"><div><p className="eyebrow">Merchant aliases</p><h2>Map raw statement text to one canonical merchant</h2></div>
         <Button variant="outline" size="sm" disabled={disabled || mergeSelection.size < 2} onClick={() => setMerging(true)}>Merge selected ({mergeSelection.size})</Button>
       </div>
       {page.aliases.length > 0 && (

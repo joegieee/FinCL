@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AsyncView } from '@/components/AsyncView'
 import { money } from '@/lib/api'
+import { adapterLabel } from '@/features/setup/api'
 import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness, type Completeness, type CurrencyEstimate, type ObservedRange, type PocketReadiness, type Ratio } from './api'
 import { BaselineContributors } from './Contributors'
 
@@ -75,7 +76,7 @@ function BaselineContent({ page, estimate, loading, load, onOpenTransaction }: {
       <Card className="baseline-window-card">
         <div className="panel-title">
           <div>
-            <p className="eyebrow">RECOMMENDED BASELINE WINDOW</p>
+            <p className="eyebrow">Recommended baseline window</p>
             <h2>
               <CalendarRange size={18} />{' '}
               {w.quality === 'none' || !w.start_month
@@ -94,7 +95,7 @@ function BaselineContent({ page, estimate, loading, load, onOpenTransaction }: {
       {estimate && <EstimateSection estimate={estimate} onOpenTransaction={onOpenTransaction} />}
 
       <Card className="baseline-tasks-card">
-        <div className="panel-title"><div><p className="eyebrow">BEFORE A BASELINE</p><h2>{page.tasks.length === 0 ? 'Nothing blocking' : `${page.tasks.length} evidence task${page.tasks.length === 1 ? '' : 's'}`}</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">Before a baseline</p><h2>{page.tasks.length === 0 ? 'Nothing blocking' : `${page.tasks.length} evidence task${page.tasks.length === 1 ? '' : 's'}`}</h2></div></div>
         {page.tasks.length === 0
           ? <p className="muted-note"><CheckCircle2 size={14} /> Every expected month is backed by evidence. You can derive a baseline.</p>
           : (
@@ -125,7 +126,7 @@ function PocketCard({ pocket }: { pocket: PocketReadiness }) {
     <Card className="baseline-pocket-card">
       <div className="panel-title">
         <div>
-          <p className="eyebrow">{pocket.institution} · {pocket.source_type}</p>
+          <p className="eyebrow">{pocket.source_type ? adapterLabel(pocket.source_type) : pocket.institution}</p>
           <h2>{pocket.display_name} · {pocket.currency_pocket}</h2>
           <small className="muted-note">
             {pocket.observed_span.start ? `${pocket.observed_span.start} → ${pocket.observed_span.end}` : 'no entries'} · {pocket.entry_count} entries
@@ -160,7 +161,7 @@ function EstimateSection({ estimate, onOpenTransaction }: { estimate: BaselineEs
   if (!estimate.available) {
     return (
       <Card className="baseline-window-card">
-        <div className="panel-title"><div><p className="eyebrow">WHAT YOUR NORMAL LIFE COSTS</p><h2>Not derivable yet</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">What your normal life costs</p><h2>Not derivable yet</h2></div></div>
         <p className="muted-note">{estimate.reason}</p>
       </Card>
     )
@@ -171,14 +172,14 @@ function EstimateSection({ estimate, onOpenTransaction }: { estimate: BaselineEs
         <EstimateCard key={currency} currency={currency} est={estimate.by_currency[currency]} quality={estimate.sample.quality} monthCount={estimate.sample.month_count} onOpenTransaction={onOpenTransaction} />
       ))}
       <Card className="baseline-tasks-card">
-        <div className="panel-title"><div><p className="eyebrow">METHOD &amp; LIMITS</p><h2>{estimate.sample.method_version}</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">Method &amp; limits</p><h2>{estimate.sample.method_version}</h2></div></div>
         <p className="muted-note">{estimate.sample.month_count} month sample · {estimate.sample.residual_method} · {estimate.sample.outlier_method}</p>
         <ul className="issue-list">
           {estimate.limitations.map((limit, i) => <li key={i}><p>{limit}</p></li>)}
         </ul>
         {estimate.income_streams.length > 0 && (
           <>
-            <p className="eyebrow" style={{ marginTop: 16 }}>LIKELY INCOME STREAMS</p>
+            <p className="eyebrow" style={{ marginTop: 16 }}>Likely income streams</p>
             <ul className="issue-list">
               {estimate.income_streams.map((stream, i) => (
                 <li key={i}>
@@ -204,7 +205,7 @@ function EstimateCard({ currency, est, quality, monthCount, onOpenTransaction }:
   return (
     <Card className="baseline-pocket-card">
       <div className="panel-title">
-        <div><p className="eyebrow">WHAT YOUR NORMAL LIFE COSTS · {currency}</p><h2>{reportedMoney(est, 'routine_lifestyle_baseline', currency)} / month</h2></div>
+        <div><p className="eyebrow">What your normal life costs · {currency}</p><h2>{reportedMoney(est, 'routine_lifestyle_baseline', currency)} / month</h2></div>
         <Badge variant="outline" className={quality === 'normal' ? '' : 'review-badge'}>{QUALITY_LABEL[quality] ?? quality}</Badge>
       </div>
       <p className="muted-note">

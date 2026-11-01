@@ -96,7 +96,7 @@ describe('BaselineView', () => {
     loadBaselineEstimate.mockResolvedValue(estimate())
     render(<BaselineView />)
 
-    expect(await screen.findByText(/WHAT YOUR NORMAL LIFE COSTS · SGD/)).toBeInTheDocument()
+    expect(await screen.findByText(/What your normal life costs · SGD/)).toBeInTheDocument()
     expect(screen.getAllByText('SGD 60.00 / month')).not.toHaveLength(0)
     expect(screen.getByText(/Unavailable — essential role coverage is incomplete/)).toBeInTheDocument()
     expect(screen.getByText('Discretionary (sample total)')).toBeInTheDocument()

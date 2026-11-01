@@ -9,6 +9,7 @@ import { ChartGradient, ChartTooltip } from '@/components/ChartDetails'
 import { ApiError, money } from '@/lib/api'
 import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_SEMANTIC, currencyTick } from '@/lib/chart-theme'
 import { ConsolidatedMoney, Money } from '@/components/Money'
+import { readerLimitations } from '@/lib/limitations'
 import type { ForecastCase, ForecastCurrency, ForecastPage, Milestone } from './api'
 import {
   type CombinedMinimumOut, type ForecastPageOut, type ReportedForecastCurrencyOut,
@@ -149,7 +150,7 @@ export function ForecastView({ onOpenPlanned }: { onOpenPlanned?: () => void } =
         : <div key={currency}>{gap(`${currency}: ${cell.reason}`)}</div>)}
       {currencies.length === 0 && gap(native.reason ?? 'No currency has a supported forecast input.')}
       <ForecastActions items={native.action_items ?? []} />
-      {native.limitations.length > 0 && <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">LIMITATIONS</p><h2>Named forecast gaps</h2></div></div><ul className="issue-list">{native.limitations.map((item, i) => <li key={i}><p>{item}</p></li>)}</ul></Card>}
+      {readerLimitations(native.limitations).length > 0 && <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">Limitations</p><h2>Named forecast gaps</h2></div></div><ul className="issue-list">{readerLimitations(native.limitations).map((item, i) => <li key={i}><p>{item}</p></li>)}</ul></Card>}
       <AssumptionsAndSources native={native} reported={page.currencies} currency={reportingCurrency} />
     </>}
   </div>
@@ -158,7 +159,7 @@ export function ForecastView({ onOpenPlanned }: { onOpenPlanned?: () => void } =
 function CombinedTotalsCard({ page }: { page: ForecastPageOut }) {
   const currency = page.reporting_currency
   return <Card className="forecast-card">
-    <div className="panel-title"><div><p className="eyebrow">COMBINED ACROSS EVERY POCKET · {currency}</p><h2>Six-month closing and worst point</h2></div></div>
+    <div className="panel-title"><div><p className="eyebrow">Combined across every pocket · {currency}</p><h2>Six-month closing and worst point</h2></div></div>
     <div className="forecast-totals">
       <div><small>Base closing</small><div><ConsolidatedMoney total={page.totals.base_closing.total} partialTotal={page.totals.base_closing.partial_total} currency={currency} unavailableReasons={page.totals.base_closing.unavailable_reasons} excludedDetail={page.totals.base_closing.excluded_detail} /></div></div>
       <div><small>Conservative closing</small><div><ConsolidatedMoney total={page.totals.conservative_closing.total} partialTotal={page.totals.conservative_closing.partial_total} currency={currency} unavailableReasons={page.totals.conservative_closing.unavailable_reasons} excludedDetail={page.totals.conservative_closing.excluded_detail} /></div></div>
@@ -183,7 +184,7 @@ function CombinedMinimumCell({ label, minimum, currency }: { label: string; mini
 
 function ForecastActions({ items }: { items: NonNullable<ForecastPage['action_items']> }) {
   if (!items.length) return null
-  return <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">FIX NEXT</p><h2>Actions for this forecast</h2></div></div><ul className="issue-list">{items.map(item => <li key={`${item.output}:${item.currency ?? ''}:${item.detail}`}><strong>{item.action}</strong>{item.currency ? ` · ${item.currency}` : ''}<p><Badge variant="outline">{item.kind === 'needs_review' ? 'Needs review' : item.kind === 'missing_evidence' ? 'Missing evidence' : 'Software limitation'}</Badge> {item.detail}</p></li>)}</ul></Card>
+  return <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">Fix next</p><h2>Actions for this forecast</h2></div></div><ul className="issue-list">{items.map(item => <li key={`${item.output}:${item.currency ?? ''}:${item.detail}`}><strong>{item.action}</strong>{item.currency ? ` · ${item.currency}` : ''}<p><Badge variant="outline">{item.kind === 'needs_review' ? 'Needs review' : item.kind === 'missing_evidence' ? 'Missing evidence' : 'Software limitation'}</Badge> {item.detail}</p></li>)}</ul></Card>
 }
 
 function CurrencyForecast({ currency, native, reported, currencyLabel }: {
@@ -197,7 +198,7 @@ function CurrencyForecast({ currency, native, reported, currencyLabel }: {
     <Card className="forecast-card">
       <div className="panel-title">
         <div>
-          <p className="eyebrow">SIX-MONTH CASH TIMELINE · {currency}</p>
+          <p className="eyebrow">Six-month cash timeline · {currency}</p>
           <h2>Opening {money(native.starting_balance, currency)} as of {native.starting_balance_as_of}</h2>
         </div>
         <Badge variant="outline">{native.forecast_kind === 'spending-only stress view' ? 'Spending-only stress view' : 'Projected'}</Badge>
@@ -210,7 +211,7 @@ function CurrencyForecast({ currency, native, reported, currencyLabel }: {
       {cutoff?.missing_intervals.length ? <p className="muted-note">Missing movement interval: {cutoff.missing_intervals.map(interval => `${interval.start} → ${interval.end}`).join(', ')}.</p> : null}
     </Card>
     <BreachBanner base={native.base} conservative={native.conservative} />
-    <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">MONTHLY CONTINUITY · {currencyLabel}</p><h2>Both cases, side by side</h2></div></div>{reported ? <MonthTable base={reported.base} conservative={reported.conservative} /> : <p className="muted-note">Reported monthly detail is unavailable for this pocket.</p>}</Card>
+    <Card className="forecast-card"><div className="panel-title"><div><p className="eyebrow">Monthly continuity · {currencyLabel}</p><h2>Both cases, side by side</h2></div></div>{reported ? <MonthTable base={reported.base} conservative={reported.conservative} /> : <p className="muted-note">Reported monthly detail is unavailable for this pocket.</p>}</Card>
     {reported && <BalanceChart currency={currencyLabel} base={reported.base} conservative={reported.conservative} />}
   </>
 }
@@ -242,7 +243,7 @@ function BalanceChart({ currency, base, conservative }: { currency: string; base
   })
   const shorterConservative = conservative.months.length < base.months.length
   return <ChartFrame
-    eyebrow="CLOSING BALANCE"
+    eyebrow="Closing balance"
     title="Balance by month"
     ariaLabel={`Projected monthly closing balances in ${currency}; base and conservative cases`}
     footer={shorterConservative ? 'The conservative case ends before the base case; gaps mean unavailable data, not a zero balance.' : 'Gaps mean unavailable data, not a zero balance.'}
@@ -283,5 +284,5 @@ function AssumptionsAndSources({ native, reported, currency }: { native: Forecas
   if (!native.case_policy) return null
   const casePolicy = native.case_policy
   const events = reported.flatMap(cell => cell.base.events.map((event: ReportedForecastEventOut) => ({ currency: cell.currency, event })))
-  return <Card className="forecast-card"><details><summary><span className="eyebrow">ASSUMPTIONS &amp; SOURCES</span><h2>How this estimate was formed</h2></summary><div className="forecast-drill"><p><strong>Base case:</strong> {casePolicy.base}</p><p><strong>Conservative case:</strong> {casePolicy.conservative}</p><p><strong>Upper-spend assumption:</strong> observed stress case — it uses observed spending, not a percentile or confidence interval.</p>{casePolicy.strong_income_interruption && <p><strong>Income interruption:</strong> stress case, not the expected outcome. {casePolicy.strong_income_interruption_note}</p>}{Object.entries(native.metadata ?? {}).map(([label, detail]) => <p key={label}><strong>{label.replaceAll('_', ' ')}:</strong> {detail}</p>)}<h3>Source adapters</h3><ul className="issue-list">{(native.provenance ?? []).map(source => <li key={source.input}><strong>{source.input}</strong> · {source.available ? 'available' : 'unavailable'}<p>{source.reason ?? `${source.module}; used for ${source.consumed_by.join(', ')}`}</p></li>)}</ul><h3>Modelled source events · base case · {currency}</h3>{events.length ? <ul className="issue-list">{events.map(({ currency: native_currency, event }) => <li key={`${native_currency}:${event.event_id}`}><strong><Money value={event.amount} /></strong><p>source {event.source_id} · {native_currency}</p></li>)}</ul> : <p>There are no safely placed source events to display. That is a named input limitation, not a zero event.</p>}</div></details></Card>
+  return <Card className="forecast-card"><details><summary><span className="eyebrow">Assumptions &amp; sources</span><h2>How this estimate was formed</h2></summary><div className="forecast-drill"><p><strong>Base case:</strong> {casePolicy.base}</p><p><strong>Conservative case:</strong> {casePolicy.conservative}</p><p><strong>Upper-spend assumption:</strong> observed stress case — it uses observed spending, not a percentile or confidence interval.</p>{casePolicy.strong_income_interruption && <p><strong>Income interruption:</strong> stress case, not the expected outcome. {casePolicy.strong_income_interruption_note}</p>}{Object.entries(native.metadata ?? {}).map(([label, detail]) => <p key={label}><strong>{label.replaceAll('_', ' ')}:</strong> {detail}</p>)}<h3>Source adapters</h3><ul className="issue-list">{(native.provenance ?? []).map(source => <li key={source.input}><strong>{source.input}</strong> · {source.available ? 'available' : 'unavailable'}<p>{source.reason ?? `${source.module}; used for ${source.consumed_by.join(', ')}`}</p></li>)}</ul><h3>Modelled source events · base case · {currency}</h3>{events.length ? <ul className="issue-list">{events.map(({ currency: native_currency, event }) => <li key={`${native_currency}:${event.event_id}`}><strong><Money value={event.amount} /></strong><p>source {event.source_id} · {native_currency}</p></li>)}</ul> : <p>There are no safely placed source events to display. That is a named input limitation, not a zero event.</p>}</div></details></Card>
 }

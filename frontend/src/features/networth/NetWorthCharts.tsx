@@ -1,10 +1,11 @@
 import { MoneyBarChart, type MoneyBar } from '@/components/MoneyBarChart'
 import type { ConsolidatedValuationDTO, NetWorthPageOut } from './reportedApi'
+import { reasonText } from '@/lib/limitations'
 
 function bar(label: string, cell: ConsolidatedValuationDTO): MoneyBar {
   return {
     label, value: cell.total?.value ?? null,
-    detail: cell.total ? 'Reported tracked subtotal' : cell.unavailable_reasons.join('; ') || 'Incomplete valuation; see components below',
+    detail: cell.total ? 'Reported tracked subtotal' : cell.unavailable_reasons.map(reasonText).join(' ') || 'Incomplete valuation; see components below',
   }
 }
 

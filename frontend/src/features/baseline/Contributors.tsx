@@ -47,7 +47,7 @@ export function BaselineContributors({ currency, month, onClose, onOpenTransacti
   return (
     <section className="baseline-contributors" aria-label={`Contributors for ${month}`}>
       <div className="panel-title">
-        <div><p className="eyebrow">CONTRIBUTORS · {currency}</p><h3>{month}</h3></div>
+        <div><p className="eyebrow">Contributors · {currency}</p><h3>{month}</h3></div>
         <Button variant="ghost" size="sm" onClick={onClose}><X size={14} /> Close</Button>
       </div>
       {error && <div className="alert error" role="alert"><p>{error}</p></div>}

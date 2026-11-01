@@ -85,8 +85,8 @@ describe('NetWorthView', () => {
     render(<NetWorthView />)
 
     expect(await screen.findByText('This is a tracked subtotal, not your net worth.')).toBeInTheDocument()
-    expect(screen.getByText('SGD · REPORTED TRACKED SUBTOTAL')).toBeInTheDocument()
-    expect(screen.getByText('SGD · NATIVE EVIDENCE-ONLY SUBTOTAL')).toBeInTheDocument()
+    expect(screen.getByText('SGD · Reported tracked subtotal')).toBeInTheDocument()
+    expect(screen.getByText('SGD · Native evidence-only subtotal')).toBeInTheDocument()
     expect(screen.getAllByText(/360\.00/).length).toBeGreaterThan(0)
   })
 

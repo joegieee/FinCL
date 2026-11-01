@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { AsyncView } from '@/components/AsyncView'
 import { useLedgerCommand } from '@/lib/command'
+import { adapterLabel } from '@/features/setup/api'
 import { loadAccounts, type AccountRow, type AccountsPage, type PocketCoverage } from './api'
 
 const STATUS_LABEL: Record<string, string> = { covered: 'Covered', gap: 'Gap', unconfigured: 'No expected window' }
@@ -79,7 +80,7 @@ function AccountCard({ account, generation, disabled, onSaved }: {
     <Card className="account-card">
       <div className="panel-title">
         <div>
-          <p className="eyebrow">{account.institution} · {account.source_type}</p>
+          <p className="eyebrow">{adapterLabel(account.source_type)}</p>
           <h2>{account.display_name}{account.archived_on && <Badge variant="outline"> archived {account.archived_on}</Badge>}</h2>
           <small className="muted-note">{account.masked_identifier || 'no masked identifier'} · {account.entry_count} entries</small>
         </div>
@@ -175,7 +176,7 @@ function AliasSection({ page, disabled, onSaved }: { page: AccountsPage; disable
 
   return (
     <Card className="alias-section">
-      <div className="panel-title"><div><p className="eyebrow">SOURCE ACCOUNT ALIASES</p><h2>Bind a statement’s account identity to an owned account</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">Source account aliases</p><h2>Bind a statement’s account identity to an owned account</h2></div></div>
       <p className="muted-note">Same bank name never merges two accounts. Binding is explicit and previewed for collisions.</p>
       {page.aliases.length > 0 && (
         <ul className="issue-list">

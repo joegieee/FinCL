@@ -67,7 +67,7 @@ describe('Money', () => {
         remedy: 'Import an fx rate for USD -> SGD covering 2026-01.',
       },
     })} />)
-    expect(screen.getByText('RATE_NOT_IMPORTED')).toBeInTheDocument()
+    expect(screen.getByText('No exchange rate has been imported for this date.')).toBeInTheDocument()
     expect(screen.getByText('no fx rate configured for USD -> SGD')).toBeInTheDocument()
     // §2 invariant 8 is discharged by a reason *and a remedy*: a typed code
     // alone does not tell the reader what to do about the gap.
@@ -193,7 +193,7 @@ describe('ConsolidatedMoney', () => {
       total={null} partialTotal={null} currency="SGD"
       unavailableReasons={['RATE_NOT_IMPORTED', 'PERIOD_UNKNOWN']}
     />)
-    expect(screen.getByText('RATE_NOT_IMPORTED, PERIOD_UNKNOWN')).toBeInTheDocument()
+    expect(screen.getByText("No exchange rate has been imported for this date. The date of this amount isn't known.")).toBeInTheDocument()
   })
 
   const excludedDetail: ExcludedScopeDetailDTO[] = [

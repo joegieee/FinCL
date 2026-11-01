@@ -127,7 +127,7 @@ function ObligationsContent({ page, loading, load }: { page: ObligationsPage; lo
       <Card className="obl-card">
         <div className="panel-title">
           <div>
-            <p className="eyebrow">REMAINING, BY CASH EFFECT</p>
+            <p className="eyebrow">Remaining, by cash effect</p>
             <h2>What is still owed</h2>
           </div>
         </div>
@@ -152,13 +152,13 @@ function ObligationsContent({ page, loading, load }: { page: ObligationsPage; lo
 
       <ObligationGroup
         title="Confirmed"
-        eyebrow="RECORDED COMMITMENT OR EVIDENCED FUTURE RECEIPT"
+        eyebrow="Recorded commitment or evidenced future receipt"
         caption="A recorded commitment states the obligation, or a future receipt is evidenced."
         rows={confirmed}
       />
       <ObligationGroup
         title="Likely"
-        eyebrow="DERIVED FROM RECORDED HISTORY ONLY"
+        eyebrow="Derived from recorded history only"
         caption="History supports “Likely” and stops there. A past receipt does not evidence a future one, so nothing here is automatically confirmed."
         rows={likely}
         muted
@@ -175,7 +175,7 @@ function ObligationsContent({ page, loading, load }: { page: ObligationsPage; lo
       )}
 
       <Card className="obl-card">
-        <div className="panel-title"><div><p className="eyebrow">HOW THIS MERGE STAYS HONEST</p><h2>Rules</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">How this merge stays honest</p><h2>Rules</h2></div></div>
         <ul className="issue-list">
           {page.rules.map((rule, i) => <li key={i}><p>{rule}</p></li>)}
         </ul>

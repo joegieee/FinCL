@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AsyncView } from '@/components/AsyncView'
 import { ApiError } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
+import { humanize } from '@/lib/limitations'
 import { SETUP_IMPORT_ID, SetupCoverage } from './Coverage'
 import {
   ADAPTERS, MAX_BYTES, MAX_FILES,
@@ -88,7 +89,7 @@ function SetupContent({ setup, imports, loading, load, onImported, onReview, det
   return (
     <div className="setup-view">
       <Card className="setup-summary">
-        <div className="panel-title"><div><p className="eyebrow">THIS LEDGER</p><h2>{setup.current_ledger}</h2></div>
+        <div className="panel-title"><div><p className="eyebrow">This ledger</p><h2>{setup.current_ledger}</h2></div>
           <Badge variant="outline">{setup.state === 'ready' ? 'Ready' : setup.state}</Badge></div>
         <dl className="detail-list">
           <div><dt>Storage profile</dt><dd>{setup.storage_profile}</dd></div>
@@ -104,7 +105,7 @@ function SetupContent({ setup, imports, loading, load, onImported, onReview, det
       <FxRatesWizard />
 
       <Card className="import-history">
-        <div className="panel-title"><div><p className="eyebrow">IMPORT HISTORY</p><h2>Every import, with its evidence</h2></div>
+        <div className="panel-title"><div><p className="eyebrow">Import history</p><h2>Every import, with its evidence</h2></div>
           <Button variant="ghost" size="sm" onClick={load} disabled={loading}><RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh</Button></div>
         {imports && imports.length === 0 && (
           <div className="empty"><FileUp size={24} /><h3>No imports yet</h3><p>Upload your first statement above. Accepted files, reused evidence and failures are all listed here.</p></div>
@@ -172,7 +173,7 @@ function SetupContent({ setup, imports, loading, load, onImported, onReview, det
             {detail.issues.length > 0 ? (
               <ul className="issue-list">
                 {detail.issues.map((issue, i) => (
-                  <li key={i}><Badge variant="outline" className={issue.severity === 'BLOCKING' ? 'review-badge' : ''}>{issue.severity}</Badge> <strong>{issue.code}</strong><p>{issue.message}</p></li>
+                  <li key={i}><Badge variant="outline" className={issue.severity === 'BLOCKING' ? 'review-badge' : ''}>{humanize(issue.severity)}</Badge> <p>{issue.message}</p></li>
                 ))}
               </ul>
             ) : <p className="muted-note">No recorded issues for this import.</p>}
@@ -231,7 +232,7 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
 
   return (
     <Card className="import-wizard" id={SETUP_IMPORT_ID}>
-      <div className="panel-title"><div><p className="eyebrow">IMPORT A STATEMENT</p><h2>Add transactions from your bank</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">Import a statement</p><h2>Add transactions from your bank</h2></div></div>
       <form onSubmit={submit}>
         <label>Source
           <select aria-label="Statement source" value={adapter} disabled={busy || reviewing} onChange={e => { setAdapter(e.target.value); setResult(null); setRefreshError('') }}>
@@ -286,7 +287,7 @@ function ImportWizard({ onDone, onReview }: { onDone: () => void; onReview?: () 
           <ul className="issue-list">
             {result.results.map((r, i) => (
               <li key={i}>
-                <Badge variant="outline" className={r.status === 'ACCEPTED' ? '' : 'review-badge'}>{r.status === 'UNRECOGNISED' ? 'NOT RECOGNISED' : r.status}</Badge>
+                <Badge variant="outline" className={r.status === 'ACCEPTED' ? '' : 'review-badge'}>{r.status === 'UNRECOGNISED' ? 'Not recognised' : humanize(r.status)}</Badge>
                 <strong>{r.filename}</strong>
                 {statementLine(r) && <small>{statementLine(r)}</small>}
                 {r.detected && r.adapter ? <small>recognised as {ADAPTERS.find(a => a.id === r.adapter)?.label ?? r.adapter}</small> : null}
@@ -349,7 +350,7 @@ function FxRatesWizard() {
 
   return (
     <Card className="import-wizard fx-rates-wizard">
-      <div className="panel-title"><div><p className="eyebrow">LOAD FX RATES</p><h2>Add reference exchange rates</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">Load FX rates</p><h2>Add reference exchange rates</h2></div></div>
       <form onSubmit={submit}>
         <label>File
           <input

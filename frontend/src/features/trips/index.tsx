@@ -81,7 +81,7 @@ function TripForm({ initial, codes, generation, onSaved, onCancel }: { initial: 
   const ready = Boolean(draft.name && start && end && start <= end && draft.reason && unknown.length === 0)
   function edit(set: (value: string) => void) { return (e: React.ChangeEvent<HTMLInputElement>) => { set(e.target.value); cmd.reset() } }
   return <Card className="controls-card trip-form">
-    <div className="panel-title"><div><p className="eyebrow">{initial ? 'EDIT TRIP' : 'NEW TRIP'}</p><h2>{initial ? initial.name : 'Where and when'}</h2></div><Button variant="ghost" size="sm" onClick={onCancel} aria-label="Close trip form"><X size={15}/></Button></div>
+    <div className="panel-title"><div><p className="eyebrow">{initial ? 'Edit trip' : 'New trip'}</p><h2>{initial ? initial.name : 'Where and when'}</h2></div><Button variant="ghost" size="sm" onClick={onCancel} aria-label="Close trip form"><X size={15}/></Button></div>
     <div className="form-grid">
       <label>Name<input value={name} maxLength={80} onChange={edit(setName)}/></label>
       <label>First day<input type="date" value={start} onChange={edit(setStart)}/></label>

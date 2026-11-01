@@ -88,7 +88,7 @@ export function PlannedView({ generation, currencies, categories, onSaved }: {
             accounts={accounts} trips={trips} generation={generation} onSaved={saved} onCancel={() => setEditing(null)}/>}
           {!data.cutoff && <p className="muted-note">There is no supported cash cutoff yet, so nothing here reaches the forecast. Import statements to start one.</p>}
           {data.attention.length > 0 && <Card className="controls-card planned-attention">
-            <div className="panel-title"><div><p className="eyebrow">NEEDS AN ANSWER</p><h2>These dates have passed</h2>
+            <div className="panel-title"><div><p className="eyebrow">Needs an answer</p><h2>These dates have passed</h2>
               <p className="muted-note">Each is judged against your statements up to {data.cutoff ? dateLabel(data.cutoff) : 'the latest import'}. Spending stays in the forecast until you say what happened; income is left out until it arrives.</p></div></div>
             {data.attention.map(item => {
               const found = find(item.flow, item.occurrence)
@@ -178,7 +178,7 @@ function FlowForm({ initial, prefill, currencies, categories, accounts, trips, g
   }
 
   return <Card className="controls-card trip-form planned-form">
-    <div className="panel-title"><div><p className="eyebrow">{initial ? 'EDIT PLANNED ITEM' : 'NEW PLANNED ITEM'}</p><h2>{initial ? initial.name : 'What do you know is coming?'}</h2></div>
+    <div className="panel-title"><div><p className="eyebrow">{initial ? 'Edit planned item' : 'New planned item'}</p><h2>{initial ? initial.name : 'What do you know is coming?'}</h2></div>
       <Button variant="ghost" size="sm" onClick={onCancel} aria-label="Close planned item form"><X size={15}/></Button></div>
     <div className="form-grid">
       <fieldset className="planned-choice" disabled={Boolean(initial)}><legend>Money</legend>

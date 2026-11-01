@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ApiError, money } from '@/lib/api'
+import { adapterLabel } from '@/features/setup/api'
 import { ConsolidatedMoney, Money } from '@/components/Money'
 import { BalanceObservationForm } from './BalanceObservationForm'
 import { CertifyCoverageForm, type CertifyTarget } from './CertifyCoverageForm'
@@ -249,7 +250,7 @@ function CashPage({
       <Card className="cash-today-card">
         <div className="panel-title">
           <div>
-            <p className="eyebrow">LIQUID CASH TODAY · {page.generated_for}</p>
+            <p className="eyebrow">Liquid cash today · {page.generated_for}</p>
             <h2>
               {observedToday
                 ? Object.entries(page.liquid_total).map(([c, v]) => `${money(v, c)} available today`).join(' · ') || 'Nothing included'
@@ -297,7 +298,7 @@ function CashPage({
 
       {withheld.length > 0 && (
         <Card className="cash-withheld-card">
-          <div className="panel-title"><div><p className="eyebrow">WITHHELD CURRENCY TOTALS</p><h2>{withheld.length} currenc{withheld.length === 1 ? 'y' : 'ies'} withheld</h2></div></div>
+          <div className="panel-title"><div><p className="eyebrow">Withheld currency totals</p><h2>{withheld.length} currenc{withheld.length === 1 ? 'y' : 'ies'} withheld</h2></div></div>
           <ul className="issue-list">
             {withheld.map(([currency, reason]) => (
               <li key={currency}><strong>{currency}</strong> — {reason}</li>
@@ -308,7 +309,7 @@ function CashPage({
       )}
 
       <Card className="cash-pockets-card">
-        <div className="panel-title"><div><p className="eyebrow">PER-ACCOUNT &amp; PER-POCKET NATIVE BALANCES</p><h2>{included.length === 0 ? 'No included pockets' : `${included.length} in liquid scope`}</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">Per-account &amp; per-pocket native balances</p><h2>{included.length === 0 ? 'No included pockets' : `${included.length} in liquid scope`}</h2></div></div>
         <table className="pocket-table">
           <thead><tr><th>Account</th><th>Pocket</th><th>Native balance</th><th>Reported ({currency})</th><th>Coverage-backed balance</th><th>Reported ({currency})</th><th>Basis</th><th>As of</th><th>Scope</th><th><span className="sr-only">Manual observation</span></th></tr></thead>
           <tbody>
@@ -328,12 +329,12 @@ function CashPage({
 
       {excluded.length > 0 && (
         <Card className="cash-excluded-card">
-          <div className="panel-title"><div><p className="eyebrow">EXCLUDED FROM LIQUID ASSETS</p><h2>{excluded.length} pocket{excluded.length === 1 ? '' : 's'}</h2></div></div>
+          <div className="panel-title"><div><p className="eyebrow">Excluded from liquid assets</p><h2>{excluded.length} pocket{excluded.length === 1 ? '' : 's'}</h2></div></div>
           <ul className="issue-list">
             {excluded.map(pocket => (
               <li key={`${pocket.account_id}:${pocket.currency_pocket}`}>
                 <strong>{pocket.display_name ?? pocket.account_id} · {pocket.currency_pocket}</strong>
-                {pocket.source_type && <> · {pocket.source_type}</>}
+                {pocket.source_type && <> · {adapterLabel(pocket.source_type)}</>}
                 <p>{pocket.excluded_reason ?? 'not supported as liquid cash'}</p>
               </li>
             ))}
@@ -342,7 +343,7 @@ function CashPage({
       )}
 
       <Card className="cash-bridge-card">
-        <div className="panel-title"><div><p className="eyebrow">OPENING + MOVEMENTS → CLOSING</p><h2>{page.cash_bridge.pockets.length === 0 ? 'No reconstructable interval' : `${page.cash_bridge.pockets.length} account bridge${page.cash_bridge.pockets.length === 1 ? '' : 's'}`}</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">Opening + movements → closing</p><h2>{page.cash_bridge.pockets.length === 0 ? 'No reconstructable interval' : `${page.cash_bridge.pockets.length} account bridge${page.cash_bridge.pockets.length === 1 ? '' : 's'}`}</h2></div></div>
         <p className="muted-note">Native evidence only; each bridge stays in its own account/pocket currency.</p>
         {page.cash_bridge.pockets.map(bridge => <BridgeRow key={`${bridge.account_id}:${bridge.currency_pocket}`} bridge={bridge} />)}
         {Object.entries(page.cash_bridge.combined_by_currency).map(([currency, c]) => (
@@ -355,7 +356,7 @@ function CashPage({
 
       {page.missing_intervals.length > 0 && (
         <Card className="cash-missing-card">
-          <div className="panel-title"><div><p className="eyebrow">MISSING MOVEMENT INTERVALS</p><h2>{page.missing_intervals.length} named gap{page.missing_intervals.length === 1 ? '' : 's'}</h2></div></div>
+          <div className="panel-title"><div><p className="eyebrow">Missing movement intervals</p><h2>{page.missing_intervals.length} named gap{page.missing_intervals.length === 1 ? '' : 's'}</h2></div></div>
           <ul className="issue-list">
             {page.missing_intervals.map((gap, i) => (
               <li key={i}>
@@ -368,7 +369,7 @@ function CashPage({
       )}
 
       <Card className="cash-disclosure-card">
-        <div className="panel-title"><div><p className="eyebrow">STALENESS</p><h2>Disclosed past {page.stale_after_days} days</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">Staleness</p><h2>Disclosed past {page.stale_after_days} days</h2></div></div>
         <p className="muted-note">
           A pocket balance older than {page.stale_after_days} days is still shown, with its real as-of date, but flagged
           stale. {page.stale ? 'At least one included pocket is stale.' : 'No included pocket is currently stale.'}

@@ -152,7 +152,7 @@ describe('TransactionsView', () => {
     })
     mount()
     await screen.findByText('Foo')
-    expect(screen.getByText('RATE_NOT_IMPORTED')).toBeInTheDocument()
+    expect(screen.getByText('No exchange rate has been imported for this date.')).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText('Select Foo'))
     expect(await screen.findByRole('region', { name: 'Bulk assignment' })).toBeInTheDocument()
   })

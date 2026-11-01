@@ -319,7 +319,7 @@ describe('InflowsView', () => {
 
     await screen.findByText('Acme Payroll')
     expect(screen.getByText(/1 of 4 receipts could not be priced/)).toBeInTheDocument()
-    expect(screen.getByText('RATE_NOT_IMPORTED')).toBeInTheDocument()
+    expect(screen.getByText('No exchange rate has been imported for this date.')).toBeInTheDocument()
     // The candidate and all four native receipts remain visible/selectable.
     expect(within(document.querySelector('.income-occurrences') as HTMLElement).getAllByRole('checkbox')).toHaveLength(4)
   })

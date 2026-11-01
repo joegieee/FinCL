@@ -467,7 +467,7 @@ describe('CategorizationView', () => {
     })
     render(<CategorizationView generation="g1" freshness="current" categories={[]} onSaved={() => {}} />)
     await screen.findByText(/2 groups need review/)
-    const list = screen.getByText('CATEGORIZATION INBOX').closest('[data-slot=card]') as HTMLElement
+    const list = screen.getByText('Categorization inbox').closest('[data-slot=card]') as HTMLElement
     fireEvent.keyDown(list, { key: 'j' })
     fireEvent.keyDown(list, { key: 'Enter' })
     expect(await screen.findByRole('region', { name: 'Review ACME GROCER' })).toBeInTheDocument()

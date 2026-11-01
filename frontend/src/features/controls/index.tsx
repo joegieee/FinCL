@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { AsyncView } from '@/components/AsyncView'
 import { api, money, shortCategory } from '@/lib/api'
 import { loadSpendingControls, runSpendingWhatIf, type SpendingControlsPage, type WhatIfDraft } from './api'
+import { readerLimitations } from '@/lib/limitations'
 
 type Mode = 'cut' | 'date' | 'income'
 const groupLabels = {
@@ -63,12 +64,12 @@ function ControlsContent({ page, month, setMonth, load, loading, error, setPage,
     {page.capacity && <CapacityPanel page={page} />}
     {page.first_breach_drivers && <BreachDrivers page={page} />}
     <WhatIfForm page={page} onResult={setPage} onError={setError} />
-    {page.unresolved && page.unresolved.length > 0 && <Card className="controls-card"><div className="panel-title"><div><p className="eyebrow">STILL UNRESOLVED</p><h2>Evidence needed before a definitive allowance</h2></div></div><ul className="issue-list">{page.unresolved.map((item, index) => <li key={`${item}:${index}`}>{item}</li>)}</ul></Card>}
+    {page.unresolved && page.unresolved.length > 0 && <Card className="controls-card"><div className="panel-title"><div><p className="eyebrow">Still unresolved</p><h2>Evidence needed before a definitive allowance</h2></div></div><ul className="issue-list">{readerLimitations(page.unresolved).map((item, index) => <li key={`${item}:${index}`}>{item}</li>)}</ul></Card>}
   </div>
 }
 
 function PacePanel({ page }: { page: SpendingControlsPage }) {
-  return <Card className="controls-card"><div className="panel-title"><div><p className="eyebrow">BUDGET PACE · {page.month}</p><h2>Spending versus this month’s calendar</h2></div></div>
+  return <Card className="controls-card"><div className="panel-title"><div><p className="eyebrow">Budget pace · {page.month}</p><h2>Spending versus this month’s calendar</h2></div></div>
     {page.pace.budgets.length === 0 ? <p className="muted-note">No active {page.currency} budget applies to this month.</p> : <div className="pace-grid">{page.pace.budgets.map(budget => <article key={budget.plan}>
       <div className="pace-head"><div><strong>{budget.name}</strong><small>{budget.category_key ? shortCategory(budget.category_key) : 'All spending + fees'}</small></div><Badge variant="outline" className={budget.coverage.supported ? '' : 'review-badge'}>{budget.coverage.badge}</Badge></div>
       <div className="pace-bars"><div><span>Budget consumed</span><b>{budget.budget_consumed_percent}%</b></div><progress max="100" value={Math.min(100, Number(budget.budget_consumed_percent))} /><div><span>Calendar elapsed</span><b>{budget.calendar_elapsed_percent}%</b></div><progress max="100" value={Number(budget.calendar_elapsed_percent)} /></div>
@@ -81,7 +82,7 @@ function PacePanel({ page }: { page: SpendingControlsPage }) {
 
 function CommitmentsPanel({ page }: { page: SpendingControlsPage }) {
   const commitments = page.commitments!
-  return <Card className="controls-card" id="commitments"><div className="panel-title"><div><p className="eyebrow">DISJOINT COMMITMENTS</p><h2>Every source event counted once</h2></div><Badge variant="outline" className={commitments.disjoint ? '' : 'review-badge'}>{commitments.disjoint ? `${commitments.distinct_source_ids} unique sources` : 'Duplicate source'}</Badge></div>
+  return <Card className="controls-card" id="commitments"><div className="panel-title"><div><p className="eyebrow">Commitments</p><h2>Every source event counted once</h2></div><Badge variant="outline" className={commitments.disjoint ? '' : 'review-badge'}>{commitments.disjoint ? `${commitments.distinct_source_ids} unique sources` : 'Duplicate source'}</Badge></div>
     <div className="commitment-grid">{Object.entries(commitments.groups).map(([key, group]) => <section key={key}><span>{groupLabels[key as keyof typeof groupLabels]}</span><strong>{reportedMoney(group, 'amount', page.currency)}</strong><small>{group.cash_effect === 'internal_earmark' ? 'Internal earmark · not a cash outflow' : 'External cash outflow'}</small><details><summary>{group.items.length} source event{group.items.length === 1 ? '' : 's'}</summary><ul>{group.items.slice(0, 12).map(item => <li key={item.source_id}><span>{item.label}{item.tier ? ` · Tier ${item.tier}` : ''}</span><b>{reportedMoney(item, 'amount', page.currency)}</b></li>)}</ul></details></section>)}</div>
     <div className="controls-equation"><span>Free cash after commitments</span><strong>{reportedMoney(page.free_cash_after_commitments, 'amount', page.currency)}</strong><small>{page.free_cash_after_commitments?.formula}. This is not a spending allowance and does not assume future income.</small></div>
   </Card>
@@ -89,16 +90,16 @@ function CommitmentsPanel({ page }: { page: SpendingControlsPage }) {
 
 function CapacityPanel({ page }: { page: SpendingControlsPage }) {
   const capacity = page.capacity!
-  return <Card className="controls-card"><div className="panel-title"><div><p className="eyebrow">CONSERVATIVE CAPACITY</p><h2>{capacity.status === 'capacity' ? `Additional-spending capacity ${reportedMoney(capacity, 'additional_spending_capacity', page.currency)}` : capacity.status === 'funding_need' ? `Funding need ${reportedMoney(capacity, 'funding_need', page.currency)}` : 'No definitive allowance'}</h2></div><Badge variant="outline" className={capacity.status === 'capacity' ? '' : 'review-badge'}>{capacity.status.replaceAll('_', ' ')}</Badge></div>
+  return <Card className="controls-card"><div className="panel-title"><div><p className="eyebrow">Conservative capacity</p><h2>{capacity.status === 'capacity' ? `Additional-spending capacity ${reportedMoney(capacity, 'additional_spending_capacity', page.currency)}` : capacity.status === 'funding_need' ? `Funding need ${reportedMoney(capacity, 'funding_need', page.currency)}` : 'No definitive allowance'}</h2></div><Badge variant="outline" className={capacity.status === 'capacity' ? '' : 'review-badge'}>{capacity.status.replaceAll('_', ' ')}</Badge></div>
     <p className="muted-note">Minimum conservative unallocated, reserve-adjusted balance: {reportedMoney(capacity, 'minimum_conservative_unallocated_reserve_adjusted_balance', page.currency)}.</p>
-    {capacity.status === 'unresolved' && <ul className="issue-list">{capacity.reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>}
+    {capacity.status === 'unresolved' && <ul className="issue-list">{readerLimitations(capacity.reasons).map(reason => <li key={reason}>{reason}</li>)}</ul>}
     {capacity.weekly && <details className="weekly-schedule"><summary><CalendarClock size={15} /> Weekly path: {reportedMoney(capacity.weekly, 'amount_per_week', page.currency)} · entire path verified</summary><ul>{capacity.weekly.schedule.map(row => <li key={row.on}><span>{row.on}</span><b>{reportedMoney(row, 'amount', page.currency)}</b></li>)}</ul></details>}
   </Card>
 }
 
 function BreachDrivers({ page }: { page: SpendingControlsPage }) {
   const breach = page.first_breach_drivers!
-  return <Card className="controls-card breach-drivers"><div className="panel-title"><div><p className="eyebrow">FIRST BREACH · {breach.on}</p><h2>What drives the low point</h2></div></div>
+  return <Card className="controls-card breach-drivers"><div className="panel-title"><div><p className="eyebrow">First breach · {breach.on}</p><h2>What drives the low point</h2></div></div>
     <div className="driver-columns"><section><h3>Events that day</h3>{breach.events.length ? <ul>{breach.events.map(event => <li key={event.event_id}><span>{event.label} · {reportedMoney(event, 'amount', page.currency)}</span><a href={event.edit_href}>Review source</a></li>)}</ul> : <p>No single dated event; distributed lifestyle spending reaches the threshold.</p>}</section><section><h3>Later income assumptions</h3>{breach.later_income_assumptions.length ? <ul>{breach.later_income_assumptions.map(event => <li key={event.event_id}><span>{event.label} · {reportedMoney(event, 'amount', page.currency)} on {event.on}</span><a href={event.edit_href}>Review assumption</a></li>)}</ul> : <p>No later included income assumption.</p>}</section></div>
   </Card>
 }
@@ -123,7 +124,7 @@ function WhatIfForm({ page, onResult, onError }: { page: SpendingControlsPage; o
     try { onResult(await runSpendingWhatIf(draft)) } catch (reason) { onError((reason as Error).message) } finally { setBusy(false) }
   }
 
-  return <Card className="controls-card what-if-card"><div className="panel-title"><div><p className="eyebrow">WHAT IF</p><h2>Test one proposed change</h2></div><SlidersHorizontal size={19} /></div>
+  return <Card className="controls-card what-if-card"><div className="panel-title"><div><p className="eyebrow">What if</p><h2>Test one proposed change</h2></div><SlidersHorizontal size={19} /></div>
     <form onSubmit={submit}><label>Change to model<select value={mode} onChange={event => { setMode(event.target.value as Mode); setAmount(''); setOn('') }}><option value="cut">Reduce a Tier 3/4 expense</option><option value="date">Change an event date</option><option value="income">Add hypothetical income</option></select></label>
       {mode === 'cut' && <><label>Source-backed category<select required value={category} onChange={event => { setCategory(event.target.value); setAmount('') }}><option value="">Choose Tier 3/4 category</option>{categories.map(option => <option key={option.category_id} value={option.category_id}>Tier {option.tier} · {shortCategory(option.category_key)} · {reportedMoney(option, 'source_backed_monthly', page.currency)}/month observed</option>)}</select></label><label>Proposed monthly reduction<Input required inputMode="decimal" pattern="[0-9]+(\.[0-9]{1,2})?" value={amount} onChange={event => setAmount(event.target.value)} /><small>The model caps a cut at spending that remains in each month. Tier 1/2 spending is unchanged.</small></label>{category && <Button type="button" variant="outline" size="sm" onClick={() => setAmount(categories.find(option => option.category_id === category)?.source_backed_monthly ?? '')}>Use full observed amount</Button>}</>}
       {mode === 'date' && <><label>Source-backed event<select required value={eventId} onChange={event => setEventId(event.target.value)}><option value="">Choose event</option>{events.map(option => <option key={option.event_id} value={option.event_id}>{option.protected_tier_1_or_2 ? 'Protected Tier 1/2 · ' : ''}{option.label} · {option.on}</option>)}</select><small>Selecting a protected Tier 1/2 event is the explicit change required to move it.</small></label><label>Proposed date<Input required type="date" value={on} onChange={event => setOn(event.target.value)} /></label></>}

@@ -42,7 +42,7 @@ export function SpendingDonut({ data, currency, spending, onOpenAnalysis, onDril
 }) {
   const slices = buildSlices(data.category_totals)
   return <ChartFrame
-    eyebrow="SPENDING BREAKDOWN"
+    eyebrow="Spending breakdown"
     title="Where did my money go?"
     action={<Button variant="ghost" size="sm" onClick={onOpenAnalysis}>Explore analysis <ArrowRight size={14} /></Button>}
     footer="Gross purchases by category. Fees are separate; refunds do not silently reduce category spending."

@@ -303,7 +303,7 @@ describe('BulkEditor — reusable rule from the selection (Step 7)', () => {
 
     // The optional rule is its own, separately reviewed and saved action.
     fireEvent.click(screen.getByRole('button', { name: /Also save a reusable rule/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Check for a reusable predicate/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Check for a reusable rule/ }))
     await screen.findByText('All transactions from this merchant')
     fireEvent.click(screen.getByText('All transactions from this merchant'))
     fireEvent.click(screen.getByLabelText('Reusable spending rule', { exact: false }))

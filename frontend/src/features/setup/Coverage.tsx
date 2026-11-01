@@ -116,7 +116,7 @@ export function SetupCoverage({ generation, reloadKey, onSaved }: {
       <Card className="setup-coverage" id={SETUP_COVERAGE_ID}>
         <div className="panel-title">
           <div>
-            <p className="eyebrow">WHAT YOUR STATEMENTS COVER</p>
+            <p className="eyebrow">What your statements cover</p>
             <h2>
               {report.supported_cutoff
                 ? `Your forecast starts from ${dateLabel(report.supported_cutoff)}`

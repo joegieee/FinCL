@@ -102,7 +102,7 @@ export function SufficiencyView({
 
             {!counted && (
               <Card className="controls-card">
-                <div className="panel-title"><div><p className="eyebrow">NO ANSWER YET</p><h2>There isn’t enough to go on yet</h2></div></div>
+                <div className="panel-title"><div><p className="eyebrow">No answer yet</p><h2>There isn’t enough to go on yet</h2></div></div>
                 <ul className="issue-list">
                   {readerLimitations(page.limitations).map((reason, i) => <li key={i}><p>{reason}</p></li>)}
                 </ul>
@@ -117,7 +117,7 @@ export function SufficiencyView({
             <Card className="controls-card">
               <div className="panel-title">
                 <div>
-                  <p className="eyebrow">SAFETY RESERVE</p>
+                  <p className="eyebrow">Safety reserve</p>
                   <h2>Keep {page.reserve_policy.months} months of essential spending untouched</h2>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setEditingPolicy(true)}>
@@ -162,7 +162,6 @@ function Answer({ combined, today }: { combined: CombinedAnswer; today: string }
     <Card className={`sufficiency-card ${TONE[base.verdict]}`}>
       <div className="panel-title">
         <div>
-          <p className="eyebrow">WILL I HAVE ENOUGH?</p>
           <h2 className="sufficiency-answer"><VerdictIcon verdict={shortIfRepaid && base.verdict === 'enough' ? 'below_reserve' : base.verdict} /> {shortIfRepaid && base.verdict === 'enough' ? 'Yes, but only if your debts can wait' : combined.answer}</h2>
         </div>
       </div>
@@ -218,7 +217,7 @@ function Answer({ combined, today }: { combined: CombinedAnswer; today: string }
 function Todos({ combined, onOpen }: { combined: CombinedAnswer; onOpen?: (destination: SufficiencyDestination) => void }) {
   return (
     <Card className="controls-card">
-      <div className="panel-title"><div><p className="eyebrow">MAKE THIS ANSWER BETTER</p><h2>{combined.todos.length} thing{combined.todos.length === 1 ? '' : 's'} to fix, most useful first</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">Make this answer better</p><h2>{combined.todos.length} thing{combined.todos.length === 1 ? '' : 's'} to fix, most useful first</h2></div></div>
       <ol className="todo-list">
         {combined.todos.map(todo => (
           <li key={todo.key}>
@@ -242,7 +241,7 @@ function Assumptions({ combined, today, onOpenObligations }: { combined: Combine
   const c = combined.reporting_currency
   return (
     <Card className="controls-card">
-      <div className="panel-title"><div><p className="eyebrow">WHAT THIS ASSUMES</p><h2>What the answer is built on</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">What this assumes</p><h2>What the answer is built on</h2></div></div>
 
       <h3 className="assumption-heading">Starting money</h3>
       <p className="muted-note">

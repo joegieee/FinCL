@@ -37,7 +37,7 @@ export function CustomCategoryManager({ freshness, onSaved }: {
 
   return (
     <Card className="custom-category-manager">
-      <div className="panel-title"><div><p className="eyebrow">CUSTOM CATEGORIES</p><h2>Rename or archive categories you created</h2></div></div>
+      <div className="panel-title"><div><p className="eyebrow">Custom categories</p><h2>Rename or archive categories you created</h2></div></div>
       {error && <div className="alert error" role="alert"><p>{error}</p></div>}
       {page && page.categories.length === 0 && <p className="muted-note">You have not created any custom categories yet. Use “New category” above.</p>}
       {page?.categories.map(category => (

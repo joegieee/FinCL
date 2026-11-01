@@ -25,7 +25,7 @@ export function ChartFrame({
   insight?: ReactNode
 }) {
   return <Card className={`chart-card${className ? ` ${className}` : ''}`}>
-    <div className="panel-title chart-heading"><div className="chart-heading-main"><span className="chart-heading-icon" aria-hidden="true"><ChartNoAxesCombined size={18} /></span><div><p className="eyebrow">{eyebrow ?? 'FINANCIAL INSIGHTS'}</p><h2>{title}</h2></div></div>{action}</div>
+    <div className="panel-title chart-heading"><div className="chart-heading-main"><span className="chart-heading-icon" aria-hidden="true"><ChartNoAxesCombined size={18} /></span><div><p className="eyebrow">{eyebrow ?? 'Financial insights'}</p><h2>{title}</h2></div></div>{action}</div>
     {caption && <p className="chart-caption">{caption}</p>}
     {insight}
     {legend && <div className="legend">{legend}</div>}

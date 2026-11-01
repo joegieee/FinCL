@@ -154,7 +154,7 @@ export function InflowsView({ generation, freshness, categories, onOpenTransacti
 
         {rules && rules.rules.length > 0 && (
           <Card className="rules-list">
-            <div className="panel-title"><div><p className="eyebrow">REUSABLE INBOUND RULES</p><h2>{rules.rules.length} active rule{rules.rules.length === 1 ? '' : 's'}</h2></div></div>
+            <div className="panel-title"><div><p className="eyebrow">Reusable inbound rules</p><h2>{rules.rules.length} active rule{rules.rules.length === 1 ? '' : 's'}</h2></div></div>
             {rules.rules.map(rule => <InboundRuleRow key={rule.rule_id} rule={rule} generation={generation} disabled={disabled} onSaved={afterSave} />)}
           </Card>
         )}
@@ -271,7 +271,7 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
     <Card className="income-candidate">
       <div className="panel-title">
         <div>
-          <p className="eyebrow">{candidate.cadence.toUpperCase()} · {candidate.currency}</p>
+          <p className="eyebrow">{candidate.cadence} · {candidate.currency}</p>
           <h2>{candidate.merchant_key}</h2>
         </div>
         <Badge variant="outline">Likely</Badge>

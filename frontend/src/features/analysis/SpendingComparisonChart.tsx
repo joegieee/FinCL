@@ -35,7 +35,7 @@ export function SpendingComparisonChart({ trend, currency }: { trend: TrendMonth
     change: row.spending_change ? Number(row.spending_change.value) : null,
     row,
   }))
-  return <ChartFrame title="How has my spending changed?" eyebrow="SPENDING OVER TIME"
+  return <ChartFrame title="How has my spending changed?" eyebrow="Spending over time"
     caption={`Month-on-month · ${currency} · complete calendar months ending at the selected end date`}
     action={<div className="chart-segmented" role="group" aria-label="Spending chart view">
       <button aria-pressed={mode === 'spending'} onClick={() => setMode('spending')}>Compare months</button>

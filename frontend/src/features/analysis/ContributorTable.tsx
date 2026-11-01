@@ -65,7 +65,7 @@ export function ContributorTable({
     <Card className="contributor-table">
       <div className="panel-title">
         <div>
-          <p className="eyebrow">EXACT CONTRIBUTORS</p>
+          <p className="eyebrow">Exact contributors</p>
           <h2>{title}</h2>
         </div>
         <Button variant="ghost" size="sm" onClick={onClose}><X size={14} /> Close</Button>

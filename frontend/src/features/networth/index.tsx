@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ApiError, money } from '@/lib/api'
 import { dateLabel } from '@/lib/format'
+import { humanize } from '@/lib/limitations'
 import { ConsolidatedMoney, Money } from '@/components/Money'
 import { NetWorthCharts } from './NetWorthCharts'
 import {
@@ -162,7 +163,7 @@ function NetWorthContent({
       <Card className="obl-card">
         <div className="panel-title">
           <div>
-            <p className="eyebrow">{currency} · REPORTED TRACKED SUBTOTAL</p>
+            <p className="eyebrow">{currency} · Reported tracked subtotal</p>
             <h2><ConsolidatedMoney total={totals.net_worth.total} partialTotal={totals.net_worth.partial_total} currency={currency} unavailableReasons={totals.net_worth.unavailable_reasons} excludedDetail={totals.net_worth.excluded_detail} /> tracked net worth</h2>
           </div>
         </div>
@@ -173,7 +174,7 @@ function NetWorthContent({
         </dl>
         <p className="muted-note">Each component valued at its own as-of date, then combined once into {currency} — never a native amount summed across currencies before valuation.</p>
 
-        <div className="panel-title"><div><p className="eyebrow">MANUAL VALUES · SEPARATE BASIS</p></div></div>
+        <div className="panel-title"><div><p className="eyebrow">Manual values · separate basis</p></div></div>
         <dl className="baseline-metrics">
           <div><dt>Manual assets</dt><dd><ConsolidatedMoney total={totals.manual_assets.total} partialTotal={totals.manual_assets.partial_total} currency={currency} unavailableReasons={totals.manual_assets.unavailable_reasons} excludedDetail={totals.manual_assets.excluded_detail} /></dd></div>
           <div><dt>Manual liabilities</dt><dd><ConsolidatedMoney total={totals.manual_liabilities.total} partialTotal={totals.manual_liabilities.partial_total} currency={currency} unavailableReasons={totals.manual_liabilities.unavailable_reasons} excludedDetail={totals.manual_liabilities.excluded_detail} /></dd></div>
@@ -185,7 +186,7 @@ function NetWorthContent({
       <Card className="obl-card">
         <div className="panel-title">
           <div>
-            <p className="eyebrow">TWO DATED OBSERVATIONS</p>
+            <p className="eyebrow">Two dated observations</p>
             <h2>Compare a basic trend</h2>
           </div>
         </div>
@@ -236,7 +237,7 @@ function NetWorthContent({
       ))}
 
       <Card className="obl-card">
-        <div className="panel-title"><div><p className="eyebrow">WHERE EACH FIGURE COMES FROM</p><h2>Components</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">Where each figure comes from</p><h2>Components</h2></div></div>
         <table className="pocket-table">
           <thead>
             <tr>
@@ -256,7 +257,7 @@ function NetWorthContent({
       </Card>
 
       <Card className="obl-card">
-        <div className="panel-title"><div><p className="eyebrow">HOW THIS STAYS HONEST</p><h2>Rules</h2></div></div>
+        <div className="panel-title"><div><p className="eyebrow">How this stays honest</p><h2>Rules</h2></div></div>
         <ul className="issue-list">
           {page.notes.map((note, i) => <li key={i}><p>{note}</p></li>)}
         </ul>
@@ -281,7 +282,7 @@ function NativeCurrencyCard({ currency, summary }: { currency: string; summary: 
     <Card className="obl-card">
       <div className="panel-title">
         <div>
-          <p className="eyebrow">{currency} · NATIVE EVIDENCE-ONLY SUBTOTAL</p>
+          <p className="eyebrow">{currency} · Native evidence-only subtotal</p>
           <h2>{money(summary.tracked_net_worth, currency)} tracked net worth</h2>
         </div>
         <Badge variant="outline" className={summary.complete ? '' : 'review-badge'}>
@@ -297,7 +298,7 @@ function NativeCurrencyCard({ currency, summary }: { currency: string; summary: 
 
       {summary.missing_components.length > 0 && (
         <>
-          <div className="panel-title"><div><p className="eyebrow">MISSING COMPONENTS</p></div></div>
+          <div className="panel-title"><div><p className="eyebrow">Missing components</p></div></div>
           <ul className="issue-list">
             {summary.missing_components.map(m => (
               <li key={m.component_id}>
@@ -311,7 +312,7 @@ function NativeCurrencyCard({ currency, summary }: { currency: string; summary: 
 
       {summary.excluded_components.length > 0 && (
         <>
-          <div className="panel-title"><div><p className="eyebrow">EXPLICITLY EXCLUDED</p></div></div>
+          <div className="panel-title"><div><p className="eyebrow">Explicitly excluded</p></div></div>
           <ul className="issue-list">
             {summary.excluded_components.map(x => (
               <li key={x.component_id}>
@@ -342,10 +343,10 @@ function ComponentRow({ component }: { component: NetWorthComponentOut }) {
       </td>
       <td>{component.reported ? <Money value={component.reported} /> : <small className="muted-note">No evidence</small>}</td>
       <td>
-        <Badge variant="outline" className={component.basis === 'manual' ? 'review-badge' : ''}>{component.basis}</Badge>
+        <Badge variant="outline" className={component.basis === 'manual' ? 'review-badge' : ''}>{humanize(component.basis)}</Badge>
       </td>
       <td>{component.as_of ? dateLabel(component.as_of) : '—'}</td>
-      <td><small>{component.origin}</small></td>
+      <td><small>{component.origin.replaceAll('_', ' ')}</small></td>
     </tr>
   )
 }

@@ -70,8 +70,8 @@ test('whole-framework journey derives amounts from evidence and survives backup 
   await classifyGroup(page, 'CAFE SOCIAL', 'Food & Dining / Dining Out')
 
   await openTab(page, 'Baseline')
-  await expect(page.getByText('WHAT YOUR NORMAL LIFE COSTS · SGD')).toBeVisible()
-  await expect(page.getByText('LIKELY INCOME STREAMS')).toBeVisible()
+  await expect(page.getByText('What your normal life costs · SGD')).toBeVisible()
+  await expect(page.getByText('Likely income streams')).toBeVisible()
   await expect(page.getByText('ACME PAYROLL')).toBeVisible()
   // The reserve basis now names the month count from the chosen policy, and
   // says whether it is the default or a deliberate choice. Reviewing the

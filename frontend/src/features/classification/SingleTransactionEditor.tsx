@@ -203,7 +203,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
         </>}
       </dl>
       <div className="source-description">
-        <span className="eyebrow">ORIGINAL DESCRIPTION</span><p>{e.description}</p>
+        <span className="eyebrow">Original description</span><p>{e.description}</p>
         <small>{e.source_family} · {e.lifecycle_state} · {e.source_location}</small>
         <a className="source-download" href={`/api/v1/evidence/${encodeURIComponent(e.id)}?generation=${encodeURIComponent(data.generation)}`} download>
           Download verified source statement <ArrowDownLeft size={14}/>
@@ -231,7 +231,7 @@ export function EntryDialog({ entry, data, onClose, onSaved, onRelationshipSaved
                   : 'The linked relationship owns this movement; change the transfer decision instead of classifying it here.'}
           </p>
         : <div className="nature-choice" role="radiogroup" aria-label="What is this?">
-            <span className="eyebrow">WHAT IS THIS?</span>
+            <span className="eyebrow">What is this?</span>
             {NATURES.map(option => <button key={option} type="button" role="radio" aria-checked={nature === option}
               className={nature === option ? 'is-active' : ''} disabled={batch.busy}
               onClick={() => { setNature(option); setInstallment(false); setNotice('') }}>
