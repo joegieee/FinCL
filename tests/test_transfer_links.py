@@ -755,6 +755,54 @@ class BrandedTransferLinkTests(unittest.TestCase):
         self.assertEqual((link["left_entry_id"], link["right_entry_id"]), (revolut, dbs))
         self.assertEqual((link["implied_rate_numerator"], link["implied_rate_denominator"]), (75, 56))
 
+    def test_identical_revolut_outbound_transfers_are_proposed_not_dropped(self) -> None:
+        dbs_run, dbs_statement = self.ledger.dbs_statement()
+        revolut_run = self.ledger.revolut_run()
+        for _ in range(2):
+            self.ledger.dbs_entry(
+                dbs_run,
+                dbs_statement,
+                description="Debit Card Transaction\n4000-0000-0000-0002",
+                amount="60.00",
+                posted_date="2026-06-06",
+                event_kind="CARD_PAYMENT",
+                economic_direction="IN",
+            )
+            self.ledger.revolut_entry(
+                revolut_run,
+                amount="-60.00",
+                completed_at="2026-06-06",
+                event_kind="TRANSFER",
+                currency_pocket="SGD",
+                economic_direction="OUT",
+            )
+
+        self.assertEqual(refresh_automatic_transfer_links(self.connection), 0)
+        links = self._links()
+        self.assertEqual([link["status"] for link in links], ["PROPOSED"] * 4)
+        self.assertEqual(
+            json.loads(links[0]["evidence_json"])["rejection"]["code"], AMBIGUOUS_MUTUAL_MATCH
+        )
+
+    def test_same_day_exchanges_without_counterparts_are_proposed_not_dropped(self) -> None:
+        revolut_run = self.ledger.revolut_run()
+        for pocket, amount, direction in (
+            ("SGD", "-10.00", "OUT"), ("SGD", "-20.00", "OUT"),
+            ("USD", "7.00", "IN"), ("USD", "14.00", "IN"),
+        ):
+            self.ledger.revolut_entry(
+                revolut_run,
+                amount=amount,
+                completed_at="2026-06-06",
+                event_kind="EXCHANGE",
+                currency_pocket=pocket,
+                economic_direction=direction,
+            )
+
+        self.assertEqual(refresh_automatic_transfer_links(self.connection), 0)
+        self.assertEqual(refresh_automatic_transfer_links(self.connection), 0)
+        self.assertEqual([link["status"] for link in self._links()], ["PROPOSED"] * 4)
+
     def test_branded_linkers_refuse_non_sgd_pockets(self) -> None:
         """The declared branded pair is DBS SGD to Revolut SGD, never USD."""
         for description in (CARD_DESCRIPTION, PAYNOW_DESCRIPTION):

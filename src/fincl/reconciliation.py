@@ -610,9 +610,11 @@ def link_revolut_dbs_outbound_transfers(connection: sqlite3.Connection) -> int:
         right_counts[right["id"]] = right_counts.get(right["id"], 0) + 1
     created = 0
     for left, right, method_version in candidates:
-        if left_counts[left["id"]] != 1 or right_counts[right["id"]] != 1:
-            continue
-        created += _insert_cross_currency_transfer_link(connection, left, right, method_version)
+        left_count, right_count = left_counts[left["id"]], right_counts[right["id"]]
+        created += _insert_cross_currency_transfer_link(
+            connection, left, right, method_version,
+            left_candidates=left_count, right_candidates=right_count,
+        )
     return created
 
 
@@ -621,7 +623,23 @@ def _insert_cross_currency_transfer_link(
     left: sqlite3.Row,
     right: sqlite3.Row,
     method_version: str,
+    *,
+    left_candidates: int,
+    right_candidates: int,
 ) -> int:
+    confirmed = left_candidates == 1 and right_candidates == 1
+    evidence: dict[str, object] = {
+        "date_left": left["posted_date"],
+        "date_right": right["posted_date"],
+        "revolut_counterpart_amount": _revolut_counterpart_amount(left["raw_fields_json"]),
+        "unique_pair": confirmed,
+    }
+    if not confirmed:
+        evidence["rejection"] = {
+            "code": AMBIGUOUS_MUTUAL_MATCH,
+            "left_candidates": left_candidates,
+            "right_candidates": right_candidates,
+        }
     same_currency = left["currency_pocket"] == right["currency_pocket"]
     numerator = denominator = None
     if not same_currency:
@@ -639,7 +657,7 @@ def _insert_cross_currency_transfer_link(
             right_currency, right_amount_text, right_amount_coefficient, right_amount_scale,
             implied_rate_numerator, implied_rate_denominator,
             method_version, status, evidence_json, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CONFIRMED', ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             link_id,
@@ -650,16 +668,12 @@ def _insert_cross_currency_transfer_link(
             right["currency_pocket"], right["amount_text"].lstrip("-"),
             abs(right["amount_coefficient"]), right["amount_scale"],
             numerator, denominator, method_version,
-            _json({
-                "date_left": left["posted_date"],
-                "date_right": right["posted_date"],
-                "revolut_counterpart_amount": _revolut_counterpart_amount(left["raw_fields_json"]),
-                "unique_pair": True,
-            }),
+            "CONFIRMED" if confirmed else "PROPOSED",
+            _json(evidence),
             _now(),
         ),
     )
-    return cursor.rowcount
+    return cursor.rowcount if confirmed else 0
 
 
 def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
@@ -668,6 +682,10 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
     # exchange legs paired on the exact `Started Date`. The PDF prints one date
     # per row at DAY precision, so the two legs of a same-day exchange pair on
     # the completed date within one statement's extraction run.
+    connection.execute(
+        "DELETE FROM transfer_links WHERE method_version = ? AND status = 'PROPOSED'",
+        (REVOLUT_EXCHANGE_LINKER.method_version,),
+    )
     rows = connection.execute(
         """
         SELECT e.id, e.extraction_run_id,
@@ -698,9 +716,22 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
     for group in groups.values():
         outgoing = [row for row in group if row["economic_direction"] == "OUT"]
         incoming = [row for row in group if row["economic_direction"] == "IN"]
-        for left, right in _pair_revolut_exchange_legs(outgoing, incoming):
+        paired = _pair_revolut_exchange_legs(outgoing, incoming)
+        paired_ids = {row["id"] for pair in paired for row in pair}
+        open_outgoing = [row for row in outgoing if row["id"] not in paired_ids]
+        open_incoming = [row for row in incoming if row["id"] not in paired_ids]
+        pairs = [(left, right, True) for left, right in paired]
+        pairs += [(left, right, False) for left in open_outgoing for right in open_incoming]
+        for left, right, confirmed in pairs:
             if left["currency_pocket"] == right["currency_pocket"]:
                 continue
+            evidence: dict[str, object] = {"started_at": left["started_at"], "unique_pair": confirmed}
+            if not confirmed:
+                evidence["rejection"] = {
+                    "code": AMBIGUOUS_MUTUAL_MATCH,
+                    "left_candidates": len(open_incoming),
+                    "right_candidates": len(open_outgoing),
+                }
             numerator = abs(right["amount_coefficient"]) * 10**left["amount_scale"]
             denominator = abs(left["amount_coefficient"]) * 10**right["amount_scale"]
             divisor = gcd(numerator, denominator)
@@ -717,7 +748,7 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
                     implied_rate_numerator, implied_rate_denominator,
                     method_version, status, evidence_json, created_at
                 ) VALUES (?, ?, ?, 'CURRENCY_EXCHANGE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          'CONFIRMED', ?, ?)
+                          ?, ?, ?)
                 """,
                 (
                     link_id,
@@ -734,11 +765,12 @@ def link_revolut_exchanges(connection: sqlite3.Connection) -> int:
                     numerator // divisor,
                     denominator // divisor,
                     REVOLUT_EXCHANGE_LINKER.method_version,
-                    _json({"started_at": left["started_at"], "unique_pair": True}),
+                    "CONFIRMED" if confirmed else "PROPOSED",
+                    _json(evidence),
                     _now(),
                 ),
             )
-            created += cursor.rowcount
+            created += cursor.rowcount if confirmed else 0
     return created
 
 
