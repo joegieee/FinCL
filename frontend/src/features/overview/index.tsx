@@ -9,7 +9,7 @@ import { reportedMoney } from '@/lib/workspaceReporting'
 import { MoneyJourneyPanel } from '@/features/journey'
 import { loadRecurring, type RecurringPage } from '@/features/planning/api'
 import { loadImports, type ImportsPage } from '@/features/setup/api'
-import { dateLabel } from '@/lib/format'
+import { dateLabel, periodLabel } from '@/lib/format'
 import { readerLimitations } from '@/lib/limitations'
 import { Cv, MoneyFlowPanel } from './MoneyFlowCards'
 import { ReportingPolicySettings } from './ReportingPolicySettings'
@@ -45,6 +45,12 @@ const unavailable = 'Evidence not available yet'
  * legacy per-currency Dashboard `data` this component also still reads for
  * its unrelated, still-native setup checklist and position glance below.
  */
+function backlogLabel(data: Dashboard): string {
+  const need = data.review_total === 1 ? 'needs' : 'need'
+  if (data.review_count === 0) return `${data.review_total} transaction${data.review_total === 1 ? '' : 's'} ${need} a category`
+  return `${data.review_count} in ${periodLabel(data.start, data.end)} · ${data.review_total} in all ${need} a category`
+}
+
 export function OverviewView({
   data, period, start, end, onOpen,
 }: {
@@ -146,7 +152,7 @@ export function OverviewView({
 
       <MoneyJourneyPanel
         generation={data.generation} onOpen={onOpen}
-        needs={data.review_count > 0 ? [{ label: `${data.review_count} transaction${data.review_count === 1 ? '' : 's'} need${data.review_count === 1 ? 's' : ''} a category`, open: 'Categorization' }] : []}
+        needs={data.review_total > 0 ? [{ label: backlogLabel(data), open: 'Categorization' }] : []}
         cash={page && <div className="ov-stat">
           <button className="linkish" onClick={() => onOpen('Cash')}>Cash on {page.summary.cash_at_cutoff.balance_as_of ? dateLabel(page.summary.cash_at_cutoff.balance_as_of) : 'an unknown date'} <ArrowRight size={13} /></button>
           <strong><Cv result={page.summary.cash_at_cutoff.amount} currency={page.reporting_currency} /></strong>
@@ -196,7 +202,7 @@ export function OverviewActionPanel({ data, onOpen }: { data: Dashboard; onOpen:
   const steps = [
     { done: !!imports && imports.imports.length > 0, title: 'Import statements', detail: !imports ? unavailable : imports.imports.length === 0 ? 'No statements imported.' : `${imports.imports.length} import record${imports.imports.length === 1 ? '' : 's'} retained.`, open: 'Setup' as const },
     { done: !!readiness && readiness.pockets.length > 0 && readiness.tasks.length === 0, title: 'Inspect account and month readiness', detail: !readiness ? unavailable : readiness.pockets.length === 0 ? 'No account or month evidence yet.' : readiness.tasks.length ? `${readiness.tasks.length} readiness item${readiness.tasks.length === 1 ? '' : 's'} still need attention.` : `${readiness.pockets.length} pocket${readiness.pockets.length === 1 ? '' : 's'} inspected.`, open: readiness?.tasks.some(task => task.kind === 'import-missing') ? 'Setup' as const : 'Baseline' as const },
-    { done: data.review_count === 0 && !!recurring && recurring.candidates.length === 0, title: 'Review detected classifications and commitments', detail: !recurring ? unavailable : `${data.review_count} classification${data.review_count === 1 ? '' : 's'} to review · ${recurring.candidates.length} detected commitment candidate${recurring.candidates.length === 1 ? '' : 's'}.`, open: data.review_count > 0 ? 'Categorization' as const : 'Planning' as const },
+    { done: data.review_total === 0 && !!recurring && recurring.candidates.length === 0, title: 'Review detected classifications and commitments', detail: !recurring ? unavailable : `${data.review_count} classification${data.review_count === 1 ? '' : 's'} to review · ${recurring.candidates.length} detected commitment candidate${recurring.candidates.length === 1 ? '' : 's'}.`, open: data.review_count > 0 ? 'Categorization' as const : 'Planning' as const },
     { done: estimate?.available === true && snapshot.cash?.current_position_supported === true, title: 'Inspect derived baseline and evidenced cash', detail: baselineAndCashText(estimate, snapshot.cash), open: estimate?.available ? 'Cash' as const : 'Baseline' as const },
     { done: reserve.ready, title: 'Choose a reserve policy', detail: reserve.policyNote, open: 'Controls' as const },
     { done: forecastReady(snapshot.forecast), title: 'Open forecast', detail: risk.detail, open: 'Forecast' as const },

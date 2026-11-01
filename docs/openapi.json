@@ -12429,6 +12429,10 @@
             "type": "integer",
             "title": "Review Count"
           },
+          "review_total": {
+            "type": "integer",
+            "title": "Review Total"
+          },
           "accounts": {
             "items": {
               "type": "string"
@@ -12471,6 +12475,7 @@
           "plans",
           "recent",
           "review_count",
+          "review_total",
           "accounts",
           "total_entries",
           "transfer_proposals"

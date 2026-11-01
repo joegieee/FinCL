@@ -93,7 +93,7 @@ function ReviewHubContent({ page, disabled, afterSave, unclassified, onOpenCateg
         )}
       </div>
       <p className="muted-note">Each number counts issues in one queue. Queues are independent and never added together.</p>
-      {unclassified !== null && <Card className="review-categorization-summary"><div><p className="eyebrow">Categorization backlog</p><h2>{unclassified} active transaction{unclassified === 1 ? ' needs' : 's need'} a category</h2><p>Ordinary unclassified transactions are grouped in Categorization, not added one by one to Review.</p></div>{onOpenCategorization && <Button variant="outline" onClick={onOpenCategorization}>Open Inbox</Button>}</Card>}
+      {unclassified !== null && <Card className="review-categorization-summary"><div><p className="eyebrow">Categorization backlog</p><h2>{unclassified} active transaction{unclassified === 1 ? ' needs' : 's need'} a category, across all dates</h2><p>Ordinary unclassified transactions are grouped in Categorization, not added one by one to Review.</p></div>{onOpenCategorization && <Button variant="outline" onClick={onOpenCategorization}>Open Inbox</Button>}</Card>}
 
       {queues.map(queue => (
         <Card key={queue} className="review-queue">

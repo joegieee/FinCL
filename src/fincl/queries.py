@@ -850,7 +850,8 @@ def dashboard(database: Path, *, start: str | None = None, end: str | None = Non
         # The full list is served page-by-page from /transactions; the dashboard
         # payload only carries what Overview draws directly.
         recent = [e for e in selected if e['bucket'] == 'spending'][:8]
-        review_count = sum(1 for e in selected if e['review'] and e['eligible'])
+        needs_review = [e for e in entries if e['review'] and e['eligible']]
+        review_count = sum(1 for e in needs_review if in_window(e, start, end))
         # Withhold analytics entirely when the requested window crosses a coverage gap.
         analytical = eligible if covered else []
         groups = aggregate(analytical, 'category')
@@ -916,6 +917,6 @@ def dashboard(database: Path, *, start: str | None = None, end: str | None = Non
                 spent += sum((Decimal(e['fee']) for e in relevant),Decimal(0))
             plan['actual'] = money(spent) if plan['type']=='budget' and covered and full_month and plan['currency']==currency else (plan['saved'] if plan['type']=='goal' else None)
             plan['remaining'] = money(Decimal(plan['target'])-Decimal(plan['actual'])) if plan['actual'] is not None else None
-        return {'generation':token,'freshness':'stale' if stale else 'current','updated_at':generation['completed_at'], 'start':start,'end':end,'currency':currency,'currencies':sorted({e['currency'] for e in entries} | {'SGD'}),'covered':covered,'coverage_reasons':contract.reasons,'summary':summary,'summary_handles':summary_handles,'categories':sorted(category_strings()|custom),'custom_categories':sorted(custom),'category_totals':groups,'merchant_totals':merchants,'trend':months,'recurring':recurring,'plans':list(plans.values()),'recent':recent,'review_count':review_count,'accounts':sorted({e['account'] for e in entries}), 'total_entries':len(entries),'transfer_proposals':transfer_proposals(connection)}
+        return {'generation':token,'freshness':'stale' if stale else 'current','updated_at':generation['completed_at'], 'start':start,'end':end,'currency':currency,'currencies':sorted({e['currency'] for e in entries} | {'SGD'}),'covered':covered,'coverage_reasons':contract.reasons,'summary':summary,'summary_handles':summary_handles,'categories':sorted(category_strings()|custom),'custom_categories':sorted(custom),'category_totals':groups,'merchant_totals':merchants,'trend':months,'recurring':recurring,'plans':list(plans.values()),'recent':recent,'review_count':review_count,'review_total':len(needs_review),'accounts':sorted({e['account'] for e in entries}), 'total_entries':len(entries),'transfer_proposals':transfer_proposals(connection)}
     finally:
         connection.close()

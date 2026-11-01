@@ -80,7 +80,7 @@ export default function App(){
  function drill(cat='',merchant='',bucket=''){setCategory(cat);setSearch(merchant);setKind(bucket);setTab('Transactions')}
  async function saved(status:string){setNotice(status==='recorded_refresh_pending'?'Saved; totals awaiting refresh. Use Refresh to retry.':'Saved to your ledger.');setEntry(null);setReportedRow(null);setDialog(null);setEditingPlan(null);await load()}
  async function refresh(){setLoading(true);try{await api('refresh',{});await load();setNotice('Ledger refreshed.')}catch(e){setError((e as Error).message);setLoading(false)}}
- const reviewCount=data?.review_count||0
+ const reviewCount=data?.review_total||0
  const proposalCount=data?.transfer_proposals.length||0
  const meta=tabMeta[tab]
  const railActiveTab=tabAliases[tab]??tab

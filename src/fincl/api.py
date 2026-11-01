@@ -454,6 +454,7 @@ class Dashboard(StrictModel):
     plans: list[Plan]
     recent: list[Entry]
     review_count: int
+    review_total: int
     accounts: list[str]
     total_entries: int
     transfer_proposals: list[Proposal]

@@ -3992,6 +3992,8 @@ export interface components {
             recent: components["schemas"]["Entry"][];
             /** Review Count */
             review_count: number;
+            /** Review Total */
+            review_total: number;
             /** Accounts */
             accounts: string[];
             /** Total Entries */
