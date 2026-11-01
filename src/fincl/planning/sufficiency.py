@@ -742,7 +742,7 @@ def combined_answer(
         "ends_on": ((first.get("base") or {}).get("horizon") or {}).get("end")
         or (timeline.get("horizon") or {}).get("end"),
         "starting_total": (
-            _quantized(sum((_fraction(p["starting_balance_reported"])
+            _quantized(sum((_fraction(p["starting_balance"]) * held[p["currency"]]
                             for p in pockets if p["currency"] in counted), start=Fraction(0)), scale)
             if counted else None
         ),

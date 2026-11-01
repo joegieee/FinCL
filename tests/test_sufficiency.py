@@ -392,6 +392,16 @@ class CombinedAnswerTests(unittest.TestCase):
     def _answer(self, timeline: dict, rates: dict, **kw) -> dict:
         return combined_answer(timeline, rates=rates, reporting_currency="SGD", scale=2, **kw)
 
+    def test_the_starting_total_is_rounded_once_after_adding_the_pockets(self) -> None:
+        """Each pocket rounds up on its own, and their rounded sum is a cent too high."""
+        days = _days(("2026-02-01", "100.00"))
+        answer = self._answer(_timeline({
+            "EUR": _pocket(days, balance="533.88"), "SGD": _pocket(days, balance="15797.91"),
+            "USD": _pocket(days, balance="42.17"),
+        }), {"EUR": Fraction(15111, 10000), "SGD": Fraction(1), "USD": Fraction(13869, 10000)})
+
+        self.assertEqual(answer["starting_total"], "16663.14")
+
     def test_a_short_pocket_covered_by_another_is_one_yes(self) -> None:
         """SGD alone runs out; USD income more than covers it on the same days."""
         answer = self._answer(_timeline({
