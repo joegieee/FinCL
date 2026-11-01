@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import os
 import shutil
 import tempfile
 from collections.abc import Iterator
 
 import pytest
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    # Workers are CPU-bound for minutes; let the editor and browser run first.
+    if hasattr(config, "workerinput"):
+        os.nice(10)
 
 
 @pytest.fixture(scope="session", autouse=True)
