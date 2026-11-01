@@ -194,7 +194,7 @@ export function InstallmentHandoff({ entry, generation, onRecorded, onCancel }: 
     {plans && <label>Installment plan
       <select aria-label="Installment plan" value={picked ?? ''} onChange={e => setPicked(e.target.value || null)}>
         <option value="">{plans.length ? 'Choose a plan' : `No ${entry.currency} installment plan yet — confirm one on the Installments page`}</option>
-        {plans.map(plan => <option key={plan.plan_id} value={plan.plan_id}>{plan.merchant_label} · opened {plan.opened_on}</option>)}
+        {plans.map(plan => <option key={plan.plan_id} value={plan.plan_id}>{plan.merchant_label} · opened {dateLabel(plan.opened_on)}</option>)}
       </select>
     </label>}
     {unusable && <p className="form-error">This plan can't use this transaction as its purchase: it is on a different card, already claimed, or itself an instalment payment.</p>}

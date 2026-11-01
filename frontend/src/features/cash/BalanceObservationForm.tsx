@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ApiError } from '@/lib/api'
 import { recordBalanceObservation, retireBalanceObservation } from './api'
 import type { CashPocketOut } from './reportedApi'
+import { dateLabel } from '@/lib/format'
 
 function today() {
   const d = new Date()
@@ -101,7 +102,7 @@ export function BalanceObservationForm({
         {existing && (
           <div className="balance-observation-existing">
             <p className="muted-note">
-              Current manual observation: <strong>{existing.balance}</strong> as of {existing.as_of}.
+              Current manual observation: <strong>{existing.balance}</strong> as of {dateLabel(existing.as_of)}.
             </p>
             <div className="debt-event-actions" style={{ justifyContent: 'flex-start' }}>
               <Button variant={mode === 'record' ? 'default' : 'outline'} size="sm" onClick={() => { setMode('record'); setError('') }} disabled={busy}>

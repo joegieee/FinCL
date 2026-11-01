@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ApiError, money } from '@/lib/api'
 import { confirmPlan, type PlanCandidate } from './api'
+import { dateLabel } from '@/lib/format'
 
 /**
  * Confirm one proposed chain as an installment plan (INSTALLMENT_PLAN_SET).
@@ -84,7 +85,7 @@ export function ConfirmPlanForm({
           {candidate.occurrences.map((o) => (
             <tr key={o.entry_anchor}>
               <td>{o.occurrence_index} / {o.occurrence_count}</td>
-              <td>{o.effective_on}</td>
+              <td>{dateLabel(o.effective_on)}</td>
               <td>{reportedMoney(o, 'amount', candidate.currency)}</td>
               <td>{o.description ?? '—'}</td>
             </tr>
@@ -138,7 +139,7 @@ export function ConfirmPlanForm({
         <p className="muted-note">
           The statement that printed the first instalment also printed a{' '}
           {candidate.conversion.description} credit of{' '}
-          {reportedMoney(candidate.conversion, 'amount', candidate.currency)} on {candidate.conversion.effective_on}
+          {reportedMoney(candidate.conversion, 'amount', candidate.currency)} on {dateLabel(candidate.conversion.effective_on)}
           . That is the total of the purchases you converted, and every instalment so far is
           exactly what it divides into, so the principal above is that printed credit.
         </p>

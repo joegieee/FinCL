@@ -6,7 +6,7 @@ const apiMock = vi.fn()
 vi.mock('@/lib/api', () => ({
   api: (path: string, body?: unknown) => apiMock(path, body),
   ApiError: class ApiError extends Error { status = 422 },
-  money: (v: string | null, c = 'SGD') => v == null ? 'Unavailable' : `${c} ${v}`,
+  money: (v: string | null, c = 'SGD') => v == null ? 'Unavailable' : `${v} ${c}`,
 }))
 vi.mock('@/lib/command', () => ({
   useLedgerCommand: () => ({ busy: false, error: '', previewed: null, attempted: false, reset: vi.fn(), act: vi.fn() }),
@@ -486,7 +486,7 @@ describe('CategorizationView', () => {
     fireEvent.click(await screen.findByRole('radio', { name: /This one/ }))
     expect(screen.getByText('Check exactly one transaction above to act on it.')).toBeInTheDocument()
     fireEvent.click(screen.getByText('CAFE SOCIAL #2', { exact: false }).closest('button')!)
-    expect(screen.getByRole('radio', { name: /This one — 2026-01-05/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /This one — 5 Jan 2026/ })).toBeInTheDocument()
   })
 
   it('auto-previews then saves the selected-transactions scope through the shared classification draft, allowing the full trio', async () => {

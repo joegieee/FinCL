@@ -97,7 +97,7 @@ describe('CardsView', () => {
   it('lists a card with its latest observed statement, not a timeless balance', async () => {
     await mount()
     expect(await screen.findByText('Mari Credit Card')).toBeInTheDocument()
-    expect(screen.getByText('SGD 250.00')).toBeInTheDocument()
+    expect(screen.getByText('250.00 SGD')).toBeInTheDocument()
     expect(screen.getByText(/missing period/)).toBeInTheDocument()
   })
 

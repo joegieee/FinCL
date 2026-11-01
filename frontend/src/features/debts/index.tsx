@@ -197,7 +197,7 @@ function DebtDetailView({
         <div className="debt-detail-balance">
           <span>Remaining principal</span>
           <strong>{reportedMoney(debt.remaining_principal, 'value', debt.currency)}</strong>
-          <small>as of {detail.as_of}</small>
+          <small>as of {dateLabel(detail.as_of)}</small>
         </div>
       </div>
       <p className="debt-detail-status">
@@ -251,9 +251,9 @@ function DebtDetailView({
               <td>{(e.signed < 0 ? '−' : '+') + reportedMoney(e.principal, 'value', debt.currency).replace(/^−/, '')}</td>
               <td>{e.reason}{e.expense_category ? <span className="tag">{e.expense_category}</span> : null}</td>
               <td className="debt-history-actions">
-                <Button size="sm" variant="ghost" disabled={busy} aria-label={`Correct ${kindLabel(e.event_kind)} on ${e.effective_on}`}
+                <Button size="sm" variant="ghost" disabled={busy} aria-label={`Correct ${kindLabel(e.event_kind)} on ${dateLabel(e.effective_on)}`}
                   onClick={() => setCorrecting({ event: e, remove: false })}>Correct</Button>
-                <Button size="sm" variant="ghost" disabled={busy} aria-label={`Remove ${kindLabel(e.event_kind)} on ${e.effective_on}`}
+                <Button size="sm" variant="ghost" disabled={busy} aria-label={`Remove ${kindLabel(e.event_kind)} on ${dateLabel(e.effective_on)}`}
                   onClick={() => setCorrecting({ event: e, remove: true })}>Remove</Button>
               </td>
             </tr>
@@ -360,7 +360,7 @@ export function DebtsView({
   return (
     <div className="debts-view"><WorkspaceReportingDetails data={page}/>
       <div className="debts-toolbar">
-        <p className="debts-asof">Balances as of {page.as_of}. Payables and receivables shown separately.</p>
+        <p className="debts-asof">Balances as of {dateLabel(page.as_of)}. Payables and receivables shown separately.</p>
         <span className="debts-toolbar-actions">
           <Button size="sm" variant="outline" onClick={() => setSplitting(true)}><Split size={14} /> Split a bill</Button>
           <Button size="sm" onClick={() => setCreating(true)}><Plus size={14} /> New debt</Button>

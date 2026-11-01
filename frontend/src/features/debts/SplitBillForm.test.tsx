@@ -74,7 +74,7 @@ describe('SplitBillForm', () => {
 
     // My share is left to the server and shown once it has checked the split.
     fireEvent.click(screen.getByRole('button', { name: 'Check split' }))
-    expect(await screen.findByText('Your share: SGD 15.75')).toBeInTheDocument()
+    expect(await screen.findByText('Your share: 15.75 SGD')).toBeInTheDocument()
     const [draft] = drafts()
     expect(draft.map((i) => i.kind)).toEqual(['PERSONAL_DEBT_EVENT_SET', 'PERSONAL_DEBT_OPEN', 'PERSONAL_DEBT_EVENT_SET', 'ENTRY_RESIDUAL_SET'])
     expect(draft[3].payload).toMatchObject({ expense_amount: null, expense_category: 'Food & Dining / Groceries' })

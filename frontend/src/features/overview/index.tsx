@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowRight, CheckCircle2, CircleHelp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ApiError, type Dashboard } from '@/lib/api'
@@ -46,9 +46,11 @@ const unavailable = 'Evidence not available yet'
  * its unrelated, still-native setup checklist and position glance below.
  */
 export function OverviewView({
-  data, start, end, initialPocketCurrency, onOpen,
+  data, period, start, end, initialPocketCurrency, onOpen,
 }: {
   data: Dashboard
+  /** Chooses the window for "In and out"; the answer and forecast above it look ahead instead. */
+  period?: ReactNode
   start: string
   end: string
   // §6.3: a legacy `?currency=USD` URL seeds this screen's own explicit,
@@ -161,7 +163,7 @@ export function OverviewView({
           <strong><Cv result={page.summary.cash_at_cutoff.amount} currency={page.reporting_currency} /></strong>
         </div>}
       >
-        {page && <MoneyFlowPanel page={page} onOpen={() => onOpen('Analysis')} />}
+        {page && <MoneyFlowPanel page={page} period={period} covered={data.covered} onOpen={() => onOpen('Analysis')} />}
       </MoneyJourneyPanel>
 
       {limitations.length > 0 && (

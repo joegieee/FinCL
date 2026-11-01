@@ -13,6 +13,7 @@ import {
   type BackdatePreview, type BudgetCard, type BudgetsPage, type GoalCard, type GoalScenario,
   type GoalsPage, type OccurrencesPage, type RecurringPage,
 } from './api'
+import { dateLabel } from '@/lib/format'
 
 const STATUS: Record<string, string> = {
   settled: 'Settled', observed_so_far: 'So far', coverage_unknown: 'Coverage unknown', archived: 'Archived',
@@ -282,7 +283,7 @@ function GoalRow({ goal, generation, disabled, onSaved }: {
           <strong><Target size={14} /> {goal.name}</strong>
           {goal.archived && <Badge variant="outline"> archived</Badge>}
           {goal.overdue && <Badge variant="outline" className="review-badge"> overdue</Badge>}
-          <small>{goal.currency}{goal.target_on ? ` · target ${goal.target_on}` : ''}{goal.observed_on ? ` · last ${goal.observed_on}` : ''}</small>
+          <small>{goal.currency}{goal.target_on ? ` · target ${dateLabel(goal.target_on)}` : ''}{goal.observed_on ? ` · last ${dateLabel(goal.observed_on)}` : ''}</small>
         </div>
       </div>
       <div className="budget-values">
@@ -467,7 +468,7 @@ function RecurringSection({ generation, disabled, onSaved }: { generation: strin
           <div className="budget-head">
             <div>
               <strong><RefreshCw size={13} /> {c.name}</strong>
-              <Badge variant="outline" className={c.status !== 'active' ? 'review-badge' : ''}> {c.status}{c.ended_on ? ` ${c.ended_on}` : ''}</Badge>
+              <Badge variant="outline" className={c.status !== 'active' ? 'review-badge' : ''}> {c.status}{c.ended_on ? ` ${dateLabel(c.ended_on)}` : ''}</Badge>
               <small>{c.schedule.kind === 'monthly' ? `day ${c.schedule.day}` : `weekly (weekday ${c.schedule.weekday})`} · {reportedMoney(c, 'expected_amount', c.currency)} · matched within ± {money(c.amount_tolerance, c.currency)}</small>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setOpen(o => o === c.commitment ? null : c.commitment)}>Occurrences <ChevronRight size={13} /></Button>
@@ -487,7 +488,7 @@ function CandidateReview({ candidate, generation, disabled, onSaved }: {
   const [reason, setReason] = useState('')
   const [action, setAction] = useState<'confirm' | 'dismiss'>('confirm')
   const cmd = useLedgerCommand(generation, onSaved)
-  const last = new Date(`${candidate.last_observed_on}T00:00:00`)
+  const last = new Date(`${dateLabel(candidate.last_observed_on)}T00:00:00`)
   const schedule = candidate.cadence === 'monthly'
     ? { kind: 'monthly', day: last.getDate(), anchor_on: candidate.last_observed_on }
     : { kind: 'weekly', weekday: last.getDay() === 0 ? 6 : last.getDay() - 1, anchor_on: candidate.last_observed_on }
@@ -531,7 +532,7 @@ function OccurrenceTable({ commitment, currency, generation, disabled, onSaved }
       <tbody>
         {data.occurrences.map(o => (
           <tr key={o.scheduled_on}>
-            <td>{o.scheduled_on}</td>
+            <td>{dateLabel(o.scheduled_on)}</td>
             <td>{reportedMoney(o, 'expected_amount', currency)}{o.amount_reason && <small title={o.amount_reason}> · varied</small>}</td>
             <td>{o.state.replaceAll('_', ' ')}</td>
             <td className="mono">{o.entry ?? (o.state === 'explicitly_skipped' ? 'skipped' : '—')}</td>

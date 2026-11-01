@@ -9,7 +9,7 @@ vi.mock('./api', () => ({
 }))
 vi.mock('@/lib/api', async () => {
   class ApiError extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status } }
-  return { money: (v: string, c = 'SGD') => `${c} ${v}`, ApiError }
+  return { money: (v: string, c = 'SGD') => `${v} ${c}`, ApiError }
 })
 
 const { AllocationControls } = await import('./AllocationControls')

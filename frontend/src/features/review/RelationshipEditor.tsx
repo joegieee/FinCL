@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { api, ApiError, money, type components } from '@/lib/api'
+import { dateLabel } from '@/lib/format'
 
 type Review = components['schemas']['RelationshipsReview']
 type Proposal = components['schemas']['ReviewProposal']
@@ -108,13 +109,13 @@ function DuplicateRow({
         <div>
           <span className="eyebrow">Primary (kept)</span>
           <strong>{p.merchant}</strong>
-          <small>{p.account} · {p.date} · {reportedMoney(p, 'amount', p.currency)}</small>
+          <small>{p.account} · {dateLabel(p.date)} · {reportedMoney(p, 'amount', p.currency)}</small>
           <small className="anchor">{p.primary}</small>
         </div>
         <div>
           <span className="eyebrow">Candidate</span>
           <strong>{p.merchant}</strong>
-          <small>{p.account} · {p.date} · {reportedMoney(p, 'amount', p.currency)}</small>
+          <small>{p.account} · {dateLabel(p.date)} · {reportedMoney(p, 'amount', p.currency)}</small>
           <small className="anchor">{p.candidate}</small>
         </div>
       </div>

@@ -290,7 +290,7 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
             const reportedOccurrence = reportedByAnchor[o.anchor]
             return (
               <tr key={o.anchor}>
-                <td className="pick-cell"><input type="checkbox" aria-label={`Include ${o.date}`} checked={selected.has(o.anchor)} onChange={() => toggle(o.anchor)} /></td>
+                <td className="pick-cell"><input type="checkbox" aria-label={`Include ${dateLabel(o.date)}`} checked={selected.has(o.anchor)} onChange={() => toggle(o.anchor)} /></td>
                 <td>{dateLabel(o.date)}</td>
                 <td title={o.description}>{o.description || <span className="muted-note">No description</span>}</td>
                 <td>{o.account}</td>
@@ -334,7 +334,7 @@ function CandidateCard({ candidate, reported, currency, categories, generation, 
             {previewing ? 'Checking…' : busy ? 'Working…' : preview ? (retrying ? 'Retry same save' : `Save ${preview.changed_transactions} receipt${preview.changed_transactions === 1 ? '' : 's'}${saveRule ? ' + rule' : ''}`) : 'Review changes'}
             {!previewing && !busy && <ArrowRight size={15} />}
           </Button>
-          <span className="muted-note">{anchors.length ? `${candidate.currency} ${sumAmounts(chosen.map(o => o.amount))} (native)` : 'Select at least one receipt'}</span>
+          <span className="muted-note">{anchors.length ? `${sumAmounts(chosen.map(o => o.amount))} ${candidate.currency} (native)` : 'Select at least one receipt'}</span>
         </div>
       </form>
     </Card>

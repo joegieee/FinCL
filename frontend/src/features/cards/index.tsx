@@ -164,7 +164,7 @@ function CardDetailView({
           <p>
             {detail.account.masked_identifier}
             {detail.facility ? ` · facility ${detail.facility.label}` : ' · no shared facility'}
-            {' · as of '}{detail.as_of}
+            {' · as of '}{dateLabel(detail.as_of)}
           </p>
         </div>
         <div className="debt-detail-balance">
@@ -172,7 +172,7 @@ function CardDetailView({
           <strong>{limit?.value ? reportedMoney(limit, 'value', limit.currency ?? 'SGD') : 'Unavailable'}</strong>
           <small>
             {limit?.observed_on
-              ? `observed ${limit.observed_on} · ${limit.source_kind ?? ''}`
+              ? `observed ${dateLabel(limit.observed_on)} · ${limit.source_kind ?? ''}`
               : 'from the latest statement print'}
           </small>
         </div>
@@ -210,7 +210,7 @@ function CardDetailView({
         <div key={s.statement_id} className="card-statement">
           <header>
             {s.period_start && s.period_end
-              ? `${s.period_start} … ${s.period_end}`
+              ? `${s.period_start} … ${dateLabel(s.period_end)}`
               : 'Statement period not printed'}
             {' · '}closing {dateLabel(s.statement_date)}
           </header>
@@ -260,7 +260,7 @@ export function CardsView({ generation, onSaved }: { generation: string; onSaved
 
   return (
     <div className="debts-view"><WorkspaceReportingDetails data={page}/>
-      <p className="debts-asof">Card balances as of {page.as_of}. Observed at each statement period end.</p>
+      <p className="debts-asof">Card balances as of {dateLabel(page.as_of)}. Observed at each statement period end.</p>
       <Card className="debt-list">
         <header><h3>Cards</h3><p>One row per card account and currency.</p></header>
         {page.cards.length === 0 ? (

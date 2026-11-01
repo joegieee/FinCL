@@ -9,7 +9,7 @@ vi.mock('./api', () => ({
 }))
 vi.mock('@/lib/api', async () => {
   class ApiError extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status } }
-  return { money: (v: string, c = 'SGD') => `${c} ${v}`, ApiError }
+  return { money: (v: string, c = 'SGD') => `${v} ${c}`, ApiError }
 })
 
 const { SufficiencyView, when } = await import('./index')
@@ -76,7 +76,7 @@ describe('SufficiencyView', () => {
 
     expect(await screen.findByRole('heading', { name: 'Yes' })).toBeInTheDocument()
     expect(screen.getByText(/all accounts and currencies together/)).toBeInTheDocument()
-    expect(screen.getByText('SGD 2700.00')).toBeInTheDocument()
+    expect(screen.getByText('2700.00 SGD')).toBeInTheDocument()
     expect(screen.queryByText(/WILL I HAVE ENOUGH\? ·/)).toBeNull()
     expect(screen.queryByText(/transfer/i)).toBeNull()
   })
@@ -90,7 +90,7 @@ describe('SufficiencyView', () => {
     render(<SufficiencyView generation="gen-1" />)
 
     expect(await screen.findByRole('heading', { name: 'No' })).toBeInTheDocument()
-    expect(screen.getByText(/You run out around 18 Feb 2026/)).toHaveTextContent('SGD 1240.00 short')
+    expect(screen.getByText(/You run out around 18 Feb 2026/)).toHaveTextContent('1240.00 SGD short')
   })
 
   it('keeps a reserve dip separate from running out of cash', async () => {
@@ -114,7 +114,7 @@ describe('SufficiencyView', () => {
     render(<SufficiencyView generation="gen-1" />)
 
     expect(await screen.findByRole('heading', { name: 'Yes, but only if your debts can wait' })).toBeInTheDocument()
-    expect(screen.getByText(/you owe has no due date/).closest('div')).toHaveTextContent('Repaying it all now would leave you SGD 8350.00 short')
+    expect(screen.getByText(/you owe has no due date/).closest('div')).toHaveTextContent('Repaying it all now would leave you 8350.00 SGD short')
   })
 
   it('names a pocket it could not count beside the answer', async () => {
@@ -128,7 +128,7 @@ describe('SufficiencyView', () => {
 
     render(<SufficiencyView generation="gen-1" />)
 
-    expect(await screen.findByRole('note')).toHaveTextContent('Not counted: THB 0.50 (no exchange rate to the reporting currency is available)')
+    expect(await screen.findByRole('note')).toHaveTextContent('Not counted: 0.50 THB (no exchange rate to the reporting currency is available)')
     expect(screen.getByText('not counted')).toBeInTheDocument()
   })
 
@@ -188,7 +188,7 @@ describe('SufficiencyView', () => {
     render(<SufficiencyView generation="gen-1" />)
 
     expect(await screen.findByText('Not counted, in case it doesn’t come:')).toBeInTheDocument()
-    expect(screen.getByText(/^Jo ·/).closest('li')).toHaveTextContent('SGD 800.00')
+    expect(screen.getByText(/^Jo ·/).closest('li')).toHaveTextContent('800.00 SGD')
   })
 
   it('lists a pocket too small to matter as ignored, without flagging the answer', async () => {
@@ -231,7 +231,7 @@ describe('SufficiencyView', () => {
     render(<SufficiencyView generation="gen-1" />)
 
     expect(await screen.findByText(/Cautious case/)).toBeInTheDocument()
-    expect(screen.getByText(/up to SGD 30000.00 short/)).toBeInTheDocument()
+    expect(screen.getByText(/up to 30000.00 SGD short/)).toBeInTheDocument()
     expect(screen.getByText(/depends on that income arriving/)).toBeInTheDocument()
   })
 
@@ -258,7 +258,7 @@ describe('SufficiencyView', () => {
     expect(screen.getByText(/at 1 USD = 1.25 SGD/)).toBeInTheDocument()
     expect(screen.getByText(/likely, so left out of the cautious case/)).toBeInTheDocument()
     expect(screen.getByText(/Alex · 15 Mar 2026/)).toBeInTheDocument()
-    expect(screen.getByText(/Money going out · about SGD 3333.33 a month/)).toBeInTheDocument()
+    expect(screen.getByText(/Money going out · about 3333.33 SGD a month/)).toBeInTheDocument()
     expect(screen.queryByText('WHAT DRIVES IT')).toBeNull()
     expect(screen.queryByText('EVERYTHING THIS ANSWER COUNTS')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'See everything owed' }))

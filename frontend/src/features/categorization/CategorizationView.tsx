@@ -15,6 +15,7 @@ import { PresetPicker } from '@/features/classification/PresetPicker'
 import { RuleSection } from '@/features/classification/RuleSection'
 import type { PresetFields } from '@/features/classification/presets'
 import { previewClassification, COST_BEHAVIORS, NEEDS, INCOMING_TYPES, INCOMING_LABELS, label, type Applicability, type ClassificationCommand, type ClassificationDraftBody, type ClassificationPreview, type FieldName } from '@/features/classification/api'
+import { dateLabel } from '@/lib/format'
 
 type Summary = {
   counts: Record<string, number>; active_categorization_denominator: number; progress_numerator: number
@@ -697,17 +698,17 @@ function CandidateReview({ detail, generation, categories, disabled, hasNext, on
     <div className="candidate-records">
       {scope === 'selected' && <label key="all"><input type="checkbox" checked={anchors.size === records.length && records.length > 0} onChange={() => setAnchors(current => current.size === records.length ? new Set() : new Set(records.map(r => r.anchor)))}/><span>{anchors.size === records.length ? `Deselect all ${records.length} loaded` : `Select all ${records.length} loaded`}</span><strong/></label>}
       {visibleRecords.map(row => scope === 'selected'
-        ? <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{row.date} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}{row.refund_context ? ` · ${row.refund_context}` : ''}</small></label>
+        ? <label key={row.anchor}><input type="checkbox" checked={anchors.has(row.anchor)} onChange={() => { setAnchors(current => { const next = new Set(current); next.has(row.anchor) ? next.delete(row.anchor) : next.add(row.anchor); return next }); resetChecks() }}/><span>{dateLabel(row.date)} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}{row.refund_context ? ` · ${row.refund_context}` : ''}</small></label>
         : <button type="button" key={row.anchor} className={`candidate-record-row${scope === 'one' && onlyTarget?.anchor === row.anchor ? ' is-active' : ''}`} disabled={scope === 'rule'}
             onClick={() => { if (scope === 'one') { setAnchors(new Set([row.anchor])); resetChecks() } }}>
-            <span>{row.date} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}{row.refund_context ? ` · ${row.refund_context}` : ''}</small>
+            <span>{dateLabel(row.date)} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}{row.conflicts?.ambiguous ? ' · overlapping rules need review' : ''}{row.conflicts?.direction ? ' · direction conflict needs review' : ''}{row.refund_context ? ` · ${row.refund_context}` : ''}</small>
           </button>)}
     </div>
     {records.length > 5 && !showAllRecords && <Button variant="ghost" size="sm" onClick={() => setShowAllRecords(true)}>Show all {records.length}</Button>}
     {nextCursor && <Button variant="outline" size="sm" disabled={detailLoading} onClick={() => void loadMoreRecords()}>{detailLoading ? 'Loading records…' : 'Load more records'}</Button>}
     <div className="scope-segmented" role="radiogroup" aria-label="Choose scope">
       <button type="button" role="radio" aria-checked={scope === 'one'} disabled={disabled || Boolean(ruleBatch.submitted) || batch.busy} onClick={() => chooseScope('one')}>
-        This one{onlyTarget ? ` — ${onlyTarget.date} · ${reportedMoney(onlyTarget, 'amount', onlyTarget.currency)}${onlyTarget.description ? ` · ${onlyTarget.description}` : ''}` : ''}
+        This one{onlyTarget ? ` — ${dateLabel(onlyTarget.date)} · ${reportedMoney(onlyTarget, 'amount', onlyTarget.currency)}${onlyTarget.description ? ` · ${onlyTarget.description}` : ''}` : ''}
       </button>
       <button type="button" role="radio" aria-checked={scope === 'selected'} disabled={disabled || Boolean(ruleBatch.submitted) || batch.busy} onClick={() => chooseScope('selected')}>
         Selected ({anchors.size} of {records.length} loaded)

@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 
 const loadObligations = vi.fn()
 vi.mock('./api', () => ({ loadObligations: () => loadObligations() }))
-vi.mock('@/lib/api', () => ({ money: (v: string, c = 'SGD') => `${c} ${v}` }))
+vi.mock('@/lib/api', () => ({ money: (v: string, c = 'SGD') => `${v} ${c}` }))
 
 const { ObligationsView } = await import('./index')
 
@@ -102,6 +102,6 @@ describe('ObligationsView', () => {
     }))
     render(<ObligationsView />)
 
-    expect(await screen.findByText(/supersedes SGD 450.00 lump sum — not counted/)).toBeInTheDocument()
+    expect(await screen.findByText(/supersedes 450.00 SGD lump sum — not counted/)).toBeInTheDocument()
   })
 })

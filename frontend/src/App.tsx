@@ -72,6 +72,7 @@ export default function App(){
  useEffect(()=>{function onKey(e:KeyboardEvent){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setPaletteOpen(o=>!o)}}document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey)},[])
  function goTo(t:string){setTab(t as Tab)}
  const seq=useRef(0)
+ const periodPicker=(d:Dashboard)=><PeriodPicker start={d.start} end={d.end} applying={loading} onApply={(s,e)=>{setStart(s);setEnd(e);void load(s,e)}}/>
  async function load(s=start,e=end,c=currency){const id=++seq.current;setLoading(true);setError('');try{const q=new URLSearchParams({currency:c});if(s&&e){q.set('start',s);q.set('end',e)}const d=await api<Dashboard>('overview?'+q);if(id===seq.current){setData(d);setStart(d.start);setEnd(d.end);setCurrency(d.currency)}}catch(e){if(id===seq.current)setError((e as Error).message)}finally{if(id===seq.current)setLoading(false)}}
  useEffect(()=>{let mounted=true;bootstrap().then(h=>{if(mounted){setHealth(h);void load()}}).catch(e=>{if(mounted){setError(e.message);setLoading(false)}});return()=>{mounted=false}},[])
  useEffect(()=>{const params=new URLSearchParams({view:tab,currency});if(data){params.set('start',data.start);params.set('end',data.end)}history.replaceState(null,'','?'+params)},[tab,data,currency])
@@ -93,14 +94,14 @@ export default function App(){
    {!data&&loading?<div className="skeleton-page" aria-label="Loading dashboard"><div/><div/><div/></div>:!data?<Card className="empty"><Wallet/><h1>Open your personal ledger</h1><p>Launch FinCL locally, then open the website address. Your financial data stays on this computer.</p><code>fincl serve --database var/fincl.sqlite3</code></Card>:<>
    <PageHeader meta={meta} action={tab==='Categories'?<Button onClick={()=>setDialog('category')}><Plus size={16}/> New category</Button>:tab==='Plans'?<Button onClick={()=>{setEditingPlan(null);setDialog('budget')}}><Plus size={16}/> New budget</Button>:undefined}/>
    {compact&&<SectionTabs tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount}/>}
-   {meta.scope==='range'&&<><div className="scope-bar"><PeriodPicker start={data.start} end={data.end} applying={loading} onApply={(s,e)=>{setStart(s);setEnd(e);void load(s,e)}}/></div>
+   {meta.scope==='range'&&<>{tab!=='Overview'&&<div className="scope-bar">{periodPicker(data)}</div>}
    {tab!=='Analysis'&&tab!=='Cash Flow'&&tab!=='Transactions'&&tab!=='Overview'&&tab!=='Categorization'&&<div className="scope-caption"><span>{dateLabel(data.start)} – {dateLabel(data.end)} · {data.currency} only · transfers excluded from spending</span><span className={data.covered?'covered':'coverage-missing'}><span className="status-dot"/>{data.covered?'Covered period':'Incomplete coverage'}</span></div>}</>}
 
    {data.freshness==='stale'&&<div className="alert" role="status"><span>New ledger inputs are available. Refresh before editing or interpreting these totals as current.</span><Button size="sm" variant="outline" disabled={loading} onClick={refresh}><RefreshCw size={14} className={loading?'spin':''}/> Refresh now</Button></div>}
-   {meta.scope==='range'&&!data.covered&&tab!=='Analysis'&&tab!=='Cash Flow'&&<div className="alert" role="status"><div><strong>This period has missing coverage.</strong><p>Totals and charts are unavailable. You can still inspect recorded transactions. Choose a covered period or import the missing statements.</p></div></div>}
+   {meta.scope==='range'&&!data.covered&&tab!=='Analysis'&&tab!=='Cash Flow'&&tab!=='Overview'&&<div className="alert" role="status"><div><strong>This period has missing coverage.</strong><p>Totals and charts are unavailable. You can still inspect recorded transactions. Choose a covered period or import the missing statements.</p></div></div>}
    <div aria-busy={loading} className={loading?'content-loading':''}>
    {tab==='Overview'&&<>
-    <OverviewView data={data} start={data.start} end={data.end} initialPocketCurrency={initialUrlPocketCurrency} onOpen={setTab}/>
+    <OverviewView data={data} period={periodPicker(data)} start={data.start} end={data.end} initialPocketCurrency={initialUrlPocketCurrency} onOpen={setTab}/>
    </>}
    {(tab==='Analysis'||tab==='Cash Flow')&&<AnalysisView start={data.start} end={data.end} accounts={data.accounts} categories={data.categories} currencies={data.currencies} initialPocketCurrency={initialUrlPocketCurrency} onOpenTransactions={(cat,merchant)=>drill(cat,merchant,(cat||merchant)?'spending':'')} onOpenTransactionAnchor={openReportedAnchor} onOpenDebts={()=>setTab('Debts')}/>}
    {tab==='Categorization'&&<CategorizationView generation={data.generation} freshness={data.freshness} categories={data.categories} accounts={data.accounts} currencies={data.currencies} onSaved={saved} onOpenRules={()=>setTab('Rules')} onOpenTransactions={()=>drill('','','')} onOpenNext={setTab}/>}

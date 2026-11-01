@@ -178,7 +178,7 @@ describe('App state matrix', () => {
     expect(await screen.findByText(/missing coverage/i)).toBeInTheDocument()
     expect(await screen.findAllByText('Not available')).not.toHaveLength(0)
     expect(screen.queryByText(moneyText('0.00 SGD'))).not.toBeInTheDocument()
-    expect(screen.queryByText('SGD 0.00')).not.toBeInTheDocument()
+    expect(screen.queryByText('0.00 SGD')).not.toBeInTheDocument()
   })
 
   it('surfaces a stale generation banner before editing', async () => {

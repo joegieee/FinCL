@@ -6,6 +6,7 @@ import { Money } from '@/components/Money'
 import { shortCategory } from '@/lib/api'
 import { encodeAnchor } from '@/features/transactions/reportedApi'
 import { loadReportedContributors, type ContributorRowOut } from './reportedApi'
+import { dateLabel } from '@/lib/format'
 
 /**
  * The exact reported components behind whatever total the reader clicked
@@ -79,7 +80,7 @@ export function ContributorTable({
           <tbody>
             {rows.map(c => (
               <tr key={c.component_id}>
-                <td className="date-cell">{c.date}{c.precision === 'MONTH' && <small>Month precision</small>}</td>
+                <td className="date-cell">{dateLabel(c.date)}{c.precision === 'MONTH' && <small>Month precision</small>}</td>
                 <td>{c.merchant ?? '—'}</td>
                 <td>{shortCategory(c.category)}</td>
                 <td>

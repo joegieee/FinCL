@@ -6,6 +6,7 @@ import { money } from '@/lib/api'
 import type { CoverageRemedy, CoverageReport, MovementCertification } from './api'
 import type { CashPageOut } from './reportedApi'
 import type { CertifyTarget } from './CertifyCoverageForm'
+import { dateLabel } from '@/lib/format'
 
 const UNLOCKS_LABEL: Record<CoverageRemedy['unlocks'], string> = {
   'unblocks-shared-cutoff': 'Restores the complete total',
@@ -83,7 +84,7 @@ export function CoveragePanel({
         <div className="coverage-partial">
           <p>
             <strong>Most current figure available</strong>
-            {partial.as_of ? ` · as of ${partial.as_of}` : ''}:{' '}
+            {partial.as_of ? ` · as of ${dateLabel(partial.as_of)}` : ''}:{' '}
             {partialTotals.map(([currency, value]) => money(value, currency)).join(' · ')}
           </p>
           <p className="muted-note">
@@ -160,13 +161,13 @@ export function CoveragePanel({
                 <div className="remedy-body">
                   <p>
                     <strong>{certification.display_name ?? certification.account_id} · {certification.currency_pocket}</strong>
-                    {' '}· {certification.period_start} → {certification.period_end}
+                    {' '}· {dateLabel(certification.period_start)} → {dateLabel(certification.period_end)}
                   </p>
                   <p className="muted-note">{certification.basis.replace(/-/g, ' ')}</p>
                 </div>
                 <Button
                   variant="ghost" size="sm"
-                  aria-label={`Retire the certification for ${certification.period_start} to ${certification.period_end}`}
+                  aria-label={`Retire the certification for ${certification.period_start} to ${dateLabel(certification.period_end)}`}
                   onClick={() => onRetireCertification(certification)}
                 >
                   <X size={14} /> Retire

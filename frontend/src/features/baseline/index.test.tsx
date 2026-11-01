@@ -9,7 +9,7 @@ vi.mock('./api', () => ({
   loadBaselineEstimate: () => loadBaselineEstimate(),
   loadBaselineContributors: (currency: string, month: string) => loadBaselineContributors(currency, month),
 }))
-vi.mock('@/lib/api', () => ({ money: (v: string, c = 'SGD') => `${c} ${v}`, shortCategory: (v: string) => v.split(' / ').at(-1) }))
+vi.mock('@/lib/api', () => ({ money: (v: string, c = 'SGD') => `${v} ${c}`, shortCategory: (v: string) => v.split(' / ').at(-1) }))
 
 const { BaselineView } = await import('./index')
 
@@ -97,7 +97,7 @@ describe('BaselineView', () => {
     render(<BaselineView />)
 
     expect(await screen.findByText(/What your normal life costs · SGD/)).toBeInTheDocument()
-    expect(screen.getAllByText('SGD 60.00 / month')).not.toHaveLength(0)
+    expect(screen.getAllByText('60.00 SGD / month')).not.toHaveLength(0)
     expect(screen.getByText(/Unavailable — essential role coverage is incomplete/)).toBeInTheDocument()
     expect(screen.getByText('Discretionary (sample total)')).toBeInTheDocument()
     expect(screen.getByText(/Unavailable — no classified income/)).toBeInTheDocument()
@@ -126,9 +126,9 @@ describe('BaselineView', () => {
     loadBaselineEstimate.mockResolvedValue(estimate())
     render(<BaselineView />)
 
-    expect(await screen.findByText(/Observed months ran from SGD 40.00 \(2026-02\) to SGD 60.00 \(2026-03\) across 1 month\. .*not a confidence interval/)).toBeInTheDocument()
-    expect(screen.getByText(/SGD 0.00 \(2026-02\) to SGD 900.00 \(2026-03\) · 1 of 1 month with held-out entries/)).toBeInTheDocument()
-    expect(screen.getByText('SGD 40.00 (2026-02) to SGD 960.00 (2026-03)')).toBeInTheDocument()
+    expect(await screen.findByText(/Observed months ran from 40.00 SGD \(2026-02\) to 60.00 SGD \(2026-03\) across 1 month\. .*not a confidence interval/)).toBeInTheDocument()
+    expect(screen.getByText(/0.00 SGD \(2026-02\) to 900.00 SGD \(2026-03\) · 1 of 1 month with held-out entries/)).toBeInTheDocument()
+    expect(screen.getByText('40.00 SGD (2026-02) to 960.00 SGD (2026-03)')).toBeInTheDocument()
   })
 
   it('drills a decomposition month into its contributors and opens a transaction', async () => {
@@ -153,9 +153,9 @@ describe('BaselineView', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Show 2026-03' }))
     expect(loadBaselineContributors).toHaveBeenCalledWith('SGD', '2026-03')
-    expect(await screen.findByText('Irregular (held out for review) · SGD 900.00')).toBeInTheDocument()
-    expect(screen.getByText('Routine residual · SGD 60.00')).toBeInTheDocument()
-    expect(screen.getByText('Trips · SGD 0.00')).toBeInTheDocument()
+    expect(await screen.findByText('Irregular (held out for review) · 900.00 SGD')).toBeInTheDocument()
+    expect(screen.getByText('Routine residual · 60.00 SGD')).toBeInTheDocument()
+    expect(screen.getByText('Trips · 0.00 SGD')).toBeInTheDocument()
     expect(screen.getAllByText('None this month.')).toHaveLength(3)
     expect(screen.getByText('Groceries')).toBeInTheDocument()
 

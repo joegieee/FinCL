@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 
-export function Panel({ title, onOpen, children }: { title: string; onOpen: () => void; children: ReactNode }) {
-  return <Card className="ov-panel">
-    <h3><button className="ov-panel-title" onClick={onOpen}>{title}<ChevronRight size={15} aria-hidden="true" /></button></h3>
+export function Panel({ title, onOpen, action, className = '', children }: { title: string; onOpen: () => void; action?: ReactNode; className?: string; children: ReactNode }) {
+  return <Card className={`ov-panel ${className}`.trim()}>
+    <div className="ov-panel-head"><h3><button className="ov-panel-title" onClick={onOpen}>{title}<ChevronRight size={15} aria-hidden="true" /></button></h3>{action}</div>
     {children}
   </Card>
 }

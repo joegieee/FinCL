@@ -274,7 +274,7 @@ describe('SetupView', () => {
     render(<SetupView onImported={() => {}} generation="g1" />)
 
     const row = within((await screen.findByText('Revolut Current')).closest('tr') as HTMLElement)
-    expect(row.getByText(/Marked closed on .* with SGD 8485\.00 still recorded, so it still counts/)).toBeInTheDocument()
+    expect(row.getByText(/Marked closed on .* with 8485\.00 SGD still recorded, so it still counts/)).toBeInTheDocument()
     expect(row.getByRole('button', { name: 'Record balance' })).toBeInTheDocument()
   })
 

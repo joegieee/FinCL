@@ -8,6 +8,7 @@ import { AsyncView } from '@/components/AsyncView'
 import { useLedgerCommand } from '@/lib/command'
 import { adapterLabel } from '@/features/setup/api'
 import { loadAccounts, type AccountRow, type AccountsPage, type PocketCoverage } from './api'
+import { dateLabel } from '@/lib/format'
 
 const STATUS_LABEL: Record<string, string> = { covered: 'Covered', gap: 'Gap', unconfigured: 'No expected window' }
 
@@ -81,7 +82,7 @@ function AccountCard({ account, generation, disabled, onSaved }: {
       <div className="panel-title">
         <div>
           <p className="eyebrow">{adapterLabel(account.source_type)}</p>
-          <h2>{account.display_name}{account.archived_on && <Badge variant="outline"> archived {account.archived_on}</Badge>}</h2>
+          <h2>{account.display_name}{account.archived_on && <Badge variant="outline"> archived {dateLabel(account.archived_on)}</Badge>}</h2>
           <small className="muted-note">{account.masked_identifier || 'no masked identifier'} · {account.entry_count} entries</small>
         </div>
         <div className="account-status">

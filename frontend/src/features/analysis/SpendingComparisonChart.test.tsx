@@ -14,9 +14,9 @@ function month(over: Partial<TrendMonthOut> = {}): TrendMonthOut {
 
 it('explains a fall and preserves server-provided amounts and percentages in the table', () => {
   render(<SpendingComparisonChart currency="SGD" trend={[month()]} />)
-  expect(screen.getByRole('status')).toHaveTextContent('Feb 2026 · Spending fell by SGD 22.50 (45.0%) from the previous month.')
+  expect(screen.getByRole('status')).toHaveTextContent('Feb 2026 · Spending fell by 22.50 SGD (45.0%) from the previous month.')
   const row = screen.getByText('Feb 2026', { selector: 'td' }).closest('tr')!
-  expect(within(row).getByText('−SGD 22.50')).toBeInTheDocument()
+  expect(within(row).getByText('−22.50 SGD')).toBeInTheDocument()
   expect(within(row).getByText('-45.0%')).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Monthly change' }))
   expect(screen.getByRole('img', { name: 'Month-on-month spending change chart · SGD' })).toBeInTheDocument()
@@ -27,12 +27,12 @@ it('does not substitute partial spending or compare across a missing month', () 
     spending_change: null, spending_change_pct: null, spending_change_reason: 'Both months need full coverage.' })
   render(<SpendingComparisonChart currency="SGD" trend={[missing]} />)
   expect(screen.getByRole('status')).toHaveTextContent('Both months need full coverage.')
-  expect(screen.queryByText('SGD 12.00')).toBeNull()
+  expect(screen.queryByText('12.00 SGD')).toBeNull()
   expect(screen.queryByText('0.0%')).toBeNull()
 })
 
 it('distinguishes a rise, no change and an undefined percentage from zero', () => {
-  expect(spendingChangeLabel(month({ spending_change: { value: '22.50', currency: 'SGD' }, spending_change_pct: '45.0' }), 'SGD')).toContain('rose by SGD 22.50 (45.0%)')
+  expect(spendingChangeLabel(month({ spending_change: { value: '22.50', currency: 'SGD' }, spending_change_pct: '45.0' }), 'SGD')).toContain('rose by 22.50 SGD (45.0%)')
   expect(spendingChangeLabel(month({ spending_change: { value: '0.00', currency: 'SGD' }, spending_change_pct: '0.0' }), 'SGD')).toContain('unchanged')
   expect(spendingChangeLabel(month({ spending_change: { value: '10.00', currency: 'SGD' }, spending_change_pct: null }), 'SGD')).toContain('Previous spending was zero; no percentage comparison.')
 })

@@ -30,7 +30,7 @@ vi.mock('./reportedApi', () => ({
 }))
 vi.mock('@/lib/api', async () => {
   class ApiError extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status } }
-  return { money: (v: string, c = 'SGD') => `${c} ${v}`, ApiError }
+  return { money: (v: string, c = 'SGD') => `${v} ${c}`, ApiError }
 })
 
 const { CashView } = await import('./index')
@@ -143,7 +143,7 @@ describe('CashView', () => {
     expect(await screen.findByText('withheld: no common supported cutoff', { exact: false })).toBeInTheDocument()
     expect(screen.getByText(/1 currency withheld/)).toBeInTheDocument()
     expect(screen.queryByText('SGD 0')).toBeNull()
-    expect(screen.queryByText('SGD 0.00')).toBeNull()
+    expect(screen.queryByText('0.00 SGD')).toBeNull()
   })
 
   it('records a manual balance observation and refreshes the position', async () => {
@@ -256,7 +256,7 @@ describe('CashView coverage panel', () => {
     render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
     expect(await screen.findByText(/Most current figure available/)).toBeInTheDocument()
-    expect(screen.getAllByText(/SGD 900.00/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/900.00 SGD/).length).toBeGreaterThan(0)
     expect(screen.getByText(/proven only through 2026-03-05/)).toBeInTheDocument()
     // It must never be presented as the whole position.
     expect(screen.getByText(/This is not your total cash/)).toBeInTheDocument()
@@ -332,7 +332,7 @@ describe('CashView coverage panel', () => {
 
     render(<CashView generation="gen-1" onOpenSetup={() => {}} />)
 
-    expect(await screen.findByText(/2026-03-06 → 2026-05-01/)).toBeInTheDocument()
+    expect(await screen.findByText(/6 Mar 2026 → 1 May 2026/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Retire the certification/ }))
 
     await waitFor(() => expect(retireCoverage).toHaveBeenCalledWith(

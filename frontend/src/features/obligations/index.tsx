@@ -101,7 +101,7 @@ function ObligationsContent({ page, loading, load }: { page: ObligationsPage; lo
     <div className="obligations-view"><WorkspaceReportingDetails data={page}/>
       <div className="scope-caption">
         <span>
-          {page.obligations.length} obligation{page.obligations.length === 1 ? '' : 's'} as of {page.as_of}
+          {page.obligations.length} obligation{page.obligations.length === 1 ? '' : 's'} as of {dateLabel(page.as_of)}
           {' · '}merged from debts, installments, card statements and recurring commitments
         </span>
         <Button variant="ghost" size="sm" onClick={load} disabled={loading}>

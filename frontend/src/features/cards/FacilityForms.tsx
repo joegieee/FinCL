@@ -83,7 +83,7 @@ export function LimitForm({ detail, generation, onSaved, onCancel }: {
     <Confirm draft={{ kind: 'CARD_LIMIT_OBSERVATION_SET', anchors: { facility: facility.facility_id, observation: observationId },
       payload: { observed_on: observedOn, limit: limit.trim(), source_ref: source.trim() || null, reason: reason.trim() } }}
       ready={ready} generation={generation} onSaved={onSaved} label="Save limit"
-      summary={`Records a ${facility.currency} ${limit.trim()} limit on ${facility.label}, seen ${observedOn ? dateLabel(observedOn) : ''}.`}/>
+      summary={`Records a ${limit.trim()} ${facility.currency} limit on ${facility.label}, seen ${observedOn ? dateLabel(observedOn) : ''}.`}/>
     <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
   </div>
 }

@@ -12,7 +12,7 @@ const VALIDATION_NOTE: Record<ValidationOut['status'], string> = {
 }
 
 function exact(amount: { currency: string; amount_text: string } | null, whenMissing: string): string {
-  return amount ? `${amount.currency} ${amount.amount_text}` : whenMissing
+  return amount ? `${amount.amount_text} ${amount.currency}` : whenMissing
 }
 
 /**
@@ -27,7 +27,7 @@ export function StatementDetailPanel({ row }: { row: TransactionRowOut }) {
       <span className="eyebrow">Original statement detail</span>
       <dl className="detail-list">
         <div><dt>Original purchase</dt><dd>{exact(d.original, 'Not recoverable from the statement')}</dd></div>
-        <div><dt>Native settlement</dt><dd>{d.settled.currency} {d.settled.amount_text}</dd></div>
+        <div><dt>Native settlement</dt><dd>{d.settled.amount_text} {d.settled.currency}</dd></div>
         <div><dt>Explicit fee</dt><dd>{exact(d.explicit_fee, 'None recorded separately')}</dd></div>
         <div><dt>Supported cash movement</dt><dd>{exact(d.statement_cash_movement, 'Not available')}</dd></div>
         {d.printed_conversion && (

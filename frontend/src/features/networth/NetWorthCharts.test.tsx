@@ -16,5 +16,5 @@ it('leaves incomplete valuations unavailable and warns when dated observations c
   expect(within(row).getByText('Unavailable')).toBeInTheDocument()
   expect(screen.queryByText(/99/)).toBeNull()
   expect(screen.getByText(/Scope changed: these observations contain different components/)).toBeInTheDocument()
-  expect(screen.getAllByText(/−SGD 40\.00/)).toHaveLength(2)
+  expect(screen.getAllByText(/−40\.00 SGD/)).toHaveLength(2)
 })

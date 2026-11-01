@@ -32,7 +32,7 @@ describe('StatementDetailPanel', () => {
       printed_conversion: { base_currency: 'SGD', quote_currency: 'INR', base_amount_text: '1.00', quote_amount_text: '60.00', raw_text: 'Revolut Rate ₹1.00 = 60.00 INR (ECB rate* ₹1.00 = 59.50 INR) 6000.00 INR' },
       provenance: { document_record_id: 'doc1', source_location: 'p1', detail_basis: 'decoded_statement_text', normalizer_version: 'v1' },
     })} />)
-    expect(screen.getByText('INR 6000.00')).toBeInTheDocument()
+    expect(screen.getByText('6000.00 INR')).toBeInTheDocument()
     // The full printed line (provider rate + parenthesized ECB benchmark)
     // survives verbatim in raw_text — the DTO has no separate benchmark
     // field, so the benchmark is never given its own structured display.
@@ -41,7 +41,7 @@ describe('StatementDetailPanel', () => {
 
   it('renders an integer-grouped VND original as recovered evidence', () => {
     render(<StatementDetailPanel row={row({ original: { currency: 'VND', amount_text: '500000' } })} />)
-    expect(screen.getByText('VND 500000')).toBeInTheDocument()
+    expect(screen.getByText('500000 VND')).toBeInTheDocument()
   })
 
   it('labels a derived effective rate as derived, never as a printed statement fact', () => {

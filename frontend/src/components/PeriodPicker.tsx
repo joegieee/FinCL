@@ -1,24 +1,27 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { loadJourney } from '@/features/journey/api'
 
 type PresetKey = 'month' | 'quarter' | 'ytd' | 'year'
 
 const PRESETS: { key: PresetKey; label: string }[] = [
-  { key: 'month', label: 'This month' },
+  { key: 'month', label: 'Latest month' },
   { key: 'quarter', label: 'Last 3 months' },
   { key: 'ytd', label: 'Year to date' },
   { key: 'year', label: 'Last 12 months' },
 ]
 
-function isoDate(d: Date) { return d.toISOString().slice(0, 10) }
+function isoDate(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
-function presetRange(preset: PresetKey, today = new Date()): { start: string; end: string } {
-  const end = isoDate(today)
-  if (preset === 'month') return { start: isoDate(new Date(today.getFullYear(), today.getMonth(), 1)), end }
-  if (preset === 'quarter') { const start = new Date(today); start.setMonth(start.getMonth() - 3); return { start: isoDate(start), end } }
-  if (preset === 'ytd') return { start: `${today.getFullYear()}-01-01`, end }
-  const start = new Date(today); start.setFullYear(start.getFullYear() - 1); return { start: isoDate(start), end }
+// Presets end on the last day the statements reach, not today, so a preset
+// never asks for days the ledger cannot have yet.
+function presetRange(preset: PresetKey, through: Date): { start: string; end: string } {
+  const end = isoDate(through)
+  if (preset === 'month') return { start: isoDate(new Date(through.getFullYear(), through.getMonth(), 1)), end }
+  if (preset === 'quarter') { const start = new Date(through); start.setMonth(start.getMonth() - 3); return { start: isoDate(start), end } }
+  if (preset === 'ytd') return { start: `${through.getFullYear()}-01-01`, end }
+  const start = new Date(through); start.setFullYear(start.getFullYear() - 1); return { start: isoDate(start), end }
 }
 
 function formatLabel(value: string) {
@@ -34,7 +37,9 @@ export function PeriodPicker({ start, end, applying, onApply }: {
   const [open, setOpen] = useState(false)
   const [draftStart, setDraftStart] = useState(start)
   const [draftEnd, setDraftEnd] = useState(end)
+  const [through, setThrough] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { loadJourney().then(page => setThrough(page.statements.complete_through)).catch(() => setThrough(null)) }, [])
   useEffect(() => { setDraftStart(start); setDraftEnd(end) }, [start, end])
   useEffect(() => {
     if (!open) return
@@ -46,7 +51,7 @@ export function PeriodPicker({ start, end, applying, onApply }: {
   }, [open])
   const dirty = draftStart !== start || draftEnd !== end
   function choosePreset(key: PresetKey) {
-    const range = presetRange(key)
+    const range = presetRange(key, through ? new Date(`${through}T12:00:00`) : new Date())
     setOpen(false)
     onApply(range.start, range.end)
   }

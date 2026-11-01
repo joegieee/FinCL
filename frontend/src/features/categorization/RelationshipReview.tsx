@@ -6,6 +6,7 @@ import { ApiError, money } from '@/lib/api'
 import { DebtHandoff } from '@/features/classification/Handoffs'
 import { ConfirmPlanForm } from '@/features/installments/ConfirmPlanForm'
 import { loadCandidates, type PlanCandidate } from '@/features/installments/api'
+import { dateLabel } from '@/lib/format'
 
 export type SuggestedDebt = { debt_id: string; counterparty_label: string; direction: 'PAYABLE' | 'RECEIVABLE'; currency: string; earlier: number }
 
@@ -51,7 +52,7 @@ export function RelationshipReview({ candidate, records, generation, disabled, o
 }
 
 function recordLine(row: RelationshipRecord) {
-  return <><span>{row.date} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}</small></>
+  return <><span>{dateLabel(row.date)} · {row.account}</span><strong>{reportedMoney(row, 'amount', row.currency)}</strong><small>{row.description || 'No description'}</small></>
 }
 
 function DebtProposals({ candidate, records, generation, disabled, onRecorded, onRefresh }: {

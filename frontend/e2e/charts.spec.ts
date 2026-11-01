@@ -71,14 +71,14 @@ test('monthly spending compares adjacent months and explains increases and decre
   await openTab(page, 'Analysis')
   const frame = page.locator('.chart-card').filter({ hasText: 'How has my spending changed?' })
   await page.emulateMedia({ colorScheme: 'light' })
-  await expect(frame.getByRole('status')).toContainText('Spending fell by SGD 50.00 (25.0%)')
+  await expect(frame.getByRole('status')).toContainText('Spending fell by 50.00 SGD (25.0%)')
   await expect(frame.getByRole('img').locator('.recharts-bar-rectangle').first()).toBeVisible()
   await expect(frame.getByRole('button', { name: 'Compare months' })).toHaveAttribute('aria-pressed', 'true')
   await frame.screenshot({ path: test.info().outputPath('monthly-comparison-light.png') })
   if (test.info().project.name === 'desktop') {
     await frame.locator('.recharts-bar-rectangle').first().hover()
     await expect(frame.locator('.chart-tooltip')).toContainText('Purchases')
-    await expect(frame.locator('.chart-tooltip')).toContainText('SGD 100.00')
+    await expect(frame.locator('.chart-tooltip')).toContainText('100.00 SGD')
     await frame.screenshot({ path: test.info().outputPath('monthly-tooltip.png') })
   }
   await frame.getByRole('button', { name: 'Monthly change' }).click()

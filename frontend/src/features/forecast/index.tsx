@@ -17,6 +17,7 @@ import {
   type ReportingPolicySummary, type ValuedMoneyDTO,
   loadReportedForecast, loadReportingPolicy, nativeForecast,
 } from './reportedApi'
+import { dateLabel } from '@/lib/format'
 
 function monthLabel(month: string) {
   return new Date(`${month}-01T12:00:00`).toLocaleDateString('en-SG', { month: 'short', year: 'numeric' })
@@ -167,7 +168,7 @@ function CombinedTotalsCard({ page }: { page: ForecastPageOut }) {
       <CombinedMinimumCell label="Conservative combined minimum" minimum={page.totals.conservative_combined_minimum} currency={currency} />
     </div>
     <p className="muted-note">
-      Held at one issue-date rate for every pocket, valued as of {page.valuation_as_of}. The combined minimum is the
+      Held at one issue-date rate for every pocket, valued as of {dateLabel(page.valuation_as_of)}. The combined minimum is the
       exact sum of every pocket's own worst point on the <em>same</em> calendar day, minimised across the horizon —
       never a sum of each pocket's own independently timed low. It is withheld unless every pocket in this ledger has
       both a supported forecast and an importable rate.
@@ -199,7 +200,7 @@ function CurrencyForecast({ currency, native, reported, currencyLabel }: {
       <div className="panel-title">
         <div>
           <p className="eyebrow">Six-month cash timeline · {currency}</p>
-          <h2>Opening {money(native.starting_balance, currency)} as of {native.starting_balance_as_of}</h2>
+          <h2>Opening {money(native.starting_balance, currency)} as of {dateLabel(native.starting_balance_as_of)}</h2>
         </div>
         <Badge variant="outline">{native.forecast_kind === 'spending-only stress view' ? 'Spending-only stress view' : 'Projected'}</Badge>
       </div>

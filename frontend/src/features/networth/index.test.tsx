@@ -10,7 +10,7 @@ vi.mock('./reportedApi', () => ({
 }))
 vi.mock('@/lib/api', async () => {
   class ApiError extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status } }
-  return { money: (v: string, c = 'SGD') => `${c} ${v}`, ApiError }
+  return { money: (v: string, c = 'SGD') => `${v} ${c}`, ApiError }
 })
 
 const { NetWorthView } = await import('./index')
@@ -140,7 +140,7 @@ describe('NetWorthView', () => {
     loadReportingPolicy.mockResolvedValue({ currency: 'SGD' })
     render(<NetWorthView />)
 
-    expect(await screen.findByText(/Δ SGD -500\.00/)).toBeInTheDocument()
+    expect(await screen.findByText(/Δ -500\.00 SGD/)).toBeInTheDocument()
     expect(screen.getByText(/same tracked components/)).toBeInTheDocument()
   })
 

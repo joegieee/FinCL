@@ -102,7 +102,7 @@ async function doBootstrap() {
 export function money(value:string|null|undefined,currency='SGD'):string {
   if(value==null) return 'Unavailable'
   const negative=value.startsWith('-'); const [whole,fraction='']=value.replace(/^[+-]/,'').split('.')
-  return `${negative?'−':''}${currency} ${whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')}.${fraction.padEnd(2,'0')}`
+  return `${negative?'−':''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')}.${fraction.padEnd(2,'0')} ${currency}`
 }
 export function shortCategory(value:string) { return value.split(' / ').at(-1) || value }
 

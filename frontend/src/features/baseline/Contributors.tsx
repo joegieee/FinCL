@@ -5,6 +5,7 @@ import { shortCategory } from '@/lib/api'
 import { reportedMoney } from '@/lib/workspaceReporting'
 import { encodeAnchor } from '@/features/transactions/reportedApi'
 import { loadBaselineContributors, type BaselineContributors as Contributors, type DecompositionPart } from './api'
+import { dateLabel } from '@/lib/format'
 
 export const PART_LABEL: Record<DecompositionPart, string> = {
   identified_recurring: 'Recurring',
@@ -64,7 +65,7 @@ export function BaselineContributors({ currency, month, onClose, onOpenTransacti
                   <thead><tr><th>Date</th><th>Merchant</th><th>Category</th><th>Amount</th>{onOpenTransaction && <th />}</tr></thead>
                   <tbody>{part.contributors.map(c => (
                     <tr key={c.component_id}>
-                      <td>{c.date}{c.precision === 'MONTH' ? ' · month precision' : ''}</td>
+                      <td>{dateLabel(c.date)}{c.precision === 'MONTH' ? ' · month precision' : ''}</td>
                       <td>{c.merchant}{c.bucket === 'fees' ? ' · fee' : ''}</td>
                       <td>{shortCategory(c.category_key)}</td>
                       <td>{reportedMoney(c, 'amount', currency)}</td>

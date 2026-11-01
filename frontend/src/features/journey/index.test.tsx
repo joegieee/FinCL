@@ -71,11 +71,11 @@ describe('CashTimeline', () => {
     const { CashTimeline } = await import('./CashTimeline')
     const page = { available: true, by_currency: { EUR: pocket('50.00', '40.00'), SGD: pocket('900.00', '-200.00'), USD: { available: false, reason: 'x' } } }
     render(<CashTimeline page={page as never} today="2026-03-05" reportingCurrency="SGD" />)
-    expect(screen.getByText('SGD 900.00')).toBeInTheDocument()
+    expect(screen.getByText('900.00 SGD')).toBeInTheDocument()
     expect(screen.getByText(/No forecast for USD/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'EUR' }))
-    expect(screen.getByText('EUR 50.00')).toBeInTheDocument()
-    expect(screen.queryByText('SGD 900.00')).toBeNull()
+    expect(screen.getByText('50.00 EUR')).toBeInTheDocument()
+    expect(screen.queryByText('900.00 SGD')).toBeNull()
   })
 })
 
@@ -97,7 +97,7 @@ describe('MoneyJourneyPanel', () => {
 
   it('totals what is owed by kind, leaving out kinds with nothing', async () => {
     await mount()
-    expect(await screen.findByText('SGD 15,200.00')).toBeInTheDocument()
+    expect(await screen.findByText('15,200.00 SGD')).toBeInTheDocument()
     expect(screen.getByText('Debts you owe')).toBeInTheDocument()
     expect(screen.queryByText('Regular commitments')).toBeNull()
   })
@@ -105,8 +105,8 @@ describe('MoneyJourneyPanel', () => {
   it('never lets a yes hide debts that have no due date', async () => {
     await mount()
     expect(await screen.findByText('Only if your debts can wait')).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent('SGD 15,000.00 you owe has no due date')
-    expect(screen.getByRole('note')).toHaveTextContent('SGD 8,350.00 short')
+    expect(screen.getByRole('note')).toHaveTextContent('15,000.00 SGD you owe has no due date')
+    expect(screen.getByRole('note')).toHaveTextContent('8,350.00 SGD short')
   })
 
   it('says yes plainly when nothing is left out', async () => {
@@ -117,6 +117,6 @@ describe('MoneyJourneyPanel', () => {
 
   it('states the shortfall when the money runs out', async () => {
     await mount(vi.fn(), sufficiency({ verdict: 'short', base: { verdict: 'short', shortfall: '1240.00', shortfall_on: '2026-12-28', lowest: '-1240.00', closing: '-900.00' } }))
-    expect(await screen.findByText(/No — short by SGD 1,240.00/)).toBeInTheDocument()
+    expect(await screen.findByText(/No — short by 1,240.00 SGD/)).toBeInTheDocument()
   })
 })

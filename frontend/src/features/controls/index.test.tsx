@@ -8,7 +8,7 @@ vi.mock('./api', () => ({
   runSpendingWhatIf: (...args: unknown[]) => run(...args),
 }))
 vi.mock('@/lib/api', () => ({
-  money: (value: string | null | undefined, currency = 'SGD') => value == null ? 'Unavailable' : `${currency} ${value}`,
+  money: (value: string | null | undefined, currency = 'SGD') => value == null ? 'Unavailable' : `${value} ${currency}`,
   shortCategory: (value: string) => value.split(' / ').at(-1) || value,
 }))
 

@@ -733,7 +733,7 @@ main{width:100%;min-width:0}
 .ov-pockets{display:flex;gap:2px;padding:2px;background:var(--secondary);border-radius:7px}.ov-pockets button{padding:3px 10px;font-size:14px;border-radius:5px;color:var(--muted)}.ov-pockets button[aria-pressed=true]{background:var(--card);color:var(--foreground);font-weight:600}
 .ov-note{margin:0;font-size:14px;color:var(--muted)}.ov-note .money{display:inline-flex}.ov-timeline>.ov-note{margin-top:6px}
 .ov-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 32px;padding-top:24px;border-top:1px solid var(--border)}
-[data-slot=card].ov-panel{display:flex;flex-direction:column;gap:10px;min-width:0}
+[data-slot=card].ov-panel{display:flex;flex-direction:column;gap:10px;min-width:0}.ov-panel-flow{grid-column:1/-1}.ov-panel-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 16px}
 .ov-panel h3{margin:0;font-size:14px}.ov-panel-title{display:inline-flex;align-items:center;gap:2px;font-weight:600;color:var(--muted)}.ov-panel-title:hover{color:var(--primary)}
 .ov-lead{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}.ov-lead strong{font-size:20px;font-weight:600;letter-spacing:-.3px}.ov-lead small{font-size:14px;color:var(--muted)}
 .ov-bars{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}

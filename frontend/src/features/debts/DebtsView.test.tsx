@@ -64,8 +64,8 @@ describe('DebtsView', () => {
     await mount()
     expect(await screen.findByText('I owe')).toBeInTheDocument()
     expect(screen.getByText('Owed to me')).toBeInTheDocument()
-    expect(screen.getByText('SGD 400.00')).toBeInTheDocument()
-    expect(screen.getByText('SGD 0.00')).toBeInTheDocument()
+    expect(screen.getByText('400.00 SGD')).toBeInTheDocument()
+    expect(screen.getByText('0.00 SGD')).toBeInTheDocument()
   })
 
   it('opens a debt and shows its principal history', async () => {

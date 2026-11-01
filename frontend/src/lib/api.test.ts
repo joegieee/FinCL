@@ -32,16 +32,16 @@ describe('money', () => {
   })
 
   it('formats with thousands separators and two decimal places', () => {
-    expect(money('1234.5', 'SGD')).toBe('SGD 1,234.50')
-    expect(money('0', 'USD')).toBe('USD 0.00')
+    expect(money('1234.5', 'SGD')).toBe('1,234.50 SGD')
+    expect(money('0', 'USD')).toBe('0.00 USD')
   })
 
   it('keeps every digit of values beyond the JS safe-integer range', () => {
-    expect(money('900719925474099123.45')).toBe('SGD 900,719,925,474,099,123.45')
+    expect(money('900719925474099123.45')).toBe('900,719,925,474,099,123.45 SGD')
   })
 
   it('preserves the sign of a negative amount', () => {
-    expect(money('-42.00', 'SGD')).toBe('−SGD 42.00')
+    expect(money('-42.00', 'SGD')).toBe('−42.00 SGD')
   })
 })
 

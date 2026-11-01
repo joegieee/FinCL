@@ -20,6 +20,7 @@ import {
   type PlanCandidate,
   type PlanShape,
 } from './api'
+import { dateLabel } from '@/lib/format'
 
 function PlanRow({ plan, onOpen }: { plan: PlanShape; onOpen: (id: string) => void }) {
   const p = plan.progress
@@ -59,7 +60,7 @@ function CandidateRow({
         <small>
           {candidate.family} · {candidate.observed_count} of {candidate.term_months} instalments
           {' · '}
-          from {candidate.opened_on}
+          from {dateLabel(candidate.opened_on)}
           {' · '}
           {candidate.complete ? 'fully paid' : `${candidate.term_months - candidate.observed_count} still to come`}
           {candidate.known_principal
@@ -159,7 +160,7 @@ function DetailView({
           <h2>{plan.merchant_label}</h2>
           <p>
             {plan.plan_reference ? `ref ${plan.plan_reference} · ` : ''}
-            opened {plan.opened_on} · {plan.effective_status} · {plan.interpretation_status}
+            opened {dateLabel(plan.opened_on)} · {plan.effective_status} · {plan.interpretation_status}
           </p>
         </div>
         <div className="debt-detail-balance">
@@ -194,7 +195,7 @@ function DetailView({
       {detail.conversion ? (
         <p className="muted-note">
           {detail.conversion.bound && detail.conversion.amount
-            ? `Opened from the ${detail.conversion.description ?? 'conversion'} credit of ${reportedMoney(detail.conversion.amount, 'value', currency)} on ${detail.conversion.effective_on}. `
+            ? `Opened from the ${detail.conversion.description ?? 'conversion'} credit of ${reportedMoney(detail.conversion.amount, 'value', currency)} on ${detail.conversion.effective_on ? dateLabel(detail.conversion.effective_on) : ''}. `
             : 'The attached conversion credit no longer matches a selected transaction. '}
           The plan owns that credit and its instalments, so neither is spending or needs a
           category: the original purchases carry the spending.
@@ -203,7 +204,7 @@ function DetailView({
         <div className="muted-note">
           <p>
             The statement printed a {detail.suggested_conversion.description} credit of{' '}
-            {reportedMoney(detail.suggested_conversion, 'amount', currency)} on {detail.suggested_conversion.effective_on}{' '}
+            {reportedMoney(detail.suggested_conversion, 'amount', currency)} on {dateLabel(detail.suggested_conversion.effective_on)}{' '}
             that matches this plan. Attach it so the credit stops waiting for review.
           </p>
           <Button size="sm" variant="outline" onClick={attach} disabled={busy}>
@@ -225,7 +226,7 @@ function DetailView({
           {detail.source_occurrences.map((o) => (
             <tr key={o.occurrence_id}>
               <td>{(o.occurrence_index ?? '?') + ' / ' + (o.occurrence_count ?? '?')}</td>
-              <td>{o.effective_on}{o.date_precision !== 'DAY' ? ` (${o.date_precision})` : ''}</td>
+              <td>{dateLabel(o.effective_on)}{o.date_precision !== 'DAY' ? ` (${o.date_precision})` : ''}</td>
               <td>{reportedMoney(o.amount, 'value', currency)}</td>
               <td>{o.bound ? 'yes' : 'no'}</td>
             </tr>
@@ -243,7 +244,7 @@ function DetailView({
               {detail.schedule.map((s) => (
                 <tr key={s.schedule_index}>
                   <td>{s.schedule_index}</td>
-                  <td>{s.due_on}</td>
+                  <td>{dateLabel(s.due_on)}</td>
                   <td>{reportedMoney(s.principal, 'value', currency)}</td>
                   <td>{reportedMoney(s.fee, 'value', currency)}</td>
                   <td>{reportedMoney(s.rounding_remainder, 'value', currency)}</td>
@@ -291,7 +292,7 @@ function DetailView({
             <tbody>
               {detail.settlements.map((s) => (
                 <tr key={s.settlement_id}>
-                  <td>{s.settled_on}</td>
+                  <td>{dateLabel(s.settled_on)}</td>
                   <td>{reportedMoney(s.principal, 'value', currency)}</td>
                   <td>{reportedMoney(s.fee, 'value', currency)}</td>
                   <td>{reportedMoney(s.waiver, 'value', currency)}</td>
@@ -436,7 +437,7 @@ export function InstallmentsView({
                   {g.occurrences.map((o) => (
                     <tr key={o.entry_anchor}>
                       <td>{o.occurrence_index} / {o.occurrence_count}</td>
-                      <td>{o.effective_on}</td>
+                      <td>{dateLabel(o.effective_on)}</td>
                       <td>{reportedMoney(o, 'amount', g.currency)}</td>
                       <td>{o.description ?? '—'}</td>
                     </tr>

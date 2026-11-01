@@ -85,7 +85,7 @@ describe('PlannedView', () => {
       occurrences: [{ key: '1', earliest: '2026-12-15', latest: '2026-12-15', amount: '1200' }],
       certainty: 'sure', baseline_treatment: 'irregular_allowance', link: null, reason: 'Old one is dying',
     })
-    expect(screen.getAllByRole('status')[0]).toHaveTextContent(/going out: SGD 1,200.00 \(.*2026\)/)
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent(/going out: 1,200.00 SGD \(.*2026\)/)
     fireEvent.click(screen.getByRole('button', { name: 'Save planned item' }))
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith('applied'))
   })
@@ -100,9 +100,9 @@ describe('PlannedView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview planned item' }))
     const effect = (await screen.findByText(/with this — this changes the answer/)).closest('.planned-impact') as HTMLElement
     expect(effect).toHaveTextContent('Yes before, No with this')
-    expect(within(effect).getByText(/Base case: lowest point SGD 80.26 on .* before, −?SGD 1,019.74/)).toBeInTheDocument()
+    expect(within(effect).getByText(/Base case: lowest point 80.26 SGD on .* before, −?1,019.74 SGD/)).toBeInTheDocument()
     expect(within(effect).getByText('December 2026')).toBeInTheDocument()
-    expect(within(effect).getAllByText('−SGD 1,200.00')).toHaveLength(2)
+    expect(within(effect).getAllByText('−1,200.00 SGD')).toHaveLength(2)
     expect(sent('planned/impact')).toMatchObject({ flow: expect.any(String), payload: { name: 'Laptop', direction: 'outflow' } })
   })
 

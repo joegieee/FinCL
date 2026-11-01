@@ -169,12 +169,12 @@ describe('InflowsView', () => {
     const card = within(document.querySelector('.income-candidate') as HTMLElement)
     expect(card.getByText('Likely')).toBeInTheDocument()
     expect(screen.getByText('Reporting in SGD', { exact: false })).toBeInTheDocument()
-    expect(card.getAllByText(/SGD 6,250\.00/).length).toBeGreaterThan(0)
+    expect(card.getAllByText(/6,250\.00 SGD/).length).toBeGreaterThan(0)
     expect(card.getByText('ACME PAYROLL MAR')).toBeInTheDocument()
     expect(card.getAllByText('DBS Checking').length).toBe(4)
 
     // Drop one receipt from the selection; only the remaining anchors preview/save.
-    fireEvent.click(card.getByLabelText('Include 2026-03-25'))
+    fireEvent.click(card.getByLabelText('Include 25 Mar 2026'))
     fireEvent.change(card.getByLabelText('Reason'), { target: { value: 'employer payslip' } })
     fireEvent.click(card.getByLabelText(/save a reusable rule/))
 

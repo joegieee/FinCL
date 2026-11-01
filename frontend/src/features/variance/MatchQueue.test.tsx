@@ -5,7 +5,7 @@ const recordMatch = vi.fn()
 vi.mock('./api', () => ({ recordMatch: (...a: unknown[]) => recordMatch(...a) }))
 vi.mock('@/lib/api', async () => {
   class ApiError extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status } }
-  return { money: (v: string, c = 'SGD') => `${c} ${v}`, ApiError }
+  return { money: (v: string, c = 'SGD') => `${v} ${c}`, ApiError }
 })
 
 const { MatchQueue } = await import('./MatchQueue')
@@ -66,7 +66,7 @@ describe('MatchQueue', () => {
       })],
     })])
 
-    expect(screen.getByText(/SGD 120.00 from the outstanding amount/)).toBeInTheDocument()
+    expect(screen.getByText(/120.00 SGD from the outstanding amount/)).toBeInTheDocument()
     expect(screen.getByText(/9 days outside the issued window/)).toBeInTheDocument()
     expect(screen.getByText(/answer this event in part only/)).toBeInTheDocument()
   })
@@ -74,7 +74,7 @@ describe('MatchQueue', () => {
   it('shows the outstanding amount and the window the event was issued for', () => {
     renderQueue()
 
-    expect(screen.getByText(/SGD 3000.00 outstanding/)).toBeInTheDocument()
+    expect(screen.getByText(/3000.00 SGD outstanding/)).toBeInTheDocument()
     expect(screen.getByText(/2026-03-01 → 2026-03-05/)).toBeInTheDocument()
   })
 

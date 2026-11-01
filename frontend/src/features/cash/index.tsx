@@ -17,6 +17,7 @@ import {
   type CashFilters, type CashPageOut, type CashPocketOut, type ReportingPolicySummary,
   emptyCashFilters, loadReportedCash, loadReportingPolicy, cashScopeKey,
 } from './reportedApi'
+import { dateLabel } from '@/lib/format'
 
 type StaleBanner = 'none' | 'same-scope' | 'refresh-required'
 type LastGood = { key: string; policyCurrency: string; response: CashPageOut }
@@ -250,7 +251,7 @@ function CashPage({
       <Card className="cash-today-card">
         <div className="panel-title">
           <div>
-            <p className="eyebrow">Liquid cash today · {page.generated_for}</p>
+            <p className="eyebrow">Liquid cash today · {dateLabel(page.generated_for)}</p>
             <h2>
               {observedToday
                 ? Object.entries(page.liquid_total).map(([c, v]) => `${money(v, c)} available today`).join(' · ') || 'Nothing included'
@@ -264,7 +265,7 @@ function CashPage({
             total={page.combined.amount.total} partialTotal={page.combined.amount.partial_total} currency={currency}
             unavailableReasons={page.combined.amount.unavailable_reasons} excludedDetail={page.combined.amount.excluded_detail}
           />
-          {page.combined.balance_as_of && ` as of ${page.combined.balance_as_of}`}.
+          {page.combined.balance_as_of && ` as of ${dateLabel(page.combined.balance_as_of)}`}.
         </p>
         {observedToday
           ? <p className="muted-note"><CheckCircle2 size={14} /> Complete actual movements run from the supported cutoff through today.</p>
@@ -399,7 +400,7 @@ function PocketRow({ pocket, staleAfter, onObserve }: { pocket: CashPocketOut; s
       <td>
         {pocket.derived_balance === null
           ? <small className="muted-note">No common coverage-backed balance</small>
-          : <><strong>{money(pocket.derived_balance, pocket.currency_pocket)}</strong><small>{pocket.derived_basis} · through {pocket.derived_as_of}</small></>}
+          : <><strong>{money(pocket.derived_balance, pocket.currency_pocket)}</strong><small>{pocket.derived_basis} · through {pocket.derived_as_of ? dateLabel(pocket.derived_as_of) : ''}</small></>}
       </td>
       <td>{pocket.reported_derived_balance ? <Money value={pocket.reported_derived_balance} /> : <small className="muted-note">No common cutoff</small>}</td>
       <td>{pocket.basis}{pocket.date_precision && pocket.date_precision !== 'DAY' && <small>{pocket.date_precision} precision</small>}</td>
@@ -427,11 +428,11 @@ function BridgeRow({ bridge }: { bridge: CashPageOut['cash_bridge']['pockets'][n
   return (
     <div className="cash-bridge-row">
       <p>
-        <strong>{bridge.currency_pocket}</strong> · opening {money(bridge.opening, bridge.currency_pocket)} ({bridge.opening_as_of})
+        <strong>{bridge.currency_pocket}</strong> · opening {money(bridge.opening, bridge.currency_pocket)} ({dateLabel(bridge.opening_as_of)})
         {' + '}{money(bridge.external_inflows, bridge.currency_pocket)} external in
         {' − '}{money(bridge.external_outflows, bridge.currency_pocket)} external out
         {' → '}calculated {money(bridge.calculated_closing, bridge.currency_pocket)}
-        {' vs '}closing {money(bridge.closing, bridge.currency_pocket)} ({bridge.closing_as_of})
+        {' vs '}closing {money(bridge.closing, bridge.currency_pocket)} ({dateLabel(bridge.closing_as_of)})
       </p>
       <p className={bridge.reconciled ? 'muted-note' : 'form-error'}>
         {bridge.reconciled

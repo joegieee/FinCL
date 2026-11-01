@@ -70,7 +70,7 @@ describe('PlanningView', () => {
     setup()
     render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={() => {}} />)
     expect(await screen.findByText('Dining')).toBeInTheDocument()
-    expect(screen.getByText('SGD 120.00')).toBeInTheDocument()
+    expect(screen.getByText('120.00 SGD')).toBeInTheDocument()
     expect(screen.getByText(/no confident remaining for an incomplete month/i)).toBeInTheDocument()
   })
 
@@ -84,8 +84,8 @@ describe('PlanningView', () => {
     ] }))
     render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={() => {}} />)
     await screen.findByText('Dining')
-    expect(screen.getByText('−SGD 30.00 over')).toBeInTheDocument()
-    expect(screen.getByText('SGD 20.00 left')).toBeInTheDocument()
+    expect(screen.getByText('−30.00 SGD over')).toBeInTheDocument()
+    expect(screen.getByText('20.00 SGD left')).toBeInTheDocument()
   })
 
   it('revises a budget through preview then commit with a fresh revision id', async () => {
@@ -169,7 +169,7 @@ describe('PlanningView', () => {
       monthly_amount: '500.00', status: 'scheduled', assumes_no_investment_return: true,
     })
     fireEvent.click(screen.getByRole('button', { name: 'Estimate' }))
-    expect(await screen.findByText(/SGD 500.00/)).toBeInTheDocument()
+    expect(await screen.findByText(/(^|\s)500\.00 SGD/)).toBeInTheDocument()
     expect(screen.getByText(/no interest or investment return is assumed/i)).toBeInTheDocument()
   })
 
@@ -193,11 +193,11 @@ describe('PlanningView', () => {
     render(<PlanningView generation="g1" freshness="current" categories={CATEGORIES} onSaved={onSaved} />)
     fireEvent.click(await screen.findByRole('button', { name: /Occurrences/ }))
 
-    const varied = (await screen.findByText('2026-12-10')).closest('tr') as HTMLElement
-    expect(within(varied).getByText('SGD 120.00')).toBeInTheDocument()
+    const varied = (await screen.findByText('10 Dec 2026')).closest('tr') as HTMLElement
+    expect(within(varied).getByText('120.00 SGD')).toBeInTheDocument()
     expect(within(varied).getByTitle('winter bill')).toBeInTheDocument()
-    const usual = screen.getByText('2026-11-10').closest('tr') as HTMLElement
-    expect(within(usual).getByText('SGD 80.00')).toBeInTheDocument()
+    const usual = screen.getByText('10 Nov 2026').closest('tr') as HTMLElement
+    expect(within(usual).getByText('80.00 SGD')).toBeInTheDocument()
     expect(within(usual).queryByRole('option', { name: 'Expect the usual amount' })).toBeNull()
 
     fireEvent.change(within(usual).getByLabelText('Occurrence decision'), { target: { value: 'amount' } })

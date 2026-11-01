@@ -62,8 +62,8 @@ describe('Repayment plan', () => {
     fireEvent.click(screen.getByText('Alex'))
     expect(await screen.findByText('Repayment plan')).toBeInTheDocument()
     const states = screen.getAllByRole('row').map(r => r.textContent)
-    expect(states.some(t => t?.includes('SGD 300.00') && t.endsWith('Paid'))).toBe(true)
-    expect(states.some(t => t?.includes('2026') && t.includes('SGD 200.00') && t.endsWith('Overdue'))).toBe(true)
+    expect(states.some(t => t?.includes('300.00 SGD') && t.endsWith('Paid'))).toBe(true)
+    expect(states.some(t => t?.includes('2026') && t.includes('200.00 SGD') && t.endsWith('Overdue'))).toBe(true)
     expect(states.some(t => t?.endsWith('Upcoming'))).toBe(true)
     expect(screen.getByText(/past due and not covered/)).toBeInTheDocument()
     expect(screen.getByText(/has no due date, so the forecast cannot place it/)).toBeInTheDocument()
@@ -81,7 +81,7 @@ describe('Repayment plan', () => {
     fireEvent.change(screen.getByLabelText('Plan reason'), { target: { value: 'Pay Alex monthly' } })
     fireEvent.click(screen.getByRole('button', { name: 'Check plan' }))
 
-    expect(await screen.findByText(/covers SGD 700.00 of the SGD 700.00 still owed/)).toBeInTheDocument()
+    expect(await screen.findByText(/covers 700.00 SGD of the 700.00 SGD still owed/)).toBeInTheDocument()
     const [, draft] = calls('debts/preview')[0] as [string, { items: { payload: Record<string, unknown> }[] }]
     expect(draft.items[0].payload).toEqual({
       effective_from: '2026-02-01', reason: 'Pay Alex monthly',

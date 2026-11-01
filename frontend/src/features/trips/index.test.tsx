@@ -97,8 +97,8 @@ describe('TripsView', () => {
     budgets = [{ ...budgetCell, over_budget: true, over_plan: '20.00', remaining: '0.00', actual: '520.00', missed: true, unvalued_count: 1 }]
     apiMock.mockImplementation(routes)
     render(<TripsView generation="g1" currencies={['SGD']} categories={[]} onSaved={() => {}}/>)
-    expect(await screen.findByText(/Budget SGD 500.00 · spent SGD 520.00/)).toBeInTheDocument()
-    expect(screen.getByText(/over by SGD 20.00/)).toBeInTheDocument()
+    expect(await screen.findByText(/Budget 500.00 SGD · spent 520.00 SGD/)).toBeInTheDocument()
+    expect(screen.getByText(/over by 20.00 SGD/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Trip A/ }))
     const region = await screen.findByRole('region', { name: 'Budget' })
     expect(region).toHaveTextContent('Over budget by')

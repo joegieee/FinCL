@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ApiError, money } from '@/lib/api'
 import { recordAllocation, retireAllocation, type Fund } from './api'
+import { dateLabel } from '@/lib/format'
 
 function today() {
   const d = new Date()
@@ -94,11 +95,11 @@ export function AllocationControls({
           {fund.recorded_allocation.entries.map(entry => (
             <li key={entry.allocation}>
               <div className="remedy-body">
-                <p><strong>{reportedMoney(entry, 'amount', fund.currency)}</strong> · {entry.allocated_on}</p>
+                <p><strong>{reportedMoney(entry, 'amount', fund.currency)}</strong> · {dateLabel(entry.allocated_on)}</p>
               </div>
               <Button
                 variant="ghost" size="sm" disabled={busy !== ''}
-                aria-label={`Withdraw the ${entry.amount} contribution on ${entry.allocated_on}`}
+                aria-label={`Withdraw the ${entry.amount} contribution on ${dateLabel(entry.allocated_on)}`}
                 onClick={() => void retire(entry.allocation)}
               >
                 <X size={14} /> Withdraw

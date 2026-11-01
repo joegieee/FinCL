@@ -193,7 +193,7 @@ describe('confirming a split payment', () => {
       claimed_occurrence_count: 0,
     }
     await mount()
-    expect(await screen.findByText(/principal SGD 243\.60/)).toBeInTheDocument()
+    expect(await screen.findByText(/principal 243\.60 SGD/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Confirm/ }))
     expect(await screen.findByLabelText('Known principal')).toHaveValue('243.60')
     expect(screen.getByText(/Split Payment Conversion credit/)).toBeInTheDocument()
@@ -226,7 +226,7 @@ describe('confirming a split payment', () => {
     try {
       await mount()
       fireEvent.click(await screen.findByText('Split Payment Merchant'))
-      expect(await screen.findByText(/Split Payment Conversion credit of SGD 15\.00 on 2026-07-12/)).toBeInTheDocument()
+      expect(await screen.findByText(/Split Payment Conversion credit of 15\.00 SGD on 12 Jul 2026/)).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Attach conversion credit' }))
       await waitFor(() => expect(written.length).toBe(2))
       const body = written[1].body as { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }

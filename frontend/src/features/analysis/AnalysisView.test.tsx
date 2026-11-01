@@ -138,21 +138,21 @@ afterEach(() => { cleanup(); apiMock.mockReset(); apiMock.mockImplementation(def
 describe('AnalysisView', () => {
   it('shows the spending comparison against all pockets by default', async () => {
     await mount()
-    expect((await screen.findAllByText('SGD 27.50')).length).toBeGreaterThan(0)
-    expect(screen.getByText(/was SGD 50\.00/)).toBeInTheDocument()
+    expect((await screen.findAllByText('27.50 SGD')).length).toBeGreaterThan(0)
+    expect(screen.getByText(/was 50\.00 SGD/)).toBeInTheDocument()
     // No pocket_currency query parameter on the initial, unfiltered load.
     expect(apiMock).toHaveBeenCalledWith(expect.not.stringContaining('pocket_currency'))
   })
 
   it('shows reporting currency as a setting, not a record filter', async () => {
     await mount()
-    await screen.findAllByText('SGD 27.50')
+    await screen.findAllByText('27.50 SGD')
     expect(screen.getByText(/Reporting in SGD/)).toBeInTheDocument()
   })
 
   it('narrows to an explicit Account-currency filter and clears it back to all pockets', async () => {
     await mount()
-    await screen.findAllByText('SGD 27.50')
+    await screen.findAllByText('27.50 SGD')
     fireEvent.change(screen.getByLabelText('Account currency filter'), { target: { value: 'USD' } })
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('pocket_currency=USD')))
     expect(screen.getByText('Reset analysis filters')).toBeInTheDocument()
@@ -230,7 +230,7 @@ describe('AnalysisView', () => {
 
   it('refetches when the comparison filter changes', async () => {
     await mount()
-    await screen.findAllByText('SGD 27.50')
+    await screen.findAllByText('27.50 SGD')
     fireEvent.change(screen.getByLabelText('Comparison period'), { target: { value: 'none' } })
     await waitFor(() =>
       expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('comparison=none')),
@@ -239,7 +239,7 @@ describe('AnalysisView', () => {
 
   it('refetches with the requested chart history', async () => {
     await mount()
-    await screen.findAllByText('SGD 27.50')
+    await screen.findAllByText('27.50 SGD')
     fireEvent.change(screen.getByLabelText('Chart history'), { target: { value: '12' } })
     await waitFor(() =>
       expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('trend_range=12')),
@@ -297,11 +297,11 @@ describe('AnalysisView', () => {
       throw new Error(`unmocked ${path}`)
     })
     await mount()
-    await screen.findAllByText('SGD 27.50')
+    await screen.findAllByText('27.50 SGD')
     fireEvent.click(screen.getAllByRole('button', { name: /refresh/i })[0])
     await waitFor(() => expect(screen.getByText(/last loaded values for this exact period/)).toBeInTheDocument())
     // The saved same-scope response is still shown, not cleared.
-    expect(screen.getAllByText('SGD 27.50').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('27.50 SGD').length).toBeGreaterThan(0)
   })
 
   it('shows Refresh required with no numbers on a first-load stale response', async () => {
@@ -312,7 +312,7 @@ describe('AnalysisView', () => {
     })
     await mount()
     await waitFor(() => expect(screen.getByText('Refresh required.')).toBeInTheDocument())
-    expect(screen.queryByText('SGD 27.50')).not.toBeInTheDocument()
+    expect(screen.queryByText('27.50 SGD')).not.toBeInTheDocument()
   })
 
   it('clears the last-good response on a reporting-policy change instead of reusing it', async () => {
@@ -330,10 +330,10 @@ describe('AnalysisView', () => {
       throw new Error(`unmocked ${path}`)
     })
     await mount()
-    await screen.findAllByText('SGD 27.50')
+    await screen.findAllByText('27.50 SGD')
     fireEvent.click(screen.getAllByRole('button', { name: /refresh/i })[0])
     await waitFor(() => expect(screen.getByText('Refresh required.')).toBeInTheDocument())
-    expect(screen.queryByText('SGD 27.50')).not.toBeInTheDocument()
+    expect(screen.queryByText('27.50 SGD')).not.toBeInTheDocument()
   })
 })
 
@@ -343,6 +343,6 @@ describe('Cash Flow alias parity', () => {
     // (see tabAliases); this view itself has no tab-specific branching, so
     // covering AnalysisView in isolation covers both call sites identically.
     await mount()
-    expect((await screen.findAllByText('SGD 27.50')).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText('27.50 SGD')).length).toBeGreaterThan(0)
   })
 })

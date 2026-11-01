@@ -97,7 +97,7 @@ export function NetWorthView() {
   return (
     <div className="networth-view" aria-busy={loading}>
       <div className="scope-caption">
-        <span>Reporting in {reportingCurrency}{page ? ` · tracked subtotal as of ${page.as_of}` : ''} · not a statement of total personal wealth</span>
+        <span>Reporting in {reportingCurrency}{page ? ` · tracked subtotal as of ${dateLabel(page.as_of)}` : ''} · not a statement of total personal wealth</span>
         <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
           <RefreshCw size={14} className={loading ? 'spin' : ''} /> Refresh
         </Button>
