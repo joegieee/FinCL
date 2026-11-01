@@ -49,6 +49,7 @@ export function CashTimeline({ page, today, reportingCurrency }: { page: Forecas
         <li><i className="is-cautious" />If income doesn’t arrive <strong>{money(pocket.conservative.closing_balance, currency)}</strong></li>
         {now > cutoff && <li><i className="is-gap" />No statements yet</li>}
       </ul>
+      {entries.length > 1 && <p className="ov-note">{currency} only. The answer above counts every pocket.</p>}
       {pockets.length > 1 && <div className="ov-pockets" role="group" aria-label="Currency">
         {pockets.map(([code]) => <button key={code} aria-pressed={code === currency} onClick={() => setChosen(code)}>{code}</button>)}
       </div>}

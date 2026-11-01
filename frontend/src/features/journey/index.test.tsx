@@ -77,6 +77,18 @@ describe('CashTimeline', () => {
     expect(screen.getByText('50.00 EUR')).toBeInTheDocument()
     expect(screen.queryByText('900.00 SGD')).toBeNull()
   })
+  it('says the chart is one pocket when the answer counts more than one', async () => {
+    const { CashTimeline } = await import('./CashTimeline')
+    const page = { available: true, by_currency: { EUR: pocket('50.00', '40.00'), SGD: pocket('900.00', '-20.00') } }
+    render(<CashTimeline page={page as never} today="2026-03-05" reportingCurrency="SGD" />)
+    expect(screen.getByText('SGD only. The answer above counts every pocket.')).toBeInTheDocument()
+  })
+
+  it('needs no pocket note when there is only one pocket', async () => {
+    const { CashTimeline } = await import('./CashTimeline')
+    render(<CashTimeline page={{ available: true, by_currency: { SGD: pocket('900.00', '-20.00') } } as never} today="2026-03-05" reportingCurrency="SGD" />)
+    expect(screen.queryByText(/counts every pocket/)).not.toBeInTheDocument()
+  })
 })
 
 describe('MoneyJourneyPanel', () => {

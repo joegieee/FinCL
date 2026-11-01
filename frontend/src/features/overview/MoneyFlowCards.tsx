@@ -21,7 +21,7 @@ export function MoneyFlowPanel({ page, period, covered = true, onOpen }: { page:
     <p className="ov-lead"><strong><Cv result={flow.net} currency={currency} /></strong><small>net</small></p>
     <Bars rows={[
       { key: 'in', label: 'In', size: plotted(flow.inflow), value: <Cv result={flow.inflow} currency={currency} /> },
-      { key: 'out', label: 'Out', size: plotted(flow.outflow), value: <Cv result={flow.outflow} currency={currency} /> },
+      { key: 'out', label: 'Out, with fees', size: plotted(flow.outflow), value: <Cv result={flow.outflow} currency={currency} /> },
     ]} />
     {!!plotted(flow.exceptional_adjustments) && <p className="ov-note">Exceptional adjustments, kept apart: <Cv result={flow.exceptional_adjustments} currency={currency} /></p>}
     <p className="ov-note">Monthly spending{burn.month_count ? `, ${burn.month_count} month average` : ''}: {burn.amount ? <Cv result={burn.amount} currency={currency} /> : burn.reason ?? 'not available'}</p>
