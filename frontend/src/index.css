@@ -499,6 +499,16 @@ footer{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:
  .transactions-table td::before{content:attr(data-label);font-size:13px;text-transform:uppercase;color:var(--muted)}
  .transactions-table td[data-label=""]::before,.transactions-table td.pick-cell::before{content:none}
  .transactions-table td.amount{text-align:left}
+ .transactions-table.transaction-rows tr{grid-template-columns:auto minmax(96px,1fr) minmax(0,max-content) auto;grid-template-areas:"pick merchant amount details" "pick date status details" "pick category category details";gap:4px 10px;align-items:start}
+ .transactions-table.transaction-rows td{display:block;padding:0}
+ .transactions-table.transaction-rows td::before{content:none}
+ .transactions-table.transaction-rows td.pick-cell{grid-area:pick;width:auto}
+ .transactions-table.transaction-rows td.date-cell{grid-area:date}
+ .transactions-table.transaction-rows td[data-label=Merchant]{grid-area:merchant}
+ .transactions-table.transaction-rows td[data-label=Category]{grid-area:category}
+ .transactions-table.transaction-rows td.amount{grid-area:amount;text-align:right}
+ .transactions-table.transaction-rows td[data-label=Status]{grid-area:status;justify-self:end}
+ .transactions-table.transaction-rows td[data-label=""]{grid-area:details;align-self:center}
 }
 
 /* v0.6 planning — dated budgets, goals, recurring */

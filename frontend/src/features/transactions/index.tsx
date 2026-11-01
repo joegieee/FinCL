@@ -245,7 +245,7 @@ export function TransactionsView({
         </div>
       )}
       <div className="table-scroll" aria-busy={loading}>
-        <table className="transactions-table">
+        <table className="transactions-table transaction-rows">
           <thead>
             <tr>
               <th className="pick-cell"><input type="checkbox" aria-label="Select all rows on this page" checked={rows.length > 0 && rows.every(r => picked.has(r.entry.anchor))} onChange={ev => { setMatchAll(null); setPicked(s => { const n = new Set(s); rows.forEach(r => ev.target.checked ? n.add(r.entry.anchor) : n.delete(r.entry.anchor)); return n }) }} /></th>
