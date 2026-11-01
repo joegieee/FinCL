@@ -29,6 +29,7 @@ from .generation import publish_generation
 from .locking import ledger_writer
 from .reconciliation import link_narrow_transfers
 from .report import _coverage_contract
+from .statement_warnings import refresh_statement_warnings
 from .supersession import resolve_statement_overlaps
 
 
@@ -100,6 +101,7 @@ def rebuild_projection(connection: sqlite3.Connection) -> tuple[str | None, str]
     try:
         batch = cast(sqlite3.Connection, _BatchConnection(connection))
         resolve_statement_overlaps(batch)
+        refresh_statement_warnings(batch)
         link_narrow_transfers(batch)
         has_selected = connection.execute(
             "SELECT 1 FROM ledger_entries e JOIN extraction_runs x "
