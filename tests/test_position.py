@@ -106,6 +106,59 @@ class PositionReadTests(unittest.TestCase):
             {gap["reason"] for gap in page["missing_intervals"]},
         )
 
+    def _dbs_ledger(self, pockets: list[DbsPocket]) -> Path:
+        root = Path(tempfile.mkdtemp())
+        database = root / "ledger.sqlite3"
+        source = root / "dbs.pdf"
+        source.write_bytes(dbs_pdf_bytes(date(2026, 1, 31), pockets))
+        DocumentImportService.plaintext_phase2(database, root / "evidence").import_dbs(source)
+        refresh_ledger(database)
+        return database
+
+    def test_two_ledgers_in_one_pocket_close_at_their_sum(self) -> None:
+        database = self._dbs_ledger([
+            DbsPocket("SINGAPORE DOLLAR", Decimal("500.00"), (
+                Row(date(2026, 1, 5), "Salary", Decimal("100.00")),
+                Row(date(2026, 1, 20), "Rent", Decimal("-80.00")),
+            )),
+            DbsPocket("SINGAPORE DOLLAR", Decimal("1000.00"), (
+                Row(date(2026, 1, 7), "Bonus", Decimal("10.00")),
+            )),
+        ])
+
+        page = position_page(database, today=date(2026, 1, 31))
+        mid_month = position_page(database, today=date(2026, 1, 10))
+
+        self.assertEqual(page["liquid_total"], {"SGD": "1530.00"})
+        self.assertEqual(page["cash_bridge"]["pockets"][0]["opening"], "1500.00")
+        self.assertTrue(page["cash_bridge"]["pockets"][0]["reconciled"])
+        self.assertEqual(
+            mid_month["partial_position"]["contributing_pockets"][0]["balance"], "1610.00"
+        )
+
+    def test_a_row_lost_from_the_ledger_fails_against_the_printed_opening(self) -> None:
+        database = self._dbs_ledger([
+            DbsPocket("SINGAPORE DOLLAR", Decimal("500.00"), (
+                Row(date(2026, 1, 5), "Salary", Decimal("100.00")),
+                Row(date(2026, 1, 20), "Rent", Decimal("-80.00")),
+            )),
+        ])
+        connection = sqlite3.connect(database)
+        with connection:
+            connection.execute(
+                "UPDATE ledger_entries SET analytics_eligible=0 WHERE amount_text='-80.00'"
+            )
+        connection.close()
+
+        bridge = position_page(database, today=date(2026, 1, 31))["cash_bridge"]["pockets"][0]
+
+        self.assertEqual(bridge["opening"], "500.00")
+        self.assertFalse(bridge["reconciled"])
+        self.assertEqual(
+            bridge["unsupported_reason"],
+            "intervening movements do not reconcile the balance boundaries",
+        )
+
     def test_latest_printed_running_balance_is_the_pocket_basis(self) -> None:
         database = _ledger(_ROWS)
 

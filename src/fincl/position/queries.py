@@ -14,6 +14,7 @@ from typing import Any
 
 from ..db import connect_readonly, database_path
 from ..decision_journal import default_journal_path, read_records
+from ..documents import _revolut_money
 from ..money import ExactMoney, exact_sum, format_decimal
 from ..read_cache import per_request
 from .models import STALE_AFTER_DAYS
@@ -79,10 +80,46 @@ def _cash_movement(row: sqlite3.Row) -> list[ExactMoney]:
     return [amount, _money(-abs(row["fee_coefficient"]), row["fee_scale"])]
 
 
+def _printed_openings(connection: sqlite3.Connection) -> dict[tuple[str, str], tuple[int, int]]:
+    """Each statement pocket's printed opening, summed over its ledgers.
+
+    DBS reprints the opening on every page, so a section's first one counts.
+    MariBank prints none in a record, and its opening stays derived.
+    """
+    firsts: dict[tuple[str, str, str | None], ExactMoney] = {}
+    for row in connection.execute(
+        """
+        SELECT r.statement_id, r.section_id, r.balance_coefficient, r.balance_scale,
+               coalesce(c.currency, r.currency_raw) AS pocket,
+               json_extract(r.raw_fields_json, '$.opening') AS summary_opening
+        FROM document_records r
+        LEFT JOIN statement_sections c ON c.id = r.section_id
+        WHERE (r.record_kind = 'SUPPORTING_BALANCE'
+               AND json_extract(r.raw_fields_json, '$.supporting_kind') = 'OPENING_BALANCE')
+           OR (r.record_kind = 'SUMMARY'
+               AND json_extract(r.raw_fields_json, '$.summary_kind') = 'BALANCE_SUMMARY')
+        ORDER BY r.extraction_ordinal
+        """
+    ):
+        firsts.setdefault(
+            (row["statement_id"], row["pocket"], row["section_id"]),
+            _revolut_money(row["summary_opening"]) if row["summary_opening"] is not None
+            else _money(row["balance_coefficient"], row["balance_scale"]),
+        )
+    pockets: dict[tuple[str, str], list[ExactMoney]] = defaultdict(list)
+    for (statement_id, pocket, _section), value in firsts.items():
+        pockets[(statement_id, pocket)].append(value)
+    return {key: _sum(values) for key, values in pockets.items()}
+
+
 def _statement_boundaries(
     connection: sqlite3.Connection, entries: list[sqlite3.Row]
 ) -> list[dict[str, Any]]:
-    """Return statement opens/closes only when a blocking equation passed."""
+    """Return statement opens/closes only when a blocking equation passed.
+
+    The printed opening, where there is one, stays independent of the movements,
+    so a ledger that lost a row fails its bridge instead of deriving a new opening.
+    """
     by_statement: dict[tuple[str, str], list[sqlite3.Row]] = defaultdict(list)
     for entry in entries:
         if entry["statement_id"]:
@@ -102,13 +139,14 @@ def _statement_boundaries(
           CASE c.check_type WHEN 'STATEMENT_BALANCE' THEN 0 ELSE 1 END
         """
     ).fetchall()
-    # Trust prints one STATEMENT_BALANCE per sub-account in a shared pocket, so
-    # the pocket closes at their sum.
+    # A statement can print several ledgers in one pocket, such as Trust's
+    # sub-accounts, so the pocket closes at their sum.
     closes: dict[tuple[str, str], list[sqlite3.Row]] = defaultdict(list)
     for row in rows:
         kept = closes[(row["statement_id"], row["currency_pocket"])]
-        if not kept or row["check_type"] == kept[0]["check_type"] == "STATEMENT_BALANCE":
+        if not kept or row["check_type"] == kept[0]["check_type"]:
             kept.append(row)
+    printed_openings = _printed_openings(connection)
     result: list[dict[str, Any]] = []
     for key, kept in closes.items():
         row = kept[0]
@@ -123,10 +161,15 @@ def _statement_boundaries(
         opening = close.rescaled_coefficient(scale) - (
             delta_coefficient * 10 ** (scale - delta_scale)
         )
+        if key in printed_openings:
+            opening, scale = printed_openings[key]
         opening_day = (
             date.fromisoformat(row["period_start"]) - timedelta(days=1)
         ).isoformat()
-        common = {"account_id": row["account_id"], "currency_pocket": row["currency_pocket"]}
+        common = {
+            "account_id": row["account_id"], "currency_pocket": row["currency_pocket"],
+            "ledgers": len(kept),
+        }
         result.extend((
             {**common, "as_of": opening_day, "sort_at": opening_day + "T23:59:59",
              "coefficient": opening, "scale": scale,
@@ -144,8 +187,17 @@ def _boundaries(
     connection: sqlite3.Connection, entries: list[sqlite3.Row]
 ) -> dict[tuple[str, str], list[dict[str, Any]]]:
     result: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    statement_boundaries = _statement_boundaries(connection, entries)
+    # A running balance in a pocket split across ledgers speaks for one of them.
+    split = {
+        (item["statement_id"], item["currency_pocket"])
+        for item in statement_boundaries if item["ledgers"] > 1
+    }
     for row in entries:
-        if row["balance_coefficient"] is None or row["effective_precision"] != "DAY":
+        if (
+            row["balance_coefficient"] is None or row["effective_precision"] != "DAY"
+            or (row["statement_id"], row["currency_pocket"]) in split
+        ):
             continue
         item = {
             "account_id": row["account_id"], "currency_pocket": row["currency_pocket"],
@@ -156,7 +208,7 @@ def _boundaries(
             "date_precision": row["effective_precision"],
         }
         result[(row["account_id"], row["currency_pocket"])].append(item)
-    for item in _statement_boundaries(connection, entries):
+    for item in statement_boundaries:
         result[(item["account_id"], item["currency_pocket"])].append(item)
     for row in connection.execute(
         """SELECT * FROM balance_observations WHERE retired=0
