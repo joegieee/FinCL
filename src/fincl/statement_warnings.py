@@ -1,26 +1,30 @@
 """Warnings that only appear when statements are read against each other.
 
-Each statement reconciles alone, so these cannot refuse one: statements arrive
-in any order, and the fault may be in the other statement or in a period not
-yet imported. They are recomputed on every refresh, so a warning goes away
+Each statement reconciles alone, so neither of these can refuse one: statements
+arrive in any order, and the fault may be in the other statement or in a period
+not yet imported. They are recomputed on every refresh, so a warning goes away
 once its cause does.
 
 A partial overlap leaves shared rows counted twice until they are resolved in
-the duplicate review.
+the duplicate review. A card statement that does not open on the previous
+statement's close has lost or gained money between the two.
 """
 
 from __future__ import annotations
 
 import sqlite3
 from collections import Counter, defaultdict
+from datetime import date, timedelta
 
 from .common import canonical_json as _json
 from .common import utc_now as _now
+from .money import ExactMoney, format_decimal
 from .supersession import _period, _rows
 
-__all__ = ["STATEMENT_PERIOD_OVERLAP", "refresh_statement_warnings"]
+__all__ = ["CARD_BALANCE_BREAK", "STATEMENT_PERIOD_OVERLAP", "refresh_statement_warnings"]
 
 STATEMENT_PERIOD_OVERLAP = "STATEMENT_PERIOD_OVERLAP"
+CARD_BALANCE_BREAK = "CARD_BALANCE_BREAK"
 
 _Warning = tuple[str, str, str, str]
 
@@ -62,6 +66,49 @@ def _overlaps(connection: sqlite3.Connection, statements: list[sqlite3.Row]) -> 
     return warnings
 
 
+def _liability(
+    connection: sqlite3.Connection, statement_id: str, role: str
+) -> dict[str, ExactMoney]:
+    return {
+        row["currency_pocket"]: ExactMoney(
+            row["value_coefficient"], row["value_scale"], row["value_text"]
+        )
+        for row in connection.execute(
+            """
+            SELECT currency_pocket, value_coefficient, value_scale, value_text
+            FROM card_statement_facts WHERE statement_id = ? AND field_role = ?
+            """,
+            (statement_id, role),
+        )
+    }
+
+
+def _card_breaks(connection: sqlite3.Connection, statements: list[sqlite3.Row]) -> list[_Warning]:
+    warnings: list[_Warning] = []
+    for previous, current in zip(statements, statements[1:], strict=False):
+        next_day = date.fromisoformat(previous["period_end"]) + timedelta(days=1)
+        if current["period_start"] != next_day.isoformat():
+            continue
+        closes = _liability(connection, previous["id"], "closing_liability")
+        opens = _liability(connection, current["id"], "opening_liability")
+        for pocket in sorted(closes.keys() & opens.keys()):
+            close, opening = closes[pocket], opens[pocket]
+            scale = max(close.scale, opening.scale)
+            if close.rescaled_coefficient(scale) != opening.rescaled_coefficient(scale):
+                warnings.append((
+                    current["extraction_run_id"],
+                    CARD_BALANCE_BREAK,
+                    "this card statement does not open on the previous statement's closing balance",
+                    _json({
+                        "currency": pocket,
+                        "period": _period(previous),
+                        "previous_close": format_decimal(close.rescaled_coefficient(scale), scale),
+                        "opening": format_decimal(opening.rescaled_coefficient(scale), scale),
+                    }),
+                ))
+    return warnings
+
+
 def refresh_statement_warnings(connection: sqlite3.Connection) -> None:
     """Bring the stored warnings in line with the selected statements.
 
@@ -70,12 +117,13 @@ def refresh_statement_warnings(connection: sqlite3.Connection) -> None:
     wanted: list[_Warning] = []
     for statements in _selected_by_account(connection).values():
         wanted += _overlaps(connection, statements)
+        wanted += _card_breaks(connection, statements)
     current = {(run, code, context) for run, code, _, context in wanted}
     stored = set()
     for row in connection.execute(
         "SELECT id, extraction_run_id, code, context_json FROM extraction_issues "
-        "WHERE code = ?",
-        (STATEMENT_PERIOD_OVERLAP,),
+        "WHERE code IN (?, ?)",
+        (STATEMENT_PERIOD_OVERLAP, CARD_BALANCE_BREAK),
     ).fetchall():
         key = (row["extraction_run_id"], row["code"], row["context_json"])
         if key in current:

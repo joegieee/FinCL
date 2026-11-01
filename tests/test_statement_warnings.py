@@ -12,7 +12,8 @@ from pathlib import Path
 
 from fincl.document_service import DocumentImportService
 from fincl.refresh import refresh_ledger
-from fincl.statement_warnings import STATEMENT_PERIOD_OVERLAP
+from fincl.statement_warnings import CARD_BALANCE_BREAK, STATEMENT_PERIOD_OVERLAP
+from tests.mari_card_pdf import MariRow, MariStatement, mari_card_pdf_bytes
 from tests.statement_pdfs import TrustRow, trust_pdf_bytes
 
 
@@ -42,6 +43,15 @@ class StatementWarningTests(unittest.TestCase):
             self._write(name, trust_pdf_bytes(start, end, end, Decimal(opening), rows))
         )
 
+    def _card(self, name: str, start: date, end: date, previous: str, spent: str) -> None:
+        statement = MariStatement(
+            start, end, end, date(2026, 12, 1), previous_balance=Decimal(previous),
+            sections={"Purchase": [
+                MariRow(end, Decimal(spent), "MERCHANT SYNTHETIC", ("Card Payment",), end),
+            ]},
+        )
+        self.service.import_mari_card(self._write(name, mari_card_pdf_bytes(statement)))
+
     def test_a_partial_overlap_with_shared_rows_is_flagged_once(self) -> None:
         shared = TrustRow(date(2026, 2, 10), "Shop", Decimal("-20.00"))
         self._trust("a.pdf", date(2026, 1, 1), date(2026, 2, 15), "100.00",
@@ -67,3 +77,20 @@ class StatementWarningTests(unittest.TestCase):
         refresh_ledger(self.database)
 
         self.assertEqual(self._warnings(STATEMENT_PERIOD_OVERLAP), [])
+
+    def test_a_card_statement_that_breaks_from_the_previous_close_is_flagged(self) -> None:
+        self._card("one.pdf", date(2026, 6, 21), date(2026, 7, 20), "0.00", "-94.00")
+        self._card("two.pdf", date(2026, 7, 21), date(2026, 8, 20), "10.00", "-40.00")
+
+        refresh_ledger(self.database)
+
+        context = json.loads(self._warnings(CARD_BALANCE_BREAK)[0]["context_json"])
+        self.assertEqual((context["previous_close"], context["opening"]), ("94.00", "10.00"))
+
+    def test_a_card_statement_opening_on_the_previous_close_is_clean(self) -> None:
+        self._card("one.pdf", date(2026, 6, 21), date(2026, 7, 20), "0.00", "-94.00")
+        self._card("two.pdf", date(2026, 7, 21), date(2026, 8, 20), "94.00", "-40.00")
+
+        refresh_ledger(self.database)
+
+        self.assertEqual(self._warnings(CARD_BALANCE_BREAK), [])
