@@ -1,0 +1,23 @@
+{
+ "generation": "<digest>",
+ "month": "2026-09",
+ "currency": "SGD",
+ "month_covered": false,
+ "month_complete": false,
+ "budgets": [
+  {
+   "plan": "groceries",
+   "name": "Groceries, with room to spare",
+   "currency": "SGD",
+   "category_key": "Food & Dining / Groceries",
+   "effective_month": null,
+   "limit": "320.00",
+   "actual": "0.00",
+   "remaining": null,
+   "over_limit": null,
+   "archived": false,
+   "legacy_undated": true,
+   "status": "coverage_unknown"
+  }
+ ]
+}

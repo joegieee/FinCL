@@ -1,0 +1,654 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "lens": "recorded_flow",
+  "lens_note": "Recorded lens: each transaction counts on its own date and in its own context. A refund counts where it was received, not where the purchase was made.",
+  "assignment_policy": "trip-assignment-v1",
+  "country_list_version": "iso3166-1-alpha2-2026-v1",
+  "trips": [
+   {
+    "trip_id": "e23391d2-48ca-53e7-9fc9-23e850120d6e",
+    "name": "Lisbon week",
+    "start_on": "2026-06-10",
+    "end_on": "2026-06-16",
+    "countries": [],
+    "reason": "Synthetic trip",
+    "status": "past",
+    "entry_count": 14,
+    "review_count": 4,
+    "todo": {
+     "kind": "assign_trip_spend",
+     "trip_id": "e23391d2-48ca-53e7-9fc9-23e850120d6e",
+     "name": "Lisbon week",
+     "count": 4,
+     "text": "4 transactions fall inside Lisbon week's dates but are not assigned to it"
+    },
+    "budgets": [],
+    "totals_by_currency": {
+     "EUR": {
+      "gross_cost": "199.36",
+      "refunds": "0.00",
+      "net_cost": "199.36",
+      "entry_count": 10
+     },
+     "SGD": {
+      "gross_cost": "139.66",
+      "refunds": "0.00",
+      "net_cost": "139.66",
+      "entry_count": 4
+     }
+    },
+    "cost_parts": [
+     {
+      "on": "2026-06-11",
+      "currency": "EUR",
+      "kind": "cost",
+      "amount": "18.58"
+     },
+     {
+      "on": "2026-06-11",
+      "currency": "SGD",
+      "kind": "cost",
+      "amount": "34.94"
+     },
+     {
+      "on": "2026-06-12",
+      "currency": "EUR",
+      "kind": "cost",
+      "amount": "31.50"
+     },
+     {
+      "on": "2026-06-12",
+      "currency": "SGD",
+      "kind": "cost",
+      "amount": "59.04"
+     },
+     {
+      "on": "2026-06-13",
+      "currency": "EUR",
+      "kind": "cost",
+      "amount": "51.71"
+     },
+     {
+      "on": "2026-06-13",
+      "currency": "SGD",
+      "kind": "cost",
+      "amount": "9.85"
+     },
+     {
+      "on": "2026-06-14",
+      "currency": "EUR",
+      "kind": "cost",
+      "amount": "60.72"
+     },
+     {
+      "on": "2026-06-14",
+      "currency": "SGD",
+      "kind": "cost",
+      "amount": "35.83"
+     },
+     {
+      "on": "2026-06-15",
+      "currency": "EUR",
+      "kind": "cost",
+      "amount": "36.85"
+     }
+    ]
+   }
+  ],
+  "todos": [
+   {
+    "kind": "assign_trip_spend",
+    "trip_id": "e23391d2-48ca-53e7-9fc9-23e850120d6e",
+    "name": "Lisbon week",
+    "count": 4,
+    "text": "4 transactions fall inside Lisbon week's dates but are not assigned to it"
+   }
+  ]
+ },
+ "amounts": [
+  {
+   "path": [
+    "trips",
+    0,
+    "totals_by_currency",
+    "EUR",
+    "gross_cost"
+   ],
+   "label": "Lisbon week · gross cost",
+   "value": {
+    "native": {
+     "value": "199.36",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "298.34",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-15",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "totals_by_currency",
+    "EUR",
+    "refunds"
+   ],
+   "label": "Lisbon week · refunds",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-15",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "totals_by_currency",
+    "EUR",
+    "net_cost"
+   ],
+   "label": "Lisbon week · net cost",
+   "value": {
+    "native": {
+     "value": "199.36",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "298.34",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-15",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "totals_by_currency",
+    "SGD",
+    "gross_cost"
+   ],
+   "label": "Lisbon week · gross cost",
+   "value": {
+    "native": {
+     "value": "139.66",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "139.66",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-14",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "totals_by_currency",
+    "SGD",
+    "refunds"
+   ],
+   "label": "Lisbon week · refunds",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-14",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "totals_by_currency",
+    "SGD",
+    "net_cost"
+   ],
+   "label": "Lisbon week · net cost",
+   "value": {
+    "native": {
+     "value": "139.66",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "139.66",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-14",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    0,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "18.58",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "27.80",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-11",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    1,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "34.94",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "34.94",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    2,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "31.50",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "47.14",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-12",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    3,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "59.04",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "59.04",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-12",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    4,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "51.71",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "77.38",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-13",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    5,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "9.85",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "9.85",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-13",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    6,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "60.72",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "90.87",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-14",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    7,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "35.83",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "35.83",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-14",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trips",
+    0,
+    "cost_parts",
+    8,
+    "amount"
+   ],
+   "label": "Lisbon week · amount",
+   "value": {
+    "native": {
+     "value": "36.85",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "55.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-15",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

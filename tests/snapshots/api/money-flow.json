@@ -1,0 +1,358 @@
+{
+ "generation": "<digest>",
+ "freshness": "current",
+ "reporting_currency": "SGD",
+ "policy_version": null,
+ "as_of": "2026-09-15",
+ "history_start": "2026-08-01",
+ "history_end": "2026-08-31",
+ "pocket_currency": null,
+ "summary": {
+  "economic_flow": {
+   "inflow": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "outflow": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "net": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "exceptional_adjustments": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   }
+  },
+  "gross_burn": {
+   "amount": {
+    "total": {
+     "value": "2085.43",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-05"
+     },
+     {
+      "currency": "EUR",
+      "period": "2026-06"
+     },
+     {
+      "currency": "EUR",
+      "period": "2026-07"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-05"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-06"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-07"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ]
+   },
+   "included_months": [
+    "2026-05",
+    "2026-06",
+    "2026-07"
+   ],
+   "excluded_months": [
+    "2026-08"
+   ],
+   "month_count": 3,
+   "reason": null,
+   "definition_version": "gross-burn-v2"
+  },
+  "cash_at_cutoff": {
+   "amount": {
+    "total": {
+     "value": "16499.36",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-08"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-08"
+     },
+     {
+      "currency": "USD",
+      "period": "2026-08"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     },
+     {
+      "base_currency": "USD",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "13869",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.3869"
+     }
+    ]
+   },
+   "balance_as_of": "2026-08-31",
+   "valuation_as_of": "2026-08-31"
+  },
+  "forecast_closing": {
+   "base": {
+    "total": null,
+    "status": "partial",
+    "partial_total": {
+     "value": "9079.31",
+     "currency": "SGD"
+    },
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-09"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-09"
+     }
+    ],
+    "excluded": [
+     {
+      "currency": "USD",
+      "period": "2026-09"
+     }
+    ],
+    "excluded_entry_count": 1,
+    "unavailable_reasons": [
+     "NO_SUPPORTED_FORECAST_EVIDENCE"
+    ],
+    "excluded_detail": [
+     {
+      "currency": "USD",
+      "period": "2026-09",
+      "entry_count": 1,
+      "reasons": ["NO_SUPPORTED_FORECAST_EVIDENCE"],
+      "remedies": ["Provide the missing residual-spending or balance evidence for this pocket, then refresh."]
+     }
+    ],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ]
+   },
+   "conservative": {
+    "total": null,
+    "status": "partial",
+    "partial_total": {
+     "value": "-5550.33",
+     "currency": "SGD"
+    },
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-09"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-09"
+     }
+    ],
+    "excluded": [
+     {
+      "currency": "USD",
+      "period": "2026-09"
+     }
+    ],
+    "excluded_entry_count": 1,
+    "unavailable_reasons": [
+     "NO_SUPPORTED_FORECAST_EVIDENCE"
+    ],
+    "excluded_detail": [
+     {
+      "currency": "USD",
+      "period": "2026-09",
+      "entry_count": 1,
+      "reasons": ["NO_SUPPORTED_FORECAST_EVIDENCE"],
+      "remedies": ["Provide the missing residual-spending or balance evidence for this pocket, then refresh."]
+     }
+    ],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ]
+   },
+   "opening_balance_as_of": "2026-08-31",
+   "valuation_as_of": "2026-09-15",
+   "horizon_end": "2027-02-28"
+  }
+ },
+ "cutoff": {
+  "supported_cash_cutoff": "2026-08-31",
+  "first_modelled_day": "2026-09-01",
+  "stale_days": 15
+ },
+ "limitations": [
+  "position_page is not generation-pinned (it does not stamp a generation token); it is read in the same process immediately after the pinned inputs, but a concurrent refresh between reads is not detected here",
+  "2 unclassified observed-outflow group(s) remain as non-cuttable unresolved spending; recurrence and baseline inference are not blocked by this.",
+  "3 obligation(s) have ambiguous amount or date terms and are a named forecast limitation.",
+  "Essential-role scope is incomplete for EUR, SGD; reserve and allowance claims are withheld while the observed cost table remains available.",
+  "USD has no supported residual-spending input; known-event cash arithmetic is shown but a complete base or conservative case is unavailable",
+  "debt:4d95af3b-0c6b-50c5-b6c5-9a99361cdd60 has no safe settlement date; the obligation remains explicit and is not guessed",
+  "card mari-credit-card SGD has no reconciled exactly-once settlement plan",
+  "this card has no accepted evidence covering 2026-08-21..2026-08-31, so postings in the unbilled window may be missing; an unknown unbilled balance is unresolved, never zero — reading it as zero would silently drop the most recent card spending out of the forecast"
+ ],
+ "provenance": {
+  "generation_manifest_digest": "<digest>",
+  "rate_inventory_digest": "<digest>",
+  "policy_versions": {
+   "reporting_policy": "",
+   "flow": "flow-rate-v1",
+   "position": "position-monthly-closed-v1",
+   "forecast": "forward-monthly-closed-v1",
+   "gross_burn": "gross-burn-v2"
+  }
+ }
+}

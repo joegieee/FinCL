@@ -1,0 +1,783 @@
+{
+ "available": true,
+ "generation": "<digest>",
+ "baseline_window": {
+  "quality": "normal",
+  "reason": "3 consecutive fully-established months; using the latest 3",
+  "start_month": "2026-05",
+  "end_month": "2026-07",
+  "month_count": 3,
+  "basis": "all-established"
+ },
+ "currencies": [
+  "EUR",
+  "SGD"
+ ],
+ "sample": {
+  "months": [
+   "2026-05",
+   "2026-06",
+   "2026-07"
+  ],
+  "month_count": 3,
+  "quality": "normal",
+  "method_version": "baseline-estimator-v1",
+  "residual_method": "arithmetic-mean-of-monthly-routine-residual",
+  "outlier_method": "outlier-v1: entry ≥ 3× category median-month and ≥ 150"
+ },
+ "by_currency": {
+  "EUR": {
+   "months": [
+    {
+     "month": "2026-05",
+     "owner_cost_recorded": "22.74",
+     "identified_recurring": "0.00",
+     "trip": "0.00",
+     "unresolved_irregular": "0.00",
+     "adjustments": "0.00",
+     "routine_variable_residual": "22.74",
+     "reconciles": true,
+     "income": "0"
+    },
+    {
+     "month": "2026-06",
+     "owner_cost_recorded": "213.56",
+     "identified_recurring": "0.00",
+     "trip": "199.36",
+     "unresolved_irregular": "0.00",
+     "adjustments": "0.00",
+     "routine_variable_residual": "14.20",
+     "reconciles": true,
+     "income": "0"
+    },
+    {
+     "month": "2026-07",
+     "owner_cost_recorded": "11.47",
+     "identified_recurring": "0.00",
+     "trip": "0.00",
+     "unresolved_irregular": "0.00",
+     "adjustments": "0.00",
+     "routine_variable_residual": "11.47",
+     "reconciles": true,
+     "income": "0"
+    }
+   ],
+   "fixed_recurring_monthly": "0.00",
+   "variable_residual_monthly": "16.14",
+   "variable_residual_median": "14.20",
+   "variable_residual_min": "11.47",
+   "variable_residual_max": "22.74",
+   "irregular_allowance_monthly": "0.00",
+   "trip_allowance_monthly": "66.45",
+   "trip_allowance_min": "0.00",
+   "trip_allowance_max": "199.36",
+   "trip_allowance_projected": true,
+   "routine_lifestyle_baseline": "16.14",
+   "total_observed_monthly": "82.59",
+   "net_received_income_monthly": "0.00",
+   "historical_surplus_monthly": "-82.59",
+   "savings_rate": {
+    "available": false,
+    "reason": "no classified income in the baseline window",
+    "numerator": "-82.59",
+    "denominator": "0.00"
+   },
+   "fixed_cost_ratio": {
+    "available": true,
+    "numerator": "0.00",
+    "denominator": "16.14",
+    "value": "0.0000"
+   },
+   "roles": {
+    "months": [
+     {
+      "month": "2026-05",
+      "essential": "0",
+      "discretionary": "0",
+      "unresolved": "22.74",
+      "total": "22.74",
+      "reconciles": true
+     },
+     {
+      "month": "2026-06",
+      "essential": "0",
+      "discretionary": "0",
+      "unresolved": "213.56",
+      "total": "213.56",
+      "reconciles": true
+     },
+     {
+      "month": "2026-07",
+      "essential": "0",
+      "discretionary": "0",
+      "unresolved": "11.47",
+      "total": "11.47",
+      "reconciles": true
+     }
+    ],
+    "totals": {
+     "essential": "0",
+     "discretionary": "0",
+     "unresolved": "247.77",
+     "total": "247.77",
+     "reconciles": true
+    }
+   },
+   "role_groups": [
+    {
+     "currency": "EUR",
+     "category_key": "Unclassified / Unclassified",
+     "cost_pattern": "unresolved",
+     "essential_status": "unresolved",
+     "tier": null,
+     "basis": "unmapped or unclassified category",
+     "review_status": "unresolved",
+     "amount": "247.77",
+     "source_count": 16,
+     "mean_monthly": "82.59",
+     "highest_observed_monthly": "213.56",
+     "months": [
+      {"month":"2026-05","amount":"22.74"},
+      {"month":"2026-06","amount":"213.56"},
+      {"month":"2026-07","amount":"11.47"}
+     ]
+    }
+   ],
+   "reserve": {
+    "available": false,
+    "reason": "essential role coverage is incomplete; unresolved owner-cost contributions must be reviewed before a reserve amount is derived"
+   },
+   "irregular_risk_entries": [],
+   "regime": {
+    "warning": false,
+    "reasons": [],
+    "leading_empty_months": 0,
+    "earlier_mean_owner_cost": "22.74",
+    "recent_mean_owner_cost": "112.52"
+   },
+   "sensitivity": {
+    "available": true,
+    "basis": "routine estimate with the single highest routine-residual month removed",
+    "not_a_probability": true,
+    "excluded_month": "2026-05",
+    "excluded_routine_residual": "22.74",
+    "variable_residual_monthly": "12.84",
+    "routine_lifestyle_baseline": "12.84"
+   },
+   "observed_range": {
+    "basis": "lowest and highest complete month in the window",
+    "not_a_probability": true,
+    "routine_lifestyle_baseline": {
+     "min_amount": "11.47",
+     "min_month": "2026-07",
+     "max_amount": "22.74",
+     "max_month": "2026-05"
+    },
+    "irregular_allowance_monthly": {
+     "min_amount": "0.00",
+     "min_month": "2026-05",
+     "max_amount": "0.00",
+     "max_month": "2026-05",
+     "months_with_entries": 0
+    },
+    "trip_allowance_monthly": {
+     "min_amount": "0.00",
+     "min_month": "2026-05",
+     "max_amount": "199.36",
+     "max_month": "2026-06",
+     "months_with_entries": 1
+    },
+    "total_observed_monthly": {
+     "min_amount": "11.47",
+     "min_month": "2026-07",
+     "max_amount": "213.56",
+     "max_month": "2026-06"
+    }
+   }
+  },
+  "SGD": {
+   "months": [
+    {
+     "month": "2026-05",
+     "owner_cost_recorded": "2153.16",
+     "identified_recurring": "0.00",
+     "trip": "0.00",
+     "unresolved_irregular": "324.00",
+     "adjustments": "-4.47",
+     "routine_variable_residual": "1833.63",
+     "reconciles": true,
+     "income": "2381.17"
+    },
+    {
+     "month": "2026-06",
+     "owner_cost_recorded": "1978.87",
+     "identified_recurring": "0.00",
+     "trip": "139.66",
+     "unresolved_irregular": "0.00",
+     "adjustments": "0.00",
+     "routine_variable_residual": "1839.21",
+     "reconciles": true,
+     "income": "2406.49"
+    },
+    {
+     "month": "2026-07",
+     "owner_cost_recorded": "1717.36",
+     "identified_recurring": "0.00",
+     "trip": "0.00",
+     "unresolved_irregular": "0.00",
+     "adjustments": "-31.73",
+     "routine_variable_residual": "1749.09",
+     "reconciles": true,
+     "income": "2913.00"
+    }
+   ],
+   "fixed_recurring_monthly": "1180.00",
+   "variable_residual_monthly": "1807.31",
+   "variable_residual_median": "1833.63",
+   "variable_residual_min": "1749.09",
+   "variable_residual_max": "1839.21",
+   "irregular_allowance_monthly": "108.00",
+   "trip_allowance_monthly": "46.55",
+   "trip_allowance_min": "0.00",
+   "trip_allowance_max": "139.66",
+   "trip_allowance_projected": true,
+   "routine_lifestyle_baseline": "2987.31",
+   "total_observed_monthly": "3141.86",
+   "net_received_income_monthly": "2566.89",
+   "historical_surplus_monthly": "-574.97",
+   "savings_rate": {
+    "available": true,
+    "numerator": "-574.97",
+    "denominator": "2566.89",
+    "value": "-0.2240"
+   },
+   "fixed_cost_ratio": {
+    "available": true,
+    "numerator": "1180.00",
+    "denominator": "2987.31",
+    "value": "0.3950"
+   },
+   "roles": {
+    "months": [
+     {
+      "month": "2026-05",
+      "essential": "1320.97",
+      "discretionary": "410.44",
+      "unresolved": "421.75",
+      "total": "2153.16",
+      "reconciles": true
+     },
+     {
+      "month": "2026-06",
+      "essential": "1313.38",
+      "discretionary": "159.12",
+      "unresolved": "506.37",
+      "total": "1978.87",
+      "reconciles": true
+     },
+     {
+      "month": "2026-07",
+      "essential": "1298.06",
+      "discretionary": "68.01",
+      "unresolved": "351.29",
+      "total": "1717.36",
+      "reconciles": true
+     }
+    ],
+    "totals": {
+     "essential": "3932.41",
+     "discretionary": "637.57",
+     "unresolved": "1279.41",
+     "total": "5849.39",
+     "reconciles": true
+    }
+   },
+   "role_groups": [
+    {
+     "currency": "SGD",
+     "category_key": "Food & Dining / Cafes & Drinks",
+     "cost_pattern": "variable_routine",
+     "essential_status": "discretionary",
+     "tier": 4,
+     "basis": "baseline-roles-2026-v1",
+     "review_status": "automatic",
+     "amount": "28.46",
+     "source_count": 6,
+     "mean_monthly": "9.49",
+     "highest_observed_monthly": "15.66",
+     "months": [
+      {"month":"2026-05","amount":"15.66"},
+      {"month":"2026-06","amount":"5.74"},
+      {"month":"2026-07","amount":"7.06"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Food & Dining / Dining Out",
+     "cost_pattern": "variable_routine",
+     "essential_status": "discretionary",
+     "tier": 4,
+     "basis": "baseline-roles-2026-v1",
+     "review_status": "automatic",
+     "amount": "163.41",
+     "source_count": 10,
+     "mean_monthly": "54.47",
+     "highest_observed_monthly": "68.79",
+     "months": [
+      {"month":"2026-05","amount":"33.67"},
+      {"month":"2026-06","amount":"68.79"},
+      {"month":"2026-07","amount":"60.95"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Food & Dining / Groceries",
+     "cost_pattern": "variable_routine",
+     "essential_status": "essential",
+     "tier": 1,
+     "basis": "baseline-roles-2026-v1",
+     "review_status": "automatic",
+     "amount": "62.42",
+     "source_count": 5,
+     "mean_monthly": "20.81",
+     "highest_observed_monthly": "36.72",
+     "months": [
+      {"month":"2026-05","amount":"25.70"},
+      {"month":"2026-06","amount":"36.72"},
+      {"month":"2026-07","amount":"0"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Housing / Rent",
+     "cost_pattern": "variable_routine",
+     "essential_status": "essential",
+     "tier": 1,
+     "basis": "baseline-roles-2026-v1",
+     "review_status": "automatic",
+     "amount": "3540.00",
+     "source_count": 3,
+     "mean_monthly": "1180.00",
+     "highest_observed_monthly": "1180.00",
+     "months": [
+      {"month":"2026-05","amount":"1180.00"},
+      {"month":"2026-06","amount":"1180.00"},
+      {"month":"2026-07","amount":"1180.00"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Housing / Utilities",
+     "cost_pattern": "variable_routine",
+     "essential_status": "essential",
+     "tier": 1,
+     "basis": "baseline-roles-2026-v1",
+     "review_status": "automatic",
+     "amount": "225.46",
+     "source_count": 3,
+     "mean_monthly": "75.15",
+     "highest_observed_monthly": "79.78",
+     "months": [
+      {"month":"2026-05","amount":"79.78"},
+      {"month":"2026-06","amount":"68.54"},
+      {"month":"2026-07","amount":"77.14"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Internal / Wallet Top-up",
+     "cost_pattern": "unresolved",
+     "essential_status": "unresolved",
+     "tier": null,
+     "basis": "unmapped or unclassified category",
+     "review_status": "unresolved",
+     "amount": "6.06",
+     "source_count": 6,
+     "mean_monthly": "2.02",
+     "highest_observed_monthly": "2.21",
+     "months": [
+      {"month":"2026-05","amount":"2.15"},
+      {"month":"2026-06","amount":"2.21"},
+      {"month":"2026-07","amount":"1.70"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Shopping / Electronics",
+     "cost_pattern": "irregular",
+     "essential_status": "discretionary",
+     "tier": 3,
+     "basis": "outlier-v1 source-backed review",
+     "review_status": "suggested",
+     "amount": "324.00",
+     "source_count": 1,
+     "mean_monthly": "108.00",
+     "highest_observed_monthly": "324.00",
+     "months": [
+      {"month":"2026-05","amount":"324.00"},
+      {"month":"2026-06","amount":"0"},
+      {"month":"2026-07","amount":"0"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Shopping / Electronics",
+     "cost_pattern": "variable_routine",
+     "essential_status": "discretionary",
+     "tier": 3,
+     "basis": "baseline-roles-2026-v1",
+     "review_status": "automatic",
+     "amount": "121.70",
+     "source_count": 3,
+     "mean_monthly": "40.57",
+     "highest_observed_monthly": "84.59",
+     "months": [
+      {"month":"2026-05","amount":"37.11"},
+      {"month":"2026-06","amount":"84.59"},
+      {"month":"2026-07","amount":"0"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Transport / Public Transit",
+     "cost_pattern": "variable_routine",
+     "essential_status": "essential",
+     "tier": 1,
+     "basis": "baseline-roles-2026-v1",
+     "review_status": "automatic",
+     "amount": "104.53",
+     "source_count": 3,
+     "mean_monthly": "34.84",
+     "highest_observed_monthly": "40.92",
+     "months": [
+      {"month":"2026-05","amount":"35.49"},
+      {"month":"2026-06","amount":"28.12"},
+      {"month":"2026-07","amount":"40.92"}
+     ]
+    },
+    {
+     "currency": "SGD",
+     "category_key": "Unclassified / Unclassified",
+     "cost_pattern": "unresolved",
+     "essential_status": "unresolved",
+     "tier": null,
+     "basis": "unmapped or unclassified category",
+     "review_status": "unresolved",
+     "amount": "1273.35",
+     "source_count": 76,
+     "mean_monthly": "424.45",
+     "highest_observed_monthly": "504.16",
+     "months": [
+      {"month":"2026-05","amount":"419.60"},
+      {"month":"2026-06","amount":"504.16"},
+      {"month":"2026-07","amount":"349.59"}
+     ]
+    }
+   ],
+   "reserve": {
+    "available": false,
+    "reason": "essential role coverage is incomplete; unresolved owner-cost contributions must be reviewed before a reserve amount is derived"
+   },
+   "irregular_risk_entries": [
+    {
+     "month": "2026-05",
+     "currency": "SGD",
+     "category_key": "Shopping / Electronics",
+     "amount": "324.00",
+     "threshold": "253.77",
+     "review_state": "suggested",
+     "component_id": "<id>",
+     "entry_anchor": "<digest>:pdf:mari-card:<digest>:4"
+    }
+   ],
+   "regime": {
+    "warning": false,
+    "reasons": [],
+    "leading_empty_months": 0,
+    "earlier_mean_owner_cost": "2153.16",
+    "recent_mean_owner_cost": "1848.12"
+   },
+   "sensitivity": {
+    "available": true,
+    "basis": "routine estimate with the single highest routine-residual month removed",
+    "not_a_probability": true,
+    "excluded_month": "2026-06",
+    "excluded_routine_residual": "1839.21",
+    "variable_residual_monthly": "1791.36",
+    "routine_lifestyle_baseline": "2971.36"
+   },
+   "observed_range": {
+    "basis": "lowest and highest complete month in the window",
+    "not_a_probability": true,
+    "routine_lifestyle_baseline": {
+     "min_amount": "2929.09",
+     "min_month": "2026-07",
+     "max_amount": "3019.21",
+     "max_month": "2026-06"
+    },
+    "irregular_allowance_monthly": {
+     "min_amount": "0.00",
+     "min_month": "2026-06",
+     "max_amount": "324.00",
+     "max_month": "2026-05",
+     "months_with_entries": 1
+    },
+    "trip_allowance_monthly": {
+     "min_amount": "0.00",
+     "min_month": "2026-05",
+     "max_amount": "139.66",
+     "max_month": "2026-06",
+     "months_with_entries": 1
+    },
+    "total_observed_monthly": {
+     "min_amount": "2929.09",
+     "min_month": "2026-07",
+     "max_amount": "3337.63",
+     "max_month": "2026-05"
+    }
+   }
+  }
+ },
+ "income_streams": [
+  {
+   "payer": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+   "currency": "SGD",
+   "certainty": "likely",
+   "occurrence_count": 3,
+   "months_seen": [
+    "2026-05",
+    "2026-06",
+    "2026-07"
+   ],
+   "first_month": "2026-05",
+   "last_month": "2026-07",
+   "total_received": "7176.10",
+   "min_amount": "2381.17",
+   "max_amount": "2406.49",
+   "occurrences": [
+    {
+     "month": "2026-05",
+     "amount": "2381.17"
+    },
+    {
+     "month": "2026-06",
+     "amount": "2406.49"
+    },
+    {
+     "month": "2026-07",
+     "amount": "2388.44"
+    }
+   ],
+   "note": "historical receipts only; a future receipt is not evidenced, so this stream is Likely, never Confirmed"
+  },
+  {
+   "payer": "Funds Transfer\nSIDE PROJECT CLIENT",
+   "currency": "SGD",
+   "certainty": "likely",
+   "occurrence_count": 1,
+   "months_seen": [
+    "2026-07"
+   ],
+   "first_month": "2026-07",
+   "last_month": "2026-07",
+   "total_received": "524.56",
+   "min_amount": "524.56",
+   "max_amount": "524.56",
+   "occurrences": [
+    {
+     "month": "2026-07",
+     "amount": "524.56"
+    }
+   ],
+   "note": "historical receipts only; a future receipt is not evidenced, so this stream is Likely, never Confirmed"
+  }
+ ],
+ "reconciliation": {
+  "EUR": {
+   "owner_cost_recorded_total": "247.77",
+   "owner_cost_baseline_total": "247.77",
+   "unmatched_receipts_total": "0",
+   "cross_month_refund_in": "0",
+   "cross_month_refund_out": "0",
+   "recorded_minus_baseline": "0.00",
+   "expected_from_allocations": "0",
+   "balances": true
+  },
+  "SGD": {
+   "owner_cost_recorded_total": "5849.39",
+   "owner_cost_baseline_total": "5885.59",
+   "unmatched_receipts_total": "36.20",
+   "cross_month_refund_in": "0",
+   "cross_month_refund_out": "0",
+   "recorded_minus_baseline": "-36.20",
+   "expected_from_allocations": "-36.20",
+   "balances": true
+  }
+ },
+ "limitations": [
+  "confirmed recurring schedules are matched to the month a bound occurrence was recorded in; unbound scheduled dates are not modelled here",
+  "automatic category defaults carry their source and review status; unmapped categories and unlinked receipt adjustments remain unresolved",
+  "the upper-spend comparison statistics are observed dispersion, not a calibrated interval",
+  "the sensitivity figure is a spread check with one month removed, not a probability"
+ ],
+ "tasks": [
+  {
+   "kind": "import-missing",
+   "account_id": "dbs-my-account",
+   "display_name": "DBS My Account",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for DBS My Account SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "dbs-paylah-wallet",
+   "display_name": "DBS PayLah! Wallet",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for DBS PayLah! Wallet SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "confirm-export-period",
+   "account_id": "dbs-paylah-wallet",
+   "display_name": "DBS PayLah! Wallet",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-01-09",
+    "end": "2026-08-30"
+   },
+   "note": "DBS PayLah! Wallet SGD is observed-only; add an export-period statement to make its months established"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "mari-credit-card",
+   "display_name": "Mari Credit Card",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for Mari Credit Card SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "confirm-export-period",
+   "account_id": "mari-credit-card",
+   "display_name": "Mari Credit Card",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-04-14",
+    "end": "2026-08-21"
+   },
+   "note": "Mari Credit Card SGD is observed-only; add an export-period statement to make its months established"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "maribank-savings",
+   "display_name": "MariBank Savings Account",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-03-01",
+    "end": "2026-03-31"
+   },
+   "note": "no statement or activity for MariBank Savings Account SGD over 2026-03-01..2026-03-31"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "maribank-savings",
+   "display_name": "MariBank Savings Account",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for MariBank Savings Account SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currency_pocket": "EUR",
+   "interval": {
+    "start": "2026-01-01",
+    "end": "2026-01-31"
+   },
+   "note": "no statement or activity for Revolut Current EUR over 2026-01-01..2026-01-31"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currency_pocket": "EUR",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for Revolut Current EUR over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for Revolut Current SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "confirm-export-period",
+   "account_id": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-01-17",
+    "end": "2026-08-31"
+   },
+   "note": "Revolut Current SGD is observed-only; add an export-period statement to make its months established"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "trust-savings",
+   "display_name": "Trust Bank Savings Account",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for Trust Bank Savings Account SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "resolve-categorization",
+   "currency_pocket": "SGD",
+   "entry_count": 77,
+   "absolute_amount": "2172.63",
+   "note": "77 unclassified entries in the baseline window (|2172.63| SGD); unknown role is not discretionary and not zero"
+  },
+  {
+   "kind": "resolve-categorization",
+   "currency_pocket": "EUR",
+   "entry_count": 16,
+   "absolute_amount": "247.77",
+   "note": "16 unclassified entries in the baseline window (|247.77| EUR); unknown role is not discretionary and not zero"
+  }
+ ],
+ "unlinked_recurring": [
+  {
+   "commitment": "rent",
+   "name": "Rent",
+   "currency": "SGD",
+   "scheduled_on": [
+    "2026-05-02",
+    "2026-06-02",
+    "2026-07-02"
+   ]
+  }
+ ]
+}

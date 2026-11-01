@@ -1,0 +1,245 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "plans": [
+   {
+    "plan_id": "4aa712d3-788c-5bf1-8e65-f1ffddef00df",
+    "card_account_id": "mari-credit-card",
+    "currency": "SGD",
+    "plan_reference": null,
+    "merchant_label": "Electro World",
+    "opened_on": "2026-06-21",
+    "status": "CONFIRMED",
+    "effective_status": "CONFIRMED",
+    "interpretation_status": "confirmed",
+    "bound": true,
+    "dangling_reason": null,
+    "progress": {
+     "known_principal": null,
+     "term_months": 9,
+     "observed_principal_paid": {
+      "value": "108.00",
+      "currency": "SGD"
+     },
+     "scheduled_principal": {
+      "value": "0",
+      "currency": "SGD"
+     },
+     "settled_principal": {
+      "value": "0",
+      "currency": "SGD"
+     },
+     "remaining_obligation": null,
+     "occurrence_count": 3,
+     "occurrences_bound": 3
+    }
+   },
+   {
+    "plan_id": "51b25750-7395-5ac8-bff6-4c7b45082d72",
+    "card_account_id": "mari-credit-card",
+    "currency": "SGD",
+    "plan_reference": null,
+    "merchant_label": "Split Payment 18M",
+    "opened_on": "2025-10-11",
+    "status": "CONFIRMED",
+    "effective_status": "CONFIRMED",
+    "interpretation_status": "confirmed",
+    "bound": true,
+    "dangling_reason": null,
+    "progress": {
+     "known_principal": null,
+     "term_months": 18,
+     "observed_principal_paid": {
+      "value": "191.00",
+      "currency": "SGD"
+     },
+     "scheduled_principal": {
+      "value": "0",
+      "currency": "SGD"
+     },
+     "settled_principal": {
+      "value": "0",
+      "currency": "SGD"
+     },
+     "remaining_obligation": null,
+     "occurrence_count": 5,
+     "occurrences_bound": 5
+    }
+   }
+  ],
+  "next_cursor": null
+ },
+ "amounts": [
+  {
+   "path": [
+    "plans",
+    0,
+    "progress",
+    "observed_principal_paid",
+    "value"
+   ],
+   "label": "observed principal paid",
+   "value": {
+    "native": {
+     "value": "108.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "108.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    0,
+    "progress",
+    "scheduled_principal",
+    "value"
+   ],
+   "label": "scheduled principal",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    0,
+    "progress",
+    "settled_principal",
+    "value"
+   ],
+   "label": "settled principal",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    1,
+    "progress",
+    "observed_principal_paid",
+    "value"
+   ],
+   "label": "observed principal paid",
+   "value": {
+    "native": {
+     "value": "191.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "191.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    1,
+    "progress",
+    "scheduled_principal",
+    "value"
+   ],
+   "label": "scheduled principal",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    1,
+    "progress",
+    "settled_principal",
+    "value"
+   ],
+   "label": "settled principal",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2025-10-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

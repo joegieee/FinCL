@@ -1,0 +1,809 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "freshness": "current",
+  "updated_at": "<recorded-at>",
+  "start": "2026-07-01",
+  "end": "2026-07-31",
+  "currency": "EUR",
+  "currencies": [
+   "EUR",
+   "SGD"
+  ],
+  "covered": true,
+  "coverage_reasons": [],
+  "summary": {
+   "spending": "11.47",
+   "income": "0",
+   "fees": "0",
+   "refunds": "0",
+   "reimbursements": "0",
+   "non_income_inflow": "0",
+   "pending_review": "0",
+   "net_economic_flow": "-11.47"
+  },
+  "summary_handles": {
+   "spending": "<handle>",
+   "income": "<handle>",
+   "fees": "<handle>",
+   "refunds": "<handle>",
+   "reimbursements": "<handle>",
+   "non_income_inflow": "<handle>",
+   "pending_review": "<handle>",
+   "net_economic_flow": "<handle>"
+  },
+  "categories": [
+   "Cash / Cash Withdrawal — Purpose Unknown",
+   "Education / Course Materials",
+   "Education / Education Services",
+   "Education / Tuition & Exam Fees",
+   "Financial & Government / Bank & Card Fees",
+   "Financial & Government / Interest & Financing",
+   "Financial & Government / Taxes & Government",
+   "Food & Dining / Cafes & Drinks",
+   "Food & Dining / Dining Out",
+   "Food & Dining / Groceries",
+   "Food & Dining / Hawker & Canteen",
+   "Giving / Charity",
+   "Giving / Gifts Given",
+   "Health / Fitness",
+   "Health / Medical & Dental",
+   "Health / Pharmacy",
+   "Housing / Home Supplies & Maintenance",
+   "Housing / Internet & Mobile",
+   "Housing / Rent",
+   "Housing / Utilities",
+   "Income & Inflow / Earned Income",
+   "Income & Inflow / Gift Received",
+   "Income & Inflow / Other Inflow",
+   "Income & Inflow / Reimbursement",
+   "Income & Inflow / Rewards & Cashback",
+   "Internal / Card Repayment",
+   "Internal / Currency Exchange",
+   "Internal / Transfer",
+   "Internal / Wallet Top-up",
+   "Leisure / Entertainment",
+   "Leisure / Hobbies & Sports",
+   "Personal & Household / Household Services",
+   "Personal & Household / Laundry",
+   "Personal & Household / Personal Care",
+   "Shopping / Books & Stationery",
+   "Shopping / Clothing & Accessories",
+   "Shopping / Electronics",
+   "Shopping / General Shopping",
+   "Transport / Fuel",
+   "Transport / Parking & Tolls",
+   "Transport / Public Transit",
+   "Transport / Taxi & Ride-hail",
+   "Travel / Accommodation",
+   "Travel / Activities",
+   "Travel / Transport",
+   "Travel / Travel Fees",
+   "Unclassified / Unclassified"
+  ],
+  "custom_categories": [],
+  "category_totals": [
+   {
+    "name": "Unclassified / Unclassified",
+    "value": "11.47",
+    "count": 2,
+    "handle": "<handle>"
+   }
+  ],
+  "merchant_totals": [
+   {
+    "name": "SUSHI TEN",
+    "value": "8.23",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "KONBINI MART",
+    "value": "3.24",
+    "count": 1,
+    "handle": "<handle>"
+   }
+  ],
+  "trend": [
+   {
+    "month": "2026-02",
+    "spending": null,
+    "income": null,
+    "complete": false
+   },
+   {
+    "month": "2026-03",
+    "spending": null,
+    "income": null,
+    "complete": false
+   },
+   {
+    "month": "2026-04",
+    "spending": null,
+    "income": null,
+    "complete": false
+   },
+   {
+    "month": "2026-05",
+    "spending": "22.74",
+    "income": "0",
+    "complete": true
+   },
+   {
+    "month": "2026-06",
+    "spending": "213.56",
+    "income": "0",
+    "complete": true
+   },
+   {
+    "month": "2026-07",
+    "spending": "11.47",
+    "income": "0",
+    "complete": true
+   }
+  ],
+  "recurring": [
+   {
+    "merchant": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+    "cadence": "Monthly",
+    "amount": "1180.00",
+    "last_date": "2026-07-02",
+    "next_date": "2026-08-01",
+    "count": 3,
+    "status": "Candidate — verify with provider",
+    "currency": "SGD"
+   }
+  ],
+  "plans": [
+   {
+    "id": "groceries",
+    "category": "Food & Dining / Groceries",
+    "currency": "SGD",
+    "name": "Groceries, with room to spare",
+    "reason": "Synthetic budget",
+    "saved": "0",
+    "target": "320.00",
+    "type": "budget",
+    "actual": null,
+    "remaining": null
+   },
+   {
+    "id": "emergency",
+    "category": "",
+    "currency": "SGD",
+    "name": "A little peace of mind",
+    "reason": "Synthetic goal",
+    "saved": "6200.00",
+    "target": "15000.00",
+    "type": "goal",
+    "actual": "6200.00",
+    "remaining": "8800.00"
+   }
+  ],
+  "recent": [
+   {
+    "id": "entry_798a4bf8e69628d874e9104bf18ea05259356fddb7b0574144125010ff8f5a3e",
+    "anchor": "<digest>:pdf:revolut:<digest>:16",
+    "date": "2026-07-15",
+    "precision": "DAY",
+    "amount": "-8.23",
+    "fee": "0",
+    "currency": "EUR",
+    "account": "Revolut Current",
+    "merchant": "SUSHI TEN",
+    "description": "Sushi Ten",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": 1,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": 0,
+    "classification": null,
+    "debt_allocation": null
+   },
+   {
+    "id": "entry_a1a836607fb4917c446996f43b3475ef39bd1ff186399db8121067803ac6c74d",
+    "anchor": "<digest>:pdf:revolut:<digest>:15",
+    "date": "2026-07-14",
+    "precision": "DAY",
+    "amount": "-3.24",
+    "fee": "0",
+    "currency": "EUR",
+    "account": "Revolut Current",
+    "merchant": "KONBINI MART",
+    "description": "Konbini Mart",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": 1,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": 0,
+    "classification": null,
+    "debt_allocation": null
+   }
+  ],
+  "review_count": 2,
+  "accounts": [
+   "DBS My Account",
+   "DBS PayLah! Wallet",
+   "Mari Credit Card",
+   "MariBank Savings Account",
+   "Revolut Current",
+   "Trust Bank Savings Account"
+  ],
+  "total_entries": 490,
+  "transfer_proposals": []
+ },
+ "amounts": [
+  {
+   "path": [
+    "summary",
+    "income"
+   ],
+   "label": "income",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "summary",
+    "refunds"
+   ],
+   "label": "refunds",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trend",
+    3,
+    "income"
+   ],
+   "label": "income",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": "2026-05",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trend",
+    4,
+    "income"
+   ],
+   "label": "income",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "trend",
+    5,
+    "income"
+   ],
+   "label": "income",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recurring",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    0,
+    "saved"
+   ],
+   "label": "Groceries, with room to spare · saved",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    0,
+    "target"
+   ],
+   "label": "Groceries, with room to spare · target",
+   "value": {
+    "native": {
+     "value": "320.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "320.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    1,
+    "saved"
+   ],
+   "label": "A little peace of mind · saved",
+   "value": {
+    "native": {
+     "value": "6200.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6200.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    1,
+    "target"
+   ],
+   "label": "A little peace of mind · target",
+   "value": {
+    "native": {
+     "value": "15000.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15000.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    1,
+    "actual"
+   ],
+   "label": "A little peace of mind · actual",
+   "value": {
+    "native": {
+     "value": "6200.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6200.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    1,
+    "remaining"
+   ],
+   "label": "A little peace of mind · remaining",
+   "value": {
+    "native": {
+     "value": "8800.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "8800.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "-8.23",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "-12.38",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-15",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    0,
+    "fee"
+   ],
+   "label": "fee",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-15",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "-3.24",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "-4.87",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-14",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    1,
+    "fee"
+   ],
+   "label": "fee",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-14",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

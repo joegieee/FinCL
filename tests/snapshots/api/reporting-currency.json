@@ -1,0 +1,107 @@
+{
+ "generation": "<digest>",
+ "reporting_policy": {
+  "currency": "SGD",
+  "minor_unit_scale": 2,
+  "journal_seq": null,
+  "decided_at": null,
+  "policy_version": null,
+  "is_default": true
+ },
+ "currency_registry": [
+  {
+   "code": "AUD",
+   "display_name": "Australian Dollar",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "CAD",
+   "display_name": "Canadian Dollar",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "CHF",
+   "display_name": "Swiss Franc",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "CNY",
+   "display_name": "Chinese Renminbi",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "EUR",
+   "display_name": "Euro",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "GBP",
+   "display_name": "Pound Sterling",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "HKD",
+   "display_name": "Hong Kong Dollar",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "JPY",
+   "display_name": "Japanese Yen",
+   "minor_unit_scale": 0
+  },
+  {
+   "code": "KWD",
+   "display_name": "Kuwaiti Dinar",
+   "minor_unit_scale": 3
+  },
+  {
+   "code": "MYR",
+   "display_name": "Malaysian Ringgit",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "NZD",
+   "display_name": "New Zealand Dollar",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "SGD",
+   "display_name": "Singapore Dollar",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "THB",
+   "display_name": "Thai Baht",
+   "minor_unit_scale": 2
+  },
+  {
+   "code": "USD",
+   "display_name": "US Dollar",
+   "minor_unit_scale": 2
+  }
+ ],
+ "coverage": {
+  "reporting_currency": "SGD",
+  "rate_path_policy": "direct-or-inverse-v1",
+  "tracked_currencies": [
+   "EUR",
+   "SGD"
+  ],
+  "by_currency": {
+   "EUR": {
+    "basis": "direct",
+    "inverted": false,
+    "available": true,
+    "reason": null
+   },
+   "SGD": {
+    "basis": "identity",
+    "inverted": false,
+    "available": true,
+    "reason": null
+   }
+  },
+  "structurally_unconfigured": [],
+  "would_be_partial_or_unavailable": []
+ }
+}

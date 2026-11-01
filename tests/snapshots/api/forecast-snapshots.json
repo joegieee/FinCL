@@ -1,0 +1,5 @@
+{
+ "snapshots": [],
+ "contract_version": "forecast-snapshot-v1",
+ "immutability": "a snapshot is issued only by an explicit request that names its id; no read, refresh or recalculation creates or alters one"
+}

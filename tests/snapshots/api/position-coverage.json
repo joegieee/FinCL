@@ -1,0 +1,353 @@
+{
+ "generated_for": "2026-09-15",
+ "coverage": {
+  "included_pockets": 7,
+  "covered_pockets": 1,
+  "short_pockets": 6,
+  "ratio": 0.14285714285714285,
+  "basis": "share of included liquid pockets with a coverage-backed balance",
+  "status": "partial"
+ },
+ "partial_position": {
+  "as_of": "2026-09-08",
+  "by_currency": {
+   "SGD": "17.18"
+  },
+  "contributing_pockets": [
+   {
+    "account_id": "dbs-paylah-wallet",
+    "currency_pocket": "SGD",
+    "display_name": "DBS PayLah! Wallet",
+    "balance": "17.18",
+    "basis": "statement-closing-balance"
+   }
+  ],
+  "short_pockets": [
+   {
+    "account_id": "acct_revolut_current",
+    "currency_pocket": "EUR",
+    "display_name": "Revolut Current",
+    "reason": "complete actual-movement coverage is not established through this date",
+    "best_supported_cutoff": "2026-08-31"
+   },
+   {
+    "account_id": "acct_revolut_current",
+    "currency_pocket": "SGD",
+    "display_name": "Revolut Current",
+    "reason": "complete actual-movement coverage is not established through this date",
+    "best_supported_cutoff": "2026-08-31"
+   },
+   {
+    "account_id": "dbs-my-account",
+    "currency_pocket": "SGD",
+    "display_name": "DBS My Account",
+    "reason": "complete actual-movement coverage is not established through this date",
+    "best_supported_cutoff": "2026-08-31"
+   },
+   {
+    "account_id": "dbs-my-account",
+    "currency_pocket": "USD",
+    "display_name": "DBS My Account",
+    "reason": "complete actual-movement coverage is not established through this date",
+    "best_supported_cutoff": "2026-08-31"
+   },
+   {
+    "account_id": "maribank-savings",
+    "currency_pocket": "SGD",
+    "display_name": "MariBank Savings Account",
+    "reason": "complete actual-movement coverage is not established through this date",
+    "best_supported_cutoff": "2026-08-31"
+   },
+   {
+    "account_id": "trust-savings",
+    "currency_pocket": "SGD",
+    "display_name": "Trust Bank Savings Account",
+    "reason": "complete actual-movement coverage is not established through this date",
+    "best_supported_cutoff": "2026-08-31"
+   }
+  ],
+  "is_complete": false,
+  "reason": "6 of 7 liquid pockets have no coverage-backed balance at 2026-09-08"
+ },
+ "supported_cutoff": "2026-08-31",
+ "current_position_supported": false,
+ "remedies": [
+  {
+   "action": "record-balance-observation",
+   "decision_kind": "BALANCE_OBSERVATION_SET",
+   "account_id": "acct_revolut_current",
+   "currency_pocket": "EUR",
+   "display_name": "Revolut Current",
+   "institution": "Revolut",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Read today's balance off the account and record it as a dated observation. It re-anchors this pocket, so the unproven days before it stop mattering. Blocked because: complete actual-movement coverage is not established through this date",
+   "parameters": {
+    "suggested_observed_on": "2026-09-15"
+   }
+  },
+  {
+   "action": "certify-quiet-interval",
+   "decision_kind": "MOVEMENT_COVERAGE_CERTIFY",
+   "account_id": "acct_revolut_current",
+   "currency_pocket": "EUR",
+   "display_name": "Revolut Current",
+   "institution": "Revolut",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Check the account's own transaction list from 2026-08-31 to 2026-09-15. If it shows no activity, certify the range and the existing balance carries forward unchanged.",
+   "parameters": {
+    "period_start": "2026-08-31",
+    "period_end": "2026-09-15"
+   }
+  },
+  {
+   "action": "record-balance-observation",
+   "decision_kind": "BALANCE_OBSERVATION_SET",
+   "account_id": "acct_revolut_current",
+   "currency_pocket": "SGD",
+   "display_name": "Revolut Current",
+   "institution": "Revolut",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Read today's balance off the account and record it as a dated observation. It re-anchors this pocket, so the unproven days before it stop mattering. Blocked because: complete actual-movement coverage is not established through this date",
+   "parameters": {
+    "suggested_observed_on": "2026-09-15"
+   }
+  },
+  {
+   "action": "certify-quiet-interval",
+   "decision_kind": "MOVEMENT_COVERAGE_CERTIFY",
+   "account_id": "acct_revolut_current",
+   "currency_pocket": "SGD",
+   "display_name": "Revolut Current",
+   "institution": "Revolut",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Check the account's own transaction list from 2026-08-31 to 2026-09-15. If it shows no activity, certify the range and the existing balance carries forward unchanged.",
+   "parameters": {
+    "period_start": "2026-08-31",
+    "period_end": "2026-09-15"
+   }
+  },
+  {
+   "action": "record-balance-observation",
+   "decision_kind": "BALANCE_OBSERVATION_SET",
+   "account_id": "dbs-my-account",
+   "currency_pocket": "SGD",
+   "display_name": "DBS My Account",
+   "institution": "DBS",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Read today's balance off the account and record it as a dated observation. It re-anchors this pocket, so the unproven days before it stop mattering. Blocked because: complete actual-movement coverage is not established through this date",
+   "parameters": {
+    "suggested_observed_on": "2026-09-15"
+   }
+  },
+  {
+   "action": "certify-quiet-interval",
+   "decision_kind": "MOVEMENT_COVERAGE_CERTIFY",
+   "account_id": "dbs-my-account",
+   "currency_pocket": "SGD",
+   "display_name": "DBS My Account",
+   "institution": "DBS",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Check the account's own transaction list from 2026-08-31 to 2026-09-15. If it shows no activity, certify the range and the existing balance carries forward unchanged.",
+   "parameters": {
+    "period_start": "2026-08-31",
+    "period_end": "2026-09-15"
+   }
+  },
+  {
+   "action": "record-balance-observation",
+   "decision_kind": "BALANCE_OBSERVATION_SET",
+   "account_id": "dbs-my-account",
+   "currency_pocket": "USD",
+   "display_name": "DBS My Account",
+   "institution": "DBS",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Read today's balance off the account and record it as a dated observation. It re-anchors this pocket, so the unproven days before it stop mattering. Blocked because: complete actual-movement coverage is not established through this date",
+   "parameters": {
+    "suggested_observed_on": "2026-09-15"
+   }
+  },
+  {
+   "action": "certify-quiet-interval",
+   "decision_kind": "MOVEMENT_COVERAGE_CERTIFY",
+   "account_id": "dbs-my-account",
+   "currency_pocket": "USD",
+   "display_name": "DBS My Account",
+   "institution": "DBS",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Check the account's own transaction list from 2026-08-31 to 2026-09-15. If it shows no activity, certify the range and the existing balance carries forward unchanged.",
+   "parameters": {
+    "period_start": "2026-08-31",
+    "period_end": "2026-09-15"
+   }
+  },
+  {
+   "action": "record-balance-observation",
+   "decision_kind": "BALANCE_OBSERVATION_SET",
+   "account_id": "maribank-savings",
+   "currency_pocket": "SGD",
+   "display_name": "MariBank Savings Account",
+   "institution": "MariBank",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Read today's balance off the account and record it as a dated observation. It re-anchors this pocket, so the unproven days before it stop mattering. Blocked because: complete actual-movement coverage is not established through this date",
+   "parameters": {
+    "suggested_observed_on": "2026-09-15"
+   }
+  },
+  {
+   "action": "certify-quiet-interval",
+   "decision_kind": "MOVEMENT_COVERAGE_CERTIFY",
+   "account_id": "maribank-savings",
+   "currency_pocket": "SGD",
+   "display_name": "MariBank Savings Account",
+   "institution": "MariBank",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Check the account's own transaction list from 2026-08-31 to 2026-09-15. If it shows no activity, certify the range and the existing balance carries forward unchanged.",
+   "parameters": {
+    "period_start": "2026-08-31",
+    "period_end": "2026-09-15"
+   }
+  },
+  {
+   "action": "record-balance-observation",
+   "decision_kind": "BALANCE_OBSERVATION_SET",
+   "account_id": "trust-savings",
+   "currency_pocket": "SGD",
+   "display_name": "Trust Bank Savings Account",
+   "institution": "Trust",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Read today's balance off the account and record it as a dated observation. It re-anchors this pocket, so the unproven days before it stop mattering. Blocked because: complete actual-movement coverage is not established through this date",
+   "parameters": {
+    "suggested_observed_on": "2026-09-15"
+   }
+  },
+  {
+   "action": "certify-quiet-interval",
+   "decision_kind": "MOVEMENT_COVERAGE_CERTIFY",
+   "account_id": "trust-savings",
+   "currency_pocket": "SGD",
+   "display_name": "Trust Bank Savings Account",
+   "institution": "Trust",
+   "unlocks": "unblocks-shared-cutoff",
+   "rank": 0,
+   "detail": "Check the account's own transaction list from 2026-08-31 to 2026-09-15. If it shows no activity, certify the range and the existing balance carries forward unchanged.",
+   "parameters": {
+    "period_start": "2026-08-31",
+    "period_end": "2026-09-15"
+   }
+  },
+  {
+   "action": "record-balance-observation",
+   "decision_kind": "BALANCE_OBSERVATION_SET",
+   "account_id": "dbs-paylah-wallet",
+   "currency_pocket": "SGD",
+   "display_name": "DBS PayLah! Wallet",
+   "institution": "DBS",
+   "unlocks": "brings-forward",
+   "rank": 2,
+   "detail": "Read today's balance off the account and record it as a dated observation. It re-anchors this pocket, so the unproven days before it stop mattering. Blocked because: complete actual-movement coverage is not established through this date",
+   "parameters": {
+    "suggested_observed_on": "2026-09-15"
+   }
+  },
+  {
+   "action": "certify-quiet-interval",
+   "decision_kind": "MOVEMENT_COVERAGE_CERTIFY",
+   "account_id": "dbs-paylah-wallet",
+   "currency_pocket": "SGD",
+   "display_name": "DBS PayLah! Wallet",
+   "institution": "DBS",
+   "unlocks": "brings-forward",
+   "rank": 2,
+   "detail": "Check the account's own transaction list from 2026-09-08 to 2026-09-15. If it shows no activity, certify the range and the existing balance carries forward unchanged.",
+   "parameters": {
+    "period_start": "2026-09-08",
+    "period_end": "2026-09-15"
+   }
+  }
+ ],
+ "freshness": [
+  {
+   "account": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currencies": [
+    "EUR",
+    "SGD"
+   ],
+   "evidence_through": "2026-08-31",
+   "age_days": 15,
+   "stale": true,
+   "basis": "statement",
+   "holds_back_start": true,
+   "archived_on": null,
+   "closed_with": []
+  },
+  {
+   "account": "dbs-my-account",
+   "display_name": "DBS My Account",
+   "currencies": [
+    "SGD",
+    "USD"
+   ],
+   "evidence_through": "2026-08-31",
+   "age_days": 15,
+   "stale": true,
+   "basis": "statement",
+   "holds_back_start": true,
+   "archived_on": null,
+   "closed_with": []
+  },
+  {
+   "account": "dbs-paylah-wallet",
+   "display_name": "DBS PayLah! Wallet",
+   "currencies": [
+    "SGD"
+   ],
+   "evidence_through": "2026-09-08",
+   "age_days": 7,
+   "stale": false,
+   "basis": "statement",
+   "holds_back_start": false,
+   "archived_on": null,
+   "closed_with": []
+  },
+  {
+   "account": "maribank-savings",
+   "display_name": "MariBank Savings Account",
+   "currencies": [
+    "SGD"
+   ],
+   "evidence_through": "2026-08-31",
+   "age_days": 15,
+   "stale": true,
+   "basis": "observation",
+   "holds_back_start": true,
+   "archived_on": null,
+   "closed_with": []
+  },
+  {
+   "account": "trust-savings",
+   "display_name": "Trust Bank Savings Account",
+   "currencies": [
+    "SGD"
+   ],
+   "evidence_through": "2026-08-31",
+   "age_days": 15,
+   "stale": true,
+   "basis": "statement",
+   "holds_back_start": true,
+   "archived_on": null,
+   "closed_with": []
+  }
+ ]
+}

@@ -1,0 +1,82 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "month": "2026-09",
+  "currency": "EUR",
+  "month_covered": false,
+  "month_complete": false,
+  "budgets": [
+   {
+    "plan": "groceries",
+    "name": "Groceries, with room to spare",
+    "currency": "SGD",
+    "category_key": "Food & Dining / Groceries",
+    "effective_month": null,
+    "limit": "320.00",
+    "actual": "0.00",
+    "remaining": null,
+    "over_limit": null,
+    "archived": false,
+    "legacy_undated": true,
+    "status": "coverage_unknown"
+   }
+  ]
+ },
+ "amounts": [
+  {
+   "path": [
+    "budgets",
+    0,
+    "limit"
+   ],
+   "label": "Groceries, with room to spare · limit",
+   "value": {
+    "native": {
+     "value": "320.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "320.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "budgets",
+    0,
+    "actual"
+   ],
+   "label": "Groceries, with room to spare · actual",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

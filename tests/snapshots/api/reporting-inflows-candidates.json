@@ -1,0 +1,342 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "policy_version": null,
+ "valuation_as_of": "2026-09-15",
+ "candidates": [
+  {
+   "candidate": "detv1:<digest>",
+   "occurrences": [
+    {
+     "anchor": "<digest>:pdf:dbs:<digest>:15",
+     "reported": {
+      "native": {"value":"2405.54","currency":"SGD"},
+      "reported": {"value":"2405.54","currency":"SGD"},
+      "purpose": "flow",
+      "basis": "identity",
+      "valuation_as_of": "2026-09-15",
+      "rate_as_of": null,
+      "rate_period": null,
+      "rate_path": [],
+      "forward_policy": null,
+      "unavailable": null
+     }
+    },
+    {
+     "anchor": "<digest>:pdf:dbs:<digest>:24",
+     "reported": {
+      "native": {"value":"2404.09","currency":"SGD"},
+      "reported": {"value":"2404.09","currency":"SGD"},
+      "purpose": "flow",
+      "basis": "identity",
+      "valuation_as_of": "2026-09-15",
+      "rate_as_of": null,
+      "rate_period": null,
+      "rate_path": [],
+      "forward_policy": null,
+      "unavailable": null
+     }
+    },
+    {
+     "anchor": "<digest>:pdf:dbs:<digest>:22",
+     "reported": {
+      "native": {"value":"2399.46","currency":"SGD"},
+      "reported": {"value":"2399.46","currency":"SGD"},
+      "purpose": "flow",
+      "basis": "identity",
+      "valuation_as_of": "2026-09-15",
+      "rate_as_of": null,
+      "rate_period": null,
+      "rate_path": [],
+      "forward_policy": null,
+      "unavailable": null
+     }
+    },
+    {
+     "anchor": "<digest>:pdf:dbs:<digest>:23",
+     "reported": {
+      "native": {"value":"2409.57","currency":"SGD"},
+      "reported": {"value":"2409.57","currency":"SGD"},
+      "purpose": "flow",
+      "basis": "identity",
+      "valuation_as_of": "2026-09-15",
+      "rate_as_of": null,
+      "rate_period": null,
+      "rate_path": [],
+      "forward_policy": null,
+      "unavailable": null
+     }
+    },
+    {
+     "anchor": "<digest>:pdf:dbs:<digest>:22",
+     "reported": {
+      "native": {"value":"2381.17","currency":"SGD"},
+      "reported": {"value":"2381.17","currency":"SGD"},
+      "purpose": "flow",
+      "basis": "identity",
+      "valuation_as_of": "2026-09-15",
+      "rate_as_of": null,
+      "rate_period": null,
+      "rate_path": [],
+      "forward_policy": null,
+      "unavailable": null
+     }
+    },
+    {
+     "anchor": "<digest>:pdf:dbs:<digest>:24",
+     "reported": {
+      "native": {"value":"2406.49","currency":"SGD"},
+      "reported": {"value":"2406.49","currency":"SGD"},
+      "purpose": "flow",
+      "basis": "identity",
+      "valuation_as_of": "2026-09-15",
+      "rate_as_of": null,
+      "rate_period": null,
+      "rate_path": [],
+      "forward_policy": null,
+      "unavailable": null
+     }
+    },
+    {
+     "anchor": "<digest>:pdf:dbs:<digest>:26",
+     "reported": {
+      "native": {"value":"2388.44","currency":"SGD"},
+      "reported": {"value":"2388.44","currency":"SGD"},
+      "purpose": "flow",
+      "basis": "identity",
+      "valuation_as_of": "2026-09-15",
+      "rate_as_of": null,
+      "rate_period": null,
+      "rate_path": [],
+      "forward_policy": null,
+      "unavailable": null
+     }
+    },
+    {
+     "anchor": "<digest>:pdf:dbs:<digest>:22",
+     "reported": {
+      "native": {"value":"2396.40","currency":"SGD"},
+      "reported": {"value":"2396.40","currency":"SGD"},
+      "purpose": "flow",
+      "basis": "identity",
+      "valuation_as_of": "2026-09-15",
+      "rate_as_of": null,
+      "rate_period": null,
+      "rate_path": [],
+      "forward_policy": null,
+      "unavailable": null
+     }
+    }
+   ],
+   "variation": {
+    "latest": {
+     "native": {
+      "value": "2396.40",
+      "currency": "SGD"
+     },
+     "reported": {
+      "value": "2396.40",
+      "currency": "SGD"
+     },
+     "purpose": "flow",
+     "basis": "identity",
+     "valuation_as_of": "2026-09-15",
+     "rate_as_of": null,
+     "rate_period": null,
+     "rate_path": [],
+     "forward_policy": null,
+     "unavailable": null
+    },
+    "minimum": {
+     "native": {
+      "value": "2381.17",
+      "currency": "SGD"
+     },
+     "reported": {
+      "value": "2381.17",
+      "currency": "SGD"
+     },
+     "purpose": "flow",
+     "basis": "identity",
+     "valuation_as_of": "2026-09-15",
+     "rate_as_of": null,
+     "rate_period": null,
+     "rate_path": [],
+     "forward_policy": null,
+     "unavailable": null
+    },
+    "maximum": {
+     "native": {
+      "value": "2409.57",
+      "currency": "SGD"
+     },
+     "reported": {
+      "value": "2409.57",
+      "currency": "SGD"
+     },
+     "purpose": "flow",
+     "basis": "identity",
+     "valuation_as_of": "2026-09-15",
+     "rate_as_of": null,
+     "rate_period": null,
+     "rate_path": [],
+     "forward_policy": null,
+     "unavailable": null
+    },
+    "mean": {
+     "value": "2398.90",
+     "currency": "SGD"
+    },
+    "priced_count": 8,
+    "total_count": 8
+   }
+  }
+ ],
+ "native": {
+  "generation": "<digest>",
+  "candidates": [
+   {
+    "candidate": "detv1:<digest>",
+    "detector_version": "detv1",
+    "kind": "income",
+    "merchant_key": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+    "currency": "SGD",
+    "account_ids": [
+     "dbs-my-account"
+    ],
+    "cadence": "monthly",
+    "count": 8,
+    "source_count": 8,
+    "last_receipt_on": "2026-08-25",
+    "last_observed_on": "2026-08-25",
+    "first_observed_on": "2026-01-25",
+    "amount_variation": {
+     "basis": "stable",
+     "min_amount": "2381.17",
+     "max_amount": "2409.57",
+     "spread": "28.40",
+     "relative_spread": "0.0118",
+     "mean_amount": "2398.90",
+     "latest_amount": "2396.40",
+     "drift": {
+      "available": true,
+      "direction": "flat",
+      "total_change": "-9.14",
+      "per_occurrence": "-1.31",
+      "observations": 8,
+      "basis": "first to latest observed amount, divided by the intervals between them",
+      "applied": false,
+      "note": "the expected amount remains the latest observed receipt; this trend is reported for review and is never projected automatically"
+     }
+    },
+    "timing_window": {
+     "cadence": "monthly",
+     "first_observed_on": "2026-01-25",
+     "last_observed_on": "2026-08-25",
+     "min_gap_days": 30,
+     "max_gap_days": 31,
+     "observed_gap_days": [
+      31,
+      28,
+      31,
+      30,
+      31,
+      30,
+      31
+     ],
+     "outlier_gap_days": [
+      28
+     ],
+     "next_expected_between": [
+      "2026-09-24",
+      "2026-09-25"
+     ],
+     "day_of_month_min": 25,
+     "day_of_month_max": 25
+    },
+    "suggested_schedule": {
+     "kind": "monthly",
+     "day": 25,
+     "anchor_on": "2026-08-25"
+    },
+    "expected_amount": "2396.40",
+    "suggested_expected_amount": "2396.40",
+    "suggested_tolerance": "28.40",
+    "amount_tolerance": "28.40",
+    "confidence": "likely",
+    "confidence_reason": "grouped from recorded receipts only; a future receipt or a recorded commitment is what raises this to confirmed",
+    "auto_confirmable": false,
+    "review_question": "Is Funds Transfer\nACME STUDIO PTE LTD SALARY a recurring income stream?",
+    "seed_entry_anchors": [
+     "<digest>:pdf:dbs:<digest>:22",
+     "<digest>:pdf:dbs:<digest>:24",
+     "<digest>:pdf:dbs:<digest>:26",
+     "<digest>:pdf:dbs:<digest>:22"
+    ],
+    "occurrences": [
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:15",
+      "date": "2026-01-25",
+      "amount": "2405.54",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:24",
+      "date": "2026-02-25",
+      "amount": "2404.09",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:22",
+      "date": "2026-03-25",
+      "amount": "2399.46",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:23",
+      "date": "2026-04-25",
+      "amount": "2409.57",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:22",
+      "date": "2026-05-25",
+      "amount": "2381.17",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:24",
+      "date": "2026-06-25",
+      "amount": "2406.49",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:26",
+      "date": "2026-07-25",
+      "amount": "2388.44",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:22",
+      "date": "2026-08-25",
+      "amount": "2396.40",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     }
+    ]
+   }
+  ],
+  "exclusions": {
+   "excluded_source_count": 0,
+   "rule": "loan movements, owned transfers and refunds are removed before grouping; they are never netted out of a stream afterwards"
+  },
+  "policy": "Candidates are Likely only. Confirming a classification remains an explicit journal decision."
+ }
+}

@@ -1,0 +1,303 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "as_of": "2026-09-15",
+  "cutoff": "2026-08-31",
+  "reference_day": "2026-08-31",
+  "horizon": {
+   "start": "2026-09-01",
+   "end": "2027-02-28"
+  },
+  "flows": [
+   {
+    "flow": "5ea60ba3-0282-5fa9-825f-e16155d0998e",
+    "name": "Dental work",
+    "direction": "outflow",
+    "currency": "SGD",
+    "account_id": null,
+    "account_name": null,
+    "category": null,
+    "certainty": "sure",
+    "baseline_treatment": "extra",
+    "link": null,
+    "reason": "Quoted",
+    "planned": "780.00",
+    "matched": "0.00",
+    "remaining": "780.00",
+    "over_plan": null,
+    "next_due": "2026-12-14",
+    "occurrences": [
+     {
+      "key": "a",
+      "earliest": "2026-12-14",
+      "latest": "2026-12-14",
+      "on": "2026-12-14",
+      "month": "2026-12",
+      "planned": "780.00",
+      "matched": "0.00",
+      "remaining": "780.00",
+      "state": "upcoming",
+      "overdue": false,
+      "outcome": null,
+      "in_forecast": true,
+      "forecast": {"cases":["base","cautious"],"amount":"780.00","placements":[{"earliest":"2026-12-14","latest":"2026-12-14","amount":"780.00","cases":["base","cautious"],"overdue":false,"actual":false}]},
+      "forecast_note": null,
+      "matches": [],
+      "actual_parts": []
+     }
+    ]
+   }
+  ],
+  "months": [
+   {
+    "month": "2026-12",
+    "items": [
+     {
+      "flow": "5ea60ba3-0282-5fa9-825f-e16155d0998e",
+      "occurrence": "a"
+     }
+    ],
+    "totals": {
+     "SGD": {
+      "outflows": "780.00",
+      "inflows": "0.00"
+     }
+    }
+   }
+  ],
+  "attention": [],
+  "rules": [
+   "an occurrence is overdue once its last possible day is on or before the cash cutoff",
+   "overdue spending stays in the forecast on the first forecast day until matched or resolved",
+   "overdue income is left out of the forecast until it is matched",
+   "spending you are only maybe going to do counts in the cautious case only; expected income counts in the base case only; maybe income is never counted"
+  ]
+ },
+ "amounts": [
+  {
+   "path": [
+    "flows",
+    0,
+    "planned"
+   ],
+   "label": "Dental work · planned",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "flows",
+    0,
+    "matched"
+   ],
+   "label": "Dental work · matched",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "flows",
+    0,
+    "remaining"
+   ],
+   "label": "Dental work · remaining",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "flows",
+    0,
+    "occurrences",
+    0,
+    "planned"
+   ],
+   "label": "Dental work · planned",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "flows",
+    0,
+    "occurrences",
+    0,
+    "matched"
+   ],
+   "label": "Dental work · matched",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "flows",
+    0,
+    "occurrences",
+    0,
+    "remaining"
+   ],
+   "label": "Dental work · remaining",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "flows",
+    0,
+    "occurrences",
+    0,
+    "forecast",
+    "amount"
+   ],
+   "label": "Dental work · amount",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "flows",
+    0,
+    "occurrences",
+    0,
+    "forecast",
+    "placements",
+    0,
+    "amount"
+   ],
+   "label": "Dental work · amount",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  }
+ ]
+}

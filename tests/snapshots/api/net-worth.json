@@ -1,0 +1,260 @@
+{
+ "as_of": "2026-09-15",
+ "generation": "<digest>",
+ "label": "tracked net worth",
+ "is_total_personal_wealth": false,
+ "disclaimer": "A per-currency subtotal of the dated cash, debt, receivable and card positions this ledger can support. Components it cannot value are listed as missing, never as zero. This is not proof of total personal wealth and is not labelled as such.",
+ "components": [
+  {
+   "component_id": "cash:acct_revolut_current:EUR",
+   "kind": "cash",
+   "side": "asset",
+   "currency": "EUR",
+   "amount": "592.15",
+   "as_of": "2026-08-31",
+   "basis": "evidence",
+   "origin": "position · statement-closing-balance",
+   "label": "Revolut Current",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "cash:acct_revolut_current:SGD",
+   "kind": "cash",
+   "side": "asset",
+   "currency": "SGD",
+   "amount": "2396.88",
+   "as_of": "2026-08-31",
+   "basis": "evidence",
+   "origin": "position · statement-closing-balance",
+   "label": "Revolut Current",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "cash:dbs-my-account:SGD",
+   "kind": "cash",
+   "side": "asset",
+   "currency": "SGD",
+   "amount": "12612.46",
+   "as_of": "2026-08-31",
+   "basis": "evidence",
+   "origin": "position · statement-closing-balance",
+   "label": "DBS My Account",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "cash:dbs-my-account:USD",
+   "kind": "cash",
+   "side": "asset",
+   "currency": "USD",
+   "amount": "42.17",
+   "as_of": "2026-08-31",
+   "basis": "evidence",
+   "origin": "position · statement-closing-balance",
+   "label": "DBS My Account",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "cash:dbs-paylah-wallet:SGD",
+   "kind": "cash",
+   "side": "asset",
+   "currency": "SGD",
+   "amount": "17.18",
+   "as_of": "2026-09-08",
+   "basis": "evidence",
+   "origin": "position · statement-closing-balance",
+   "label": "DBS PayLah! Wallet",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "cash:maribank-savings:SGD",
+   "kind": "cash",
+   "side": "asset",
+   "currency": "SGD",
+   "amount": "329.30",
+   "as_of": "2026-08-31",
+   "basis": "manual",
+   "origin": "position · manual-observation",
+   "label": "MariBank Savings Account",
+   "included": true,
+   "confidence": null,
+   "note": "stored manual balance observation"
+  },
+  {
+   "component_id": "cash:trust-savings:SGD",
+   "kind": "cash",
+   "side": "asset",
+   "currency": "SGD",
+   "amount": "190.26",
+   "as_of": "2026-08-31",
+   "basis": "evidence",
+   "origin": "position · statement-closing-balance",
+   "label": "Trust Bank Savings Account",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "debt:013edf59-e31c-5705-aae2-1e793c549e25",
+   "kind": "debt",
+   "side": "asset",
+   "currency": "SGD",
+   "amount": "480.00",
+   "as_of": "2026-10-20",
+   "basis": "manual",
+   "origin": "obligations · personal_debt",
+   "label": "Priya",
+   "included": true,
+   "confidence": "confirmed · unknown",
+   "note": null
+  },
+  {
+   "component_id": "debt:4d95af3b-0c6b-50c5-b6c5-9a99361cdd60",
+   "kind": "debt",
+   "side": "liability",
+   "currency": "SGD",
+   "amount": "640.00",
+   "as_of": null,
+   "basis": "manual",
+   "origin": "obligations · personal_debt",
+   "label": "Jamie",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "debt:b124e146-3ee1-52ab-831d-b26b40acac56",
+   "kind": "debt",
+   "side": "asset",
+   "currency": "SGD",
+   "amount": "245.00",
+   "as_of": null,
+   "basis": "manual",
+   "origin": "obligations · personal_debt",
+   "label": "Robin",
+   "included": true,
+   "confidence": "confirmed · unknown",
+   "note": null
+  },
+  {
+   "component_id": "debt:e0ae1cd3-05fa-589b-a0b5-3cda4e2e89ca",
+   "kind": "debt",
+   "side": "liability",
+   "currency": "SGD",
+   "amount": "1360.00",
+   "as_of": "2026-10-10",
+   "basis": "manual",
+   "origin": "obligations · personal_debt",
+   "label": "Sam",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "card:mari-credit-card:SGD:unpaid_billed",
+   "kind": "card_liability",
+   "side": "liability",
+   "currency": "SGD",
+   "amount": "234.85",
+   "as_of": "2026-09-15",
+   "basis": "evidence",
+   "origin": "card cash-conversion · unpaid_billed",
+   "label": "Mari Credit Card · unpaid billed",
+   "included": true,
+   "confidence": null,
+   "note": null
+  },
+  {
+   "component_id": "card:mari-credit-card:SGD:posted_unbilled",
+   "kind": "card_liability",
+   "side": "liability",
+   "currency": "SGD",
+   "amount": null,
+   "as_of": "2026-09-15",
+   "basis": "evidence",
+   "origin": "card cash-conversion · posted_unbilled",
+   "label": "Mari Credit Card · posted unbilled",
+   "included": false,
+   "confidence": null,
+   "note": "this card has no accepted evidence covering 2026-08-21..2026-09-15, so postings in the unbilled window may be missing; an unknown unbilled balance is unresolved, never zero — reading it as zero would silently drop the most recent card spending out of the forecast"
+  }
+ ],
+ "notes": [
+  "cash is taken from the position read, debts and receivables from the obligations read, and card liability from the card cash-conversion contract — each figure from exactly one source, so nothing is added twice",
+  "the obligations read's card statement dues and installment rows are not included here: card liability has one authority and an installment that settles inside a statement due is already inside it",
+  "receivables are reported as assets with their confidence disclosed while staying excluded from liquid cash"
+ ],
+ "per_currency": {
+  "EUR": {
+   "tracked_assets": "592.15",
+   "tracked_liabilities": "0.00",
+   "tracked_net_worth": "592.15",
+   "manual_assets": "0.00",
+   "manual_liabilities": "0.00",
+   "net_worth_including_manual": "592.15",
+   "manual_basis_note": "manual values keep their own basis and are reported here separately; they are not part of the evidence-only tracked subtotal",
+   "subtotal_note": "tracked subtotal only — the positions this ledger can support, not a complete statement of personal wealth",
+   "missing_components": [],
+   "excluded_components": [],
+   "complete": true,
+   "valuation_dates": [
+    "2026-08-31"
+   ],
+   "as_of": "2026-09-15"
+  },
+  "SGD": {
+   "tracked_assets": "15216.78",
+   "tracked_liabilities": "234.85",
+   "tracked_net_worth": "14981.93",
+   "manual_assets": "1054.30",
+   "manual_liabilities": "2000.00",
+   "net_worth_including_manual": "14036.23",
+   "manual_basis_note": "manual values keep their own basis and are reported here separately; they are not part of the evidence-only tracked subtotal",
+   "subtotal_note": "tracked subtotal only — the positions this ledger can support, not a complete statement of personal wealth",
+   "missing_components": [
+    {
+     "component_id": "card:mari-credit-card:SGD:posted_unbilled",
+     "kind": "card_liability",
+     "side": "liability",
+     "reason": "this card has no accepted evidence covering 2026-08-21..2026-09-15, so postings in the unbilled window may be missing; an unknown unbilled balance is unresolved, never zero — reading it as zero would silently drop the most recent card spending out of the forecast"
+    }
+   ],
+   "excluded_components": [],
+   "complete": false,
+   "valuation_dates": [
+    "2026-08-31",
+    "2026-09-08",
+    "2026-09-15",
+    "2026-10-10",
+    "2026-10-20"
+   ],
+   "as_of": "2026-09-15"
+  },
+  "USD": {
+   "tracked_assets": "42.17",
+   "tracked_liabilities": "0.00",
+   "tracked_net_worth": "42.17",
+   "manual_assets": "0.00",
+   "manual_liabilities": "0.00",
+   "net_worth_including_manual": "42.17",
+   "manual_basis_note": "manual values keep their own basis and are reported here separately; they are not part of the evidence-only tracked subtotal",
+   "subtotal_note": "tracked subtotal only — the positions this ledger can support, not a complete statement of personal wealth",
+   "missing_components": [],
+   "excluded_components": [],
+   "complete": true,
+   "valuation_dates": [
+    "2026-08-31"
+   ],
+   "as_of": "2026-09-15"
+  }
+ }
+}

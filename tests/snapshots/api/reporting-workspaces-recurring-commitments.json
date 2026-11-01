@@ -1,0 +1,55 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "confirmed": [
+   {
+    "commitment": "rent",
+    "name": "Rent",
+    "currency": "SGD",
+    "merchant_key": "LANDLORD SYNTHETIC",
+    "status": "active",
+    "ended_on": null,
+    "schedule": {
+     "anchor_on": "2026-01-02",
+     "day": 2,
+     "kind": "monthly"
+    },
+    "account_ids": [],
+    "expected_amount": "1180.00",
+    "amount_tolerance": "0.00"
+   }
+  ],
+  "paused_or_ended": []
+ },
+ "amounts": [
+  {
+   "path": [
+    "confirmed",
+    0,
+    "expected_amount"
+   ],
+   "label": "Rent · expected amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  }
+ ]
+}

@@ -1,0 +1,212 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "as_of": "2026-09-15",
+  "i_owe": [
+   {
+    "debt_id": "4d95af3b-0c6b-50c5-b6c5-9a99361cdd60",
+    "direction": "PAYABLE",
+    "currency": "SGD",
+    "counterparty_label": "Jamie",
+    "opened_on": "2026-02-06",
+    "due_on": null,
+    "status": "OPEN",
+    "closed_on": null,
+    "remaining_principal": {
+     "value": "640.00",
+     "currency": "SGD"
+    },
+    "last_event": {
+     "kind": "BORROWED",
+     "effective_on": "2026-02-06"
+    },
+    "reconciliation_status": "opening_balance_only",
+    "event_count": 1,
+    "plan": null
+   },
+   {
+    "debt_id": "e0ae1cd3-05fa-589b-a0b5-3cda4e2e89ca",
+    "direction": "PAYABLE",
+    "currency": "SGD",
+    "counterparty_label": "Sam",
+    "opened_on": "2026-03-06",
+    "due_on": null,
+    "status": "OPEN",
+    "closed_on": null,
+    "remaining_principal": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "last_event": {
+     "kind": "BORROWED",
+     "effective_on": "2026-03-06"
+    },
+    "reconciliation_status": "opening_balance_only",
+    "event_count": 1,
+    "plan": {
+     "next_due": "2026-10-10",
+     "overdue_count": 0,
+     "unscheduled_remainder": false
+    }
+   }
+  ],
+  "owed_to_me": [
+   {
+    "debt_id": "013edf59-e31c-5705-aae2-1e793c549e25",
+    "direction": "RECEIVABLE",
+    "currency": "SGD",
+    "counterparty_label": "Priya",
+    "opened_on": "2026-05-06",
+    "due_on": "2026-10-20",
+    "status": "OPEN",
+    "closed_on": null,
+    "remaining_principal": {
+     "value": "480.00",
+     "currency": "SGD"
+    },
+    "last_event": {
+     "kind": "LENT",
+     "effective_on": "2026-05-06"
+    },
+    "reconciliation_status": "opening_balance_only",
+    "event_count": 1,
+    "plan": null
+   },
+   {
+    "debt_id": "b124e146-3ee1-52ab-831d-b26b40acac56",
+    "direction": "RECEIVABLE",
+    "currency": "SGD",
+    "counterparty_label": "Robin",
+    "opened_on": "2026-04-06",
+    "due_on": null,
+    "status": "OPEN",
+    "closed_on": null,
+    "remaining_principal": {
+     "value": "245.00",
+     "currency": "SGD"
+    },
+    "last_event": {
+     "kind": "LENT",
+     "effective_on": "2026-04-06"
+    },
+    "reconciliation_status": "opening_balance_only",
+    "event_count": 1,
+    "plan": null
+   }
+  ],
+  "next_cursor": null
+ },
+ "amounts": [
+  {
+   "path": [
+    "i_owe",
+    0,
+    "remaining_principal",
+    "value"
+   ],
+   "label": "Jamie · remaining principal",
+   "value": {
+    "native": {
+     "value": "640.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "640.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "i_owe",
+    1,
+    "remaining_principal",
+    "value"
+   ],
+   "label": "Sam · remaining principal",
+   "value": {
+    "native": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "owed_to_me",
+    0,
+    "remaining_principal",
+    "value"
+   ],
+   "label": "Priya · remaining principal",
+   "value": {
+    "native": {
+     "value": "480.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "480.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "owed_to_me",
+    1,
+    "remaining_principal",
+    "value"
+   ],
+   "label": "Robin · remaining principal",
+   "value": {
+    "native": {
+     "value": "245.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "245.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

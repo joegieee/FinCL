@@ -1,0 +1,8 @@
+{
+ "state": "ready",
+ "current_ledger": "demo.sqlite3",
+ "storage_profile": "plaintext-local",
+ "workspace_root": "<root>",
+ "can_create": true,
+ "can_open": true
+}

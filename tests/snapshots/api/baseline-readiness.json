@@ -1,0 +1,747 @@
+{
+ "generation": "<digest>",
+ "generated_for": "2026-09-15",
+ "scope": {
+  "accounts": [
+   "acct_revolut_current",
+   "dbs-my-account",
+   "dbs-paylah-wallet",
+   "mari-credit-card",
+   "maribank-savings",
+   "trust-savings"
+  ],
+  "currencies": [
+   "EUR",
+   "SGD"
+  ],
+  "analysis_window": {
+   "start": "2026-01-01",
+   "end": "2026-09-08"
+  }
+ },
+ "pockets": [
+  {
+   "account_id": "dbs-my-account",
+   "institution": "DBS",
+   "display_name": "DBS My Account",
+   "source_type": "DBS_CONSOLIDATED",
+   "currency_pocket": "SGD",
+   "expected_span": null,
+   "observed_span": {
+    "start": "2026-01-02",
+    "end": "2026-08-30"
+   },
+   "span": {
+    "start": "2026-01-01",
+    "end": "2026-09-08"
+   },
+   "entry_count": 192,
+   "reconciliation": {
+    "passed": 6030,
+    "total": 6030
+   },
+   "months": [
+    {
+     "month": "2026-01",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 22
+    },
+    {
+     "month": "2026-02",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 23
+    },
+    {
+     "month": "2026-03",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 24
+    },
+    {
+     "month": "2026-04",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 24
+    },
+    {
+     "month": "2026-05",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 23
+    },
+    {
+     "month": "2026-06",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 26
+    },
+    {
+     "month": "2026-07",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 26
+    },
+    {
+     "month": "2026-08",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 24
+    },
+    {
+     "month": "2026-09",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    }
+   ],
+   "missing_intervals": [
+    {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    }
+   ],
+   "stopped": true,
+   "warnings": []
+  },
+  {
+   "account_id": "dbs-paylah-wallet",
+   "institution": "DBS",
+   "display_name": "DBS PayLah! Wallet",
+   "source_type": "DBS_PAYLAH",
+   "currency_pocket": "SGD",
+   "expected_span": null,
+   "observed_span": {
+    "start": "2026-01-09",
+    "end": "2026-08-30"
+   },
+   "span": {
+    "start": "2026-01-09",
+    "end": "2026-09-08"
+   },
+   "entry_count": 137,
+   "reconciliation": {
+    "passed": 137,
+    "total": 137
+   },
+   "months": [
+    {
+     "month": "2026-01",
+     "completeness": "provisional",
+     "basis": "observed-entry-span",
+     "entry_count": 14
+    },
+    {
+     "month": "2026-02",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 19
+    },
+    {
+     "month": "2026-03",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 16
+    },
+    {
+     "month": "2026-04",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 18
+    },
+    {
+     "month": "2026-05",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 17
+    },
+    {
+     "month": "2026-06",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 18
+    },
+    {
+     "month": "2026-07",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 16
+    },
+    {
+     "month": "2026-08",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 19
+    },
+    {
+     "month": "2026-09",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    }
+   ],
+   "missing_intervals": [
+    {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    }
+   ],
+   "stopped": false,
+   "warnings": []
+  },
+  {
+   "account_id": "mari-credit-card",
+   "institution": "MariBank",
+   "display_name": "Mari Credit Card",
+   "source_type": "MARI_CARD",
+   "currency_pocket": "SGD",
+   "expected_span": null,
+   "observed_span": {
+    "start": "2026-04-14",
+    "end": "2026-08-21"
+   },
+   "span": {
+    "start": "2026-04-09",
+    "end": "2026-09-08"
+   },
+   "entry_count": 38,
+   "reconciliation": {
+    "passed": 202,
+    "total": 202
+   },
+   "months": [
+    {
+     "month": "2026-04",
+     "completeness": "provisional",
+     "basis": "observed-entry-span",
+     "entry_count": 5
+    },
+    {
+     "month": "2026-05",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 11
+    },
+    {
+     "month": "2026-06",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 8
+    },
+    {
+     "month": "2026-07",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 6
+    },
+    {
+     "month": "2026-08",
+     "completeness": "provisional",
+     "basis": "observed-entry-span",
+     "entry_count": 8
+    },
+    {
+     "month": "2026-09",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    }
+   ],
+   "missing_intervals": [
+    {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    }
+   ],
+   "stopped": true,
+   "warnings": []
+  },
+  {
+   "account_id": "maribank-savings",
+   "institution": "MariBank",
+   "display_name": "MariBank Savings Account",
+   "source_type": "MARI_SAVINGS",
+   "currency_pocket": "SGD",
+   "expected_span": null,
+   "observed_span": {
+    "start": "2026-05-04",
+    "end": "2026-08-31"
+   },
+   "span": {
+    "start": "2026-03-12",
+    "end": "2026-09-08"
+   },
+   "entry_count": 12,
+   "reconciliation": {
+    "passed": 57,
+    "total": 57
+   },
+   "months": [
+    {
+     "month": "2026-03",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    },
+    {
+     "month": "2026-04",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 0
+    },
+    {
+     "month": "2026-05",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-06",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-07",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-08",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-09",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    }
+   ],
+   "missing_intervals": [
+    {
+     "start": "2026-03-01",
+     "end": "2026-03-31"
+    },
+    {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    }
+   ],
+   "stopped": true,
+   "warnings": []
+  },
+  {
+   "account_id": "acct_revolut_current",
+   "institution": "Revolut",
+   "display_name": "Revolut Current",
+   "source_type": "REVOLUT_PDF",
+   "currency_pocket": "EUR",
+   "expected_span": null,
+   "observed_span": {
+    "start": "2026-02-03",
+    "end": "2026-08-16"
+   },
+   "span": {
+    "start": "2026-01-14",
+    "end": "2026-09-08"
+   },
+   "entry_count": 31,
+   "reconciliation": {
+    "passed": 624,
+    "total": 624
+   },
+   "months": [
+    {
+     "month": "2026-01",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    },
+    {
+     "month": "2026-02",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-03",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-04",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-05",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-06",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 13
+    },
+    {
+     "month": "2026-07",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-08",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 3
+    },
+    {
+     "month": "2026-09",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    }
+   ],
+   "missing_intervals": [
+    {
+     "start": "2026-01-01",
+     "end": "2026-01-31"
+    },
+    {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    }
+   ],
+   "stopped": true,
+   "warnings": []
+  },
+  {
+   "account_id": "acct_revolut_current",
+   "institution": "Revolut",
+   "display_name": "Revolut Current",
+   "source_type": "REVOLUT_PDF",
+   "currency_pocket": "SGD",
+   "expected_span": null,
+   "observed_span": {
+    "start": "2026-01-17",
+    "end": "2026-08-31"
+   },
+   "span": {
+    "start": "2026-01-14",
+    "end": "2026-09-08"
+   },
+   "entry_count": 74,
+   "reconciliation": {
+    "passed": 624,
+    "total": 624
+   },
+   "months": [
+    {
+     "month": "2026-01",
+     "completeness": "provisional",
+     "basis": "observed-entry-span",
+     "entry_count": 2
+    },
+    {
+     "month": "2026-02",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 10
+    },
+    {
+     "month": "2026-03",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 10
+    },
+    {
+     "month": "2026-04",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 10
+    },
+    {
+     "month": "2026-05",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 10
+    },
+    {
+     "month": "2026-06",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 11
+    },
+    {
+     "month": "2026-07",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 11
+    },
+    {
+     "month": "2026-08",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 10
+    },
+    {
+     "month": "2026-09",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    }
+   ],
+   "missing_intervals": [
+    {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    }
+   ],
+   "stopped": true,
+   "warnings": []
+  },
+  {
+   "account_id": "trust-savings",
+   "institution": "Trust",
+   "display_name": "Trust Bank Savings Account",
+   "source_type": "TRUST_SAVINGS",
+   "currency_pocket": "SGD",
+   "expected_span": null,
+   "observed_span": {
+    "start": "2026-06-04",
+    "end": "2026-07-31"
+   },
+   "span": {
+    "start": "2026-02-01",
+    "end": "2026-09-08"
+   },
+   "entry_count": 6,
+   "reconciliation": {
+    "passed": 30,
+    "total": 30
+   },
+   "months": [
+    {
+     "month": "2026-02",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 0
+    },
+    {
+     "month": "2026-03",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 0
+    },
+    {
+     "month": "2026-04",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 0
+    },
+    {
+     "month": "2026-05",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 0
+    },
+    {
+     "month": "2026-06",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 5
+    },
+    {
+     "month": "2026-07",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 1
+    },
+    {
+     "month": "2026-08",
+     "completeness": "established",
+     "basis": "statement-period",
+     "entry_count": 0
+    },
+    {
+     "month": "2026-09",
+     "completeness": "missing",
+     "basis": "no-evidence",
+     "entry_count": 0
+    }
+   ],
+   "missing_intervals": [
+    {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    }
+   ],
+   "stopped": true,
+   "warnings": []
+  }
+ ],
+ "baseline_window": {
+  "quality": "normal",
+  "reason": "3 consecutive fully-established months; using the latest 3",
+  "start_month": "2026-05",
+  "end_month": "2026-07",
+  "month_count": 3,
+  "basis": "all-established"
+ },
+ "tasks": [
+  {
+   "kind": "import-missing",
+   "account_id": "dbs-my-account",
+   "display_name": "DBS My Account",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for DBS My Account SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "dbs-paylah-wallet",
+   "display_name": "DBS PayLah! Wallet",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for DBS PayLah! Wallet SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "confirm-export-period",
+   "account_id": "dbs-paylah-wallet",
+   "display_name": "DBS PayLah! Wallet",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-01-09",
+    "end": "2026-08-30"
+   },
+   "note": "DBS PayLah! Wallet SGD is observed-only; add an export-period statement to make its months established"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "mari-credit-card",
+   "display_name": "Mari Credit Card",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for Mari Credit Card SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "confirm-export-period",
+   "account_id": "mari-credit-card",
+   "display_name": "Mari Credit Card",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-04-14",
+    "end": "2026-08-21"
+   },
+   "note": "Mari Credit Card SGD is observed-only; add an export-period statement to make its months established"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "maribank-savings",
+   "display_name": "MariBank Savings Account",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-03-01",
+    "end": "2026-03-31"
+   },
+   "note": "no statement or activity for MariBank Savings Account SGD over 2026-03-01..2026-03-31"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "maribank-savings",
+   "display_name": "MariBank Savings Account",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for MariBank Savings Account SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currency_pocket": "EUR",
+   "interval": {
+    "start": "2026-01-01",
+    "end": "2026-01-31"
+   },
+   "note": "no statement or activity for Revolut Current EUR over 2026-01-01..2026-01-31"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currency_pocket": "EUR",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for Revolut Current EUR over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for Revolut Current SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "confirm-export-period",
+   "account_id": "acct_revolut_current",
+   "display_name": "Revolut Current",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-01-17",
+    "end": "2026-08-31"
+   },
+   "note": "Revolut Current SGD is observed-only; add an export-period statement to make its months established"
+  },
+  {
+   "kind": "import-missing",
+   "account_id": "trust-savings",
+   "display_name": "Trust Bank Savings Account",
+   "currency_pocket": "SGD",
+   "interval": {
+    "start": "2026-09-01",
+    "end": "2026-09-30"
+   },
+   "note": "no statement or activity for Trust Bank Savings Account SGD over 2026-09-01..2026-09-30"
+  },
+  {
+   "kind": "resolve-categorization",
+   "currency_pocket": "SGD",
+   "entry_count": 77,
+   "absolute_amount": "2172.63",
+   "note": "77 unclassified entries in the baseline window (|2172.63| SGD); unknown role is not discretionary and not zero"
+  },
+  {
+   "kind": "resolve-categorization",
+   "currency_pocket": "EUR",
+   "entry_count": 16,
+   "absolute_amount": "247.77",
+   "note": "16 unclassified entries in the baseline window (|247.77| EUR); unknown role is not discretionary and not zero"
+  }
+ ]
+}

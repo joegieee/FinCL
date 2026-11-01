@@ -1,0 +1,169 @@
+{
+ "generation": "<digest>",
+ "aliases": [],
+ "rules": [
+  {
+   "rule_id": "432e20359f283852",
+   "group_name": "Shopping",
+   "category": "Electronics",
+   "reason": "Synthetic rule",
+   "journal_seq": 22,
+   "match": {
+    "description_contains": "ELECTRO WORLD"
+   },
+   "metrics": {
+    "predicate_matches": 4,
+    "effective_assignments": 4,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-05-24",
+    "last_match": "2026-06-29"
+   }
+  },
+  {
+   "rule_id": "74f0986987681cfb",
+   "group_name": "Food & Dining",
+   "category": "Cafes & Drinks",
+   "reason": "Synthetic rule",
+   "journal_seq": 21,
+   "match": {
+    "description_contains": "KOPI CORNER"
+   },
+   "metrics": {
+    "predicate_matches": 17,
+    "effective_assignments": 17,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-01-25",
+    "last_match": "2026-08-28"
+   }
+  },
+  {
+   "rule_id": "ff5d1acfceb7c2dd",
+   "group_name": "Food & Dining",
+   "category": "Dining Out",
+   "reason": "Synthetic rule",
+   "journal_seq": 20,
+   "match": {
+    "description_contains": "NOODLE HOUSE"
+   },
+   "metrics": {
+    "predicate_matches": 17,
+    "effective_assignments": 17,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-01-25",
+    "last_match": "2026-08-30"
+   }
+  },
+  {
+   "rule_id": "4b080218319847ef",
+   "group_name": "Transport",
+   "category": "Public Transit",
+   "reason": "Synthetic rule",
+   "journal_seq": 19,
+   "match": {
+    "description_contains": "TRANSIT TOP-UP"
+   },
+   "metrics": {
+    "predicate_matches": 7,
+    "effective_assignments": 7,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-01-30",
+    "last_match": "2026-08-05"
+   }
+  },
+  {
+   "rule_id": "bb44228741e11a36",
+   "group_name": "Food & Dining",
+   "category": "Dining Out",
+   "reason": "Synthetic rule",
+   "journal_seq": 18,
+   "match": {
+    "description_contains": "LUNCH COUNTER"
+   },
+   "metrics": {
+    "predicate_matches": 10,
+    "effective_assignments": 10,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-01-10",
+    "last_match": "2026-08-22"
+   }
+  },
+  {
+   "rule_id": "0598d23b6a2d8a8e",
+   "group_name": "Food & Dining",
+   "category": "Groceries",
+   "reason": "Synthetic rule",
+   "journal_seq": 17,
+   "match": {
+    "description_contains": "FRESH MARKET"
+   },
+   "metrics": {
+    "predicate_matches": 11,
+    "effective_assignments": 11,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-01-21",
+    "last_match": "2026-08-24"
+   }
+  },
+  {
+   "rule_id": "6e8b4b203de4c52a",
+   "group_name": "Food & Dining",
+   "category": "Groceries",
+   "reason": "Synthetic rule",
+   "journal_seq": 16,
+   "match": {
+    "description_contains": "CORNER GROCER"
+   },
+   "metrics": {
+    "predicate_matches": 11,
+    "effective_assignments": 11,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-01-22",
+    "last_match": "2026-08-29"
+   }
+  },
+  {
+   "rule_id": "f8205c8dccd1db85",
+   "group_name": "Housing",
+   "category": "Utilities",
+   "reason": "Synthetic rule",
+   "journal_seq": 15,
+   "match": {
+    "description_contains": "SYNTHETIC POWER"
+   },
+   "metrics": {
+    "predicate_matches": 8,
+    "effective_assignments": 8,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-01-11",
+    "last_match": "2026-08-11"
+   }
+  },
+  {
+   "rule_id": "b78e701df3e682b3",
+   "group_name": "Housing",
+   "category": "Rent",
+   "reason": "Synthetic rule",
+   "journal_seq": 14,
+   "match": {
+    "paynow_to": "LANDLORD SYNTHETIC"
+   },
+   "metrics": {
+    "predicate_matches": 8,
+    "effective_assignments": 8,
+    "overridden": 0,
+    "direction_conflicts": 0,
+    "first_match": "2026-01-02",
+    "last_match": "2026-08-02"
+   }
+  }
+ ],
+ "inactive_rules": []
+}

@@ -1,0 +1,588 @@
+{
+ "generation": "<digest>",
+ "freshness": "current",
+ "updated_at": "<recorded-at>",
+ "start": "2026-07-01",
+ "end": "2026-07-31",
+ "currency": "SGD",
+ "currencies": [
+  "EUR",
+  "SGD"
+ ],
+ "covered": true,
+ "coverage_reasons": [],
+ "summary": {
+  "spending": "1747.02",
+  "income": "2913.00",
+  "fees": "2.07",
+  "refunds": "31.73",
+  "reimbursements": "0",
+  "non_income_inflow": "0",
+  "pending_review": "0.07",
+  "net_economic_flow": "1195.64"
+ },
+ "summary_handles": {
+  "spending": "<handle>",
+  "income": "<handle>",
+  "fees": "<handle>",
+  "refunds": "<handle>",
+  "reimbursements": "<handle>",
+  "non_income_inflow": "<handle>",
+  "pending_review": "<handle>",
+  "net_economic_flow": "<handle>"
+ },
+ "categories": [
+  "Cash / Cash Withdrawal — Purpose Unknown",
+  "Education / Course Materials",
+  "Education / Education Services",
+  "Education / Tuition & Exam Fees",
+  "Financial & Government / Bank & Card Fees",
+  "Financial & Government / Interest & Financing",
+  "Financial & Government / Taxes & Government",
+  "Food & Dining / Cafes & Drinks",
+  "Food & Dining / Dining Out",
+  "Food & Dining / Groceries",
+  "Food & Dining / Hawker & Canteen",
+  "Giving / Charity",
+  "Giving / Gifts Given",
+  "Health / Fitness",
+  "Health / Medical & Dental",
+  "Health / Pharmacy",
+  "Housing / Home Supplies & Maintenance",
+  "Housing / Internet & Mobile",
+  "Housing / Rent",
+  "Housing / Utilities",
+  "Income & Inflow / Earned Income",
+  "Income & Inflow / Gift Received",
+  "Income & Inflow / Other Inflow",
+  "Income & Inflow / Reimbursement",
+  "Income & Inflow / Rewards & Cashback",
+  "Internal / Card Repayment",
+  "Internal / Currency Exchange",
+  "Internal / Transfer",
+  "Internal / Wallet Top-up",
+  "Leisure / Entertainment",
+  "Leisure / Hobbies & Sports",
+  "Personal & Household / Household Services",
+  "Personal & Household / Laundry",
+  "Personal & Household / Personal Care",
+  "Shopping / Books & Stationery",
+  "Shopping / Clothing & Accessories",
+  "Shopping / Electronics",
+  "Shopping / General Shopping",
+  "Transport / Fuel",
+  "Transport / Parking & Tolls",
+  "Transport / Public Transit",
+  "Transport / Taxi & Ride-hail",
+  "Travel / Accommodation",
+  "Travel / Activities",
+  "Travel / Transport",
+  "Travel / Travel Fees",
+  "Unclassified / Unclassified"
+ ],
+ "custom_categories": [],
+ "category_totals": [
+  {
+   "name": "Housing / Rent",
+   "value": "1180.00",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "Unclassified / Unclassified",
+   "value": "380.95",
+   "count": 19,
+   "handle": "<handle>"
+  },
+  {
+   "name": "Housing / Utilities",
+   "value": "77.14",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "Food & Dining / Dining Out",
+   "value": "60.95",
+   "count": 4,
+   "handle": "<handle>"
+  },
+  {
+   "name": "Transport / Public Transit",
+   "value": "40.92",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "Food & Dining / Cafes & Drinks",
+   "value": "7.06",
+   "count": 2,
+   "handle": "<handle>"
+  }
+ ],
+ "merchant_totals": [
+  {
+   "name": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+   "value": "1180.00",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "SYNTHETIC POWER AND WATER",
+   "value": "77.14",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "PET PANTRY CARD PAYMENT",
+   "value": "71.63",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "BOOK NOOK SINGAPORE SGP 18JUL",
+   "value": "47.19",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "LUNCH COUNTER SINGAPORE SGP 06JUL",
+   "value": "44.88",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "TRANSIT TOP-UP SINGAPORE SGP 08JUL",
+   "value": "40.92",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "NEIGHBOURHOOD BAKERY SINGAPORE SGP 12JUL",
+   "value": "36.51",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "BOOK NOOK SINGAPORE SGP 23JUL",
+   "value": "27.56",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "SPLIT PAYMENT",
+   "value": "27.35",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "KONBINI MART",
+   "value": "22.82",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "BISTRO DU PORT",
+   "value": "21.17",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "PHARMACY PLUS SINGAPORE SGP 03JUL",
+   "value": "19.71",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "STREAMING BOX",
+   "value": "18.71",
+   "count": 2,
+   "handle": "<handle>"
+  },
+  {
+   "name": "PHARMACY PLUS SINGAPORE SGP 11JUL",
+   "value": "17.79",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "PASTELARIA SOL",
+   "value": "15.28",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "NIGHT MARKET GRILL",
+   "value": "12.49",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "HAWKER STALL 12",
+   "value": "12.21",
+   "count": 2,
+   "handle": "<handle>"
+  },
+  {
+   "name": "LUNCH COUNTER SINGAPORE SGP 01JUL",
+   "value": "10.13",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "PHARMACY PLUS SINGAPORE SGP 02JUL",
+   "value": "10.05",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "BUBBLE TEA BAR",
+   "value": "8.72",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "CHICKEN RICE STALL",
+   "value": "8.00",
+   "count": 1,
+   "handle": "<handle>"
+  },
+  {
+   "name": "KOPI CORNER",
+   "value": "7.06",
+   "count": 2,
+   "handle": "<handle>"
+  },
+  {
+   "name": "NOODLE HOUSE",
+   "value": "5.94",
+   "count": 2,
+   "handle": "<handle>"
+  },
+  {
+   "name": "RIDE-HAIL",
+   "value": "3.76",
+   "count": 1,
+   "handle": "<handle>"
+  }
+ ],
+ "trend": [
+  {
+   "month": "2026-02",
+   "spending": null,
+   "income": null,
+   "complete": false
+  },
+  {
+   "month": "2026-03",
+   "spending": null,
+   "income": null,
+   "complete": false
+  },
+  {
+   "month": "2026-04",
+   "spending": null,
+   "income": null,
+   "complete": false
+  },
+  {
+   "month": "2026-05",
+   "spending": "2157.63",
+   "income": "2381.17",
+   "complete": true
+  },
+  {
+   "month": "2026-06",
+   "spending": "1978.87",
+   "income": "2406.49",
+   "complete": true
+  },
+  {
+   "month": "2026-07",
+   "spending": "1749.09",
+   "income": "2913.00",
+   "complete": true
+  }
+ ],
+ "recurring": [
+  {
+   "merchant": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+   "cadence": "Monthly",
+   "amount": "1180.00",
+   "last_date": "2026-07-02",
+   "next_date": "2026-08-01",
+   "count": 3,
+   "status": "Candidate — verify with provider"
+  }
+ ],
+ "plans": [
+  {
+   "id": "groceries",
+   "type": "budget",
+   "name": "Groceries, with room to spare",
+   "currency": "SGD",
+   "target": "320.00",
+   "saved": "0",
+   "category": "Food & Dining / Groceries",
+   "reason": "Synthetic budget",
+   "actual": "0",
+   "remaining": "320.00"
+  },
+  {
+   "id": "emergency",
+   "type": "goal",
+   "name": "A little peace of mind",
+   "currency": "SGD",
+   "target": "15000.00",
+   "saved": "6200.00",
+   "category": "",
+   "reason": "Synthetic goal",
+   "actual": "6200.00",
+   "remaining": "8800.00"
+  }
+ ],
+ "recent": [
+  {
+   "id": "entry_37f257766b2624b441c22e6ab803c62fd9c896e452bcb5e1cec4305ceaebd2d8",
+   "anchor": "<digest>:pdf:revolut:<digest>:12",
+   "date": "2026-07-29",
+   "precision": "DAY",
+   "amount": "-3.76",
+   "fee": "0",
+   "currency": "SGD",
+   "account": "Revolut Current",
+   "merchant": "RIDE-HAIL",
+   "description": "Ride-hail",
+   "category": "Unclassified / Unclassified",
+   "basis": "unclassified",
+   "source_location": "Page 1",
+   "bucket": "spending",
+   "eligible": true,
+   "review": true,
+   "source_family": "DOCUMENT",
+   "lifecycle_state": "COMPLETED",
+   "cost_behavior": "unresolved",
+   "cost_behavior_basis": "category default",
+   "need": "unresolved",
+   "need_basis": "category default",
+   "role_review_state": "unresolved",
+   "suggested_classification": "",
+   "linked": false,
+   "classification": null,
+   "debt_allocation": null
+  },
+  {
+   "id": "entry_8e0252d27645919a4a6c29bcdadaf5943f36dd7c2751eaa43f219a09aa1ca56c",
+   "anchor": "<digest>:pdf:paylah:<digest>:17",
+   "date": "2026-07-26",
+   "precision": "DAY",
+   "amount": "-8.72",
+   "fee": "0",
+   "currency": "SGD",
+   "account": "DBS PayLah! Wallet",
+   "merchant": "BUBBLE TEA BAR",
+   "description": "BUBBLE TEA BAR",
+   "category": "Unclassified / Unclassified",
+   "basis": "unclassified",
+   "source_location": "Page 1",
+   "bucket": "spending",
+   "eligible": true,
+   "review": true,
+   "source_family": "DOCUMENT",
+   "lifecycle_state": "COMPLETED",
+   "cost_behavior": "unresolved",
+   "cost_behavior_basis": "category default",
+   "need": "unresolved",
+   "need_basis": "category default",
+   "role_review_state": "unresolved",
+   "suggested_classification": "",
+   "linked": false,
+   "classification": null,
+   "debt_allocation": null
+  },
+  {
+   "id": "entry_073becd87180cd50b031e013231cd70d07c53bd2fcab0fd361a38f4d2a728c8e",
+   "anchor": "<digest>:pdf:dbs:<digest>:27",
+   "date": "2026-07-25",
+   "precision": "DAY",
+   "amount": "-27.56",
+   "fee": "0",
+   "currency": "SGD",
+   "account": "DBS My Account",
+   "merchant": "BOOK NOOK SINGAPORE SGP 23JUL",
+   "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 23JUL",
+   "category": "Unclassified / Unclassified",
+   "basis": "unclassified",
+   "source_location": "Page 2",
+   "bucket": "spending",
+   "eligible": true,
+   "review": true,
+   "source_family": "DOCUMENT",
+   "lifecycle_state": "COMPLETED",
+   "cost_behavior": "unresolved",
+   "cost_behavior_basis": "category default",
+   "need": "unresolved",
+   "need_basis": "category default",
+   "role_review_state": "unresolved",
+   "suggested_classification": "",
+   "linked": false,
+   "classification": null,
+   "debt_allocation": null
+  },
+  {
+   "id": "entry_72a46d39be4f756cdcfe34e542542ac9f67068f437075de5b8f46368df71b043",
+   "anchor": "<digest>:pdf:paylah:<digest>:15",
+   "date": "2026-07-25",
+   "precision": "DAY",
+   "amount": "-4.90",
+   "fee": "0",
+   "currency": "SGD",
+   "account": "DBS PayLah! Wallet",
+   "merchant": "KOPI CORNER",
+   "description": "KOPI CORNER",
+   "category": "Food & Dining / Cafes & Drinks",
+   "basis": "rule:74f0986987681cfb",
+   "source_location": "Page 1",
+   "bucket": "spending",
+   "eligible": true,
+   "review": false,
+   "source_family": "DOCUMENT",
+   "lifecycle_state": "COMPLETED",
+   "cost_behavior": "variable_routine",
+   "cost_behavior_basis": "category default",
+   "need": "discretionary",
+   "need_basis": "category default",
+   "role_review_state": "automatic",
+   "suggested_classification": "",
+   "linked": false,
+   "classification": null,
+   "debt_allocation": null
+  },
+  {
+   "id": "entry_6d3dec19d23dc95e2b8baa9dda12d420ee1d26d2640bdff947c7fbaf307cd87b",
+   "anchor": "<digest>:pdf:revolut:<digest>:11",
+   "date": "2026-07-25",
+   "precision": "DAY",
+   "amount": "-11.15",
+   "fee": "0",
+   "currency": "SGD",
+   "account": "Revolut Current",
+   "merchant": "STREAMING BOX",
+   "description": "Streaming Box",
+   "category": "Unclassified / Unclassified",
+   "basis": "unclassified",
+   "source_location": "Page 1",
+   "bucket": "spending",
+   "eligible": true,
+   "review": true,
+   "source_family": "DOCUMENT",
+   "lifecycle_state": "COMPLETED",
+   "cost_behavior": "unresolved",
+   "cost_behavior_basis": "category default",
+   "need": "unresolved",
+   "need_basis": "category default",
+   "role_review_state": "unresolved",
+   "suggested_classification": "",
+   "linked": false,
+   "classification": null,
+   "debt_allocation": null
+  },
+  {
+   "id": "entry_9afa9373e8c3f96627f03cc1a71e91066315769f39d76f34558a5eb882c59835",
+   "anchor": "<digest>:pdf:revolut:<digest>:10",
+   "date": "2026-07-23",
+   "precision": "DAY",
+   "amount": "-21.17",
+   "fee": "0.06",
+   "currency": "SGD",
+   "account": "Revolut Current",
+   "merchant": "BISTRO DU PORT",
+   "description": "Bistro du Port",
+   "category": "Unclassified / Unclassified",
+   "basis": "unclassified",
+   "source_location": "Page 1",
+   "bucket": "spending",
+   "eligible": true,
+   "review": true,
+   "source_family": "DOCUMENT",
+   "lifecycle_state": "COMPLETED",
+   "cost_behavior": "unresolved",
+   "cost_behavior_basis": "category default",
+   "need": "unresolved",
+   "need_basis": "category default",
+   "role_review_state": "unresolved",
+   "suggested_classification": "",
+   "linked": false,
+   "classification": null,
+   "debt_allocation": null
+  },
+  {
+   "id": "entry_0c9ebddb9e64615374c82b3f687e9565a38c23f151ea4da279a56db638cb516a",
+   "anchor": "<digest>:pdf:mari-card:<digest>:9",
+   "date": "2026-07-21",
+   "precision": "DAY",
+   "amount": "-27.35",
+   "fee": "0",
+   "currency": "SGD",
+   "account": "Mari Credit Card",
+   "merchant": "SPLIT PAYMENT",
+   "description": "Split Payment 1/4 Instalment",
+   "category": "Unclassified / Unclassified",
+   "basis": "unclassified",
+   "source_location": "Page 1",
+   "bucket": "spending",
+   "eligible": true,
+   "review": true,
+   "source_family": "DOCUMENT",
+   "lifecycle_state": "COMPLETED",
+   "cost_behavior": "unresolved",
+   "cost_behavior_basis": "category default",
+   "need": "unresolved",
+   "need_basis": "category default",
+   "role_review_state": "unresolved",
+   "suggested_classification": "",
+   "linked": false,
+   "classification": null,
+   "debt_allocation": null
+  },
+  {
+   "id": "entry_eb9efcaffb59926ee4906148d22812c70eb3c47d107fdace5cb5e75946fe9876",
+   "anchor": "<digest>:pdf:dbs:<digest>:23",
+   "date": "2026-07-20",
+   "precision": "DAY",
+   "amount": "-47.19",
+   "fee": "0",
+   "currency": "SGD",
+   "account": "DBS My Account",
+   "merchant": "BOOK NOOK SINGAPORE SGP 18JUL",
+   "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 18JUL",
+   "category": "Unclassified / Unclassified",
+   "basis": "unclassified",
+   "source_location": "Page 1",
+   "bucket": "spending",
+   "eligible": true,
+   "review": true,
+   "source_family": "DOCUMENT",
+   "lifecycle_state": "COMPLETED",
+   "cost_behavior": "unresolved",
+   "cost_behavior_basis": "category default",
+   "need": "unresolved",
+   "need_basis": "category default",
+   "role_review_state": "unresolved",
+   "suggested_classification": "",
+   "linked": false,
+   "classification": null,
+   "debt_allocation": null
+  }
+ ],
+ "review_count": 23,
+ "accounts": [
+  "DBS My Account",
+  "DBS PayLah! Wallet",
+  "Mari Credit Card",
+  "MariBank Savings Account",
+  "Revolut Current",
+  "Trust Bank Savings Account"
+ ],
+ "total_entries": 490,
+ "transfer_proposals": []
+}

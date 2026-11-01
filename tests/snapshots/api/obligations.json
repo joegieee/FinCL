@@ -1,0 +1,564 @@
+{
+ "generation": "<digest>",
+ "as_of": "2026-09-15",
+ "obligations": [
+  {
+   "obligation_id": "card_statement:stmt_f593da669d00182c3583be26bd216e43580930d45a437f0d2ee8c95988ce12c9:SGD",
+   "origin": "card_statement",
+   "source": {
+    "kind": "card_statement",
+    "id": "stmt_f593da669d00182c3583be26bd216e43580930d45a437f0d2ee8c95988ce12c9",
+    "account_id": "mari-credit-card"
+   },
+   "label": "Mari Credit Card",
+   "currency": "SGD",
+   "direction": "outflow",
+   "date_basis": {
+    "kind": "statement_due_date",
+    "value": "2026-09-10"
+   },
+   "statement_payment_due": "234.85",
+   "actual_payments": {
+    "count": 0,
+    "total": "0.00",
+    "entries": []
+   },
+   "cash_effect": "bank_withdrawal",
+   "includes_installment_occurrences": [
+    {
+     "obligation_id": "installment:4aa712d3-788c-5bf1-8e65-f1ffddef00df",
+     "effective_on": "2026-07-21",
+     "amount": "36.00",
+     "inside_statement_due": true
+    },
+    {
+     "obligation_id": "installment:51b25750-7395-5ac8-bff6-4c7b45082d72",
+     "effective_on": "2026-07-21",
+     "amount": "38.20",
+     "inside_statement_due": true
+    }
+   ],
+   "double_count_guard": "installments listed here are already inside this due and are never counted as separate bank withdrawals",
+   "baseline_link": {
+    "available": false,
+    "category_key": null,
+    "relation": "not_a_baseline_component",
+    "reason": "a statement due is a settlement of costs already recognised in their own components"
+   },
+   "amount_basis": "lump_sum_due",
+   "remaining_amount": {
+    "value": "234.85",
+    "currency": "SGD"
+   },
+   "remaining_unknown_reason": null,
+   "schedule": null,
+   "superseded_lump_sum": null,
+   "confidence": "confirmed",
+   "confidence_basis": "a future receipt is evidenced",
+   "status": "due_date_passed_no_payment_evidence",
+   "payment_status": "unknown",
+   "stays_visible": true,
+   "overdue": true,
+   "basis": "the due date has passed and no payment is recorded; a passed due date is not evidence that a payment was missed, so this stays visible until payment, forgiveness or correction is recorded"
+  },
+  {
+   "obligation_id": "debt:013edf59-e31c-5705-aae2-1e793c549e25",
+   "origin": "personal_debt",
+   "source": {
+    "kind": "personal_debt",
+    "id": "013edf59-e31c-5705-aae2-1e793c549e25"
+   },
+   "label": "Priya",
+   "currency": "SGD",
+   "direction": "inflow",
+   "date_basis": {
+    "kind": "stated_due_date",
+    "value": "2026-10-20"
+   },
+   "actual_payments": {
+    "count": 0,
+    "total": "0.00",
+    "entries": []
+   },
+   "cash_effect": "bank_withdrawal",
+   "baseline_link": {
+    "available": false,
+    "category_key": null,
+    "relation": "not_a_baseline_component",
+    "reason": "a principal movement is a balance-sheet event, not part of the historical cost baseline"
+   },
+   "overlapping_commitments": [],
+   "amount_basis": "lump_sum_due",
+   "remaining_amount": {
+    "value": "480.00",
+    "currency": "SGD"
+   },
+   "remaining_unknown_reason": null,
+   "schedule": null,
+   "superseded_lump_sum": null,
+   "confidence": "confirmed",
+   "confidence_basis": "a recorded commitment states the future obligation",
+   "status": "open",
+   "payment_status": "unknown",
+   "stays_visible": true,
+   "overdue": false,
+   "basis": "due date has not passed"
+  },
+  {
+   "obligation_id": "debt:4d95af3b-0c6b-50c5-b6c5-9a99361cdd60",
+   "origin": "personal_debt",
+   "source": {
+    "kind": "personal_debt",
+    "id": "4d95af3b-0c6b-50c5-b6c5-9a99361cdd60"
+   },
+   "label": "Jamie",
+   "currency": "SGD",
+   "direction": "outflow",
+   "date_basis": {
+    "kind": "no_stated_date",
+    "value": null
+   },
+   "actual_payments": {
+    "count": 0,
+    "total": "0.00",
+    "entries": []
+   },
+   "cash_effect": "bank_withdrawal",
+   "baseline_link": {
+    "available": false,
+    "category_key": null,
+    "relation": "not_a_baseline_component",
+    "reason": "a principal movement is a balance-sheet event, not part of the historical cost baseline"
+   },
+   "overlapping_commitments": [],
+   "amount_basis": "lump_sum_due",
+   "remaining_amount": {
+    "value": "640.00",
+    "currency": "SGD"
+   },
+   "remaining_unknown_reason": null,
+   "schedule": null,
+   "superseded_lump_sum": null,
+   "confidence": "confirmed",
+   "confidence_basis": "a recorded commitment states the future obligation",
+   "status": "open",
+   "payment_status": "unknown",
+   "stays_visible": true,
+   "overdue": false,
+   "basis": "due date has not passed"
+  },
+  {
+   "obligation_id": "debt:b124e146-3ee1-52ab-831d-b26b40acac56",
+   "origin": "personal_debt",
+   "source": {
+    "kind": "personal_debt",
+    "id": "b124e146-3ee1-52ab-831d-b26b40acac56"
+   },
+   "label": "Robin",
+   "currency": "SGD",
+   "direction": "inflow",
+   "date_basis": {
+    "kind": "no_stated_date",
+    "value": null
+   },
+   "actual_payments": {
+    "count": 0,
+    "total": "0.00",
+    "entries": []
+   },
+   "cash_effect": "bank_withdrawal",
+   "baseline_link": {
+    "available": false,
+    "category_key": null,
+    "relation": "not_a_baseline_component",
+    "reason": "a principal movement is a balance-sheet event, not part of the historical cost baseline"
+   },
+   "overlapping_commitments": [],
+   "amount_basis": "lump_sum_due",
+   "remaining_amount": {
+    "value": "245.00",
+    "currency": "SGD"
+   },
+   "remaining_unknown_reason": null,
+   "schedule": null,
+   "superseded_lump_sum": null,
+   "confidence": "confirmed",
+   "confidence_basis": "a recorded commitment states the future obligation",
+   "status": "open",
+   "payment_status": "unknown",
+   "stays_visible": true,
+   "overdue": false,
+   "basis": "due date has not passed"
+  },
+  {
+   "obligation_id": "debt:e0ae1cd3-05fa-589b-a0b5-3cda4e2e89ca",
+   "origin": "personal_debt",
+   "source": {
+    "kind": "personal_debt",
+    "id": "e0ae1cd3-05fa-589b-a0b5-3cda4e2e89ca"
+   },
+   "label": "Sam",
+   "currency": "SGD",
+   "direction": "outflow",
+   "date_basis": {
+    "kind": "scheduled_due_date",
+    "value": "2026-10-10"
+   },
+   "actual_payments": {
+    "count": 0,
+    "total": "0.00",
+    "entries": []
+   },
+   "cash_effect": "bank_withdrawal",
+   "baseline_link": {
+    "available": false,
+    "category_key": null,
+    "relation": "not_a_baseline_component",
+    "reason": "a principal movement is a balance-sheet event, not part of the historical cost baseline"
+   },
+   "overlapping_commitments": [],
+   "amount_basis": "remaining_schedule",
+   "remaining_amount": {
+    "value": "1360.00",
+    "currency": "SGD"
+   },
+   "remaining_unknown_reason": null,
+   "schedule": [
+    {
+     "due_on": "2026-10-10",
+     "amount": "340.00",
+     "schedule_index": 0,
+     "state": "upcoming",
+     "overdue": false
+    },
+    {
+     "due_on": "2026-11-10",
+     "amount": "340.00",
+     "schedule_index": 1,
+     "state": "upcoming",
+     "overdue": false
+    },
+    {
+     "due_on": "2026-12-10",
+     "amount": "340.00",
+     "schedule_index": 2,
+     "state": "upcoming",
+     "overdue": false
+    },
+    {
+     "due_on": "2027-01-10",
+     "amount": "340.00",
+     "schedule_index": 3,
+     "state": "upcoming",
+     "overdue": false
+    }
+   ],
+   "superseded_lump_sum": {
+    "value": "1360.00",
+    "currency": "SGD",
+    "counted": false,
+    "reason": "the remaining schedule replaces this lump-sum due; counting both would state the liability twice"
+   },
+   "confidence": "confirmed",
+   "confidence_basis": "a recorded commitment states the future obligation",
+   "status": "open",
+   "payment_status": "unknown",
+   "stays_visible": true,
+   "overdue": false,
+   "basis": "due date has not passed"
+  },
+  {
+   "obligation_id": "installment:4aa712d3-788c-5bf1-8e65-f1ffddef00df",
+   "origin": "installment_plan",
+   "source": {
+    "kind": "installment_plan",
+    "id": "4aa712d3-788c-5bf1-8e65-f1ffddef00df"
+   },
+   "label": "Electro World",
+   "currency": "SGD",
+   "direction": "outflow",
+   "date_basis": {
+    "kind": "no_remaining_due_date",
+    "value": null
+   },
+   "actual_payments": {
+    "count": 3,
+    "total": "108.00",
+    "entries": [
+     {
+      "effective_on": "2026-06-21",
+      "amount": "36.00",
+      "entry_anchor": "<digest>:pdf:mari-card:<digest>:10",
+      "bound": true
+     },
+     {
+      "effective_on": "2026-07-21",
+      "amount": "36.00",
+      "entry_anchor": "<digest>:pdf:mari-card:<digest>:8",
+      "bound": true
+     },
+     {
+      "effective_on": "2026-08-21",
+      "amount": "36.00",
+      "entry_anchor": "<digest>:pdf:mari-card:<digest>:7",
+      "bound": true
+     }
+    ]
+   },
+   "cash_effect": "via_card_statement",
+   "cash_effect_reason": "settled inside the card's statement due, not as a separate bank withdrawal",
+   "baseline_link": {
+    "available": false,
+    "category_key": null,
+    "relation": "not_a_baseline_component",
+    "reason": "the plan's purchase cost was recognised once at open; its occurrences are not additional baseline cost"
+   },
+   "amount_basis": "unknown",
+   "remaining_amount": null,
+   "remaining_unknown_reason": "no remaining schedule and no evidenced lump-sum due",
+   "schedule": null,
+   "superseded_lump_sum": null,
+   "confidence": "confirmed",
+   "confidence_basis": "a recorded commitment states the future obligation",
+   "status": "open",
+   "payment_status": "partially_evidenced",
+   "stays_visible": true,
+   "overdue": false,
+   "basis": "due date has not passed"
+  },
+  {
+   "obligation_id": "installment:51b25750-7395-5ac8-bff6-4c7b45082d72",
+   "origin": "installment_plan",
+   "source": {
+    "kind": "installment_plan",
+    "id": "51b25750-7395-5ac8-bff6-4c7b45082d72"
+   },
+   "label": "Split Payment 18M",
+   "currency": "SGD",
+   "direction": "outflow",
+   "date_basis": {
+    "kind": "no_remaining_due_date",
+    "value": null
+   },
+   "actual_payments": {
+    "count": 5,
+    "total": "191.00",
+    "entries": [
+     {
+      "effective_on": "2026-04-21",
+      "amount": "38.20",
+      "entry_anchor": "<digest>:pdf:mari-card:<digest>:4",
+      "bound": true
+     },
+     {
+      "effective_on": "2026-05-21",
+      "amount": "38.20",
+      "entry_anchor": "<digest>:pdf:mari-card:<digest>:7",
+      "bound": true
+     },
+     {
+      "effective_on": "2026-06-21",
+      "amount": "38.20",
+      "entry_anchor": "<digest>:pdf:mari-card:<digest>:9",
+      "bound": true
+     },
+     {
+      "effective_on": "2026-07-21",
+      "amount": "38.20",
+      "entry_anchor": "<digest>:pdf:mari-card:<digest>:7",
+      "bound": true
+     },
+     {
+      "effective_on": "2026-08-21",
+      "amount": "38.20",
+      "entry_anchor": "<digest>:pdf:mari-card:<digest>:6",
+      "bound": true
+     }
+    ]
+   },
+   "cash_effect": "via_card_statement",
+   "cash_effect_reason": "settled inside the card's statement due, not as a separate bank withdrawal",
+   "baseline_link": {
+    "available": false,
+    "category_key": null,
+    "relation": "not_a_baseline_component",
+    "reason": "the plan's purchase cost was recognised once at open; its occurrences are not additional baseline cost"
+   },
+   "amount_basis": "unknown",
+   "remaining_amount": null,
+   "remaining_unknown_reason": "no remaining schedule and no evidenced lump-sum due",
+   "schedule": null,
+   "superseded_lump_sum": null,
+   "confidence": "confirmed",
+   "confidence_basis": "a recorded commitment states the future obligation",
+   "status": "open",
+   "payment_status": "partially_evidenced",
+   "stays_visible": true,
+   "overdue": false,
+   "basis": "due date has not passed"
+  },
+  {
+   "obligation_id": "recurring:rent",
+   "origin": "recurring_commitment",
+   "source": {
+    "kind": "recurring_commitment",
+    "id": "rent"
+   },
+   "label": "Rent",
+   "currency": "SGD",
+   "direction": "outflow",
+   "date_basis": {
+    "kind": "scheduled_occurrence",
+    "value": "2026-08-02",
+    "schedule": {
+     "anchor_on": "2026-01-02",
+     "day": 2,
+     "kind": "monthly"
+    }
+   },
+   "unmatched_past_occurrences": [
+    "2026-08-02",
+    "2026-09-02"
+   ],
+   "skipped_occurrences": [],
+   "expected_amount": "1180.00",
+   "occurrence_amounts": [],
+   "actual_payments": {
+    "count": 0,
+    "total": "0.00",
+    "entries": []
+   },
+   "cash_effect": "bank_withdrawal",
+   "baseline_link": {
+    "available": false,
+    "category_key": null,
+    "relation": "unknown",
+    "reason": "no bound source establishes a category"
+   },
+   "amount_basis": "lump_sum_due",
+   "remaining_amount": {
+    "value": "1180.00",
+    "currency": "SGD"
+   },
+   "remaining_unknown_reason": null,
+   "schedule": null,
+   "superseded_lump_sum": null,
+   "confidence": "confirmed",
+   "confidence_basis": "a recorded commitment states the future obligation",
+   "status": "due_date_passed_no_payment_evidence",
+   "payment_status": "unknown",
+   "stays_visible": true,
+   "overdue": true,
+   "basis": "the due date has passed and no payment is recorded; a passed due date is not evidence that a payment was missed, so this stays visible until payment, forgiveness or correction is recorded"
+  }
+ ],
+ "totals_by_currency": {
+  "SGD": {
+   "bank_withdrawal": "3414.85",
+   "via_card_statement": "0.00",
+   "policy": "an obligation settled inside a card statement due is counted in its own lane only, never again as a bank withdrawal"
+  }
+ },
+ "baseline": {
+  "available": true,
+  "window": {
+   "quality": "normal",
+   "reason": "3 consecutive fully-established months; using the latest 3",
+   "start_month": "2026-05",
+   "end_month": "2026-07",
+   "month_count": 3,
+   "basis": "all-established"
+  },
+  "month_count": 3,
+  "reason": null,
+  "basis": "mean monthly recorded cost per component over the baseline window"
+ },
+ "baseline_component_effects": [
+  {
+   "currency": "EUR",
+   "category_key": "Unclassified / Unclassified",
+   "monthly_baseline_portion": "82.59",
+   "replaced_by": [],
+   "remaining_historical_portion": "82.59",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Food & Dining / Cafes & Drinks",
+   "monthly_baseline_portion": "9.49",
+   "replaced_by": [],
+   "remaining_historical_portion": "9.49",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Food & Dining / Dining Out",
+   "monthly_baseline_portion": "54.47",
+   "replaced_by": [],
+   "remaining_historical_portion": "54.47",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Food & Dining / Groceries",
+   "monthly_baseline_portion": "20.81",
+   "replaced_by": [],
+   "remaining_historical_portion": "20.81",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Housing / Rent",
+   "monthly_baseline_portion": "1180.00",
+   "replaced_by": [],
+   "remaining_historical_portion": "1180.00",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Housing / Utilities",
+   "monthly_baseline_portion": "75.15",
+   "replaced_by": [],
+   "remaining_historical_portion": "75.15",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Internal / Wallet Top-up",
+   "monthly_baseline_portion": "2.02",
+   "replaced_by": [],
+   "remaining_historical_portion": "2.02",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Shopping / Electronics",
+   "monthly_baseline_portion": "148.57",
+   "replaced_by": [],
+   "remaining_historical_portion": "148.57",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Transport / Public Transit",
+   "monthly_baseline_portion": "34.84",
+   "replaced_by": [],
+   "remaining_historical_portion": "34.84",
+   "relation": "unchanged"
+  },
+  {
+   "currency": "SGD",
+   "category_key": "Unclassified / Unclassified",
+   "monthly_baseline_portion": "436.52",
+   "replaced_by": [],
+   "remaining_historical_portion": "436.52",
+   "relation": "unchanged"
+  }
+ ],
+ "rules": [
+  "a remaining schedule replaces the lump-sum due; the superseded lump sum is shown but never counted",
+  "a passed due date is not evidence of a missed payment; an overdue or unmatched obligation stays visible until payment, forgiveness or correction is recorded",
+  "a remaining statement due is net of the payments actually recorded against that statement",
+  "a recurring commitment is forecast on its own dates, and its linked past payments are taken out of the usual-spending baseline so it is counted once; payments not yet linked stay in the baseline until they are"
+ ]
+}

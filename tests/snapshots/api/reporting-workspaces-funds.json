@@ -1,0 +1,1101 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "as_of": "2026-09-15",
+  "scale": 2,
+  "proposals": [
+   {
+    "proposal_id": "fund-proposal:goal:emergency",
+    "label": "A little peace of mind",
+    "currency": "SGD",
+    "source": {
+     "kind": "goal_record",
+     "plan": "emergency",
+     "target_on": null,
+     "recorded_saved": null,
+     "recorded_saved_observed_on": null,
+     "legacy_undated_saved": "6200.00"
+    },
+    "observed_amount": {
+     "value": "15000.00",
+     "basis": "manual_goal_target"
+    },
+    "observed_date": null,
+    "amount_basis": "manual_goal_target",
+    "date_basis": "unknown",
+    "recurrence": {
+     "known": false,
+     "basis": "a goal states one target, not a cadence",
+     "note": "recurrence is known only where a schedule was actually recorded; repeated observations of a similar expense are evidence of repetition, never proof of an annual pattern, and one isolated purchase is proof of nothing"
+    },
+    "complete": false,
+    "incomplete_reasons": [
+     "no sourced due date is available; the evidence places the expense in no known period without stating a day"
+    ],
+    "irregular_allowance_retained": true,
+    "irregular_allowance_reason": "the amount or due date is unknown, so the data-derived irregular allowance is kept in full",
+    "manual_basis": true,
+    "manual_basis_disclosure": "this target is a manually recorded goal, not observed money; the goal's saved figure is a manual tracking number and is never carried into the fund as a recorded allocation, because neither a goal target nor its saved field proves cash exists"
+   },
+   {
+    "proposal_id": "fund-proposal:irregular:SGD:Shopping / Electronics:2026-05",
+    "label": "Shopping / Electronics (2026-05)",
+    "currency": "SGD",
+    "source": {
+     "kind": "identified_irregular_expense",
+     "category_key": "Shopping / Electronics",
+     "month": "2026-05",
+     "held_out_threshold": "253.77",
+     "method": "outlier-v1: entry ≥ 3× category median-month and ≥ 150"
+    },
+    "observed_amount": {
+     "value": "324.00",
+     "basis": "observed_irregular_expense"
+    },
+    "observed_date": {
+     "value": "2026-05",
+     "basis": "observed_expense_month",
+     "precision": "month"
+    },
+    "amount_basis": "observed_irregular_expense",
+    "date_basis": "observed_expense_month",
+    "recurrence": {
+     "known": false,
+     "basis": "no schedule is recorded for this expense",
+     "observed_months": [
+      "2026-05"
+     ],
+     "observed_month_count": 1,
+     "note": "one isolated purchase does not prove a yearly bill; confirming an annual pattern is an interpretation and is not made here"
+    },
+    "complete": false,
+    "incomplete_reasons": [
+     "no sourced due date is available; the evidence places the expense in 2026-05 without stating a day"
+    ],
+    "irregular_allowance_retained": true,
+    "irregular_allowance_reason": "the amount or due date is unknown, so the data-derived irregular allowance is kept in full",
+    "manual_basis": false,
+    "manual_basis_disclosure": null
+   },
+   {
+    "proposal_id": "fund-proposal:obligation:card_statement:stmt_f593da669d00182c3583be26bd216e43580930d45a437f0d2ee8c95988ce12c9:SGD",
+    "label": "Mari Credit Card",
+    "currency": "SGD",
+    "source": {
+     "kind": "known_obligation",
+     "obligation_id": "card_statement:stmt_f593da669d00182c3583be26bd216e43580930d45a437f0d2ee8c95988ce12c9:SGD",
+     "origin": "card_statement",
+     "obligation_source": {
+      "kind": "card_statement",
+      "id": "stmt_f593da669d00182c3583be26bd216e43580930d45a437f0d2ee8c95988ce12c9",
+      "account_id": "mari-credit-card"
+     },
+     "obligation_date_basis": "statement_due_date"
+    },
+    "observed_amount": {
+     "value": "234.85",
+     "basis": "evidenced_future_invoice"
+    },
+    "observed_date": {
+     "value": "2026-09-10",
+     "basis": "evidenced_invoice_date",
+     "precision": "day"
+    },
+    "amount_basis": "evidenced_future_invoice",
+    "date_basis": "evidenced_invoice_date",
+    "recurrence": {
+     "known": false,
+     "basis": "no schedule is recorded on this obligation",
+     "schedule": null,
+     "note": "recurrence is known only where a schedule was actually recorded; repeated observations of a similar expense are evidence of repetition, never proof of an annual pattern, and one isolated purchase is proof of nothing"
+    },
+    "complete": true,
+    "incomplete_reasons": [],
+    "irregular_allowance_retained": true,
+    "irregular_allowance_reason": "a proposal is not a fund; the data-derived allowance stands until this fund is confirmed",
+    "manual_basis": false,
+    "manual_basis_disclosure": null
+   },
+   {
+    "proposal_id": "fund-proposal:obligation:debt:4d95af3b-0c6b-50c5-b6c5-9a99361cdd60",
+    "label": "Jamie",
+    "currency": "SGD",
+    "source": {
+     "kind": "known_obligation",
+     "obligation_id": "debt:4d95af3b-0c6b-50c5-b6c5-9a99361cdd60",
+     "origin": "personal_debt",
+     "obligation_source": {
+      "kind": "personal_debt",
+      "id": "4d95af3b-0c6b-50c5-b6c5-9a99361cdd60"
+     },
+     "obligation_date_basis": "no_stated_date"
+    },
+    "observed_amount": {
+     "value": "640.00",
+     "basis": "recorded_obligation"
+    },
+    "observed_date": null,
+    "amount_basis": "recorded_obligation",
+    "date_basis": "unknown",
+    "recurrence": {
+     "known": false,
+     "basis": "no schedule is recorded on this obligation",
+     "schedule": null,
+     "note": "recurrence is known only where a schedule was actually recorded; repeated observations of a similar expense are evidence of repetition, never proof of an annual pattern, and one isolated purchase is proof of nothing"
+    },
+    "complete": false,
+    "incomplete_reasons": [
+     "no sourced due date is available; the evidence places the expense in no known period without stating a day"
+    ],
+    "irregular_allowance_retained": true,
+    "irregular_allowance_reason": "the amount or due date is unknown, so the data-derived irregular allowance is kept in full",
+    "manual_basis": false,
+    "manual_basis_disclosure": null
+   },
+   {
+    "proposal_id": "fund-proposal:obligation:debt:e0ae1cd3-05fa-589b-a0b5-3cda4e2e89ca",
+    "label": "Sam",
+    "currency": "SGD",
+    "source": {
+     "kind": "known_obligation",
+     "obligation_id": "debt:e0ae1cd3-05fa-589b-a0b5-3cda4e2e89ca",
+     "origin": "personal_debt",
+     "obligation_source": {
+      "kind": "personal_debt",
+      "id": "e0ae1cd3-05fa-589b-a0b5-3cda4e2e89ca"
+     },
+     "obligation_date_basis": "scheduled_due_date"
+    },
+    "observed_amount": {
+     "value": "1360.00",
+     "basis": "recorded_obligation"
+    },
+    "observed_date": {
+     "value": "2026-10-10",
+     "basis": "scheduled_occurrence",
+     "precision": "day"
+    },
+    "amount_basis": "recorded_obligation",
+    "date_basis": "scheduled_occurrence",
+    "recurrence": {
+     "known": true,
+     "basis": "a schedule is recorded on this obligation",
+     "schedule": null,
+     "note": null
+    },
+    "complete": true,
+    "incomplete_reasons": [],
+    "irregular_allowance_retained": true,
+    "irregular_allowance_reason": "a proposal is not a fund; the data-derived allowance stands until this fund is confirmed",
+    "manual_basis": false,
+    "manual_basis_disclosure": null
+   },
+   {
+    "proposal_id": "fund-proposal:obligation:installment:4aa712d3-788c-5bf1-8e65-f1ffddef00df",
+    "label": "Electro World",
+    "currency": "SGD",
+    "source": {
+     "kind": "known_obligation",
+     "obligation_id": "installment:4aa712d3-788c-5bf1-8e65-f1ffddef00df",
+     "origin": "installment_plan",
+     "obligation_source": {
+      "kind": "installment_plan",
+      "id": "4aa712d3-788c-5bf1-8e65-f1ffddef00df"
+     },
+     "obligation_date_basis": "no_remaining_due_date"
+    },
+    "observed_amount": null,
+    "observed_date": null,
+    "amount_basis": "unknown",
+    "date_basis": "unknown",
+    "recurrence": {
+     "known": false,
+     "basis": "no schedule is recorded on this obligation",
+     "schedule": null,
+     "note": "recurrence is known only where a schedule was actually recorded; repeated observations of a similar expense are evidence of repetition, never proof of an annual pattern, and one isolated purchase is proof of nothing"
+    },
+    "complete": false,
+    "incomplete_reasons": [
+     "no sourced amount is available for this expense",
+     "no sourced due date is available; the evidence places the expense in no known period without stating a day"
+    ],
+    "irregular_allowance_retained": true,
+    "irregular_allowance_reason": "the amount or due date is unknown, so the data-derived irregular allowance is kept in full",
+    "manual_basis": false,
+    "manual_basis_disclosure": null
+   },
+   {
+    "proposal_id": "fund-proposal:obligation:installment:51b25750-7395-5ac8-bff6-4c7b45082d72",
+    "label": "Split Payment 18M",
+    "currency": "SGD",
+    "source": {
+     "kind": "known_obligation",
+     "obligation_id": "installment:51b25750-7395-5ac8-bff6-4c7b45082d72",
+     "origin": "installment_plan",
+     "obligation_source": {
+      "kind": "installment_plan",
+      "id": "51b25750-7395-5ac8-bff6-4c7b45082d72"
+     },
+     "obligation_date_basis": "no_remaining_due_date"
+    },
+    "observed_amount": null,
+    "observed_date": null,
+    "amount_basis": "unknown",
+    "date_basis": "unknown",
+    "recurrence": {
+     "known": false,
+     "basis": "no schedule is recorded on this obligation",
+     "schedule": null,
+     "note": "recurrence is known only where a schedule was actually recorded; repeated observations of a similar expense are evidence of repetition, never proof of an annual pattern, and one isolated purchase is proof of nothing"
+    },
+    "complete": false,
+    "incomplete_reasons": [
+     "no sourced amount is available for this expense",
+     "no sourced due date is available; the evidence places the expense in no known period without stating a day"
+    ],
+    "irregular_allowance_retained": true,
+    "irregular_allowance_reason": "the amount or due date is unknown, so the data-derived irregular allowance is kept in full",
+    "manual_basis": false,
+    "manual_basis_disclosure": null
+   },
+   {
+    "proposal_id": "fund-proposal:obligation:recurring:rent",
+    "label": "Rent",
+    "currency": "SGD",
+    "source": {
+     "kind": "known_obligation",
+     "obligation_id": "recurring:rent",
+     "origin": "recurring_commitment",
+     "obligation_source": {
+      "kind": "recurring_commitment",
+      "id": "rent"
+     },
+     "obligation_date_basis": "scheduled_occurrence"
+    },
+    "observed_amount": {
+     "value": "1180.00",
+     "basis": "recorded_obligation"
+    },
+    "observed_date": {
+     "value": "2026-08-02",
+     "basis": "scheduled_occurrence",
+     "precision": "day"
+    },
+    "amount_basis": "recorded_obligation",
+    "date_basis": "scheduled_occurrence",
+    "recurrence": {
+     "known": true,
+     "basis": "a schedule is recorded on this obligation",
+     "schedule": {
+      "anchor_on": "2026-01-02",
+      "day": 2,
+      "kind": "monthly"
+     },
+     "note": null
+    },
+    "complete": true,
+    "incomplete_reasons": [],
+    "irregular_allowance_retained": true,
+    "irregular_allowance_reason": "a proposal is not a fund; the data-derived allowance stands until this fund is confirmed",
+    "manual_basis": false,
+    "manual_basis_disclosure": null
+   }
+  ],
+  "funds": [],
+  "cash_separation": {
+   "by_currency": {
+    "EUR": {
+     "available": true,
+     "reason": null,
+     "currency": "EUR",
+     "total_cash": "592.15",
+     "earmarked_funds": "0.00",
+     "unallocated_cash": "592.15",
+     "minimum_reserve": "0.00",
+     "reserve_adjusted_unallocated_cash": "592.15",
+     "unfunded": false,
+     "unfunded_warning": null,
+     "reserve_shortfall": null,
+     "invariant": "total cash, earmarked funds and unallocated cash are three separate quantities: a contribution raises the earmark and lowers unallocated cash without reducing total cash; the due expense reduces total cash and releases its earmark exactly once",
+     "minimum_reserve_basis": "no supported reserve",
+     "funds": []
+    },
+    "SGD": {
+     "available": true,
+     "reason": null,
+     "currency": "SGD",
+     "total_cash": "15546.08",
+     "earmarked_funds": "0.00",
+     "unallocated_cash": "15546.08",
+     "minimum_reserve": "0.00",
+     "reserve_adjusted_unallocated_cash": "15546.08",
+     "unfunded": false,
+     "unfunded_warning": null,
+     "reserve_shortfall": null,
+     "invariant": "total cash, earmarked funds and unallocated cash are three separate quantities: a contribution raises the earmark and lowers unallocated cash without reducing total cash; the due expense reduces total cash and releases its earmark exactly once",
+     "minimum_reserve_basis": "no supported reserve",
+     "funds": []
+    },
+    "USD": {
+     "available": true,
+     "reason": null,
+     "currency": "USD",
+     "total_cash": "42.17",
+     "earmarked_funds": "0.00",
+     "unallocated_cash": "42.17",
+     "minimum_reserve": "0.00",
+     "reserve_adjusted_unallocated_cash": "42.17",
+     "unfunded": false,
+     "unfunded_warning": null,
+     "reserve_shortfall": null,
+     "invariant": "total cash, earmarked funds and unallocated cash are three separate quantities: a contribution raises the earmark and lowers unallocated cash without reducing total cash; the due expense reduces total cash and releases its earmark exactly once",
+     "minimum_reserve_basis": "no supported reserve",
+     "funds": []
+    }
+   },
+   "invariant": "total cash, earmarked funds and unallocated cash are three separate quantities: a contribution raises the earmark and lowers unallocated cash without reducing total cash; the due expense reduces total cash and releases its earmark exactly once",
+   "currency_policy": "unlike currencies are never added",
+   "cash_basis": {
+    "source": "Stage 2A liquid position",
+    "supported_cutoff": "2026-08-31",
+    "current_position_supported": false,
+    "reasons": [
+     "complete actual movements from the supported cutoff through today are unavailable"
+    ]
+   }
+  },
+  "rules": [
+   "total cash, earmarked funds and unallocated cash are three separate quantities: a contribution raises the earmark and lowers unallocated cash without reducing total cash; the due expense reduces total cash and releases its earmark exactly once",
+   "a recorded allocation is journalled money set aside, never a planned one; time passing over a contribution date proves nothing was saved",
+   "final-contribution-adjustment-v1: every contribution date carries the same whole minor-unit amount and the final date absorbs the remainder, so the scheduled contributions sum to the shortfall exactly",
+   "a proposal reports the amount and date that were observed and names what is missing; it never asks for a guessed figure, and it never replaces the data-derived irregular allowance — only a confirmed fund with a sourced amount and due date does that, and only for its own matching amount",
+   "recurrence is known only where a schedule was actually recorded; repeated observations of a similar expense are evidence of repetition, never proof of an annual pattern, and one isolated purchase is proof of nothing",
+   "a due-now or overdue expense stays an obligation: the fund reports an immediate funding requirement instead of being refused",
+   "an allocation sits within liquid cash; one that exceeds the available unallocated cash is kept and warned about, never trimmed to fit",
+   "scheduling contributions moves no cash on any day, so a schedule can never make an insolvent cash path solvent"
+  ],
+  "limitations": []
+ },
+ "amounts": [
+  {
+   "path": [
+    "proposals",
+    0,
+    "observed_amount",
+    "value"
+   ],
+   "label": "A little peace of mind · observed amount",
+   "value": {
+    "native": {
+     "value": "15000.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15000.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "proposals",
+    1,
+    "observed_amount",
+    "value"
+   ],
+   "label": "Shopping / Electronics (2026-05) · observed amount",
+   "value": {
+    "native": {
+     "value": "324.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "324.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "proposals",
+    2,
+    "observed_amount",
+    "value"
+   ],
+   "label": "Mari Credit Card · observed amount",
+   "value": {
+    "native": {
+     "value": "234.85",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "234.85",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-10",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "proposals",
+    3,
+    "observed_amount",
+    "value"
+   ],
+   "label": "Jamie · observed amount",
+   "value": {
+    "native": {
+     "value": "640.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "640.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "proposals",
+    4,
+    "observed_amount",
+    "value"
+   ],
+   "label": "Sam · observed amount",
+   "value": {
+    "native": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-10-10",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "proposals",
+    7,
+    "observed_amount",
+    "value"
+   ],
+   "label": "Rent · observed amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "EUR",
+    "total_cash"
+   ],
+   "label": "total cash",
+   "value": {
+    "native": {
+     "value": "592.15",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "894.80",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "EUR",
+    "earmarked_funds"
+   ],
+   "label": "earmarked funds",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "EUR",
+    "unallocated_cash"
+   ],
+   "label": "unallocated cash",
+   "value": {
+    "native": {
+     "value": "592.15",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "894.80",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "EUR",
+    "minimum_reserve"
+   ],
+   "label": "minimum reserve",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "EUR",
+    "reserve_adjusted_unallocated_cash"
+   ],
+   "label": "reserve adjusted unallocated cash",
+   "value": {
+    "native": {
+     "value": "592.15",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "894.80",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "SGD",
+    "total_cash"
+   ],
+   "label": "total cash",
+   "value": {
+    "native": {
+     "value": "15546.08",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15546.08",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "SGD",
+    "earmarked_funds"
+   ],
+   "label": "earmarked funds",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "SGD",
+    "unallocated_cash"
+   ],
+   "label": "unallocated cash",
+   "value": {
+    "native": {
+     "value": "15546.08",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15546.08",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "SGD",
+    "minimum_reserve"
+   ],
+   "label": "minimum reserve",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "SGD",
+    "reserve_adjusted_unallocated_cash"
+   ],
+   "label": "reserve adjusted unallocated cash",
+   "value": {
+    "native": {
+     "value": "15546.08",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15546.08",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "USD",
+    "total_cash"
+   ],
+   "label": "total cash",
+   "value": {
+    "native": {
+     "value": "42.17",
+     "currency": "USD"
+    },
+    "reported": {
+     "value": "58.49",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "USD",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "13869",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.3869"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "USD",
+    "earmarked_funds"
+   ],
+   "label": "earmarked funds",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "USD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "USD",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "13869",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.3869"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "USD",
+    "unallocated_cash"
+   ],
+   "label": "unallocated cash",
+   "value": {
+    "native": {
+     "value": "42.17",
+     "currency": "USD"
+    },
+    "reported": {
+     "value": "58.49",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "USD",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "13869",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.3869"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "USD",
+    "minimum_reserve"
+   ],
+   "label": "minimum reserve",
+   "value": {
+    "native": {
+     "value": "0.00",
+     "currency": "USD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "USD",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "13869",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.3869"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cash_separation",
+    "by_currency",
+    "USD",
+    "reserve_adjusted_unallocated_cash"
+   ],
+   "label": "reserve adjusted unallocated cash",
+   "value": {
+    "native": {
+     "value": "42.17",
+     "currency": "USD"
+    },
+    "reported": {
+     "value": "58.49",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "USD",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "13869",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.3869"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

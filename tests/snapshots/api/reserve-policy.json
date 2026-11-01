@@ -1,0 +1,7 @@
+{
+ "months": "3",
+ "is_default": true,
+ "decided_at": null,
+ "policy_version": null,
+ "reason": "no reserve policy has been chosen; the framework default of 3 months of essential spending applies"
+}

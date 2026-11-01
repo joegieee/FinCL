@@ -1,0 +1,1652 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "version": "sufficiency-v1",
+  "generated_for": "2026-09-15",
+  "reserve_policy": {
+   "months": "3",
+   "is_default": true,
+   "decided_at": null,
+   "reason": "no reserve policy has been chosen; the framework default of 3 months of essential spending applies",
+   "basis": "the month count is your policy; the monthly amount it multiplies is always the evidence-derived mean essential spend"
+  },
+  "combined_answer": {
+   "reporting_currency": "SGD",
+   "answer": "Yes, but not every bill is counted",
+   "verdict": "enough",
+   "complete": false,
+   "incomplete_because": [
+    "Mari Credit Card (SGD): its bills can't be dated or sized from the statements, so none are counted.",
+    "Electro World: its remaining due dates aren't known, so it isn't counted.",
+    "Split Payment 18M: its remaining due dates aren't known, so it isn't counted."
+   ],
+   "starts_on": "2026-08-31",
+   "ends_on": "2027-02-28",
+   "starting_total": "16499.37",
+   "base": {
+    "lowest": "6964.87",
+    "lowest_on": "2027-02-25",
+    "closing": "9137.79",
+    "verdict": "enough",
+    "first_short_on": null,
+    "shortfall": null,
+    "shortfall_on": null
+   },
+   "cautious": {
+    "lowest": "-5491.85",
+    "lowest_on": "2027-02-28",
+    "closing": "-5491.85",
+    "verdict": "short",
+    "first_short_on": "2027-01-05",
+    "shortfall": "5491.85",
+    "shortfall_on": "2027-02-28"
+   },
+   "only_safe_in_the_base_case": true,
+   "reserve": {
+    "available": false,
+    "target": null
+   },
+   "pockets": [
+    {
+     "currency": "EUR",
+     "counted": "projected",
+     "why": null,
+     "missing": [],
+     "accounts": [
+      {"account":"acct_revolut_current","display_name":"Revolut Current","evidence_through":"2026-08-31","age_days":15,"stale":true,"basis":"statement","holds_back_start":true}
+     ],
+     "starting_balance": "592.15",
+     "starting_balance_reported": "894.80",
+     "rate": "15111/10000",
+     "rate_display": "1.5111"
+    },
+    {
+     "currency": "SGD",
+     "counted": "projected",
+     "why": null,
+     "missing": [
+      {"kind":"card_statement","label":"Mari Credit Card","reason":"its bills can't be dated or sized from the statements, so none are counted"}
+     ],
+     "accounts": [
+      {"account":"acct_revolut_current","display_name":"Revolut Current","evidence_through":"2026-08-31","age_days":15,"stale":true,"basis":"statement","holds_back_start":true},
+      {"account":"dbs-my-account","display_name":"DBS My Account","evidence_through":"2026-08-31","age_days":15,"stale":true,"basis":"statement","holds_back_start":true},
+      {"account":"dbs-paylah-wallet","display_name":"DBS PayLah! Wallet","evidence_through":"2026-09-08","age_days":7,"stale":false,"basis":"statement","holds_back_start":false},
+      {"account":"maribank-savings","display_name":"MariBank Savings Account","evidence_through":"2026-08-31","age_days":15,"stale":true,"basis":"observation","holds_back_start":true},
+      {"account":"trust-savings","display_name":"Trust Bank Savings Account","evidence_through":"2026-08-31","age_days":15,"stale":true,"basis":"statement","holds_back_start":true}
+     ],
+     "starting_balance": "15546.08",
+     "starting_balance_reported": "15546.08",
+     "rate": null,
+     "rate_display": null
+    },
+    {
+     "currency": "USD",
+     "counted": "held_as_is",
+     "why": "it has no spending history and nothing is scheduled in or out of it",
+     "missing": [],
+     "accounts": [
+      {"account":"dbs-my-account","display_name":"DBS My Account","evidence_through":"2026-08-31","age_days":15,"stale":true,"basis":"statement","holds_back_start":true}
+     ],
+     "starting_balance": "42.17",
+     "starting_balance_reported": "58.49",
+     "rate": "13869/10000",
+     "rate_display": "1.3869"
+    }
+   ],
+   "income": [
+    {
+     "label": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+     "currency": "SGD",
+     "count": 6,
+     "next_on": "2026-09-25",
+     "confidence": "likely",
+     "native_total": "14378.40",
+     "total": "14378.40",
+     "in_cautious_case": false
+    }
+   ],
+   "upside": [
+    {
+     "label": "Priya",
+     "currency": "SGD",
+     "amount": "480.00",
+     "on": "2026-10-20"
+    }
+   ],
+   "where_it_goes": [
+    {
+     "origin": "baseline_spending",
+     "label": "Baseline spending",
+     "total": "12519.97",
+     "monthly": "2086.66",
+     "items": []
+    },
+    {
+     "origin": "recurring_commitment",
+     "label": "Recurring commitments",
+     "total": "7080.00",
+     "monthly": "1180.00",
+     "items": [
+      {"label":"Rent","on":"2026-09-02","amount":"1180.00","conditional":false,"currency":"SGD"},
+      {"label":"Rent","on":"2026-10-02","amount":"1180.00","conditional":false,"currency":"SGD"},
+      {"label":"Rent","on":"2026-11-02","amount":"1180.00","conditional":false,"currency":"SGD"},
+      {"label":"Rent","on":"2026-12-02","amount":"1180.00","conditional":false,"currency":"SGD"},
+      {"label":"Rent","on":"2027-01-02","amount":"1180.00","conditional":false,"currency":"SGD"},
+      {"label":"Rent","on":"2027-02-02","amount":"1180.00","conditional":false,"currency":"SGD"}
+     ]
+    },
+    {
+     "origin": "personal_debt",
+     "label": "Debt repayments",
+     "total": "1360.00",
+     "monthly": "226.67",
+     "items": [
+      {"label":"Sam","on":"2026-10-10","amount":"340.00","conditional":false,"currency":"SGD"},
+      {"label":"Sam","on":"2026-11-10","amount":"340.00","conditional":false,"currency":"SGD"},
+      {"label":"Sam","on":"2026-12-10","amount":"340.00","conditional":false,"currency":"SGD"},
+      {"label":"Sam","on":"2027-01-10","amount":"340.00","conditional":false,"currency":"SGD"}
+     ]
+    },
+    {
+     "origin": "planned",
+     "label": "Planned spending",
+     "total": "780.00",
+     "monthly": "130.00",
+     "items": [
+      {"label":"Dental work","on":"2026-12-14","amount":"780.00","conditional":false,"currency":"SGD"}
+     ]
+    }
+   ],
+   "monthly_out": "3623.33",
+   "todos": [
+    {
+     "key": "recent-statements",
+     "page": "Setup",
+     "anchor": "setup-coverage",
+     "title": "Import your latest statements",
+     "detail": "Your statements are out of date for: Revolut Current, proven through 2026-08-31 (15 days ago); DBS My Account, proven through 2026-08-31 (15 days ago); MariBank Savings Account, proven through 2026-08-31 (15 days ago); Trust Bank Savings Account, proven through 2026-08-31 (15 days ago). The answer starts from 2026-08-31, the last day every account is proven.",
+     "since": "2026-08-31"
+    },
+    {
+     "key": "card-statement",
+     "page": "Setup",
+     "title": "Import the missing card statement",
+     "detail": "Card spending between 2026-08-21 and 2026-08-31 is unknown, so it is not counted."
+    },
+    {
+     "key": "debt-dates",
+     "page": "Debts",
+     "title": "Give your debts a due date",
+     "detail": "Without a date they are not in the answer: Jamie."
+    },
+    {
+     "key": "recurring-history",
+     "page": "Planning",
+     "title": "Link past payments to your recurring bills",
+     "detail": "Rent has 3 past dates with no payment linked or marked skipped. Until you do, those payments are counted in your usual spending as well as on their own dates."
+    },
+    {
+     "key": "statement-gaps",
+     "page": "Setup",
+     "anchor": "setup-coverage",
+     "title": "Fill gaps in older statements",
+     "detail": "No statement covers these months, so the starting balance and your usual spending can't be fully checked: DBS My Account: Sep 2026; DBS PayLah! Wallet: Sep 2026; Mari Credit Card: Sep 2026; MariBank Savings Account: Mar 2026, Sep 2026; Revolut Current: Jan 2026, Feb 2026, Mar 2026, Apr 2026, May 2026, Jun 2026, Jul 2026, Aug 2026, Sep 2026; Trust Bank Savings Account: Sep 2026."
+    },
+    {
+     "key": "export-period",
+     "page": "Setup",
+     "title": "Import full statements for these accounts",
+     "detail": "Only individual transactions are imported for them, so their months can't be confirmed complete: DBS PayLah! Wallet, Mari Credit Card, Revolut Current."
+    },
+    {
+     "key": "essential",
+     "page": "Categorization",
+     "title": "Mark which spending is essential",
+     "detail": "Your safety reserve is worked out from essential spending. Until that's marked, the answer can't tell you whether you dip into the reserve."
+    }
+   ],
+   "not_in_the_path": {
+    "as_of": "2026-08-31",
+    "total": "640.00",
+    "items": [
+     {
+      "label": "Jamie",
+      "origin": "personal_debt",
+      "amount": "640.00",
+      "native": {"value":"640.00","currency":"SGD"}
+     }
+    ],
+    "unconverted": [],
+    "short_if_repaid_now": null
+   }
+  },
+  "by_currency": {
+   "EUR": {
+    "currency": "EUR",
+    "scale": 2,
+    "answer": "Yes",
+    "verdict": "enough",
+    "readiness": "partial",
+    "starting_balance": "592.15",
+    "starting_balance_as_of": "2026-08-31",
+    "horizon_end": "2027-02-28",
+    "base": {
+     "verdict": "enough",
+     "shortfall": null,
+     "shortfall_on": null,
+     "first_short_on": null,
+     "reserve_target": null,
+     "drivers": [],
+     "accounted_for": [
+      {"origin":"baseline_spending","label":"Baseline spending","amount":"495.54","amount_minor":49554,"items":[],"item_count":0}
+     ],
+     "reasons": [],
+     "headline": "Cash stays above zero and above your reserve across the horizon."
+    },
+    "conservative": {
+     "verdict": "enough",
+     "shortfall": null,
+     "shortfall_on": null,
+     "first_short_on": null,
+     "reserve_target": null,
+     "drivers": [],
+     "accounted_for": [
+      {"origin":"baseline_spending","label":"Baseline spending","amount":"535.14","amount_minor":53514,"items":[],"item_count":0}
+     ],
+     "reasons": [],
+     "headline": "Cash stays above zero and above your reserve across the horizon."
+    },
+    "only_safe_in_the_base_case": false
+   },
+   "SGD": {
+    "currency": "SGD",
+    "scale": 2,
+    "answer": "Yes",
+    "verdict": "enough",
+    "readiness": "partial",
+    "starting_balance": "15546.08",
+    "starting_balance_as_of": "2026-08-31",
+    "horizon_end": "2027-02-28",
+    "base": {
+     "verdict": "enough",
+     "shortfall": null,
+     "shortfall_on": null,
+     "first_short_on": null,
+     "reserve_target": null,
+     "drivers": [],
+     "accounted_for": [
+      {"origin":"baseline_spending","label":"Baseline spending","amount":"11771.16","amount_minor":1177116,"items":[],"item_count":0},
+      {"origin":"recurring_commitment","label":"Recurring commitments","amount":"7080.00","amount_minor":708000,"items":[{"label":"Rent","on":"2026-09-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2026-10-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2026-11-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2026-12-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2027-01-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2027-02-02","amount":"1180.00","conditional":false}],"item_count":6},
+      {"origin":"personal_debt","label":"Debt repayments","amount":"1360.00","amount_minor":136000,"items":[{"label":"Sam","on":"2026-10-10","amount":"340.00","conditional":false},{"label":"Sam","on":"2026-11-10","amount":"340.00","conditional":false},{"label":"Sam","on":"2026-12-10","amount":"340.00","conditional":false},{"label":"Sam","on":"2027-01-10","amount":"340.00","conditional":false}],"item_count":4},
+      {"origin":"planned","label":"Planned spending","amount":"780.00","amount_minor":78000,"items":[{"label":"Dental work","on":"2026-12-14","amount":"780.00","conditional":false}],"item_count":1}
+     ],
+     "reasons": [],
+     "headline": "Cash stays above zero and above your reserve across the horizon."
+    },
+    "conservative": {
+     "verdict": "short",
+     "shortfall": "5636.48",
+     "shortfall_on": "2027-02-28",
+     "first_short_on": "2027-01-02",
+     "reserve_target": null,
+     "drivers": [
+      {"origin":"baseline_spending","label":"Baseline spending","amount":"1993.76","amount_minor":199376,"items":[],"item_count":0},
+      {"origin":"recurring_commitment","label":"Recurring commitments","amount":"1180.00","amount_minor":118000,"items":[{"label":"Rent","on":"2027-01-02","amount":"1180.00","conditional":false}],"item_count":1},
+      {"origin":"personal_debt","label":"Debt repayments","amount":"340.00","amount_minor":34000,"items":[{"label":"Sam","on":"2027-01-10","amount":"340.00","conditional":false}],"item_count":1}
+     ],
+     "accounted_for": [
+      {"origin":"baseline_spending","label":"Baseline spending","amount":"11962.56","amount_minor":1196256,"items":[],"item_count":0},
+      {"origin":"recurring_commitment","label":"Recurring commitments","amount":"7080.00","amount_minor":708000,"items":[{"label":"Rent","on":"2026-09-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2026-10-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2026-11-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2026-12-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2027-01-02","amount":"1180.00","conditional":false},{"label":"Rent","on":"2027-02-02","amount":"1180.00","conditional":false}],"item_count":6},
+      {"origin":"personal_debt","label":"Debt repayments","amount":"1360.00","amount_minor":136000,"items":[{"label":"Sam","on":"2026-10-10","amount":"340.00","conditional":false},{"label":"Sam","on":"2026-11-10","amount":"340.00","conditional":false},{"label":"Sam","on":"2026-12-10","amount":"340.00","conditional":false},{"label":"Sam","on":"2027-01-10","amount":"340.00","conditional":false}],"item_count":4},
+      {"origin":"planned","label":"Planned spending","amount":"780.00","amount_minor":78000,"items":[{"label":"Dental work","on":"2026-12-14","amount":"780.00","conditional":false}],"item_count":1}
+     ],
+     "reasons": [],
+     "headline": "Cash runs out on 2027-01-02."
+    },
+    "only_safe_in_the_base_case": true
+   },
+   "USD": {
+    "currency": "USD",
+    "scale": 2,
+    "answer": "Not enough evidence to say",
+    "verdict": "unavailable",
+    "readiness": "unavailable",
+    "starting_balance": "42.17",
+    "starting_balance_as_of": "2026-08-31",
+    "horizon_end": "2027-02-28",
+    "base": {
+     "verdict": "unavailable",
+     "shortfall": null,
+     "shortfall_on": null,
+     "first_short_on": null,
+     "reserve_target": null,
+     "drivers": [],
+     "accounted_for": [],
+     "reasons": [
+      "USD has no supported residual-spending input; known-event cash arithmetic is shown but a complete base or conservative case is unavailable"
+     ],
+     "headline": "This case could not be built from the available evidence."
+    },
+    "conservative": {
+     "verdict": "unavailable",
+     "shortfall": null,
+     "shortfall_on": null,
+     "first_short_on": null,
+     "reserve_target": null,
+     "drivers": [],
+     "accounted_for": [],
+     "reasons": [
+      "USD has no supported residual-spending input; known-event cash arithmetic is shown but a complete base or conservative case is unavailable"
+     ],
+     "headline": "This case could not be built from the available evidence."
+    },
+    "only_safe_in_the_base_case": false
+   }
+  },
+  "limitations": [
+   "position_page is not generation-pinned (it does not stamp a generation token); it is read in the same process immediately after the pinned inputs, but a concurrent refresh between reads is not detected here",
+   "2 unclassified observed-outflow group(s) remain as non-cuttable unresolved spending; recurrence and baseline inference are not blocked by this.",
+   "3 obligation(s) have ambiguous amount or date terms and are a named forecast limitation.",
+   "Essential-role scope is incomplete for EUR, SGD; reserve and allowance claims are withheld while the observed cost table remains available.",
+   "USD has no supported residual-spending input; known-event cash arithmetic is shown but a complete base or conservative case is unavailable",
+   "debt:4d95af3b-0c6b-50c5-b6c5-9a99361cdd60 has no safe settlement date; the obligation remains explicit and is not guessed",
+   "card mari-credit-card SGD has no reconciled exactly-once settlement plan",
+   "this card has no accepted evidence covering 2026-08-21..2026-08-31, so postings in the unbilled window may be missing; an unknown unbilled balance is unresolved, never zero — reading it as zero would silently drop the most recent card spending out of the forecast"
+  ],
+  "semantics": {
+   "cases": "the headline verdict is the base case; the conservative case is reported beside it and never merged into it",
+   "reserve_versus_zero": "running out of cash and dipping into the reserve are separate verdicts with separate amounts",
+   "unavailable": "a currency whose forecast could not be built reports its reasons and no verdict; it is never reported as having enough"
+  }
+ },
+ "amounts": [
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "starting_balance"
+   ],
+   "label": "starting balance",
+   "value": {
+    "native": {
+     "value": "592.15",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "894.80",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-08-31",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "base",
+    "accounted_for",
+    0,
+    "amount"
+   ],
+   "label": "Baseline spending · amount",
+   "value": {
+    "native": {
+     "value": "495.54",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "748.81",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "held_latest",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "conservative",
+    "accounted_for",
+    0,
+    "amount"
+   ],
+   "label": "Baseline spending · amount",
+   "value": {
+    "native": {
+     "value": "535.14",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "808.65",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "held_latest",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "starting_balance"
+   ],
+   "label": "starting balance",
+   "value": {
+    "native": {
+     "value": "15546.08",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15546.08",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    0,
+    "amount"
+   ],
+   "label": "Baseline spending · amount",
+   "value": {
+    "native": {
+     "value": "11771.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "11771.16",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    1,
+    "amount"
+   ],
+   "label": "Recurring commitments · amount",
+   "value": {
+    "native": {
+     "value": "7080.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "7080.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    1,
+    "items",
+    0,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    1,
+    "items",
+    1,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    1,
+    "items",
+    2,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    1,
+    "items",
+    3,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    1,
+    "items",
+    4,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    1,
+    "items",
+    5,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    2,
+    "amount"
+   ],
+   "label": "Debt repayments · amount",
+   "value": {
+    "native": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    2,
+    "items",
+    0,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    2,
+    "items",
+    1,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    2,
+    "items",
+    2,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    2,
+    "items",
+    3,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    3,
+    "amount"
+   ],
+   "label": "Planned spending · amount",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "base",
+    "accounted_for",
+    3,
+    "items",
+    0,
+    "amount"
+   ],
+   "label": "Dental work · amount",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "shortfall"
+   ],
+   "label": "shortfall",
+   "value": {
+    "native": {
+     "value": "5636.48",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "5636.48",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "drivers",
+    0,
+    "amount"
+   ],
+   "label": "Baseline spending · amount",
+   "value": {
+    "native": {
+     "value": "1993.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1993.76",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "drivers",
+    1,
+    "amount"
+   ],
+   "label": "Recurring commitments · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "drivers",
+    1,
+    "items",
+    0,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "drivers",
+    2,
+    "amount"
+   ],
+   "label": "Debt repayments · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "drivers",
+    2,
+    "items",
+    0,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    0,
+    "amount"
+   ],
+   "label": "Baseline spending · amount",
+   "value": {
+    "native": {
+     "value": "11962.56",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "11962.56",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    1,
+    "amount"
+   ],
+   "label": "Recurring commitments · amount",
+   "value": {
+    "native": {
+     "value": "7080.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "7080.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    1,
+    "items",
+    0,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    1,
+    "items",
+    1,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    1,
+    "items",
+    2,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    1,
+    "items",
+    3,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    1,
+    "items",
+    4,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    1,
+    "items",
+    5,
+    "amount"
+   ],
+   "label": "Rent · amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    2,
+    "amount"
+   ],
+   "label": "Debt repayments · amount",
+   "value": {
+    "native": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1360.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    2,
+    "items",
+    0,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    2,
+    "items",
+    1,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    2,
+    "items",
+    2,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    2,
+    "items",
+    3,
+    "amount"
+   ],
+   "label": "Sam · amount",
+   "value": {
+    "native": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "340.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    3,
+    "amount"
+   ],
+   "label": "Planned spending · amount",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "conservative",
+    "accounted_for",
+    3,
+    "items",
+    0,
+    "amount"
+   ],
+   "label": "Dental work · amount",
+   "value": {
+    "native": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "780.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "USD",
+    "starting_balance"
+   ],
+   "label": "starting balance",
+   "value": {
+    "native": {
+     "value": "42.17",
+     "currency": "USD"
+    },
+    "reported": {
+     "value": "58.49",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "current_mark",
+    "valuation_as_of": "2026-08-31",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "USD",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "13869",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.3869"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

@@ -1,0 +1,808 @@
+{
+ "generation": "<digest>",
+ "accounts": [
+  {
+   "id": "dbs-my-account",
+   "institution": "DBS",
+   "source_type": "DBS_CONSOLIDATED",
+   "display_name": "DBS My Account",
+   "masked_identifier": "DBS deposit account (masked)",
+   "entry_count": 192,
+   "pockets": [
+    {
+     "pocket": "SGD",
+     "expected_start": null,
+     "expected_end": null,
+     "observed_start": "2026-01-01",
+     "observed_end": "2026-08-31",
+     "entry_count": 192,
+     "coverage_status": "unconfigured",
+     "gaps": []
+    }
+   ],
+   "archived_on": "",
+   "currencies": [
+    "SGD"
+   ],
+   "coverage_status": "unconfigured",
+   "expected_start": null,
+   "expected_end": null
+  },
+  {
+   "id": "dbs-paylah-wallet",
+   "institution": "DBS",
+   "source_type": "DBS_PAYLAH",
+   "display_name": "DBS PayLah! Wallet",
+   "masked_identifier": "PayLah wallet (masked)",
+   "entry_count": 137,
+   "pockets": [
+    {
+     "pocket": "SGD",
+     "expected_start": null,
+     "expected_end": null,
+     "observed_start": "2026-01-09",
+     "observed_end": "2026-09-08",
+     "entry_count": 137,
+     "coverage_status": "unconfigured",
+     "gaps": []
+    }
+   ],
+   "archived_on": "",
+   "currencies": [
+    "SGD"
+   ],
+   "coverage_status": "unconfigured",
+   "expected_start": null,
+   "expected_end": null
+  },
+  {
+   "id": "mari-credit-card",
+   "institution": "MariBank",
+   "source_type": "MARI_CARD",
+   "display_name": "Mari Credit Card",
+   "masked_identifier": "Mari Credit Card",
+   "entry_count": 38,
+   "pockets": [
+    {
+     "pocket": "SGD",
+     "expected_start": null,
+     "expected_end": null,
+     "observed_start": "2026-04-09",
+     "observed_end": "2026-08-20",
+     "entry_count": 38,
+     "coverage_status": "unconfigured",
+     "gaps": []
+    }
+   ],
+   "archived_on": "",
+   "currencies": [
+    "SGD"
+   ],
+   "coverage_status": "unconfigured",
+   "expected_start": null,
+   "expected_end": null
+  },
+  {
+   "id": "maribank-savings",
+   "institution": "MariBank",
+   "source_type": "MARI_SAVINGS",
+   "display_name": "MariBank Savings Account",
+   "masked_identifier": "MariBank savings 111 222 333",
+   "entry_count": 12,
+   "pockets": [
+    {
+     "pocket": "SGD",
+     "expected_start": null,
+     "expected_end": null,
+     "observed_start": "2026-03-12",
+     "observed_end": "2026-08-31",
+     "entry_count": 12,
+     "coverage_status": "unconfigured",
+     "gaps": []
+    }
+   ],
+   "archived_on": "",
+   "currencies": [
+    "SGD"
+   ],
+   "coverage_status": "unconfigured",
+   "expected_start": null,
+   "expected_end": null
+  },
+  {
+   "id": "acct_revolut_current",
+   "institution": "Revolut",
+   "source_type": "REVOLUT_PDF",
+   "display_name": "Revolut Current",
+   "masked_identifier": "Current",
+   "entry_count": 105,
+   "pockets": [
+    {
+     "pocket": "EUR",
+     "expected_start": null,
+     "expected_end": null,
+     "observed_start": "2026-01-14",
+     "observed_end": "2026-08-31",
+     "entry_count": 31,
+     "coverage_status": "unconfigured",
+     "gaps": []
+    },
+    {
+     "pocket": "SGD",
+     "expected_start": null,
+     "expected_end": null,
+     "observed_start": "2026-01-14",
+     "observed_end": "2026-08-31",
+     "entry_count": 74,
+     "coverage_status": "unconfigured",
+     "gaps": []
+    }
+   ],
+   "archived_on": "",
+   "currencies": [
+    "EUR",
+    "SGD"
+   ],
+   "coverage_status": "unconfigured",
+   "expected_start": null,
+   "expected_end": null
+  },
+  {
+   "id": "trust-savings",
+   "institution": "Trust",
+   "source_type": "TRUST_SAVINGS",
+   "display_name": "Trust Bank Savings Account",
+   "masked_identifier": "Trust savings 01-2345678-9",
+   "entry_count": 6,
+   "pockets": [
+    {
+     "pocket": "SGD",
+     "expected_start": null,
+     "expected_end": null,
+     "observed_start": "2026-02-01",
+     "observed_end": "2026-08-31",
+     "entry_count": 6,
+     "coverage_status": "unconfigured",
+     "gaps": []
+    }
+   ],
+   "archived_on": "",
+   "currencies": [
+    "SGD"
+   ],
+   "coverage_status": "unconfigured",
+   "expected_start": null,
+   "expected_end": null
+  }
+ ],
+ "aliases": [],
+ "global_coverage": {
+  "statements": [
+   {
+    "source_type": "DBS_CONSOLIDATED",
+    "statement_date": "2026-01-31",
+    "period_start": "2026-01-01",
+    "period_end": "2026-01-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 21,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "REVOLUT_PDF",
+    "statement_date": "2026-01-31",
+    "period_start": "2026-01-14",
+    "period_end": "2026-01-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 2,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_PAYLAH",
+    "statement_date": "2026-02-08",
+    "period_start": "2026-01-09",
+    "period_end": "2026-02-08",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 24,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_CONSOLIDATED",
+    "statement_date": "2026-02-28",
+    "period_start": "2026-02-01",
+    "period_end": "2026-02-28",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 23,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "REVOLUT_PDF",
+    "statement_date": "2026-02-28",
+    "period_start": "2026-02-01",
+    "period_end": "2026-02-28",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 13,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "TRUST_SAVINGS",
+    "statement_date": "2026-03-01",
+    "period_start": "2026-02-01",
+    "period_end": "2026-02-28",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 0,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_PAYLAH",
+    "statement_date": "2026-03-08",
+    "period_start": "2026-02-09",
+    "period_end": "2026-03-08",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 11,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_CONSOLIDATED",
+    "statement_date": "2026-03-31",
+    "period_start": "2026-03-01",
+    "period_end": "2026-03-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 25,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "REVOLUT_PDF",
+    "statement_date": "2026-03-31",
+    "period_start": "2026-03-01",
+    "period_end": "2026-03-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 13,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "TRUST_SAVINGS",
+    "statement_date": "2026-04-01",
+    "period_start": "2026-03-01",
+    "period_end": "2026-03-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 0,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_SAVINGS",
+    "statement_date": "2026-04-05",
+    "period_start": "2026-03-12",
+    "period_end": "2026-03-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 0,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_PAYLAH",
+    "statement_date": "2026-04-08",
+    "period_start": "2026-03-09",
+    "period_end": "2026-04-08",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 20,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_CARD",
+    "statement_date": "2026-04-21",
+    "period_start": "2026-04-09",
+    "period_end": "2026-04-20",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 4,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_CONSOLIDATED",
+    "statement_date": "2026-04-30",
+    "period_start": "2026-04-01",
+    "period_end": "2026-04-30",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 23,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "REVOLUT_PDF",
+    "statement_date": "2026-04-30",
+    "period_start": "2026-04-01",
+    "period_end": "2026-04-30",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 13,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "TRUST_SAVINGS",
+    "statement_date": "2026-05-01",
+    "period_start": "2026-04-01",
+    "period_end": "2026-04-30",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 0,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_SAVINGS",
+    "statement_date": "2026-05-05",
+    "period_start": "2026-04-01",
+    "period_end": "2026-04-30",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 0,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_PAYLAH",
+    "statement_date": "2026-05-08",
+    "period_start": "2026-04-09",
+    "period_end": "2026-05-08",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 14,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_CARD",
+    "statement_date": "2026-05-21",
+    "period_start": "2026-04-21",
+    "period_end": "2026-05-20",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 7,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_CONSOLIDATED",
+    "statement_date": "2026-05-31",
+    "period_start": "2026-05-01",
+    "period_end": "2026-05-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 24,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "REVOLUT_PDF",
+    "statement_date": "2026-05-31",
+    "period_start": "2026-05-01",
+    "period_end": "2026-05-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 13,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "TRUST_SAVINGS",
+    "statement_date": "2026-06-01",
+    "period_start": "2026-05-01",
+    "period_end": "2026-05-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 0,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_SAVINGS",
+    "statement_date": "2026-06-05",
+    "period_start": "2026-05-01",
+    "period_end": "2026-05-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 3,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_PAYLAH",
+    "statement_date": "2026-06-08",
+    "period_start": "2026-05-09",
+    "period_end": "2026-06-08",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 25,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_CARD",
+    "statement_date": "2026-06-21",
+    "period_start": "2026-05-21",
+    "period_end": "2026-06-20",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 10,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_CONSOLIDATED",
+    "statement_date": "2026-06-30",
+    "period_start": "2026-06-01",
+    "period_end": "2026-06-30",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 26,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "REVOLUT_PDF",
+    "statement_date": "2026-06-30",
+    "period_start": "2026-06-01",
+    "period_end": "2026-06-30",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 24,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "TRUST_SAVINGS",
+    "statement_date": "2026-07-01",
+    "period_start": "2026-06-01",
+    "period_end": "2026-06-30",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 5,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_SAVINGS",
+    "statement_date": "2026-07-05",
+    "period_start": "2026-06-01",
+    "period_end": "2026-06-30",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 3,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_PAYLAH",
+    "statement_date": "2026-07-08",
+    "period_start": "2026-06-09",
+    "period_end": "2026-07-08",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 8,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_CARD",
+    "statement_date": "2026-07-21",
+    "period_start": "2026-06-21",
+    "period_end": "2026-07-20",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 9,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_CONSOLIDATED",
+    "statement_date": "2026-07-31",
+    "period_start": "2026-07-01",
+    "period_end": "2026-07-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 26,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "REVOLUT_PDF",
+    "statement_date": "2026-07-31",
+    "period_start": "2026-07-01",
+    "period_end": "2026-07-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 14,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "TRUST_SAVINGS",
+    "statement_date": "2026-08-01",
+    "period_start": "2026-07-01",
+    "period_end": "2026-07-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 1,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_SAVINGS",
+    "statement_date": "2026-08-05",
+    "period_start": "2026-07-01",
+    "period_end": "2026-07-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 3,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_PAYLAH",
+    "statement_date": "2026-08-08",
+    "period_start": "2026-07-09",
+    "period_end": "2026-08-08",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 20,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_CARD",
+    "statement_date": "2026-08-21",
+    "period_start": "2026-07-21",
+    "period_end": "2026-08-20",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 8,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_CONSOLIDATED",
+    "statement_date": "2026-08-31",
+    "period_start": "2026-08-01",
+    "period_end": "2026-08-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 2,
+    "transaction_rows": 24,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "REVOLUT_PDF",
+    "statement_date": "2026-08-31",
+    "period_start": "2026-08-01",
+    "period_end": "2026-08-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 13,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "TRUST_SAVINGS",
+    "statement_date": "2026-09-01",
+    "period_start": "2026-08-01",
+    "period_end": "2026-08-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 0,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "MARI_SAVINGS",
+    "statement_date": "2026-09-05",
+    "period_start": "2026-08-01",
+    "period_end": "2026-08-31",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 3,
+    "unresolved_pages": 0
+   },
+   {
+    "source_type": "DBS_PAYLAH",
+    "statement_date": "2026-09-08",
+    "period_start": "2026-08-09",
+    "period_end": "2026-09-08",
+    "status": "ACCEPTED",
+    "selection_state": "SELECTED",
+    "pages": 1,
+    "transaction_rows": 15,
+    "unresolved_pages": 0
+   }
+  ],
+  "confirmed_transfer_links": 100,
+  "dangling_decisions": 0,
+  "needs_reextraction": [],
+  "categories": {
+   "run_id": "<id>",
+   "by_group": {
+    "Food & Dining": 66,
+    "Housing": 16,
+    "Income & Inflow": 12,
+    "Internal": 200,
+    "Shopping": 4,
+    "Transport": 7,
+    "Unclassified": 185
+   },
+   "unclassified": 185,
+   "ambiguous": 0,
+   "direction_conflict": 0,
+   "migrated": 0,
+   "missing_description": 0,
+   "alias_ambiguous": 0,
+   "warnings": {
+    "unclassified": 185
+   }
+  },
+  "coverage_policy_version": "coverage-intervals-v1",
+  "coverage_status": "COVERED",
+  "coverage_status_reasons": [],
+  "required_sources": [
+   "DBS_CONSOLIDATED",
+   "DBS_PAYLAH",
+   "MARI_CARD",
+   "MARI_SAVINGS",
+   "REVOLUT_PDF",
+   "TRUST_SAVINGS"
+  ],
+  "source_intervals": {
+   "DBS_CONSOLIDATED": {
+    "basis": "statement_period",
+    "completeness_established": true,
+    "intervals": [
+     {
+      "start": "2026-01-01",
+      "end": "2026-08-31"
+     }
+    ],
+    "evidence_refs": [
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>"
+    ],
+    "warnings": []
+   },
+   "DBS_PAYLAH": {
+    "basis": "statement_period",
+    "completeness_established": true,
+    "intervals": [
+     {
+      "start": "2026-01-09",
+      "end": "2026-09-08"
+     }
+    ],
+    "evidence_refs": [
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>"
+    ],
+    "warnings": []
+   },
+   "MARI_CARD": {
+    "basis": "statement_period",
+    "completeness_established": true,
+    "intervals": [
+     {
+      "start": "2026-04-09",
+      "end": "2026-08-20"
+     }
+    ],
+    "evidence_refs": [
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>"
+    ],
+    "warnings": []
+   },
+   "MARI_SAVINGS": {
+    "basis": "statement_period",
+    "completeness_established": true,
+    "intervals": [
+     {
+      "start": "2026-03-12",
+      "end": "2026-08-31"
+     }
+    ],
+    "evidence_refs": [
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>"
+    ],
+    "warnings": []
+   },
+   "REVOLUT_PDF": {
+    "basis": "statement_period",
+    "completeness_established": true,
+    "intervals": [
+     {
+      "start": "2026-01-14",
+      "end": "2026-08-31"
+     }
+    ],
+    "evidence_refs": [
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>"
+    ],
+    "warnings": []
+   },
+   "TRUST_SAVINGS": {
+    "basis": "statement_period",
+    "completeness_established": true,
+    "intervals": [
+     {
+      "start": "2026-02-01",
+      "end": "2026-08-31"
+     }
+    ],
+    "evidence_refs": [
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>",
+     "<digest>"
+    ],
+    "warnings": []
+   }
+  },
+  "covered_intervals": [
+   {
+    "start": "2026-04-09",
+    "end": "2026-08-20"
+   }
+  ]
+ }
+}

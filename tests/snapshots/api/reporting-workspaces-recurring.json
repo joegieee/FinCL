@@ -1,0 +1,2967 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "candidates": [
+   {
+    "candidate": "detv1:<digest>",
+    "detector_version": "detv1",
+    "kind": "bill",
+    "merchant_key": "CITY HOSTEL",
+    "currency": "EUR",
+    "account_ids": [
+     "acct_revolut_current"
+    ],
+    "cadence": "fortnightly",
+    "count": 3,
+    "source_count": 3,
+    "last_receipt_on": "2026-08-15",
+    "last_observed_on": "2026-08-15",
+    "first_observed_on": "2026-05-30",
+    "amount_variation": {
+     "basis": "variable",
+     "min_amount": "4.18",
+     "max_amount": "27.85",
+     "spread": "23.67",
+     "relative_spread": "0.8499",
+     "mean_amount": "13.90",
+     "latest_amount": "4.18",
+     "drift": {
+      "available": true,
+      "direction": "falling",
+      "total_change": "-5.50",
+      "per_occurrence": "-2.75",
+      "observations": 3,
+      "basis": "first to latest observed amount, divided by the intervals between them",
+      "applied": false,
+      "note": "the expected amount remains the latest observed receipt; this trend is reported for review and is never projected automatically"
+     }
+    },
+    "timing_window": {
+     "cadence": "fortnightly",
+     "first_observed_on": "2026-05-30",
+     "last_observed_on": "2026-08-15",
+     "min_gap_days": 14,
+     "max_gap_days": 14,
+     "observed_gap_days": [
+      14,
+      63
+     ],
+     "outlier_gap_days": [
+      63
+     ],
+     "next_expected_between": [
+      "2026-08-29",
+      "2026-08-29"
+     ]
+    },
+    "suggested_schedule": {
+     "kind": "interval_weeks",
+     "weeks": 2,
+     "anchor_on": "2026-08-15"
+    },
+    "expected_amount": "4.18",
+    "suggested_expected_amount": "4.18",
+    "suggested_tolerance": "23.67",
+    "amount_tolerance": "23.67",
+    "confidence": "likely",
+    "confidence_reason": "grouped from recorded payments only; confirmation is a semantic review of the identity, not of the amount",
+    "auto_confirmable": false,
+    "review_question": "Is CITY HOSTEL a recurring bill?",
+    "seed_entry_anchors": [
+     "<digest>:pdf:revolut:<digest>:4",
+     "<digest>:pdf:revolut:<digest>:9",
+     "<digest>:pdf:revolut:<digest>:3"
+    ],
+    "occurrences": [
+     {
+      "anchor": "<digest>:pdf:revolut:<digest>:4",
+      "date": "2026-05-30",
+      "amount": "9.68",
+      "description": "City Hostel",
+      "account": "Revolut Current"
+     },
+     {
+      "anchor": "<digest>:pdf:revolut:<digest>:9",
+      "date": "2026-06-13",
+      "amount": "27.85",
+      "description": "City Hostel",
+      "account": "Revolut Current"
+     },
+     {
+      "anchor": "<digest>:pdf:revolut:<digest>:3",
+      "date": "2026-08-15",
+      "amount": "4.18",
+      "description": "City Hostel",
+      "account": "Revolut Current"
+     }
+    ]
+   },
+   {
+    "candidate": "detv1:<digest>",
+    "detector_version": "detv1",
+    "kind": "bill",
+    "merchant_key": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+    "currency": "SGD",
+    "account_ids": [
+     "dbs-my-account"
+    ],
+    "cadence": "monthly",
+    "count": 8,
+    "source_count": 8,
+    "last_receipt_on": "2026-08-02",
+    "last_observed_on": "2026-08-02",
+    "first_observed_on": "2026-01-02",
+    "amount_variation": {
+     "basis": "stable",
+     "min_amount": "1180.00",
+     "max_amount": "1180.00",
+     "spread": "0.00",
+     "relative_spread": "0.0000",
+     "mean_amount": "1180.00",
+     "latest_amount": "1180.00",
+     "drift": {
+      "available": true,
+      "direction": "flat",
+      "total_change": "0.00",
+      "per_occurrence": "0.00",
+      "observations": 8,
+      "basis": "first to latest observed amount, divided by the intervals between them",
+      "applied": false,
+      "note": "the expected amount remains the latest observed receipt; this trend is reported for review and is never projected automatically"
+     }
+    },
+    "timing_window": {
+     "cadence": "monthly",
+     "first_observed_on": "2026-01-02",
+     "last_observed_on": "2026-08-02",
+     "min_gap_days": 30,
+     "max_gap_days": 31,
+     "observed_gap_days": [
+      31,
+      28,
+      31,
+      30,
+      31,
+      30,
+      31
+     ],
+     "outlier_gap_days": [
+      28
+     ],
+     "next_expected_between": [
+      "2026-09-01",
+      "2026-09-02"
+     ],
+     "day_of_month_min": 2,
+     "day_of_month_max": 2
+    },
+    "suggested_schedule": {
+     "kind": "monthly",
+     "day": 2,
+     "anchor_on": "2026-08-02"
+    },
+    "expected_amount": "1180.00",
+    "suggested_expected_amount": "1180.00",
+    "suggested_tolerance": "0.00",
+    "amount_tolerance": "0.00",
+    "confidence": "likely",
+    "confidence_reason": "grouped from recorded payments only; confirmation is a semantic review of the identity, not of the amount",
+    "auto_confirmable": false,
+    "review_question": "Is PayNow Transfer\nTO: LANDLORD SYNTHETIC a recurring bill?",
+    "seed_entry_anchors": [
+     "<digest>:pdf:dbs:<digest>:3",
+     "<digest>:pdf:dbs:<digest>:3",
+     "<digest>:pdf:dbs:<digest>:2",
+     "<digest>:pdf:dbs:<digest>:2"
+    ],
+    "occurrences": [
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:2",
+      "date": "2026-01-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:3",
+      "date": "2026-02-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:3",
+      "date": "2026-03-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:2",
+      "date": "2026-04-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:3",
+      "date": "2026-05-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:3",
+      "date": "2026-06-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:2",
+      "date": "2026-07-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:2",
+      "date": "2026-08-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     }
+    ]
+   },
+   {
+    "candidate": "detv1:<digest>",
+    "detector_version": "detv1",
+    "kind": "bill",
+    "merchant_key": "SYNTHETIC POWER AND WATER",
+    "currency": "SGD",
+    "account_ids": [
+     "dbs-my-account"
+    ],
+    "cadence": "monthly",
+    "count": 8,
+    "source_count": 8,
+    "last_receipt_on": "2026-08-11",
+    "last_observed_on": "2026-08-11",
+    "first_observed_on": "2026-01-11",
+    "amount_variation": {
+     "basis": "variable",
+     "min_amount": "68.54",
+     "max_amount": "115.89",
+     "spread": "47.35",
+     "relative_spread": "0.4086",
+     "mean_amount": "93.24",
+     "latest_amount": "85.07",
+     "drift": {
+      "available": true,
+      "direction": "falling",
+      "total_change": "-24.67",
+      "per_occurrence": "-3.52",
+      "observations": 8,
+      "basis": "first to latest observed amount, divided by the intervals between them",
+      "applied": false,
+      "note": "the expected amount remains the latest observed receipt; this trend is reported for review and is never projected automatically"
+     }
+    },
+    "timing_window": {
+     "cadence": "monthly",
+     "first_observed_on": "2026-01-11",
+     "last_observed_on": "2026-08-11",
+     "min_gap_days": 30,
+     "max_gap_days": 31,
+     "observed_gap_days": [
+      31,
+      28,
+      31,
+      30,
+      31,
+      30,
+      31
+     ],
+     "outlier_gap_days": [
+      28
+     ],
+     "next_expected_between": [
+      "2026-09-10",
+      "2026-09-11"
+     ],
+     "day_of_month_min": 11,
+     "day_of_month_max": 11
+    },
+    "suggested_schedule": {
+     "kind": "monthly",
+     "day": 11,
+     "anchor_on": "2026-08-11"
+    },
+    "expected_amount": "85.07",
+    "suggested_expected_amount": "85.07",
+    "suggested_tolerance": "47.35",
+    "amount_tolerance": "47.35",
+    "confidence": "likely",
+    "confidence_reason": "grouped from recorded payments only; confirmation is a semantic review of the identity, not of the amount",
+    "auto_confirmable": false,
+    "review_question": "Is SYNTHETIC POWER AND WATER a recurring bill?",
+    "seed_entry_anchors": [
+     "<digest>:pdf:dbs:<digest>:9",
+     "<digest>:pdf:dbs:<digest>:15",
+     "<digest>:pdf:dbs:<digest>:12",
+     "<digest>:pdf:dbs:<digest>:10"
+    ],
+    "occurrences": [
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:7",
+      "date": "2026-01-11",
+      "amount": "109.74",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:11",
+      "date": "2026-02-11",
+      "amount": "99.74",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:7",
+      "date": "2026-03-11",
+      "amount": "110.05",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:11",
+      "date": "2026-04-11",
+      "amount": "115.89",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:9",
+      "date": "2026-05-11",
+      "amount": "79.78",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:15",
+      "date": "2026-06-11",
+      "amount": "68.54",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:12",
+      "date": "2026-07-11",
+      "amount": "77.14",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:10",
+      "date": "2026-08-11",
+      "amount": "85.07",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     }
+    ]
+   }
+  ],
+  "bill_candidates": [
+   {
+    "candidate": "detv1:<digest>",
+    "detector_version": "detv1",
+    "kind": "bill",
+    "merchant_key": "CITY HOSTEL",
+    "currency": "EUR",
+    "account_ids": [
+     "acct_revolut_current"
+    ],
+    "cadence": "fortnightly",
+    "count": 3,
+    "source_count": 3,
+    "last_receipt_on": "2026-08-15",
+    "last_observed_on": "2026-08-15",
+    "first_observed_on": "2026-05-30",
+    "amount_variation": {
+     "basis": "variable",
+     "min_amount": "4.18",
+     "max_amount": "27.85",
+     "spread": "23.67",
+     "relative_spread": "0.8499",
+     "mean_amount": "13.90",
+     "latest_amount": "4.18",
+     "drift": {
+      "available": true,
+      "direction": "falling",
+      "total_change": "-5.50",
+      "per_occurrence": "-2.75",
+      "observations": 3,
+      "basis": "first to latest observed amount, divided by the intervals between them",
+      "applied": false,
+      "note": "the expected amount remains the latest observed receipt; this trend is reported for review and is never projected automatically"
+     }
+    },
+    "timing_window": {
+     "cadence": "fortnightly",
+     "first_observed_on": "2026-05-30",
+     "last_observed_on": "2026-08-15",
+     "min_gap_days": 14,
+     "max_gap_days": 14,
+     "observed_gap_days": [
+      14,
+      63
+     ],
+     "outlier_gap_days": [
+      63
+     ],
+     "next_expected_between": [
+      "2026-08-29",
+      "2026-08-29"
+     ]
+    },
+    "suggested_schedule": {
+     "kind": "interval_weeks",
+     "weeks": 2,
+     "anchor_on": "2026-08-15"
+    },
+    "expected_amount": "4.18",
+    "suggested_expected_amount": "4.18",
+    "suggested_tolerance": "23.67",
+    "amount_tolerance": "23.67",
+    "confidence": "likely",
+    "confidence_reason": "grouped from recorded payments only; confirmation is a semantic review of the identity, not of the amount",
+    "auto_confirmable": false,
+    "review_question": "Is CITY HOSTEL a recurring bill?",
+    "seed_entry_anchors": [
+     "<digest>:pdf:revolut:<digest>:4",
+     "<digest>:pdf:revolut:<digest>:9",
+     "<digest>:pdf:revolut:<digest>:3"
+    ],
+    "occurrences": [
+     {
+      "anchor": "<digest>:pdf:revolut:<digest>:4",
+      "date": "2026-05-30",
+      "amount": "9.68",
+      "description": "City Hostel",
+      "account": "Revolut Current"
+     },
+     {
+      "anchor": "<digest>:pdf:revolut:<digest>:9",
+      "date": "2026-06-13",
+      "amount": "27.85",
+      "description": "City Hostel",
+      "account": "Revolut Current"
+     },
+     {
+      "anchor": "<digest>:pdf:revolut:<digest>:3",
+      "date": "2026-08-15",
+      "amount": "4.18",
+      "description": "City Hostel",
+      "account": "Revolut Current"
+     }
+    ]
+   },
+   {
+    "candidate": "detv1:<digest>",
+    "detector_version": "detv1",
+    "kind": "bill",
+    "merchant_key": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+    "currency": "SGD",
+    "account_ids": [
+     "dbs-my-account"
+    ],
+    "cadence": "monthly",
+    "count": 8,
+    "source_count": 8,
+    "last_receipt_on": "2026-08-02",
+    "last_observed_on": "2026-08-02",
+    "first_observed_on": "2026-01-02",
+    "amount_variation": {
+     "basis": "stable",
+     "min_amount": "1180.00",
+     "max_amount": "1180.00",
+     "spread": "0.00",
+     "relative_spread": "0.0000",
+     "mean_amount": "1180.00",
+     "latest_amount": "1180.00",
+     "drift": {
+      "available": true,
+      "direction": "flat",
+      "total_change": "0.00",
+      "per_occurrence": "0.00",
+      "observations": 8,
+      "basis": "first to latest observed amount, divided by the intervals between them",
+      "applied": false,
+      "note": "the expected amount remains the latest observed receipt; this trend is reported for review and is never projected automatically"
+     }
+    },
+    "timing_window": {
+     "cadence": "monthly",
+     "first_observed_on": "2026-01-02",
+     "last_observed_on": "2026-08-02",
+     "min_gap_days": 30,
+     "max_gap_days": 31,
+     "observed_gap_days": [
+      31,
+      28,
+      31,
+      30,
+      31,
+      30,
+      31
+     ],
+     "outlier_gap_days": [
+      28
+     ],
+     "next_expected_between": [
+      "2026-09-01",
+      "2026-09-02"
+     ],
+     "day_of_month_min": 2,
+     "day_of_month_max": 2
+    },
+    "suggested_schedule": {
+     "kind": "monthly",
+     "day": 2,
+     "anchor_on": "2026-08-02"
+    },
+    "expected_amount": "1180.00",
+    "suggested_expected_amount": "1180.00",
+    "suggested_tolerance": "0.00",
+    "amount_tolerance": "0.00",
+    "confidence": "likely",
+    "confidence_reason": "grouped from recorded payments only; confirmation is a semantic review of the identity, not of the amount",
+    "auto_confirmable": false,
+    "review_question": "Is PayNow Transfer\nTO: LANDLORD SYNTHETIC a recurring bill?",
+    "seed_entry_anchors": [
+     "<digest>:pdf:dbs:<digest>:3",
+     "<digest>:pdf:dbs:<digest>:3",
+     "<digest>:pdf:dbs:<digest>:2",
+     "<digest>:pdf:dbs:<digest>:2"
+    ],
+    "occurrences": [
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:2",
+      "date": "2026-01-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:3",
+      "date": "2026-02-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:3",
+      "date": "2026-03-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:2",
+      "date": "2026-04-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:3",
+      "date": "2026-05-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:3",
+      "date": "2026-06-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:2",
+      "date": "2026-07-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:2",
+      "date": "2026-08-02",
+      "amount": "1180.00",
+      "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+      "account": "DBS My Account"
+     }
+    ]
+   },
+   {
+    "candidate": "detv1:<digest>",
+    "detector_version": "detv1",
+    "kind": "bill",
+    "merchant_key": "SYNTHETIC POWER AND WATER",
+    "currency": "SGD",
+    "account_ids": [
+     "dbs-my-account"
+    ],
+    "cadence": "monthly",
+    "count": 8,
+    "source_count": 8,
+    "last_receipt_on": "2026-08-11",
+    "last_observed_on": "2026-08-11",
+    "first_observed_on": "2026-01-11",
+    "amount_variation": {
+     "basis": "variable",
+     "min_amount": "68.54",
+     "max_amount": "115.89",
+     "spread": "47.35",
+     "relative_spread": "0.4086",
+     "mean_amount": "93.24",
+     "latest_amount": "85.07",
+     "drift": {
+      "available": true,
+      "direction": "falling",
+      "total_change": "-24.67",
+      "per_occurrence": "-3.52",
+      "observations": 8,
+      "basis": "first to latest observed amount, divided by the intervals between them",
+      "applied": false,
+      "note": "the expected amount remains the latest observed receipt; this trend is reported for review and is never projected automatically"
+     }
+    },
+    "timing_window": {
+     "cadence": "monthly",
+     "first_observed_on": "2026-01-11",
+     "last_observed_on": "2026-08-11",
+     "min_gap_days": 30,
+     "max_gap_days": 31,
+     "observed_gap_days": [
+      31,
+      28,
+      31,
+      30,
+      31,
+      30,
+      31
+     ],
+     "outlier_gap_days": [
+      28
+     ],
+     "next_expected_between": [
+      "2026-09-10",
+      "2026-09-11"
+     ],
+     "day_of_month_min": 11,
+     "day_of_month_max": 11
+    },
+    "suggested_schedule": {
+     "kind": "monthly",
+     "day": 11,
+     "anchor_on": "2026-08-11"
+    },
+    "expected_amount": "85.07",
+    "suggested_expected_amount": "85.07",
+    "suggested_tolerance": "47.35",
+    "amount_tolerance": "47.35",
+    "confidence": "likely",
+    "confidence_reason": "grouped from recorded payments only; confirmation is a semantic review of the identity, not of the amount",
+    "auto_confirmable": false,
+    "review_question": "Is SYNTHETIC POWER AND WATER a recurring bill?",
+    "seed_entry_anchors": [
+     "<digest>:pdf:dbs:<digest>:9",
+     "<digest>:pdf:dbs:<digest>:15",
+     "<digest>:pdf:dbs:<digest>:12",
+     "<digest>:pdf:dbs:<digest>:10"
+    ],
+    "occurrences": [
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:7",
+      "date": "2026-01-11",
+      "amount": "109.74",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:11",
+      "date": "2026-02-11",
+      "amount": "99.74",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:7",
+      "date": "2026-03-11",
+      "amount": "110.05",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:11",
+      "date": "2026-04-11",
+      "amount": "115.89",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:9",
+      "date": "2026-05-11",
+      "amount": "79.78",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:15",
+      "date": "2026-06-11",
+      "amount": "68.54",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:12",
+      "date": "2026-07-11",
+      "amount": "77.14",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:10",
+      "date": "2026-08-11",
+      "amount": "85.07",
+      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+      "account": "DBS My Account"
+     }
+    ]
+   }
+  ],
+  "income_candidates": [
+   {
+    "candidate": "detv1:<digest>",
+    "detector_version": "detv1",
+    "kind": "income",
+    "merchant_key": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+    "currency": "SGD",
+    "account_ids": [
+     "dbs-my-account"
+    ],
+    "cadence": "monthly",
+    "count": 8,
+    "source_count": 8,
+    "last_receipt_on": "2026-08-25",
+    "last_observed_on": "2026-08-25",
+    "first_observed_on": "2026-01-25",
+    "amount_variation": {
+     "basis": "stable",
+     "min_amount": "2381.17",
+     "max_amount": "2409.57",
+     "spread": "28.40",
+     "relative_spread": "0.0118",
+     "mean_amount": "2398.90",
+     "latest_amount": "2396.40",
+     "drift": {
+      "available": true,
+      "direction": "flat",
+      "total_change": "-9.14",
+      "per_occurrence": "-1.31",
+      "observations": 8,
+      "basis": "first to latest observed amount, divided by the intervals between them",
+      "applied": false,
+      "note": "the expected amount remains the latest observed receipt; this trend is reported for review and is never projected automatically"
+     }
+    },
+    "timing_window": {
+     "cadence": "monthly",
+     "first_observed_on": "2026-01-25",
+     "last_observed_on": "2026-08-25",
+     "min_gap_days": 30,
+     "max_gap_days": 31,
+     "observed_gap_days": [
+      31,
+      28,
+      31,
+      30,
+      31,
+      30,
+      31
+     ],
+     "outlier_gap_days": [
+      28
+     ],
+     "next_expected_between": [
+      "2026-09-24",
+      "2026-09-25"
+     ],
+     "day_of_month_min": 25,
+     "day_of_month_max": 25
+    },
+    "suggested_schedule": {
+     "kind": "monthly",
+     "day": 25,
+     "anchor_on": "2026-08-25"
+    },
+    "expected_amount": "2396.40",
+    "suggested_expected_amount": "2396.40",
+    "suggested_tolerance": "28.40",
+    "amount_tolerance": "28.40",
+    "confidence": "likely",
+    "confidence_reason": "grouped from recorded receipts only; a future receipt or a recorded commitment is what raises this to confirmed",
+    "auto_confirmable": false,
+    "review_question": "Is Funds Transfer\nACME STUDIO PTE LTD SALARY a recurring income stream?",
+    "seed_entry_anchors": [
+     "<digest>:pdf:dbs:<digest>:22",
+     "<digest>:pdf:dbs:<digest>:24",
+     "<digest>:pdf:dbs:<digest>:26",
+     "<digest>:pdf:dbs:<digest>:22"
+    ],
+    "occurrences": [
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:15",
+      "date": "2026-01-25",
+      "amount": "2405.54",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:24",
+      "date": "2026-02-25",
+      "amount": "2404.09",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:22",
+      "date": "2026-03-25",
+      "amount": "2399.46",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:23",
+      "date": "2026-04-25",
+      "amount": "2409.57",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:22",
+      "date": "2026-05-25",
+      "amount": "2381.17",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:24",
+      "date": "2026-06-25",
+      "amount": "2406.49",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:26",
+      "date": "2026-07-25",
+      "amount": "2388.44",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     },
+     {
+      "anchor": "<digest>:pdf:dbs:<digest>:22",
+      "date": "2026-08-25",
+      "amount": "2396.40",
+      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+      "account": "DBS My Account"
+     }
+    ]
+   }
+  ],
+  "income_exclusions": {
+   "excluded_source_count": 0,
+   "rule": "loan movements, owned transfers and refunds are removed before grouping; they are never netted out of a stream afterwards"
+  },
+  "confirmed": [
+   {
+    "commitment": "rent",
+    "name": "Rent",
+    "currency": "SGD",
+    "merchant_key": "LANDLORD SYNTHETIC",
+    "status": "active",
+    "ended_on": null,
+    "schedule": {
+     "anchor_on": "2026-01-02",
+     "day": 2,
+     "kind": "monthly"
+    },
+    "account_ids": [],
+    "expected_amount": "1180.00",
+    "amount_tolerance": "0.00"
+   }
+  ],
+  "paused_or_ended": [],
+  "dismissed_candidate_keys": []
+ },
+ "amounts": [
+  {
+   "path": [
+    "candidates",
+    0,
+    "amount_variation",
+    "min_amount"
+   ],
+   "label": "min amount",
+   "value": {
+    "native": {
+     "value": "4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.32",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "held_latest",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    0,
+    "amount_variation",
+    "max_amount"
+   ],
+   "label": "max amount",
+   "value": {
+    "native": {
+     "value": "27.85",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "42.08",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "held_latest",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    0,
+    "expected_amount"
+   ],
+   "label": "expected amount",
+   "value": {
+    "native": {
+     "value": "4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.32",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "held_latest",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    0,
+    "occurrences",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "9.68",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "14.42",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-05-30",
+    "rate_as_of": null,
+    "rate_period": "2026-05",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    0,
+    "occurrences",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "27.85",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "41.68",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-13",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    0,
+    "occurrences",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.32",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-08-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "amount_variation",
+    "min_amount"
+   ],
+   "label": "min amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "amount_variation",
+    "max_amount"
+   ],
+   "label": "max amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "expected_amount"
+   ],
+   "label": "expected amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "occurrences",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-01-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "occurrences",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-02-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "occurrences",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-03-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "occurrences",
+    3,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-04-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "occurrences",
+    4,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "occurrences",
+    5,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "occurrences",
+    6,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "occurrences",
+    7,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "amount_variation",
+    "min_amount"
+   ],
+   "label": "min amount",
+   "value": {
+    "native": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "amount_variation",
+    "max_amount"
+   ],
+   "label": "max amount",
+   "value": {
+    "native": {
+     "value": "115.89",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "115.89",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "expected_amount"
+   ],
+   "label": "expected amount",
+   "value": {
+    "native": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "occurrences",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "109.74",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "109.74",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-01-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "occurrences",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "99.74",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "99.74",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-02-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "occurrences",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "110.05",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "110.05",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-03-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "occurrences",
+    3,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "115.89",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "115.89",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-04-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "occurrences",
+    4,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "79.78",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "79.78",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "occurrences",
+    5,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "occurrences",
+    6,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "77.14",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "77.14",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "occurrences",
+    7,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    0,
+    "amount_variation",
+    "min_amount"
+   ],
+   "label": "min amount",
+   "value": {
+    "native": {
+     "value": "4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.32",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "held_latest",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    0,
+    "amount_variation",
+    "max_amount"
+   ],
+   "label": "max amount",
+   "value": {
+    "native": {
+     "value": "27.85",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "42.08",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "held_latest",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    0,
+    "expected_amount"
+   ],
+   "label": "expected amount",
+   "value": {
+    "native": {
+     "value": "4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.32",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "held_latest",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    0,
+    "occurrences",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "9.68",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "14.42",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-05-30",
+    "rate_as_of": null,
+    "rate_period": "2026-05",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    0,
+    "occurrences",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "27.85",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "41.68",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-13",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    0,
+    "occurrences",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.32",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-08-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "amount_variation",
+    "min_amount"
+   ],
+   "label": "min amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "amount_variation",
+    "max_amount"
+   ],
+   "label": "max amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "expected_amount"
+   ],
+   "label": "expected amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "occurrences",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-01-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "occurrences",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-02-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "occurrences",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-03-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "occurrences",
+    3,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-04-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "occurrences",
+    4,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "occurrences",
+    5,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "occurrences",
+    6,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    1,
+    "occurrences",
+    7,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "amount_variation",
+    "min_amount"
+   ],
+   "label": "min amount",
+   "value": {
+    "native": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "amount_variation",
+    "max_amount"
+   ],
+   "label": "max amount",
+   "value": {
+    "native": {
+     "value": "115.89",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "115.89",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "expected_amount"
+   ],
+   "label": "expected amount",
+   "value": {
+    "native": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "occurrences",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "109.74",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "109.74",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-01-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "occurrences",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "99.74",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "99.74",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-02-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "occurrences",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "110.05",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "110.05",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-03-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "occurrences",
+    3,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "115.89",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "115.89",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-04-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "occurrences",
+    4,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "79.78",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "79.78",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "occurrences",
+    5,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "occurrences",
+    6,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "77.14",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "77.14",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "bill_candidates",
+    2,
+    "occurrences",
+    7,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "amount_variation",
+    "min_amount"
+   ],
+   "label": "min amount",
+   "value": {
+    "native": {
+     "value": "2381.17",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2381.17",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "amount_variation",
+    "max_amount"
+   ],
+   "label": "max amount",
+   "value": {
+    "native": {
+     "value": "2409.57",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2409.57",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "expected_amount"
+   ],
+   "label": "expected amount",
+   "value": {
+    "native": {
+     "value": "2396.40",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2396.40",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "occurrences",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2405.54",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2405.54",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-01-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "occurrences",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2404.09",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2404.09",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-02-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "occurrences",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2399.46",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2399.46",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-03-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "occurrences",
+    3,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2409.57",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2409.57",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-04-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "occurrences",
+    4,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2381.17",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2381.17",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "occurrences",
+    5,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2406.49",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2406.49",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "occurrences",
+    6,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2388.44",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2388.44",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "income_candidates",
+    0,
+    "occurrences",
+    7,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2396.40",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2396.40",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "confirmed",
+    0,
+    "expected_amount"
+   ],
+   "label": "Rent · expected amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "forecast",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": "forward-monthly-closed-v1",
+    "unavailable": null
+   }
+  }
+ ]
+}

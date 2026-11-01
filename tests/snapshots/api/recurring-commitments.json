@@ -1,0 +1,22 @@
+{
+ "generation": "<digest>",
+ "confirmed": [
+  {
+   "commitment": "rent",
+   "name": "Rent",
+   "currency": "SGD",
+   "merchant_key": "LANDLORD SYNTHETIC",
+   "status": "active",
+   "ended_on": null,
+   "schedule": {
+    "anchor_on": "2026-01-02",
+    "day": 2,
+    "kind": "monthly"
+   },
+   "account_ids": [],
+   "expected_amount": "1180.00",
+   "amount_tolerance": "0.00"
+  }
+ ],
+ "paused_or_ended": []
+}

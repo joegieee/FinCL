@@ -1,0 +1,3799 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "sort": "date",
+ "rows": [
+  {
+   "entry": {
+    "id": "entry_4e68be0fe30770f40fa653f30b418358556808594fd00a1bc82df018728a982b",
+    "anchor": "<digest>:pdf:revolut:<digest>:17",
+    "date": "2026-08-31",
+    "precision": "DAY",
+    "amount": "-10.95",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "NIGHT MARKET GRILL",
+    "description": "Night Market Grill",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-10.95",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-10.95",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-10.95"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "-10.95"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_4e68be0fe30770f40fa653f30b418358556808594fd00a1bc82df018728a982b",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_7e0346f7a079a3e27bd73bd1a4bee848e05ff10690f86d9fda39593aa0f6ceb2",
+    "anchor": "<digest>:pdf:mari-savings:<digest>:1",
+    "date": "2026-08-31",
+    "precision": "MONTH",
+    "amount": "0.04",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "MariBank Savings Account",
+    "merchant": "INTEREST INTEREST",
+    "description": "Interest Interest",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "pending_review",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "0.04",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.04",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "0.04"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_7e0346f7a079a3e27bd73bd1a4bee848e05ff10690f86d9fda39593aa0f6ceb2",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_98daef6266047431e22aa13c5024a75bd888c2fa804d5fd125914e27c5c2b9af",
+    "anchor": "<digest>:pdf:dbs:<digest>:27",
+    "date": "2026-08-30",
+    "precision": "DAY",
+    "amount": "-31.16",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "NEIGHBOURHOOD BAKERY SINGAPORE SGP 28AUG",
+    "description": "Debit Card Transaction\nNEIGHBOURHOOD BAKERY SINGAPORE SGP 28AUG",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 2",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-31.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-31.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-31.16"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_98daef6266047431e22aa13c5024a75bd888c2fa804d5fd125914e27c5c2b9af",
+     "source_location": "Page 2",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_d0ede0db856aca12b50dd1d66ff93eabba0b5028981a677ca27037cb434dd805",
+    "anchor": "<digest>:pdf:paylah:<digest>:16",
+    "date": "2026-08-30",
+    "precision": "DAY",
+    "amount": "2.71",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "REFUND FROM NOODLE HOUSE",
+    "description": "REFUND FROM NOODLE HOUSE",
+    "category": "Food & Dining / Dining Out",
+    "basis": "rule:ff5d1acfceb7c2dd",
+    "source_location": "Page 1",
+    "bucket": "refunds",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "2.71",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.71",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "2.71"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_d0ede0db856aca12b50dd1d66ff93eabba0b5028981a677ca27037cb434dd805",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_b519d712fbbc572cb2ac2595aa9a577f8725d5a1160740406169b999f86d0bb9",
+    "anchor": "<digest>:pdf:dbs:<digest>:24",
+    "date": "2026-08-29",
+    "precision": "DAY",
+    "amount": "-42.51",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "CORNER GROCER SINGAPORE SGP 27AUG",
+    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 27AUG",
+    "category": "Food & Dining / Groceries",
+    "basis": "rule:6e8b4b203de4c52a",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "essential",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-42.51",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-42.51",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-42.51"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_b519d712fbbc572cb2ac2595aa9a577f8725d5a1160740406169b999f86d0bb9",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_c464edb4984fc74c72a0cc647b7636416f8422a82245849a98a3533ed3daf515",
+    "anchor": "<digest>:pdf:dbs:<digest>:23",
+    "date": "2026-08-28",
+    "precision": "DAY",
+    "amount": "-7.48",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "Top-up to PayLah!",
+    "description": "Top-up to PayLah!",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-7.48",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-7.48",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-7.48"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_c464edb4984fc74c72a0cc647b7636416f8422a82245849a98a3533ed3daf515",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_20ba642b8fa5c4745c498ccbb7698174ed594bdb36d927869cf6bb15cbcf9255",
+    "anchor": "<digest>:pdf:paylah:<digest>:14",
+    "date": "2026-08-28",
+    "precision": "DAY",
+    "amount": "7.48",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "TOP UP WALLET FROM MY ACCOUNT",
+    "description": "TOP UP WALLET FROM MY ACCOUNT",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "7.48",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "7.48",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "7.48"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_20ba642b8fa5c4745c498ccbb7698174ed594bdb36d927869cf6bb15cbcf9255",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_6401da2b0bde87b6e63a71f9cd87827ed0f8853fb15872d387e66d574029b9fb",
+    "anchor": "<digest>:pdf:paylah:<digest>:15",
+    "date": "2026-08-28",
+    "precision": "DAY",
+    "amount": "-7.48",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "KOPI CORNER",
+    "description": "KOPI CORNER",
+    "category": "Food & Dining / Cafes & Drinks",
+    "basis": "rule:74f0986987681cfb",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "discretionary",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-7.48",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-7.48",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-7.48"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_6401da2b0bde87b6e63a71f9cd87827ed0f8853fb15872d387e66d574029b9fb",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_5cbf2d57c822a5b7041660d25d98eeb239ebed8f287b052f183afe3f9dc1534e",
+    "anchor": "<digest>:pdf:revolut:<digest>:16",
+    "date": "2026-08-26",
+    "precision": "DAY",
+    "amount": "-6.99",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "STREAMING BOX",
+    "description": "Streaming Box",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-6.99",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-6.99",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-6.99"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "-6.99"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_5cbf2d57c822a5b7041660d25d98eeb239ebed8f287b052f183afe3f9dc1534e",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_6d3042be2e7c99908686aac02ce47b87402a7a83c5ce5cdb0a575596a0c60377",
+    "anchor": "<digest>:pdf:dbs:<digest>:22",
+    "date": "2026-08-25",
+    "precision": "DAY",
+    "amount": "2396.40",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+    "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
+    "category": "Income & Inflow / Earned Income",
+    "basis": "inbound:income",
+    "source_location": "Page 1",
+    "bucket": "income",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": "income",
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "2396.40",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2396.40",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "2396.40"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_6d3042be2e7c99908686aac02ce47b87402a7a83c5ce5cdb0a575596a0c60377",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_833f92562deb0b033d7f35c95452851e14e1f48341da4ad235b1587811ac531c",
+    "anchor": "<digest>:pdf:revolut:<digest>:15",
+    "date": "2026-08-24",
+    "precision": "DAY",
+    "amount": "-9.44",
+    "fee": "0.21",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "CITY HOSTEL",
+    "description": "City Hostel",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-9.44",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-9.44",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": {
+    "native": {
+     "value": "0.21",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.21",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "statement_detail": {
+    "original": {
+     "currency": "GBP",
+     "amount_text": "9.99"
+    },
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-9.44"
+    },
+    "explicit_fee": {
+     "currency": "SGD",
+     "amount_text": "0.21"
+    },
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "-9.65"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": {
+     "base_currency": "SGD",
+     "quote_currency": "GBP",
+     "numerator": "999",
+     "denominator": "944",
+     "amount_basis": "fees_excluded"
+    },
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_833f92562deb0b033d7f35c95452851e14e1f48341da4ad235b1587811ac531c",
+     "source_location": "Page 1",
+     "detail_basis": "stored_columns",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_33cca6718611523fb6f38f01f7af24423eb2b9d9e4513ae10a25d017db56e7fb",
+    "anchor": "<digest>:pdf:dbs:<digest>:21",
+    "date": "2026-08-24",
+    "precision": "DAY",
+    "amount": "-36.37",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "FRESH MARKET SINGAPORE SGP 21AUG",
+    "description": "Debit Card Transaction\nFRESH MARKET SINGAPORE SGP 21AUG",
+    "category": "Food & Dining / Groceries",
+    "basis": "rule:0598d23b6a2d8a8e",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "essential",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-36.37",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-36.37",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-36.37"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_33cca6718611523fb6f38f01f7af24423eb2b9d9e4513ae10a25d017db56e7fb",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_143a6ae2b6a935108ca87de10ef0da2e82dabd87fb4b57818c8e056fc7e1359d",
+    "anchor": "<digest>:pdf:dbs:<digest>:19",
+    "date": "2026-08-23",
+    "precision": "DAY",
+    "amount": "-40.44",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "CORNER GROCER SINGAPORE SGP 21AUG",
+    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 21AUG",
+    "category": "Food & Dining / Groceries",
+    "basis": "rule:6e8b4b203de4c52a",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "essential",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-40.44",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-40.44",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-40.44"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_143a6ae2b6a935108ca87de10ef0da2e82dabd87fb4b57818c8e056fc7e1359d",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_02609d7862a3e4463cebd51cbaa86cea9be13f639b8dd39a5102e4ecef55b91d",
+    "anchor": "<digest>:pdf:dbs:<digest>:20",
+    "date": "2026-08-23",
+    "precision": "DAY",
+    "amount": "-3.60",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "Top-up to PayLah!",
+    "description": "Top-up to PayLah!",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-3.60",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-3.60",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-3.60"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_02609d7862a3e4463cebd51cbaa86cea9be13f639b8dd39a5102e4ecef55b91d",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_3c64aa796be999d079e606c9bb0acd07090e91a3c17b7e1463b7d97e2d1f7fd7",
+    "anchor": "<digest>:pdf:paylah:<digest>:13",
+    "date": "2026-08-23",
+    "precision": "DAY",
+    "amount": "-3.60",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "CHICKEN RICE STALL",
+    "description": "CHICKEN RICE STALL",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-3.60",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-3.60",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-3.60"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_3c64aa796be999d079e606c9bb0acd07090e91a3c17b7e1463b7d97e2d1f7fd7",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_5a9a5db7b134fc623da5afa756a656047602ebf11e8187d1722bcfd614b695c9",
+    "anchor": "<digest>:pdf:paylah:<digest>:12",
+    "date": "2026-08-23",
+    "precision": "DAY",
+    "amount": "3.60",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "TOP UP WALLET FROM MY ACCOUNT",
+    "description": "TOP UP WALLET FROM MY ACCOUNT",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "3.60",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.60",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "3.60"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_5a9a5db7b134fc623da5afa756a656047602ebf11e8187d1722bcfd614b695c9",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_11a82fca16c6de491be31fff59ad6a61474ac13b9c0700190d8debfaa8bf6b68",
+    "anchor": "<digest>:pdf:dbs:<digest>:18",
+    "date": "2026-08-22",
+    "precision": "DAY",
+    "amount": "-13.40",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "LUNCH COUNTER SINGAPORE SGP 20AUG",
+    "description": "Debit Card Transaction\nLUNCH COUNTER SINGAPORE SGP 20AUG",
+    "category": "Food & Dining / Dining Out",
+    "basis": "rule:bb44228741e11a36",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "discretionary",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-13.40",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-13.40",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-13.40"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_11a82fca16c6de491be31fff59ad6a61474ac13b9c0700190d8debfaa8bf6b68",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_ef2616d11797ad47c032e37cab38f0feceb0f337edb2428cc12a6362676eb8c6",
+    "anchor": "<digest>:pdf:revolut:<digest>:14",
+    "date": "2026-08-21",
+    "precision": "DAY",
+    "amount": "-2.16",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "CAMPUS CAFE",
+    "description": "Campus Cafe",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-2.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-2.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-2.16"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "-2.16"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_ef2616d11797ad47c032e37cab38f0feceb0f337edb2428cc12a6362676eb8c6",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_839f9a2694af7e7f0b649eccd5a05847b410d228ba9b6abed9491120af2f1f10",
+    "anchor": "<digest>:pdf:mari-card:<digest>:8",
+    "date": "2026-08-21",
+    "precision": "DAY",
+    "amount": "-27.35",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Mari Credit Card",
+    "merchant": "SPLIT PAYMENT",
+    "description": "Split Payment 2/4 Instalment",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-27.35",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-27.35",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-27.35"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_839f9a2694af7e7f0b649eccd5a05847b410d228ba9b6abed9491120af2f1f10",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_d06917b80ba7ce4c2c49029f16ba58184f26e5017265612a89fc1a7a06967ccb",
+    "anchor": "<digest>:pdf:mari-card:<digest>:6",
+    "date": "2026-08-21",
+    "precision": "DAY",
+    "amount": "-38.20",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Mari Credit Card",
+    "merchant": "SPLIT PAYMENT",
+    "description": "Split Payment 11/18 Instalment",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "installment",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-38.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-38.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-38.20"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_d06917b80ba7ce4c2c49029f16ba58184f26e5017265612a89fc1a7a06967ccb",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_98ae6dfde8e9a5bc8a7614bfa2327b4d2ab0aab74f3372d36d55f3c9c642a4b8",
+    "anchor": "<digest>:pdf:mari-card:<digest>:7",
+    "date": "2026-08-21",
+    "precision": "DAY",
+    "amount": "-36.00",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Mari Credit Card",
+    "merchant": "SPLIT PAYMENT",
+    "description": "Split Payment 3/9 Instalment",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "installment",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-36.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-36.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-36.00"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_98ae6dfde8e9a5bc8a7614bfa2327b4d2ab0aab74f3372d36d55f3c9c642a4b8",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_72511c91ab1b84879066a7bd1762825047f01169f8b3172d00d56d314c9e0e0e",
+    "anchor": "<digest>:pdf:dbs:<digest>:16",
+    "date": "2026-08-20",
+    "precision": "DAY",
+    "amount": "-3.82",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "Top-up to PayLah!",
+    "description": "Top-up to PayLah!",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-3.82",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-3.82",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-3.82"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_72511c91ab1b84879066a7bd1762825047f01169f8b3172d00d56d314c9e0e0e",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_a2f150b03370f5eadf5e19f0fd663d074ccb0f951c5374475fdc948e33da1608",
+    "anchor": "<digest>:pdf:dbs:<digest>:17",
+    "date": "2026-08-20",
+    "precision": "DAY",
+    "amount": "-6.15",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "Top-up to PayLah!",
+    "description": "Top-up to PayLah!",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-6.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-6.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-6.15"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_a2f150b03370f5eadf5e19f0fd663d074ccb0f951c5374475fdc948e33da1608",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_9e7e52250bc5f0cd0140cd9befe5912ec412ae54268fcd25e332d7e190ca2248",
+    "anchor": "<digest>:pdf:paylah:<digest>:9",
+    "date": "2026-08-20",
+    "precision": "DAY",
+    "amount": "-3.82",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "BUBBLE TEA BAR",
+    "description": "BUBBLE TEA BAR",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-3.82",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-3.82",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-3.82"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_9e7e52250bc5f0cd0140cd9befe5912ec412ae54268fcd25e332d7e190ca2248",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_cfe6ff26a31c1067592455e6b961c338a575fc54fffdf68613a9261aa4227839",
+    "anchor": "<digest>:pdf:paylah:<digest>:11",
+    "date": "2026-08-20",
+    "precision": "DAY",
+    "amount": "-6.15",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "KOPI CORNER",
+    "description": "KOPI CORNER",
+    "category": "Food & Dining / Cafes & Drinks",
+    "basis": "rule:74f0986987681cfb",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "discretionary",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-6.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-6.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-6.15"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_cfe6ff26a31c1067592455e6b961c338a575fc54fffdf68613a9261aa4227839",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_94cc876024d213c670e635fce943fa19d1d31712b87f211327b0b733ed0a12b8",
+    "anchor": "<digest>:pdf:paylah:<digest>:8",
+    "date": "2026-08-20",
+    "precision": "DAY",
+    "amount": "3.82",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "TOP UP WALLET FROM MY ACCOUNT",
+    "description": "TOP UP WALLET FROM MY ACCOUNT",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "3.82",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.82",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "3.82"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_94cc876024d213c670e635fce943fa19d1d31712b87f211327b0b733ed0a12b8",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_7a4cf283ebff95c4734a58efd7ad76ad7ea217e5c78a35af9331ab0e76c2354f",
+    "anchor": "<digest>:pdf:paylah:<digest>:10",
+    "date": "2026-08-20",
+    "precision": "DAY",
+    "amount": "6.15",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "TOP UP WALLET FROM MY ACCOUNT",
+    "description": "TOP UP WALLET FROM MY ACCOUNT",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "6.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "6.15"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_7a4cf283ebff95c4734a58efd7ad76ad7ea217e5c78a35af9331ab0e76c2354f",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_4df8cf9e69e8f8b4a2930818a6ec52ef4b20ee8cb291078529cf6e4d9172fe4e",
+    "anchor": "<digest>:pdf:revolut:<digest>:13",
+    "date": "2026-08-19",
+    "precision": "DAY",
+    "amount": "-3.03",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "STREAMING BOX",
+    "description": "Streaming Box",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-3.03",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-3.03",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-3.03"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "-3.03"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_4df8cf9e69e8f8b4a2930818a6ec52ef4b20ee8cb291078529cf6e4d9172fe4e",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_9e9cfa13f4075036c8020fcdcdaef77bf62749df85b15f2036b63ec8197f132c",
+    "anchor": "<digest>:pdf:dbs:<digest>:14",
+    "date": "2026-08-19",
+    "precision": "DAY",
+    "amount": "-23.84",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "Top-up to PayLah!",
+    "description": "Top-up to PayLah!",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-23.84",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-23.84",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-23.84"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_9e9cfa13f4075036c8020fcdcdaef77bf62749df85b15f2036b63ec8197f132c",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_a9f30112ec884869a330ac74cade28b7564cc955aca4ed53932516ee612d64ea",
+    "anchor": "<digest>:pdf:dbs:<digest>:15",
+    "date": "2026-08-19",
+    "precision": "DAY",
+    "amount": "-202.89",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "REVOLUT**4821* SINGAPORE SGP 17AUG",
+    "description": "Debit Card Transaction\nREVOLUT**4821* SINGAPORE SGP 17AUG",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-202.89",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-202.89",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-202.89"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_a9f30112ec884869a330ac74cade28b7564cc955aca4ed53932516ee612d64ea",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_68fad7c31a4c685ba04f4355aab6d273895d034cf69ecab933845ea55daef029",
+    "anchor": "<digest>:pdf:paylah:<digest>:6",
+    "date": "2026-08-19",
+    "precision": "DAY",
+    "amount": "23.84",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "TOP UP WALLET FROM MY ACCOUNT",
+    "description": "TOP UP WALLET FROM MY ACCOUNT",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "23.84",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "23.84",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "23.84"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_68fad7c31a4c685ba04f4355aab6d273895d034cf69ecab933845ea55daef029",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_fd4d18619eeb8abea7b4e7751994e08001101a272d563ccecb61683cd22695d5",
+    "anchor": "<digest>:pdf:paylah:<digest>:7",
+    "date": "2026-08-19",
+    "precision": "DAY",
+    "amount": "-23.84",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "SEND MONEY TO JAMIE SYNTHETIC",
+    "description": "SEND MONEY TO JAMIE SYNTHETIC",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-23.84",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-23.84",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-23.84"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_fd4d18619eeb8abea7b4e7751994e08001101a272d563ccecb61683cd22695d5",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_0313ee9355d258739dc298ae2cccc1966c049057ee1a94c7c032fd00ec2f3e53",
+    "anchor": "<digest>:pdf:dbs:<digest>:13",
+    "date": "2026-08-18",
+    "precision": "DAY",
+    "amount": "-246.64",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "REVOLUT**4821* SINGAPORE SGP 16AUG",
+    "description": "Debit Card Transaction\nREVOLUT**4821* SINGAPORE SGP 16AUG",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-246.64",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-246.64",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-246.64"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_0313ee9355d258739dc298ae2cccc1966c049057ee1a94c7c032fd00ec2f3e53",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_09b685958a1e2d22eaa8d55e75fc8b2408a6aad5f59fa27f34b4af253cbabfa3",
+    "anchor": "<digest>:pdf:revolut:<digest>:12",
+    "date": "2026-08-17",
+    "precision": "DAY",
+    "amount": "202.89",
+    "fee": "0.74",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "Card top-up",
+    "description": "Card top-up",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "202.89",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "202.89",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": {
+    "native": {
+     "value": "0.74",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.74",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "202.89"
+    },
+    "explicit_fee": {
+     "currency": "SGD",
+     "amount_text": "0.74"
+    },
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "202.15"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_09b685958a1e2d22eaa8d55e75fc8b2408a6aad5f59fa27f34b4af253cbabfa3",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_333cf7e5d4a5b879ba875095f0a44ad60de9b275f2fa06820cd547aed3d30afa",
+    "anchor": "<digest>:pdf:revolut:<digest>:11",
+    "date": "2026-08-16",
+    "precision": "DAY",
+    "amount": "246.64",
+    "fee": "1.17",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "Card top-up",
+    "description": "Card top-up",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "246.64",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "246.64",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": {
+    "native": {
+     "value": "1.17",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1.17",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "246.64"
+    },
+    "explicit_fee": {
+     "currency": "SGD",
+     "amount_text": "1.17"
+    },
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "245.47"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_333cf7e5d4a5b879ba875095f0a44ad60de9b275f2fa06820cd547aed3d30afa",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_f826c407c6836f240ae1e0139008e47be34c25cd66f399fa3260450f22d1a8a0",
+    "anchor": "<digest>:pdf:revolut:<digest>:4",
+    "date": "2026-08-16",
+    "precision": "DAY",
+    "amount": "-3.97",
+    "fee": "0",
+    "currency": "EUR",
+    "account": "Revolut Current",
+    "merchant": "KONBINI MART",
+    "description": "Konbini Mart",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-3.97",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "-6.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "EUR",
+     "amount_text": "-3.97"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": {
+     "currency": "EUR",
+     "amount_text": "-3.97"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_f826c407c6836f240ae1e0139008e47be34c25cd66f399fa3260450f22d1a8a0",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_dd304e3c5d904c1a3d5caff43a42f3f43950f095911466d971c0e420db8c01b8",
+    "anchor": "<digest>:pdf:dbs:<digest>:12",
+    "date": "2026-08-16",
+    "precision": "DAY",
+    "amount": "-2.76",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "Top-up to PayLah!",
+    "description": "Top-up to PayLah!",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-2.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-2.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-2.76"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_dd304e3c5d904c1a3d5caff43a42f3f43950f095911466d971c0e420db8c01b8",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_6f5b3a2c32cccdd064ed78bca419173f03352b94367bd26ec258fd751f1f2393",
+    "anchor": "<digest>:pdf:paylah:<digest>:4",
+    "date": "2026-08-16",
+    "precision": "DAY",
+    "amount": "2.76",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "TOP UP WALLET FROM MY ACCOUNT",
+    "description": "TOP UP WALLET FROM MY ACCOUNT",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "2.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "2.76"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_6f5b3a2c32cccdd064ed78bca419173f03352b94367bd26ec258fd751f1f2393",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_eca9722dbdc10f343bb137462864d93e859969a77aff06281939c5b3403c0562",
+    "anchor": "<digest>:pdf:paylah:<digest>:5",
+    "date": "2026-08-16",
+    "precision": "DAY",
+    "amount": "-2.76",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "BUBBLE TEA BAR",
+    "description": "BUBBLE TEA BAR",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-2.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-2.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-2.76"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_eca9722dbdc10f343bb137462864d93e859969a77aff06281939c5b3403c0562",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_0b3c34e0943c5c11029d06efaa08a9d7c08e21f8d6de8910f2cc72babbdb5e00",
+    "anchor": "<digest>:pdf:revolut:<digest>:3",
+    "date": "2026-08-15",
+    "precision": "DAY",
+    "amount": "-4.18",
+    "fee": "0",
+    "currency": "EUR",
+    "account": "Revolut Current",
+    "merchant": "CITY HOSTEL",
+    "description": "City Hostel",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "-6.32",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "EUR",
+     "amount_text": "-4.18"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": {
+     "currency": "EUR",
+     "amount_text": "-4.18"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_0b3c34e0943c5c11029d06efaa08a9d7c08e21f8d6de8910f2cc72babbdb5e00",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_b5132082473c2f1e5b5cfc3e0b2f8b6704c427a7992e48f7d14b2c1da8344d24",
+    "anchor": "<digest>:pdf:revolut:<digest>:10",
+    "date": "2026-08-15",
+    "precision": "DAY",
+    "amount": "-10.94",
+    "fee": "0.20",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "SUSHI TEN",
+    "description": "Sushi Ten",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-10.94",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-10.94",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": {
+    "native": {
+     "value": "0.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "statement_detail": {
+    "original": {
+     "currency": "GBP",
+     "amount_text": "7.39"
+    },
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-10.94"
+    },
+    "explicit_fee": {
+     "currency": "SGD",
+     "amount_text": "0.20"
+    },
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "-11.14"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": {
+     "base_currency": "SGD",
+     "quote_currency": "GBP",
+     "numerator": "739",
+     "denominator": "1094",
+     "amount_basis": "fees_excluded"
+    },
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_b5132082473c2f1e5b5cfc3e0b2f8b6704c427a7992e48f7d14b2c1da8344d24",
+     "source_location": "Page 1",
+     "detail_basis": "stored_columns",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_a9fc5f0e9442a1fedb386e632ce09d670b32feacad1eb82cfedb6ae573040f4a",
+    "anchor": "<digest>:pdf:revolut:<digest>:9",
+    "date": "2026-08-12",
+    "precision": "DAY",
+    "amount": "-9.09",
+    "fee": "0.06",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "TRAM 28 KIOSK",
+    "description": "Tram 28 Kiosk",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-9.09",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-9.09",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": {
+    "native": {
+     "value": "0.06",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.06",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "statement_detail": {
+    "original": {
+     "currency": "JPY",
+     "amount_text": "2056.08"
+    },
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-9.09"
+    },
+    "explicit_fee": {
+     "currency": "SGD",
+     "amount_text": "0.06"
+    },
+    "statement_cash_movement": {
+     "currency": "SGD",
+     "amount_text": "-9.15"
+    },
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": {
+     "base_currency": "SGD",
+     "quote_currency": "JPY",
+     "numerator": "68536",
+     "denominator": "303",
+     "amount_basis": "fees_excluded"
+    },
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_a9fc5f0e9442a1fedb386e632ce09d670b32feacad1eb82cfedb6ae573040f4a",
+     "source_location": "Page 1",
+     "detail_basis": "stored_columns",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_dcbfa687e2402b0f24534d3051c0b5a58a0cb966804b01a78914562c84c707a9",
+    "anchor": "<digest>:pdf:dbs:<digest>:11",
+    "date": "2026-08-12",
+    "precision": "DAY",
+    "amount": "-37.85",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "HARDWARE HUT SINGAPORE SGP 09AUG",
+    "description": "Debit Card Transaction\nHARDWARE HUT SINGAPORE SGP 09AUG",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-37.85",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-37.85",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-37.85"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_dcbfa687e2402b0f24534d3051c0b5a58a0cb966804b01a78914562c84c707a9",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_048bad73d61b26fbc89f7a9b77c853c867b3492c0814dbe207e8752f264caec2",
+    "anchor": "<digest>:pdf:mari-card:<digest>:3",
+    "date": "2026-08-11",
+    "precision": "DAY",
+    "amount": "-19.49",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Mari Credit Card",
+    "merchant": "PET PANTRY CARD PAYMENT",
+    "description": "PET PANTRY Card Payment",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-19.49",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-19.49",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-19.49"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_048bad73d61b26fbc89f7a9b77c853c867b3492c0814dbe207e8752f264caec2",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_795922da7bbbdcfda48388978f694e7ba582ad09b94c6fbdfa29fe12ea7515df",
+    "anchor": "<digest>:pdf:mari-card:<digest>:4",
+    "date": "2026-08-11",
+    "precision": "DAY",
+    "amount": "-41.01",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Mari Credit Card",
+    "merchant": "HOME GOODS CO CARD PAYMENT",
+    "description": "HOME GOODS CO Card Payment",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-41.01",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-41.01",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-41.01"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_795922da7bbbdcfda48388978f694e7ba582ad09b94c6fbdfa29fe12ea7515df",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_b2d57d1f03d61a7260d9bd3f9839216349382dcd120630b940431afabe26e864",
+    "anchor": "<digest>:pdf:dbs:<digest>:10",
+    "date": "2026-08-11",
+    "precision": "DAY",
+    "amount": "-85.07",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "SYNTHETIC POWER AND WATER",
+    "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+    "category": "Housing / Utilities",
+    "basis": "rule:f8205c8dccd1db85",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "essential",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-85.07",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-85.07",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-85.07"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_b2d57d1f03d61a7260d9bd3f9839216349382dcd120630b940431afabe26e864",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_58a940a68f5cc3839b91d08bf16255d8c04166d0cff713c7c08ccf929a9efe5d",
+    "anchor": "<digest>:pdf:dbs:<digest>:8",
+    "date": "2026-08-10",
+    "precision": "DAY",
+    "amount": "-21.20",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "FRESH MARKET SINGAPORE SGP 09AUG",
+    "description": "Debit Card Transaction\nFRESH MARKET SINGAPORE SGP 09AUG",
+    "category": "Food & Dining / Groceries",
+    "basis": "rule:0598d23b6a2d8a8e",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "essential",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-21.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-21.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-21.20"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_58a940a68f5cc3839b91d08bf16255d8c04166d0cff713c7c08ccf929a9efe5d",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_e0055c0e15b5ba2e447578f317c7951a4a4cf83ca007dd0bd29c33e81ede2f81",
+    "anchor": "<digest>:pdf:dbs:<digest>:9",
+    "date": "2026-08-10",
+    "precision": "DAY",
+    "amount": "-39.06",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "CORNER GROCER SINGAPORE SGP 08AUG",
+    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 08AUG",
+    "category": "Food & Dining / Groceries",
+    "basis": "rule:6e8b4b203de4c52a",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "essential",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-39.06",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-39.06",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-39.06"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_e0055c0e15b5ba2e447578f317c7951a4a4cf83ca007dd0bd29c33e81ede2f81",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_6be22452de90f1d7b2dc26c269e10b485cd7ae4b731b6651b4c13357168e67bf",
+    "anchor": "<digest>:pdf:paylah:<digest>:20",
+    "date": "2026-08-08",
+    "precision": "DAY",
+    "amount": "6.91",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "TOP UP WALLET FROM MY ACCOUNT",
+    "description": "TOP UP WALLET FROM MY ACCOUNT",
+    "category": "Internal / Wallet Top-up",
+    "basis": "link:wallet_topup",
+    "source_location": "Page 1",
+    "bucket": "internal",
+    "eligible": true,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "N/A",
+    "cost_behavior_basis": "N/A",
+    "need": "N/A",
+    "need_basis": "N/A",
+    "role_review_state": "N/A",
+    "suggested_classification": "",
+    "linked": true,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "6.91",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.91",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "6.91"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_6be22452de90f1d7b2dc26c269e10b485cd7ae4b731b6651b4c13357168e67bf",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  },
+  {
+   "entry": {
+    "id": "entry_2fdec2880368b2831323d20975aeb2ea896a985f2b570a12076e997e0b96ddff",
+    "anchor": "<digest>:pdf:paylah:<digest>:21",
+    "date": "2026-08-08",
+    "precision": "DAY",
+    "amount": "-6.91",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "BUBBLE TEA BAR",
+    "description": "BUBBLE TEA BAR",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": true,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": false,
+    "classification": null,
+    "debt_allocation": null
+   },
+   "amount": {
+    "native": {
+     "value": "-6.91",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-6.91",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   },
+   "fee": null,
+   "statement_detail": {
+    "original": null,
+    "settled": {
+     "currency": "SGD",
+     "amount_text": "-6.91"
+    },
+    "explicit_fee": null,
+    "statement_cash_movement": null,
+    "printed_conversion": null,
+    "printed_charge_percent": null,
+    "effective_rate": null,
+    "validation": {
+     "status": "not_checkable",
+     "reason": "no printed conversion and derived effective rate are both available to compare"
+    },
+    "provenance": {
+     "document_record_id": "doc_2fdec2880368b2831323d20975aeb2ea896a985f2b570a12076e997e0b96ddff",
+     "source_location": "Page 1",
+     "detail_basis": "unavailable",
+     "normalizer_version": "statement-money-v1"
+    }
+   }
+  }
+ ],
+ "total": 67,
+ "next_cursor": "<handle>"
+}

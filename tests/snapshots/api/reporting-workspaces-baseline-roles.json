@@ -1,0 +1,3764 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "available": true,
+  "generation": "<digest>",
+  "baseline_window": {
+   "quality": "normal",
+   "reason": "3 consecutive fully-established months; using the latest 3",
+   "start_month": "2026-05",
+   "end_month": "2026-07",
+   "month_count": 3,
+   "basis": "all-established"
+  },
+  "currencies": [
+   "EUR",
+   "SGD"
+  ],
+  "by_currency": {
+   "EUR": {
+    "months": [
+     {
+      "month": "2026-05",
+      "essential": "0",
+      "discretionary": "0",
+      "unresolved": "22.74",
+      "total": "22.74",
+      "reconciles": true
+     },
+     {
+      "month": "2026-06",
+      "essential": "0",
+      "discretionary": "0",
+      "unresolved": "213.56",
+      "total": "213.56",
+      "reconciles": true
+     },
+     {
+      "month": "2026-07",
+      "essential": "0",
+      "discretionary": "0",
+      "unresolved": "11.47",
+      "total": "11.47",
+      "reconciles": true
+     }
+    ],
+    "totals": {
+     "essential": "0",
+     "discretionary": "0",
+     "unresolved": "247.77",
+     "total": "247.77",
+     "reconciles": true
+    }
+   },
+   "SGD": {
+    "months": [
+     {
+      "month": "2026-05",
+      "essential": "1320.97",
+      "discretionary": "410.44",
+      "unresolved": "421.75",
+      "total": "2153.16",
+      "reconciles": true
+     },
+     {
+      "month": "2026-06",
+      "essential": "1313.38",
+      "discretionary": "159.12",
+      "unresolved": "506.37",
+      "total": "1978.87",
+      "reconciles": true
+     },
+     {
+      "month": "2026-07",
+      "essential": "1298.06",
+      "discretionary": "68.01",
+      "unresolved": "351.29",
+      "total": "1717.36",
+      "reconciles": true
+     }
+    ],
+    "totals": {
+     "essential": "3932.41",
+     "discretionary": "637.57",
+     "unresolved": "1279.41",
+     "total": "5849.39",
+     "reconciles": true
+    }
+   }
+  },
+  "groups": [
+   {
+    "currency": "EUR",
+    "category_key": "Unclassified / Unclassified",
+    "cost_pattern": "unresolved",
+    "essential_status": "unresolved",
+    "tier": null,
+    "basis": "unmapped or unclassified category",
+    "review_status": "unresolved",
+    "amount": "247.77",
+    "source_count": 16,
+    "mean_monthly": "82.59",
+    "highest_observed_monthly": "213.56",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "22.74"
+     },
+     {
+      "month": "2026-06",
+      "amount": "213.56"
+     },
+     {
+      "month": "2026-07",
+      "amount": "11.47"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Food & Dining / Cafes & Drinks",
+    "cost_pattern": "variable_routine",
+    "essential_status": "discretionary",
+    "tier": 4,
+    "basis": "baseline-roles-2026-v1",
+    "review_status": "automatic",
+    "amount": "28.46",
+    "source_count": 6,
+    "mean_monthly": "9.49",
+    "highest_observed_monthly": "15.66",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "15.66"
+     },
+     {
+      "month": "2026-06",
+      "amount": "5.74"
+     },
+     {
+      "month": "2026-07",
+      "amount": "7.06"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Food & Dining / Dining Out",
+    "cost_pattern": "variable_routine",
+    "essential_status": "discretionary",
+    "tier": 4,
+    "basis": "baseline-roles-2026-v1",
+    "review_status": "automatic",
+    "amount": "163.41",
+    "source_count": 10,
+    "mean_monthly": "54.47",
+    "highest_observed_monthly": "68.79",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "33.67"
+     },
+     {
+      "month": "2026-06",
+      "amount": "68.79"
+     },
+     {
+      "month": "2026-07",
+      "amount": "60.95"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Food & Dining / Groceries",
+    "cost_pattern": "variable_routine",
+    "essential_status": "essential",
+    "tier": 1,
+    "basis": "baseline-roles-2026-v1",
+    "review_status": "automatic",
+    "amount": "62.42",
+    "source_count": 5,
+    "mean_monthly": "20.81",
+    "highest_observed_monthly": "36.72",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "25.70"
+     },
+     {
+      "month": "2026-06",
+      "amount": "36.72"
+     },
+     {
+      "month": "2026-07",
+      "amount": "0"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Housing / Rent",
+    "cost_pattern": "variable_routine",
+    "essential_status": "essential",
+    "tier": 1,
+    "basis": "baseline-roles-2026-v1",
+    "review_status": "automatic",
+    "amount": "3540.00",
+    "source_count": 3,
+    "mean_monthly": "1180.00",
+    "highest_observed_monthly": "1180.00",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "1180.00"
+     },
+     {
+      "month": "2026-06",
+      "amount": "1180.00"
+     },
+     {
+      "month": "2026-07",
+      "amount": "1180.00"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Housing / Utilities",
+    "cost_pattern": "variable_routine",
+    "essential_status": "essential",
+    "tier": 1,
+    "basis": "baseline-roles-2026-v1",
+    "review_status": "automatic",
+    "amount": "225.46",
+    "source_count": 3,
+    "mean_monthly": "75.15",
+    "highest_observed_monthly": "79.78",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "79.78"
+     },
+     {
+      "month": "2026-06",
+      "amount": "68.54"
+     },
+     {
+      "month": "2026-07",
+      "amount": "77.14"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Internal / Wallet Top-up",
+    "cost_pattern": "unresolved",
+    "essential_status": "unresolved",
+    "tier": null,
+    "basis": "unmapped or unclassified category",
+    "review_status": "unresolved",
+    "amount": "6.06",
+    "source_count": 6,
+    "mean_monthly": "2.02",
+    "highest_observed_monthly": "2.21",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "2.15"
+     },
+     {
+      "month": "2026-06",
+      "amount": "2.21"
+     },
+     {
+      "month": "2026-07",
+      "amount": "1.70"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Shopping / Electronics",
+    "cost_pattern": "irregular",
+    "essential_status": "discretionary",
+    "tier": 3,
+    "basis": "outlier-v1 source-backed review",
+    "review_status": "suggested",
+    "amount": "324.00",
+    "source_count": 1,
+    "mean_monthly": "108.00",
+    "highest_observed_monthly": "324.00",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "324.00"
+     },
+     {
+      "month": "2026-06",
+      "amount": "0"
+     },
+     {
+      "month": "2026-07",
+      "amount": "0"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Shopping / Electronics",
+    "cost_pattern": "variable_routine",
+    "essential_status": "discretionary",
+    "tier": 3,
+    "basis": "baseline-roles-2026-v1",
+    "review_status": "automatic",
+    "amount": "121.70",
+    "source_count": 3,
+    "mean_monthly": "40.57",
+    "highest_observed_monthly": "84.59",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "37.11"
+     },
+     {
+      "month": "2026-06",
+      "amount": "84.59"
+     },
+     {
+      "month": "2026-07",
+      "amount": "0"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Transport / Public Transit",
+    "cost_pattern": "variable_routine",
+    "essential_status": "essential",
+    "tier": 1,
+    "basis": "baseline-roles-2026-v1",
+    "review_status": "automatic",
+    "amount": "104.53",
+    "source_count": 3,
+    "mean_monthly": "34.84",
+    "highest_observed_monthly": "40.92",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "35.49"
+     },
+     {
+      "month": "2026-06",
+      "amount": "28.12"
+     },
+     {
+      "month": "2026-07",
+      "amount": "40.92"
+     }
+    ]
+   },
+   {
+    "currency": "SGD",
+    "category_key": "Unclassified / Unclassified",
+    "cost_pattern": "unresolved",
+    "essential_status": "unresolved",
+    "tier": null,
+    "basis": "unmapped or unclassified category",
+    "review_status": "unresolved",
+    "amount": "1273.35",
+    "source_count": 76,
+    "mean_monthly": "424.45",
+    "highest_observed_monthly": "504.16",
+    "months": [
+     {
+      "month": "2026-05",
+      "amount": "419.60"
+     },
+     {
+      "month": "2026-06",
+      "amount": "504.16"
+     },
+     {
+      "month": "2026-07",
+      "amount": "349.59"
+     }
+    ]
+   }
+  ],
+  "rule_version": "baseline-roles-2026-v1",
+  "tasks": [
+   {
+    "kind": "import-missing",
+    "account_id": "dbs-my-account",
+    "display_name": "DBS My Account",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "note": "no statement or activity for DBS My Account SGD over 2026-09-01..2026-09-30"
+   },
+   {
+    "kind": "import-missing",
+    "account_id": "dbs-paylah-wallet",
+    "display_name": "DBS PayLah! Wallet",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "note": "no statement or activity for DBS PayLah! Wallet SGD over 2026-09-01..2026-09-30"
+   },
+   {
+    "kind": "confirm-export-period",
+    "account_id": "dbs-paylah-wallet",
+    "display_name": "DBS PayLah! Wallet",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-01-09",
+     "end": "2026-08-30"
+    },
+    "note": "DBS PayLah! Wallet SGD is observed-only; add an export-period statement to make its months established"
+   },
+   {
+    "kind": "import-missing",
+    "account_id": "mari-credit-card",
+    "display_name": "Mari Credit Card",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "note": "no statement or activity for Mari Credit Card SGD over 2026-09-01..2026-09-30"
+   },
+   {
+    "kind": "confirm-export-period",
+    "account_id": "mari-credit-card",
+    "display_name": "Mari Credit Card",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-04-14",
+     "end": "2026-08-21"
+    },
+    "note": "Mari Credit Card SGD is observed-only; add an export-period statement to make its months established"
+   },
+   {
+    "kind": "import-missing",
+    "account_id": "maribank-savings",
+    "display_name": "MariBank Savings Account",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-03-01",
+     "end": "2026-03-31"
+    },
+    "note": "no statement or activity for MariBank Savings Account SGD over 2026-03-01..2026-03-31"
+   },
+   {
+    "kind": "import-missing",
+    "account_id": "maribank-savings",
+    "display_name": "MariBank Savings Account",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "note": "no statement or activity for MariBank Savings Account SGD over 2026-09-01..2026-09-30"
+   },
+   {
+    "kind": "import-missing",
+    "account_id": "acct_revolut_current",
+    "display_name": "Revolut Current",
+    "currency_pocket": "EUR",
+    "interval": {
+     "start": "2026-01-01",
+     "end": "2026-01-31"
+    },
+    "note": "no statement or activity for Revolut Current EUR over 2026-01-01..2026-01-31"
+   },
+   {
+    "kind": "import-missing",
+    "account_id": "acct_revolut_current",
+    "display_name": "Revolut Current",
+    "currency_pocket": "EUR",
+    "interval": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "note": "no statement or activity for Revolut Current EUR over 2026-09-01..2026-09-30"
+   },
+   {
+    "kind": "import-missing",
+    "account_id": "acct_revolut_current",
+    "display_name": "Revolut Current",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "note": "no statement or activity for Revolut Current SGD over 2026-09-01..2026-09-30"
+   },
+   {
+    "kind": "confirm-export-period",
+    "account_id": "acct_revolut_current",
+    "display_name": "Revolut Current",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-01-17",
+     "end": "2026-08-31"
+    },
+    "note": "Revolut Current SGD is observed-only; add an export-period statement to make its months established"
+   },
+   {
+    "kind": "import-missing",
+    "account_id": "trust-savings",
+    "display_name": "Trust Bank Savings Account",
+    "currency_pocket": "SGD",
+    "interval": {
+     "start": "2026-09-01",
+     "end": "2026-09-30"
+    },
+    "note": "no statement or activity for Trust Bank Savings Account SGD over 2026-09-01..2026-09-30"
+   },
+   {
+    "kind": "resolve-categorization",
+    "currency_pocket": "SGD",
+    "entry_count": 77,
+    "absolute_amount": "2172.63",
+    "note": "77 unclassified entries in the baseline window (|2172.63| SGD); unknown role is not discretionary and not zero"
+   },
+   {
+    "kind": "resolve-categorization",
+    "currency_pocket": "EUR",
+    "entry_count": 16,
+    "absolute_amount": "247.77",
+    "note": "16 unclassified entries in the baseline window (|247.77| EUR); unknown role is not discretionary and not zero"
+   }
+  ]
+ },
+ "amounts": [
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    0,
+    "essential"
+   ],
+   "label": "essential",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": "2026-05",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    0,
+    "discretionary"
+   ],
+   "label": "discretionary",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": "2026-05",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    0,
+    "unresolved"
+   ],
+   "label": "unresolved",
+   "value": {
+    "native": {
+     "value": "22.74",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "33.86",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": "2026-05",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    0,
+    "total"
+   ],
+   "label": "total",
+   "value": {
+    "native": {
+     "value": "22.74",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "33.86",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": "2026-05",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    1,
+    "essential"
+   ],
+   "label": "essential",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    1,
+    "discretionary"
+   ],
+   "label": "discretionary",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    1,
+    "unresolved"
+   ],
+   "label": "unresolved",
+   "value": {
+    "native": {
+     "value": "213.56",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "319.59",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    1,
+    "total"
+   ],
+   "label": "total",
+   "value": {
+    "native": {
+     "value": "213.56",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "319.59",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    2,
+    "essential"
+   ],
+   "label": "essential",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    2,
+    "discretionary"
+   ],
+   "label": "discretionary",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    2,
+    "unresolved"
+   ],
+   "label": "unresolved",
+   "value": {
+    "native": {
+     "value": "11.47",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "17.25",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "months",
+    2,
+    "total"
+   ],
+   "label": "total",
+   "value": {
+    "native": {
+     "value": "11.47",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "17.25",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "totals",
+    "essential"
+   ],
+   "label": "essential",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "totals",
+    "discretionary"
+   ],
+   "label": "discretionary",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "totals",
+    "unresolved"
+   ],
+   "label": "unresolved",
+   "value": {
+    "native": {
+     "value": "247.77",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "370.71",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "EUR",
+    "totals",
+    "total"
+   ],
+   "label": "total",
+   "value": {
+    "native": {
+     "value": "247.77",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "370.71",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    0,
+    "essential"
+   ],
+   "label": "essential",
+   "value": {
+    "native": {
+     "value": "1320.97",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1320.97",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    0,
+    "discretionary"
+   ],
+   "label": "discretionary",
+   "value": {
+    "native": {
+     "value": "410.44",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "410.44",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    0,
+    "unresolved"
+   ],
+   "label": "unresolved",
+   "value": {
+    "native": {
+     "value": "421.75",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "421.75",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    0,
+    "total"
+   ],
+   "label": "total",
+   "value": {
+    "native": {
+     "value": "2153.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2153.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    1,
+    "essential"
+   ],
+   "label": "essential",
+   "value": {
+    "native": {
+     "value": "1313.38",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1313.38",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    1,
+    "discretionary"
+   ],
+   "label": "discretionary",
+   "value": {
+    "native": {
+     "value": "159.12",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "159.12",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    1,
+    "unresolved"
+   ],
+   "label": "unresolved",
+   "value": {
+    "native": {
+     "value": "506.37",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "506.37",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    1,
+    "total"
+   ],
+   "label": "total",
+   "value": {
+    "native": {
+     "value": "1978.87",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1978.87",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    2,
+    "essential"
+   ],
+   "label": "essential",
+   "value": {
+    "native": {
+     "value": "1298.06",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1298.06",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    2,
+    "discretionary"
+   ],
+   "label": "discretionary",
+   "value": {
+    "native": {
+     "value": "68.01",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "68.01",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    2,
+    "unresolved"
+   ],
+   "label": "unresolved",
+   "value": {
+    "native": {
+     "value": "351.29",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "351.29",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "months",
+    2,
+    "total"
+   ],
+   "label": "total",
+   "value": {
+    "native": {
+     "value": "1717.36",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1717.36",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "totals",
+    "essential"
+   ],
+   "label": "essential",
+   "value": {
+    "native": {
+     "value": "3932.41",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3932.41",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "totals",
+    "discretionary"
+   ],
+   "label": "discretionary",
+   "value": {
+    "native": {
+     "value": "637.57",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "637.57",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "totals",
+    "unresolved"
+   ],
+   "label": "unresolved",
+   "value": {
+    "native": {
+     "value": "1279.41",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1279.41",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "by_currency",
+    "SGD",
+    "totals",
+    "total"
+   ],
+   "label": "total",
+   "value": {
+    "native": {
+     "value": "5849.39",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "5849.39",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "247.77",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "370.71",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    0,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "82.59",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "123.57",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     },
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    0,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "213.56",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "319.59",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    0,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "22.74",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "33.86",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": "2026-05",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    0,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "213.56",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "319.59",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": "2026-06",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    0,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "11.47",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "17.25",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": "2026-07",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "28.46",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "28.46",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    1,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "9.49",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "9.49",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    1,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "15.66",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15.66",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    1,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "15.66",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15.66",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    1,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "5.74",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "5.74",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    1,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "7.06",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "7.06",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "163.41",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "163.41",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    2,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "54.47",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "54.47",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    2,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "68.79",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "68.79",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    2,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "33.67",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "33.67",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    2,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "68.79",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "68.79",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    2,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "60.95",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "60.95",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    3,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "62.42",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "62.42",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    3,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "20.81",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "20.81",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    3,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "36.72",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "36.72",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    3,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "25.70",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "25.70",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    3,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "36.72",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "36.72",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    3,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    4,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "3540.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3540.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    4,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    4,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    4,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    4,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    4,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    5,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "225.46",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "225.46",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    5,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "75.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "75.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    5,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "79.78",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "79.78",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    5,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "79.78",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "79.78",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    5,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "68.54",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    5,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "77.14",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "77.14",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    6,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "6.06",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.06",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    6,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "2.02",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.02",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    6,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "2.21",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.21",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    6,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    6,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2.21",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.21",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    6,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1.70",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1.70",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    7,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "324.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "324.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    7,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "108.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "108.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    7,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "324.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "324.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    7,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "324.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "324.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    7,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    7,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    8,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "121.70",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "121.70",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    8,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "40.57",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "40.57",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    8,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "84.59",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "84.59",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    8,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "37.11",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "37.11",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    8,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "84.59",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "84.59",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    8,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    9,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "104.53",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "104.53",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    9,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "34.84",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "34.84",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    9,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "40.92",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "40.92",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    9,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "35.49",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "35.49",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    9,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "28.12",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "28.12",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    9,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "40.92",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "40.92",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    10,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1273.35",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1273.35",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    10,
+    "mean_monthly"
+   ],
+   "label": "mean monthly",
+   "value": {
+    "native": {
+     "value": "424.45",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "424.45",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    10,
+    "highest_observed_monthly"
+   ],
+   "label": "highest observed monthly",
+   "value": {
+    "native": {
+     "value": "504.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "504.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    10,
+    "months",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "419.60",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "419.60",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-05-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    10,
+    "months",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "504.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "504.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-06-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "groups",
+    10,
+    "months",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "349.59",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "349.59",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "tasks",
+    12,
+    "absolute_amount"
+   ],
+   "label": "absolute amount",
+   "value": {
+    "native": {
+     "value": "2172.63",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2172.63",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "tasks",
+    13,
+    "absolute_amount"
+   ],
+   "label": "absolute amount",
+   "value": {
+    "native": {
+     "value": "247.77",
+     "currency": "EUR"
+    },
+    "reported": null,
+    "purpose": "flow",
+    "basis": null,
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": {
+     "reason": "NO_DATED_BREAKDOWN",
+     "message": "This EUR total spans several dates and has no dated breakdown, so it is not converted at a single rate.",
+     "remedy": "Use the dated rows it sums, or read the original amount."
+    }
+   }
+  }
+ ]
+}

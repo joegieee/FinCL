@@ -1,0 +1,53 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "as_of": "2026-09-15",
+  "goals": [
+   {
+    "plan": "emergency",
+    "name": "A little peace of mind",
+    "currency": "SGD",
+    "target": "15000.00",
+    "target_on": null,
+    "observed_on": null,
+    "saved": null,
+    "remaining": null,
+    "dated_progress_known": false,
+    "legacy_undated_saved": "6200.00",
+    "archived": false,
+    "overdue": false
+   }
+  ]
+ },
+ "amounts": [
+  {
+   "path": [
+    "goals",
+    0,
+    "target"
+   ],
+   "label": "A little peace of mind · target",
+   "value": {
+    "native": {
+     "value": "15000.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "15000.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-09-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

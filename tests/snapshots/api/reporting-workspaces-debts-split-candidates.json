@@ -1,0 +1,3173 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "candidates": [
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:17",
+    "effective_at": "2026-08-31",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "10.95",
+    "open_amount": "10.95",
+    "description": "Night Market Grill",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:27",
+    "effective_at": "2026-08-30",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "31.16",
+    "open_amount": "31.16",
+    "description": "Debit Card Transaction\nNEIGHBOURHOOD BAKERY SINGAPORE SGP 28AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:24",
+    "effective_at": "2026-08-29",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "42.51",
+    "open_amount": "42.51",
+    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 27AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:15",
+    "effective_at": "2026-08-28",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "7.48",
+    "open_amount": "7.48",
+    "description": "KOPI CORNER",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:16",
+    "effective_at": "2026-08-26",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "6.99",
+    "open_amount": "6.99",
+    "description": "Streaming Box",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:15",
+    "effective_at": "2026-08-24",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "9.44",
+    "open_amount": "9.44",
+    "description": "City Hostel",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:21",
+    "effective_at": "2026-08-24",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "36.37",
+    "open_amount": "36.37",
+    "description": "Debit Card Transaction\nFRESH MARKET SINGAPORE SGP 21AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:19",
+    "effective_at": "2026-08-23",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "40.44",
+    "open_amount": "40.44",
+    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 21AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:13",
+    "effective_at": "2026-08-23",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "3.60",
+    "open_amount": "3.60",
+    "description": "CHICKEN RICE STALL",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:18",
+    "effective_at": "2026-08-22",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "13.40",
+    "open_amount": "13.40",
+    "description": "Debit Card Transaction\nLUNCH COUNTER SINGAPORE SGP 20AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:14",
+    "effective_at": "2026-08-21",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "2.16",
+    "open_amount": "2.16",
+    "description": "Campus Cafe",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:8",
+    "effective_at": "2026-08-21",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "27.35",
+    "open_amount": "27.35",
+    "description": "Split Payment 2/4 Instalment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:6",
+    "effective_at": "2026-08-21",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "38.20",
+    "open_amount": "38.20",
+    "description": "Split Payment 11/18 Instalment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:7",
+    "effective_at": "2026-08-21",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "36.00",
+    "open_amount": "36.00",
+    "description": "Split Payment 3/9 Instalment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:9",
+    "effective_at": "2026-08-20",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "3.82",
+    "open_amount": "3.82",
+    "description": "BUBBLE TEA BAR",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:11",
+    "effective_at": "2026-08-20",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "6.15",
+    "open_amount": "6.15",
+    "description": "KOPI CORNER",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:13",
+    "effective_at": "2026-08-19",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "3.03",
+    "open_amount": "3.03",
+    "description": "Streaming Box",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:7",
+    "effective_at": "2026-08-19",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "23.84",
+    "open_amount": "23.84",
+    "description": "SEND MONEY TO JAMIE SYNTHETIC",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:4",
+    "effective_at": "2026-08-16",
+    "economic_direction": "OUT",
+    "currency": "EUR",
+    "amount": "3.97",
+    "open_amount": "3.97",
+    "description": "Konbini Mart",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:5",
+    "effective_at": "2026-08-16",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "2.76",
+    "open_amount": "2.76",
+    "description": "BUBBLE TEA BAR",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:3",
+    "effective_at": "2026-08-15",
+    "economic_direction": "OUT",
+    "currency": "EUR",
+    "amount": "4.18",
+    "open_amount": "4.18",
+    "description": "City Hostel",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:10",
+    "effective_at": "2026-08-15",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "10.94",
+    "open_amount": "10.94",
+    "description": "Sushi Ten",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:9",
+    "effective_at": "2026-08-12",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "9.09",
+    "open_amount": "9.09",
+    "description": "Tram 28 Kiosk",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:11",
+    "effective_at": "2026-08-12",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "37.85",
+    "open_amount": "37.85",
+    "description": "Debit Card Transaction\nHARDWARE HUT SINGAPORE SGP 09AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:3",
+    "effective_at": "2026-08-11",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "19.49",
+    "open_amount": "19.49",
+    "description": "PET PANTRY Card Payment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:4",
+    "effective_at": "2026-08-11",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "41.01",
+    "open_amount": "41.01",
+    "description": "HOME GOODS CO Card Payment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:10",
+    "effective_at": "2026-08-11",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "85.07",
+    "open_amount": "85.07",
+    "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:8",
+    "effective_at": "2026-08-10",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "21.20",
+    "open_amount": "21.20",
+    "description": "Debit Card Transaction\nFRESH MARKET SINGAPORE SGP 09AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:9",
+    "effective_at": "2026-08-10",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "39.06",
+    "open_amount": "39.06",
+    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 08AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:21",
+    "effective_at": "2026-08-08",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "6.91",
+    "open_amount": "6.91",
+    "description": "BUBBLE TEA BAR",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:3",
+    "effective_at": "2026-08-08",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "3.80",
+    "open_amount": "3.80",
+    "description": "KOPI CORNER",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:19",
+    "effective_at": "2026-08-06",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "2.88",
+    "open_amount": "2.88",
+    "description": "NOODLE HOUSE",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:4",
+    "effective_at": "2026-08-05",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "30.95",
+    "open_amount": "30.95",
+    "description": "Debit Card Transaction\nTRANSIT TOP-UP SINGAPORE SGP 02AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:2",
+    "effective_at": "2026-08-03",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "50.87",
+    "open_amount": "50.87",
+    "description": "OUTDOOR SUPPLY Card Payment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:1",
+    "effective_at": "2026-08-02",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "21.93",
+    "open_amount": "21.93",
+    "description": "PET PANTRY Card Payment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:2",
+    "effective_at": "2026-08-02",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "1180.00",
+    "open_amount": "1180.00",
+    "description": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:12",
+    "effective_at": "2026-07-29",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "3.76",
+    "open_amount": "3.76",
+    "description": "Ride-hail",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:17",
+    "effective_at": "2026-07-26",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "8.72",
+    "open_amount": "8.72",
+    "description": "BUBBLE TEA BAR",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:27",
+    "effective_at": "2026-07-25",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "27.56",
+    "open_amount": "27.56",
+    "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 23JUL",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:15",
+    "effective_at": "2026-07-25",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "4.90",
+    "open_amount": "4.90",
+    "description": "KOPI CORNER",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:11",
+    "effective_at": "2026-07-25",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "11.15",
+    "open_amount": "11.15",
+    "description": "Streaming Box",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:10",
+    "effective_at": "2026-07-23",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "21.17",
+    "open_amount": "21.17",
+    "description": "Bistro du Port",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:8",
+    "effective_at": "2026-07-21",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "36.00",
+    "open_amount": "36.00",
+    "description": "Split Payment 2/9 Instalment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:9",
+    "effective_at": "2026-07-21",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "27.35",
+    "open_amount": "27.35",
+    "description": "Split Payment 1/4 Instalment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:mari-card:<digest>:7",
+    "effective_at": "2026-07-21",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "38.20",
+    "open_amount": "38.20",
+    "description": "Split Payment 10/18 Instalment",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:23",
+    "effective_at": "2026-07-20",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "47.19",
+    "open_amount": "47.19",
+    "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 18JUL",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:13",
+    "effective_at": "2026-07-17",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "5.76",
+    "open_amount": "5.76",
+    "description": "HAWKER STALL 12",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:11",
+    "effective_at": "2026-07-16",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "3.34",
+    "open_amount": "3.34",
+    "description": "NOODLE HOUSE",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:revolut:<digest>:8",
+    "effective_at": "2026-07-16",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "12.49",
+    "open_amount": "12.49",
+    "description": "Night Market Grill",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:paylah:<digest>:9",
+    "effective_at": "2026-07-15",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "2.60",
+    "open_amount": "2.60",
+    "description": "NOODLE HOUSE",
+    "incoming_type": null
+   }
+  ],
+  "next_cursor": "<handle>"
+ },
+ "amounts": [
+  {
+   "path": [
+    "candidates",
+    0,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "10.95",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "10.95",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    0,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "10.95",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "10.95",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "31.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "31.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    1,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "31.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "31.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-30",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "42.51",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "42.51",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-29",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    2,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "42.51",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "42.51",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-29",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    3,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "7.48",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "7.48",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-28",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    3,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "7.48",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "7.48",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-28",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    4,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "6.99",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.99",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-26",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    4,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "6.99",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.99",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-26",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    5,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "9.44",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "9.44",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-24",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    5,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "9.44",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "9.44",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-24",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    6,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "36.37",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "36.37",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-24",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    6,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "36.37",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "36.37",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-24",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    7,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "40.44",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "40.44",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-23",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    7,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "40.44",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "40.44",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-23",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    8,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "3.60",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.60",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-23",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    8,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "3.60",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.60",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-23",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    9,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "13.40",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "13.40",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-22",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    9,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "13.40",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "13.40",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-22",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    10,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    10,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "2.16",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.16",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    11,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "27.35",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "27.35",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    11,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "27.35",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "27.35",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    12,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "38.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "38.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    12,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "38.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "38.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    13,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "36.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "36.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    13,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "36.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "36.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    14,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "3.82",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.82",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-20",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    14,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "3.82",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.82",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-20",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    15,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "6.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-20",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    15,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "6.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-20",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    16,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "3.03",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.03",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-19",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    16,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "3.03",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.03",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-19",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    17,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "23.84",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "23.84",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-19",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    17,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "23.84",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "23.84",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-19",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    18,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "3.97",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-08-16",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    18,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "3.97",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-08-16",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    19,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-16",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    19,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "2.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-16",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    20,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.32",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-08-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    20,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "4.18",
+     "currency": "EUR"
+    },
+    "reported": {
+     "value": "6.32",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "monthly_proxy",
+    "valuation_as_of": "2026-08-15",
+    "rate_as_of": null,
+    "rate_period": "2026-08",
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-08",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15111",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5111"
+     }
+    ],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    21,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "10.94",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "10.94",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    21,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "10.94",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "10.94",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    22,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "9.09",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "9.09",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-12",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    22,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "9.09",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "9.09",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-12",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    23,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "37.85",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "37.85",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-12",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    23,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "37.85",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "37.85",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-12",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    24,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "19.49",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "19.49",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    24,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "19.49",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "19.49",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    25,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "41.01",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "41.01",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    25,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "41.01",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "41.01",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    26,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    26,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "85.07",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-11",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    27,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "21.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "21.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-10",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    27,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "21.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "21.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-10",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    28,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "39.06",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "39.06",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-10",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    28,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "39.06",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "39.06",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-10",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    29,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "6.91",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.91",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-08",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    29,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "6.91",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6.91",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-08",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    30,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "3.80",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.80",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-08",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    30,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "3.80",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.80",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-08",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    31,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2.88",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.88",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-06",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    31,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "2.88",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.88",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-06",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    32,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "30.95",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "30.95",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-05",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    32,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "30.95",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "30.95",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-05",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    33,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "50.87",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "50.87",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-03",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    33,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "50.87",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "50.87",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-03",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    34,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "21.93",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "21.93",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    34,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "21.93",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "21.93",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    35,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    35,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "1180.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-02",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    36,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "3.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-29",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    36,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "3.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-29",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    37,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "8.72",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "8.72",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-26",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    37,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "8.72",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "8.72",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-26",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    38,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "27.56",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "27.56",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    38,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "27.56",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "27.56",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    39,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "4.90",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "4.90",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    39,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "4.90",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "4.90",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    40,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "11.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "11.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    40,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "11.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "11.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    41,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "21.17",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "21.17",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-23",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    41,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "21.17",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "21.17",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-23",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    42,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "36.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "36.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    42,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "36.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "36.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    43,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "27.35",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "27.35",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    43,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "27.35",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "27.35",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    44,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "38.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "38.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    44,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "38.20",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "38.20",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    45,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "47.19",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "47.19",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-20",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    45,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "47.19",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "47.19",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-20",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    46,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "5.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "5.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-17",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    46,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "5.76",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "5.76",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-17",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    47,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "3.34",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.34",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-16",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    47,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "3.34",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "3.34",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-16",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    48,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "12.49",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "12.49",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-16",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    48,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "12.49",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "12.49",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-16",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    49,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "2.60",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.60",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    49,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "2.60",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "2.60",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-15",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

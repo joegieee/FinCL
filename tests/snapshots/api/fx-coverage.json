@@ -1,0 +1,306 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "rate_path_policy": "direct-or-inverse-v1",
+ "tracked_currencies": [
+  "EUR",
+  "SGD"
+ ],
+ "by_currency": {
+  "EUR": {
+   "basis": "direct",
+   "inverted": false,
+   "available": true,
+   "reason": null
+  },
+  "SGD": {
+   "basis": "identity",
+   "inverted": false,
+   "available": true,
+   "reason": null
+  }
+ },
+ "structurally_unconfigured": [],
+ "would_be_partial_or_unavailable": [],
+ "dated": {
+  "history_start": "2026-04-09",
+  "history_end": "2026-09-15",
+  "as_of": "2026-09-15",
+  "reporting_currency": "SGD",
+  "evidence_status": "COVERED",
+  "evidence_reasons": [],
+  "burn": {
+   "included_months": [
+    "2026-05",
+    "2026-06",
+    "2026-07"
+   ],
+   "requested_count": 3,
+   "reason": null
+  },
+  "requirements": [
+   {
+    "purpose": "flow",
+    "native_currency": "EUR",
+    "reporting_currency": "SGD",
+    "period": "2026-04",
+    "as_of_date": null,
+    "policy": "flow-rate-v1",
+    "status": "AVAILABLE",
+    "basis": "monthly_proxy",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "EUR",
+    "reporting_currency": "SGD",
+    "period": "2026-05",
+    "as_of_date": null,
+    "policy": "flow-rate-v1",
+    "status": "AVAILABLE",
+    "basis": "monthly_proxy",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow",
+     "gross_burn"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "EUR",
+    "reporting_currency": "SGD",
+    "period": "2026-06",
+    "as_of_date": null,
+    "policy": "flow-rate-v1",
+    "status": "AVAILABLE",
+    "basis": "monthly_proxy",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow",
+     "gross_burn"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "EUR",
+    "reporting_currency": "SGD",
+    "period": "2026-07",
+    "as_of_date": null,
+    "policy": "flow-rate-v1",
+    "status": "AVAILABLE",
+    "basis": "monthly_proxy",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow",
+     "gross_burn"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "EUR",
+    "reporting_currency": "SGD",
+    "period": "2026-08",
+    "as_of_date": null,
+    "policy": "flow-rate-v1",
+    "status": "AVAILABLE",
+    "basis": "monthly_proxy",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "SGD",
+    "reporting_currency": "SGD",
+    "period": "2026-04",
+    "as_of_date": null,
+    "policy": null,
+    "status": "AVAILABLE",
+    "basis": "identity",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "SGD",
+    "reporting_currency": "SGD",
+    "period": "2026-05",
+    "as_of_date": null,
+    "policy": null,
+    "status": "AVAILABLE",
+    "basis": "identity",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow",
+     "gross_burn"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "SGD",
+    "reporting_currency": "SGD",
+    "period": "2026-06",
+    "as_of_date": null,
+    "policy": null,
+    "status": "AVAILABLE",
+    "basis": "identity",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow",
+     "gross_burn"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "SGD",
+    "reporting_currency": "SGD",
+    "period": "2026-07",
+    "as_of_date": null,
+    "policy": null,
+    "status": "AVAILABLE",
+    "basis": "identity",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow",
+     "gross_burn"
+    ]
+   },
+   {
+    "purpose": "flow",
+    "native_currency": "SGD",
+    "reporting_currency": "SGD",
+    "period": "2026-08",
+    "as_of_date": null,
+    "policy": null,
+    "status": "AVAILABLE",
+    "basis": "identity",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "analysis_flow"
+    ]
+   },
+   {
+    "purpose": "forecast",
+    "native_currency": "EUR",
+    "reporting_currency": "SGD",
+    "period": null,
+    "as_of_date": "2026-09-15",
+    "policy": "forward-monthly-closed-v1",
+    "status": "AVAILABLE",
+    "basis": "held_latest",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "forecast_opening"
+    ]
+   },
+   {
+    "purpose": "forecast",
+    "native_currency": "SGD",
+    "reporting_currency": "SGD",
+    "period": null,
+    "as_of_date": "2026-09-15",
+    "policy": null,
+    "status": "AVAILABLE",
+    "basis": "identity",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "forecast_opening"
+    ]
+   },
+   {
+    "purpose": "forecast",
+    "native_currency": "USD",
+    "reporting_currency": "SGD",
+    "period": null,
+    "as_of_date": "2026-09-15",
+    "policy": "forward-monthly-closed-v1",
+    "status": "AVAILABLE",
+    "basis": "held_latest",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "forecast_opening"
+    ]
+   },
+   {
+    "purpose": "position",
+    "native_currency": "EUR",
+    "reporting_currency": "SGD",
+    "period": null,
+    "as_of_date": "2026-09-15",
+    "policy": "position-monthly-closed-v1",
+    "status": "AVAILABLE",
+    "basis": "current_mark",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "cash_position"
+    ]
+   },
+   {
+    "purpose": "position",
+    "native_currency": "SGD",
+    "reporting_currency": "SGD",
+    "period": null,
+    "as_of_date": "2026-09-15",
+    "policy": null,
+    "status": "AVAILABLE",
+    "basis": "identity",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "cash_position"
+    ]
+   },
+   {
+    "purpose": "position",
+    "native_currency": "USD",
+    "reporting_currency": "SGD",
+    "period": null,
+    "as_of_date": "2026-09-15",
+    "policy": "position-monthly-closed-v1",
+    "status": "AVAILABLE",
+    "basis": "current_mark",
+    "inverted": false,
+    "reason": null,
+    "remedy": null,
+    "affected_metrics": [
+     "cash_position"
+    ]
+   }
+  ]
+ }
+}

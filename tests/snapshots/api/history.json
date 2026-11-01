@@ -1,0 +1,402 @@
+[
+ {
+  "sequence": 53,
+  "date": "<recorded-at>",
+  "kind": "PLAN_SET",
+  "reason": "Synthetic goal",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 52,
+  "date": "<recorded-at>",
+  "kind": "PLAN_SET",
+  "reason": "Synthetic budget",
+  "category": "Food & Dining / Groceries",
+  "request_id": null
+ },
+ {
+  "sequence": 51,
+  "date": "<recorded-at>",
+  "kind": "PLANNED_FLOW_SET",
+  "reason": "Quoted",
+  "category": "None",
+  "request_id": null
+ },
+ {
+  "sequence": 50,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_SCHEDULE_SET",
+  "reason": "Agreed monthly",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 49,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_EVENT_SET",
+  "reason": "Synthetic opening balance",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 48,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_OPEN",
+  "reason": "Synthetic debt",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 47,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_EVENT_SET",
+  "reason": "Synthetic opening balance",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 46,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_OPEN",
+  "reason": "Synthetic debt",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 45,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_EVENT_SET",
+  "reason": "Synthetic opening balance",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 44,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_OPEN",
+  "reason": "Synthetic debt",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 43,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_EVENT_SET",
+  "reason": "Synthetic opening balance",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 42,
+  "date": "<recorded-at>",
+  "kind": "PERSONAL_DEBT_OPEN",
+  "reason": "Synthetic debt",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 41,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 40,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 39,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 38,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 37,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 36,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 35,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 34,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 33,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 32,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 31,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 30,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 29,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 28,
+  "date": "<recorded-at>",
+  "kind": "ENTRY_TRIP_SET",
+  "reason": "On the trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 27,
+  "date": "<recorded-at>",
+  "kind": "TRIP_SET",
+  "reason": "Synthetic trip",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 26,
+  "date": "<recorded-at>",
+  "kind": "INSTALLMENT_PLAN_SET",
+  "reason": "Synthetic plan",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 25,
+  "date": "<recorded-at>",
+  "kind": "INSTALLMENT_PLAN_SET",
+  "reason": "Synthetic plan",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 24,
+  "date": "<recorded-at>",
+  "kind": "RECURRING_COMMITMENT_SET",
+  "reason": "Synthetic lease",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 23,
+  "date": "<recorded-at>",
+  "kind": "BALANCE_OBSERVATION_SET",
+  "reason": "Synthetic balance check",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 22,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Shopping / Electronics",
+  "request_id": null
+ },
+ {
+  "sequence": 21,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Food & Dining / Cafes & Drinks",
+  "request_id": null
+ },
+ {
+  "sequence": 20,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Food & Dining / Dining Out",
+  "request_id": null
+ },
+ {
+  "sequence": 19,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Transport / Public Transit",
+  "request_id": null
+ },
+ {
+  "sequence": 18,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Food & Dining / Dining Out",
+  "request_id": null
+ },
+ {
+  "sequence": 17,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Food & Dining / Groceries",
+  "request_id": null
+ },
+ {
+  "sequence": 16,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Food & Dining / Groceries",
+  "request_id": null
+ },
+ {
+  "sequence": 15,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Housing / Utilities",
+  "request_id": null
+ },
+ {
+  "sequence": 14,
+  "date": "<recorded-at>",
+  "kind": "CATEGORY_RULE_SET",
+  "reason": "Synthetic rule",
+  "category": "Housing / Rent",
+  "request_id": null
+ },
+ {
+  "sequence": 13,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic inflow",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 12,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic inflow",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 11,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic inflow",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 10,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic income",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 9,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic income",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 8,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic income",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 7,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic income",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 6,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic income",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 5,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic income",
+  "category": "",
+  "request_id": null
+ },
+ {
+  "sequence": 4,
+  "date": "<recorded-at>",
+  "kind": "INBOUND_CLASSIFICATION",
+  "reason": "Synthetic income",
+  "category": "",
+  "request_id": null
+ }
+]

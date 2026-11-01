@@ -1,0 +1,128 @@
+{
+ "generated_for": "2026-09-15",
+ "reporting_currency": "SGD",
+ "statements": {
+  "accounts": [
+   {
+    "account_id": "mari-credit-card",
+    "name": "Mari Credit Card",
+    "statements": 5,
+    "through": "2026-08-20",
+    "days_behind": 26,
+    "behind": false
+   },
+   {
+    "account_id": "dbs-my-account",
+    "name": "DBS My Account",
+    "statements": 8,
+    "through": "2026-08-31",
+    "days_behind": 15,
+    "behind": false
+   },
+   {
+    "account_id": "maribank-savings",
+    "name": "MariBank Savings Account",
+    "statements": 6,
+    "through": "2026-08-31",
+    "days_behind": 15,
+    "behind": false
+   },
+   {
+    "account_id": "acct_revolut_current",
+    "name": "Revolut Current",
+    "statements": 8,
+    "through": "2026-08-31",
+    "days_behind": 15,
+    "behind": false
+   },
+   {
+    "account_id": "trust-savings",
+    "name": "Trust Bank Savings Account",
+    "statements": 7,
+    "through": "2026-08-31",
+    "days_behind": 15,
+    "behind": false
+   },
+   {
+    "account_id": "dbs-paylah-wallet",
+    "name": "DBS PayLah! Wallet",
+    "statements": 8,
+    "through": "2026-09-08",
+    "days_behind": 7,
+    "behind": false
+   }
+  ],
+  "complete_through": "2026-08-20",
+  "latest": "2026-09-08",
+  "behind_count": 0,
+  "quarantined_count": 0,
+  "stale_after_days": 45
+ },
+ "owed": {
+  "as_of": "2026-09-15",
+  "groups": [
+   {
+    "origin": "personal_debt",
+    "label": "Debts you owe",
+    "count": 2,
+    "total": "2000.00",
+    "by_currency": {
+     "SGD": "2000.00"
+    },
+    "unknown_amount": [],
+    "unconverted": [],
+    "next_due": {
+     "label": "Sam",
+     "on": "2026-10-10"
+    }
+   },
+   {
+    "origin": "card_statement",
+    "label": "Credit card bills",
+    "count": 1,
+    "total": "234.85",
+    "by_currency": {
+     "SGD": "234.85"
+    },
+    "unknown_amount": [],
+    "unconverted": [],
+    "next_due": null
+   },
+   {
+    "origin": "installment_plan",
+    "label": "Instalment and pay-later plans",
+    "count": 2,
+    "total": "0.00",
+    "by_currency": {},
+    "unknown_amount": [
+     "Electro World",
+     "Split Payment 18M"
+    ],
+    "unconverted": [],
+    "next_due": null
+   },
+   {
+    "origin": "recurring_commitment",
+    "label": "Regular commitments",
+    "count": 1,
+    "total": "1180.00",
+    "by_currency": {
+     "SGD": "1180.00"
+    },
+    "unknown_amount": [],
+    "unconverted": [],
+    "next_due": null
+   }
+  ],
+  "total": "3414.85",
+  "unknown_amount_count": 2,
+  "unconverted_count": 0,
+  "owed_to_you": {
+   "count": 2,
+   "total": "725.00",
+   "unknown": 0,
+   "unconverted": []
+  },
+  "policy": "remaining amounts from Obligations: a card statement due and the instalments still to be billed to the card are separate lanes, so nothing is counted twice; each is valued at today's month-closed rate"
+ }
+}

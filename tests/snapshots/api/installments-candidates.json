@@ -1,0 +1,48 @@
+{
+ "generation": "<digest>",
+ "candidates": [
+  {
+   "candidate_key": "mari-credit-card:Split Payment:4:<digest>:pdf:mari-card:<digest>:9",
+   "card_account_id": "mari-credit-card",
+   "currency": "SGD",
+   "family": "Split Payment",
+   "term_months": 4,
+   "merchant_label": "Split Payment · 27.35 × 4",
+   "opened_on": "2026-07-21",
+   "first_ordinal": 1,
+   "last_ordinal": 2,
+   "observed_count": 2,
+   "complete": false,
+   "observed_total": {
+    "value": "54.70",
+    "currency": "SGD"
+   },
+   "known_principal": null,
+   "principal_source": null,
+   "conversion": null,
+   "occurrences": [
+    {
+     "entry_anchor": "<digest>:pdf:mari-card:<digest>:9",
+     "occurrence_index": 1,
+     "occurrence_count": 4,
+     "effective_on": "2026-07-21",
+     "date_precision": "DAY",
+     "amount": "27.35",
+     "description": "Split Payment 1/4 Instalment"
+    },
+    {
+     "entry_anchor": "<digest>:pdf:mari-card:<digest>:8",
+     "occurrence_index": 2,
+     "occurrence_count": 4,
+     "effective_on": "2026-08-21",
+     "date_precision": "DAY",
+     "amount": "27.35",
+     "description": "Split Payment 2/4 Instalment"
+    }
+   ],
+   "source": "mari-card-installment-block-v1"
+  }
+ ],
+ "ambiguous_groups": [],
+ "claimed_occurrence_count": 8
+}

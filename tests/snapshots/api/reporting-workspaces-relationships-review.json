@@ -1,0 +1,13 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "kind": "duplicate",
+  "proposals": [],
+  "next_cursor": null,
+  "total": 0
+ },
+ "amounts": []
+}

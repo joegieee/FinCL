@@ -1,0 +1,107 @@
+{
+ "generation": "<digest>",
+ "lens": "recorded_flow",
+ "lens_note": "Recorded lens: each transaction counts on its own date and in its own context. A refund counts where it was received, not where the purchase was made.",
+ "assignment_policy": "trip-assignment-v1",
+ "country_list_version": "iso3166-1-alpha2-2026-v1",
+ "trips": [
+  {
+   "trip_id": "e23391d2-48ca-53e7-9fc9-23e850120d6e",
+   "name": "Lisbon week",
+   "start_on": "2026-06-10",
+   "end_on": "2026-06-16",
+   "countries": [],
+   "reason": "Synthetic trip",
+   "status": "past",
+   "entry_count": 14,
+   "review_count": 4,
+   "todo": {
+    "kind": "assign_trip_spend",
+    "trip_id": "e23391d2-48ca-53e7-9fc9-23e850120d6e",
+    "name": "Lisbon week",
+    "count": 4,
+    "text": "4 transactions fall inside Lisbon week's dates but are not assigned to it"
+   },
+   "budgets": [],
+   "totals_by_currency": {
+    "EUR": {
+     "gross_cost": "199.36",
+     "refunds": "0.00",
+     "net_cost": "199.36",
+     "entry_count": 10
+    },
+    "SGD": {
+     "gross_cost": "139.66",
+     "refunds": "0.00",
+     "net_cost": "139.66",
+     "entry_count": 4
+    }
+   },
+   "cost_parts": [
+    {
+     "on": "2026-06-11",
+     "currency": "EUR",
+     "kind": "cost",
+     "amount": "18.58"
+    },
+    {
+     "on": "2026-06-11",
+     "currency": "SGD",
+     "kind": "cost",
+     "amount": "34.94"
+    },
+    {
+     "on": "2026-06-12",
+     "currency": "EUR",
+     "kind": "cost",
+     "amount": "31.50"
+    },
+    {
+     "on": "2026-06-12",
+     "currency": "SGD",
+     "kind": "cost",
+     "amount": "59.04"
+    },
+    {
+     "on": "2026-06-13",
+     "currency": "EUR",
+     "kind": "cost",
+     "amount": "51.71"
+    },
+    {
+     "on": "2026-06-13",
+     "currency": "SGD",
+     "kind": "cost",
+     "amount": "9.85"
+    },
+    {
+     "on": "2026-06-14",
+     "currency": "EUR",
+     "kind": "cost",
+     "amount": "60.72"
+    },
+    {
+     "on": "2026-06-14",
+     "currency": "SGD",
+     "kind": "cost",
+     "amount": "35.83"
+    },
+    {
+     "on": "2026-06-15",
+     "currency": "EUR",
+     "kind": "cost",
+     "amount": "36.85"
+    }
+   ]
+  }
+ ],
+ "todos": [
+  {
+   "kind": "assign_trip_spend",
+   "trip_id": "e23391d2-48ca-53e7-9fc9-23e850120d6e",
+   "name": "Lisbon week",
+   "count": 4,
+   "text": "4 transactions fall inside Lisbon week's dates but are not assigned to it"
+  }
+ ]
+}

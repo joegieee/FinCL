@@ -1,0 +1,190 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "valuation_as_of": "2026-09-15",
+ "native": {
+  "generation": "<digest>",
+  "as_of": "2026-09-15",
+  "cards": [
+   {
+    "account": {
+     "account_id": "mari-credit-card",
+     "institution": "MariBank",
+     "source_type": "MARI_CARD",
+     "display_name": "Mari Credit Card",
+     "masked_identifier": "Mari Credit Card"
+    },
+    "latest_statement": {
+     "statement_id": "stmt_f593da669d00182c3583be26bd216e43580930d45a437f0d2ee8c95988ce12c9",
+     "statement_date": "2026-08-21",
+     "period_end": "2026-08-20",
+     "closing_liability": {
+      "role": "closing_liability",
+      "kind": "money",
+      "value": "234.85",
+      "currency": "SGD",
+      "source_locator": "mari-card:statement-summary:current-outstanding",
+      "parser_version": "pdf-geometry-parser-v1",
+      "role_version": "mari-card-summary-roles-v1"
+     },
+     "payment_due": {
+      "role": "payment_due",
+      "kind": "money",
+      "value": "234.85",
+      "currency": "SGD",
+      "source_locator": "mari-card:account-summary",
+      "parser_version": "pdf-geometry-parser-v1",
+      "role_version": "mari-card-summary-roles-v1"
+     },
+     "minimum_payment": {
+      "role": "minimum_payment",
+      "kind": "money",
+      "value": "30.00",
+      "currency": "SGD",
+      "source_locator": "mari-card:account-summary",
+      "parser_version": "pdf-geometry-parser-v1",
+      "role_version": "mari-card-summary-roles-v1"
+     },
+     "payment_due_date": {
+      "role": "payment_due_date",
+      "kind": "date",
+      "value": "2026-09-10",
+      "currency": null,
+      "source_locator": "mari-card:account-summary",
+      "parser_version": "pdf-geometry-parser-v1",
+      "role_version": "mari-card-summary-roles-v1"
+     },
+     "credit_limit": {
+      "role": "credit_limit",
+      "kind": "money",
+      "value": "6000.00",
+      "currency": "SGD",
+      "source_locator": "mari-card:account-summary",
+      "parser_version": "pdf-geometry-parser-v1",
+      "role_version": "mari-card-summary-roles-v1"
+     },
+     "reconciliation_status": "reconciled"
+    },
+    "statement_count": 5,
+    "coverage_gaps": [],
+    "statements_missing_period": [],
+    "installment_obligations": []
+   }
+  ],
+  "next_cursor": null
+ },
+ "amounts": [
+  {
+   "path": [
+    "cards",
+    0,
+    "latest_statement",
+    "closing_liability",
+    "value"
+   ],
+   "label": "closing liability",
+   "value": {
+    "native": {
+     "value": "234.85",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "234.85",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cards",
+    0,
+    "latest_statement",
+    "payment_due",
+    "value"
+   ],
+   "label": "payment due",
+   "value": {
+    "native": {
+     "value": "234.85",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "234.85",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cards",
+    0,
+    "latest_statement",
+    "minimum_payment",
+    "value"
+   ],
+   "label": "minimum payment",
+   "value": {
+    "native": {
+     "value": "30.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "30.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "cards",
+    0,
+    "latest_statement",
+    "credit_limit",
+    "value"
+   ],
+   "label": "credit limit",
+   "value": {
+    "native": {
+     "value": "6000.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "6000.00",
+     "currency": "SGD"
+    },
+    "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-08-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  }
+ ]
+}

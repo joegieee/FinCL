@@ -1,0 +1,908 @@
+{
+ "generation": "<digest>",
+ "reporting_currency": "SGD",
+ "as_of": "2026-09-15",
+ "history_start": "2026-08-01",
+ "history_end": "2026-08-31",
+ "pocket_currency": null,
+ "covered": false,
+ "coverage_reasons": [],
+ "comparison_kind": "previous_month",
+ "summary": {
+  "spending": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "fees": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "refunds": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "income": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "reimbursements": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "non_income_inflow": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "pending_review": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "net_economic_flow": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "inflow": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "outflow": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  },
+  "exceptional_adjustments": {
+   "current": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "previous": null,
+   "comparison_available": false,
+   "comparison_reasons": [
+    "the selected period is not fully covered"
+   ],
+   "handle": "<handle>",
+   "delta": null,
+   "pct": null
+  }
+ },
+ "gross_burn": {
+  "result": {
+   "total": {
+    "value": "2085.43",
+    "currency": "SGD"
+   },
+   "status": "available",
+   "partial_total": null,
+   "included": [
+    {
+     "currency": "EUR",
+     "period": "2026-05"
+    },
+    {
+     "currency": "EUR",
+     "period": "2026-06"
+    },
+    {
+     "currency": "EUR",
+     "period": "2026-07"
+    },
+    {
+     "currency": "SGD",
+     "period": "2026-05"
+    },
+    {
+     "currency": "SGD",
+     "period": "2026-06"
+    },
+    {
+     "currency": "SGD",
+     "period": "2026-07"
+    }
+   ],
+   "excluded": [],
+   "excluded_entry_count": 0,
+   "unavailable_reasons": [],
+   "excluded_detail": [],
+   "rate_path": [
+    {
+     "base_currency": "EUR",
+     "quote_currency": "SGD",
+     "period_month": "2026-05",
+     "effective_on": null,
+     "observation_kind": "MONTHLY_PROXY",
+     "source": "Synthetic monthly rates",
+     "source_version": "synthetic-demo-v2",
+     "inverted": false,
+     "applied_numerator": "14892",
+     "applied_denominator": "10000",
+     "direction": "direct",
+     "imported_rate_text": "1.4892"
+    },
+    {
+     "base_currency": "EUR",
+     "quote_currency": "SGD",
+     "period_month": "2026-06",
+     "effective_on": null,
+     "observation_kind": "MONTHLY_PROXY",
+     "source": "Synthetic monthly rates",
+     "source_version": "synthetic-demo-v2",
+     "inverted": false,
+     "applied_numerator": "14965",
+     "applied_denominator": "10000",
+     "direction": "direct",
+     "imported_rate_text": "1.4965"
+    },
+    {
+     "base_currency": "EUR",
+     "quote_currency": "SGD",
+     "period_month": "2026-07",
+     "effective_on": null,
+     "observation_kind": "MONTHLY_PROXY",
+     "source": "Synthetic monthly rates",
+     "source_version": "synthetic-demo-v2",
+     "inverted": false,
+     "applied_numerator": "15038",
+     "applied_denominator": "10000",
+     "direction": "direct",
+     "imported_rate_text": "1.5038"
+    }
+   ]
+  },
+  "included_months": [
+   "2026-05",
+   "2026-06",
+   "2026-07"
+  ],
+  "month_count": 3,
+  "reason": null
+ },
+ "category_ranking": [],
+ "merchant_ranking": [],
+ "contributors_handle": "<handle>",
+ "trend": [
+  {
+   "month": "2026-03",
+   "spending": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "fees": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "income": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "complete": false,
+   "previous_spending": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "spending_change": null,
+   "spending_change_pct": null,
+   "spending_change_reason": "Comparison unavailable: both calendar months need full statement coverage and complete currency valuation."
+  },
+  {
+   "month": "2026-04",
+   "spending": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "fees": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "income": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "complete": false,
+   "previous_spending": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "spending_change": null,
+   "spending_change_pct": null,
+   "spending_change_reason": "Comparison unavailable: both calendar months need full statement coverage and complete currency valuation."
+  },
+  {
+   "month": "2026-05",
+   "spending": {
+    "total": {
+     "value": "2189.13",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-05"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-05"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ]
+   },
+   "fees": {
+    "total": {
+     "value": "2.36",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "SGD",
+      "period": "2026-05"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "income": {
+    "total": {
+     "value": "2381.17",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "SGD",
+      "period": "2026-05"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "complete": true,
+   "previous_spending": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "spending_change": null,
+   "spending_change_pct": null,
+   "spending_change_reason": "Comparison unavailable: both calendar months need full statement coverage and complete currency valuation."
+  },
+  {
+   "month": "2026-06",
+   "spending": {
+    "total": {
+     "value": "2295.49",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-06"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-06"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ]
+   },
+   "fees": {
+    "total": {
+     "value": "2.97",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "SGD",
+      "period": "2026-06"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "income": {
+    "total": {
+     "value": "2406.49",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "SGD",
+      "period": "2026-06"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "complete": true,
+   "previous_spending": {
+    "total": {
+     "value": "2189.13",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-05"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-05"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-05",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14892",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4892"
+     }
+    ]
+   },
+   "spending_change": {
+    "value": "106.36",
+    "currency": "SGD"
+   },
+   "spending_change_pct": "4.9",
+   "spending_change_reason": null
+  },
+  {
+   "month": "2026-07",
+   "spending": {
+    "total": {
+     "value": "1764.27",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-07"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-07"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ]
+   },
+   "fees": {
+    "total": {
+     "value": "2.07",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "SGD",
+      "period": "2026-07"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "income": {
+    "total": {
+     "value": "2913.00",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "SGD",
+      "period": "2026-07"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "complete": true,
+   "previous_spending": {
+    "total": {
+     "value": "2295.49",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-06"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-06"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-06",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "14965",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.4965"
+     }
+    ]
+   },
+   "spending_change": {
+    "value": "-531.22",
+    "currency": "SGD"
+   },
+   "spending_change_pct": "-23.1",
+   "spending_change_reason": null
+  },
+  {
+   "month": "2026-08",
+   "spending": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "fees": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "income": {
+    "total": null,
+    "status": "unavailable",
+    "partial_total": null,
+    "included": [],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [
+     "NO_EVIDENCE_COVERAGE"
+    ],
+    "excluded_detail": [],
+    "rate_path": []
+   },
+   "complete": false,
+   "previous_spending": {
+    "total": {
+     "value": "1764.27",
+     "currency": "SGD"
+    },
+    "status": "available",
+    "partial_total": null,
+    "included": [
+     {
+      "currency": "EUR",
+      "period": "2026-07"
+     },
+     {
+      "currency": "SGD",
+      "period": "2026-07"
+     }
+    ],
+    "excluded": [],
+    "excluded_entry_count": 0,
+    "unavailable_reasons": [],
+    "excluded_detail": [],
+    "rate_path": [
+     {
+      "base_currency": "EUR",
+      "quote_currency": "SGD",
+      "period_month": "2026-07",
+      "effective_on": null,
+      "observation_kind": "MONTHLY_PROXY",
+      "source": "Synthetic monthly rates",
+      "source_version": "synthetic-demo-v2",
+      "inverted": false,
+      "applied_numerator": "15038",
+      "applied_denominator": "10000",
+      "direction": "direct",
+      "imported_rate_text": "1.5038"
+     }
+    ]
+   },
+   "spending_change": null,
+   "spending_change_pct": null,
+   "spending_change_reason": "Comparison unavailable: both calendar months need full statement coverage and complete currency valuation."
+  }
+ ]
+}
