@@ -1946,15 +1946,29 @@ def _reconcile_mari_card(
                 {"equation": summary.equation_raw},
             )
         )
+    elif len(summary.buckets) != 9:
+        problems.append(
+            DocumentProblem(
+                "BLOCKING",
+                "MARI_CARD_SUMMARY_MISSING",
+                "Mari card statement-summary buckets were not all found",
+                {"buckets": sorted(summary.buckets)},
+            )
+        )
 
     by_bucket: dict[str, list[DocumentRecord]] = {}
     for record in transactions:
         letter = record.raw_fields.get("summary_bucket")
         if isinstance(letter, str):
             by_bucket.setdefault(letter, []).append(record)
-    for letter, bucket_records in sorted(by_bucket.items()):
+    # Bucket A is the prior statement's balance, which has no rows of its own.
+    printed_activity = {
+        letter for letter, value in summary.buckets.items() if letter != "A" and value.coefficient
+    }
+    for letter in sorted(printed_activity | by_bucket.keys()):
         if letter not in summary.buckets:
             continue
+        bucket_records = by_bucket.get(letter, [])
         scale = max(
             [record.amount.scale for record in bucket_records if record.amount]
             + [summary.buckets[letter].scale]
@@ -1964,7 +1978,8 @@ def _reconcile_mari_card(
             assert record.amount is not None
             sign = 1 if record.direction_marker == "CR" else -1
             total += sign * record.amount.rescaled_coefficient(scale)
-        observed = ExactMoney(abs(total), scale, format_decimal(abs(total), scale))
+        total *= -signs[letter]
+        observed = ExactMoney(total, scale, format_decimal(total, scale))
         checks.append(
             _make_check(
                 "SGD",
@@ -2830,6 +2845,7 @@ def _reconcile_trust(
     records: list[DocumentRecord],
     summary: dict[str, _TrustSummaryRow],
     sections: list[DocumentSection],
+    problems: list[DocumentProblem],
 ) -> list[DocumentCheck]:
     checks: list[DocumentCheck] = []
     section_to_summary = {1: "MAIN", 2: "SAVINGS"}
@@ -2872,9 +2888,20 @@ def _reconcile_trust(
                     },
                 )
             )
-        summary_check = _trust_summary_identity_check(
-            summary.get(section_to_summary.get(section.ordinal, "")), section.heading_raw
-        )
+        section_summary = summary.get(section_to_summary.get(section.ordinal, ""))
+        printed_closing = section_summary.closing if section_summary else None
+        if (opening is None or closing is None) and (
+            credits or debits or (printed_closing and printed_closing.coefficient)
+        ):
+            problems.append(
+                DocumentProblem(
+                    "BLOCKING",
+                    "TRUST_BALANCE_BOUNDARY_MISSING",
+                    "a Trust sub-account has activity but no opening or closing balance to check it against",
+                    {"section": section.heading_raw},
+                )
+            )
+        summary_check = _trust_summary_identity_check(section_summary, section.heading_raw)
         if summary_check is not None:
             checks.append(summary_check)
     total_check = _trust_summary_identity_check(summary.get("TOTAL"), "Total")
@@ -3078,7 +3105,7 @@ def parse_trust_savings(data: bytes) -> ParsedDocument:
         DocumentSection(1, "MAIN_LEDGER", "SGD", "Main Account", 1, page_count),
         DocumentSection(2, "SAVINGS_LEDGER", "SGD", "Savings", 1, page_count),
     ]
-    checks = _reconcile_trust(records, summary, sections)
+    checks = _reconcile_trust(records, summary, sections, problems)
     if any(check.blocking and check.passed is not True for check in checks):
         problems.append(
             DocumentProblem(
@@ -3353,6 +3380,15 @@ def _reconcile_revolut_pdf(
             if record.record_kind == "TRANSACTION" and record.currency_raw == currency
         ]
         if summary is None:
+            if transactions:
+                problems.append(
+                    DocumentProblem(
+                        "BLOCKING",
+                        "REVOLUT_PDF_BALANCE_MISMATCH",
+                        "a Revolut currency pocket has transactions but no balance summary",
+                        {"currency": currency},
+                    )
+                )
             continue
         opening = _revolut_money(str(summary.raw_fields["opening"]))
         money_out = _revolut_money(str(summary.raw_fields["money_out"]))

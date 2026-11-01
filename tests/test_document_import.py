@@ -8,12 +8,16 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
+from dataclasses import replace
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from typer.testing import CliRunner
 
+from fincl import documents as document_parsers
 from fincl.cli import app
 from fincl.db import SCHEMA_VERSION, connect_sqlite, initialize_schema
 from fincl.document_service import DocumentImportService, link_narrow_transfers
@@ -28,7 +32,11 @@ from fincl.documents import (
     PAYLAH_OLD_PROFILE_VERSION,
     REVOLUT_PDF_PROFILE,
     TRUST_SAVINGS_PROFILE,
+    DocumentProblem,
+    DocumentSection,
     _reconcile_dbs,
+    _reconcile_mari_card,
+    _reconcile_trust,
     parse_dbs_consolidated,
     parse_mari_card,
     parse_maribank_savings,
@@ -36,7 +44,10 @@ from fincl.documents import (
     parse_revolut_pdf,
     parse_trust_savings,
 )
+from fincl.money import ExactMoney
 from fincl.report import build_coverage_report, build_report
+from tests import revolut_pdf
+from tests.mari_card_pdf import MariRow, MariStatement, mari_card_pdf_bytes
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 RAW = REPOSITORY / "raw"
@@ -485,6 +496,69 @@ class TrustSavingsCorpusTests(unittest.TestCase):
             for record in document.records:
                 self.assertTrue(record.raw_text)
                 self.assertTrue(record.source_anchor.startswith("pdf:trust:"))
+
+
+class MissingEquationTests(unittest.TestCase):
+    """A check that cannot run is a refusal, never a pass."""
+
+    def _card(self) -> bytes:
+        return mari_card_pdf_bytes(MariStatement(
+            date(2026, 7, 21), date(2026, 8, 20), date(2026, 8, 21), date(2026, 9, 10),
+            previous_balance=Decimal("94.00"),
+            sections={
+                "Repayment/Conversion": [MariRow(date(2026, 8, 12), Decimal("94.00"), "Repayment")],
+                "Purchase": [MariRow(date(2026, 8, 3), Decimal("-40.00"), "MERCHANT SYNTHETIC",
+                                     ("Card Payment",), date(2026, 8, 2))],
+            },
+        ))
+
+    def test_a_revolut_pocket_without_its_summary_is_refused(self) -> None:
+        real_line = revolut_pdf._Writer.line
+
+        def renamed(writer, x, text, *args, **kwargs):
+            return real_line(writer, x, "Subtotal" if text == "Total" else text, *args, **kwargs)
+
+        with mock.patch.object(revolut_pdf._Writer, "line", renamed):
+            data = revolut_pdf.revolut_pdf_bytes()
+
+        parsed = parse_revolut_pdf(data)
+
+        self.assertFalse(parsed.accepted)
+        self.assertIn("REVOLUT_PDF_BALANCE_MISMATCH", {problem.code for problem in parsed.problems})
+
+    def test_trust_activity_without_its_balances_is_refused(self) -> None:
+        section = DocumentSection(2, "SAVINGS_LEDGER", "SGD", "Savings", 1, 1)
+        row = SimpleNamespace(section_ordinal=2, record_kind="TRANSACTION",
+                              credit=ExactMoney.parse("100.00"), debit=None, raw_fields={})
+        problems: list[DocumentProblem] = []
+
+        _reconcile_trust([row], {}, [section], problems)
+
+        self.assertEqual([problem.code for problem in problems], ["TRUST_BALANCE_BOUNDARY_MISSING"])
+
+    def test_a_printed_card_bucket_with_no_rows_is_refused(self) -> None:
+        real_anchor = document_parsers._is_mari_card_anchor
+
+        def missing_repayment(line):
+            return None if "94.00" in line.text else real_anchor(line)
+
+        with mock.patch.object(document_parsers, "_is_mari_card_anchor", missing_repayment):
+            parsed = parse_mari_card(self._card())
+
+        self.assertFalse(parsed.accepted)
+
+    def test_a_card_row_with_the_wrong_direction_is_refused(self) -> None:
+        parsed = parse_mari_card(self._card())
+        self.assertTrue(parsed.accepted)
+        flipped = [
+            replace(record, direction_marker="CR")
+            if record.raw_fields.get("summary_bucket") == "D" else record
+            for record in parsed.records
+        ]
+
+        _, checks = _reconcile_mari_card(flipped, parsed.card_summary, [])
+
+        self.assertEqual([check.context.get("bucket") for check in checks if check.passed is not True], ["D"])
 
 
 class TrustSavingsFixtureTests(unittest.TestCase):
