@@ -2467,18 +2467,27 @@ def _reconcile_dbs(
                         {"section_ordinal": section.ordinal},
                     )
                 )
-            if summary.balance is not None and last_balance is not None:
-                checks.append(
-                    _make_check(
-                        section.currency or "UNKNOWN",
-                        "SECTION_CLOSING_BALANCE",
-                        DBS_BALANCE_EQUATION_VERSION,
-                        last_balance,
-                        summary.balance,
-                        True,
-                        {"section_ordinal": section.ordinal},
-                    )
+        if summary is not None and summary.balance is not None and last_balance is not None:
+            checks.append(
+                _make_check(
+                    section.currency or "UNKNOWN",
+                    "SECTION_CLOSING_BALANCE",
+                    DBS_BALANCE_EQUATION_VERSION,
+                    last_balance,
+                    summary.balance,
+                    True,
+                    {"section_ordinal": section.ordinal},
                 )
+            )
+        elif section_records:
+            problems.append(
+                DocumentProblem(
+                    "BLOCKING",
+                    "DBS_SECTION_CLOSE_MISSING",
+                    "a DBS section has no closing total to check its rows against",
+                    {"currency": section.currency, "section_ordinal": section.ordinal},
+                )
+            )
     if any(check.blocking and check.passed is not True for check in checks):
         problems.append(DocumentProblem("BLOCKING", "DBS_RECONCILIATION_FAILED", "one or more DBS exact equations failed"))
     return checks

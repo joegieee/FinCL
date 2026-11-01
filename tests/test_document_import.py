@@ -526,6 +526,21 @@ class MissingEquationTests(unittest.TestCase):
         self.assertFalse(parsed.accepted)
         self.assertIn("REVOLUT_PDF_BALANCE_MISMATCH", {problem.code for problem in parsed.problems})
 
+    def test_a_dbs_section_without_its_total_is_refused(self) -> None:
+        parsed = parse_dbs_consolidated((FIXTURES / "dbs_multicurrency.pdf").read_bytes())
+        records = [
+            record
+            for record in parsed.records
+            if record.raw_fields.get("supporting_kind") != "SECTION_TOTAL"
+        ]
+        problems: list[DocumentProblem] = []
+
+        _reconcile_dbs(records, parsed.sections, problems)
+
+        self.assertEqual(
+            [problem.code for problem in problems], ["DBS_SECTION_CLOSE_MISSING"] * 2
+        )
+
     def test_trust_activity_without_its_balances_is_refused(self) -> None:
         section = DocumentSection(2, "SAVINGS_LEDGER", "SGD", "Savings", 1, 1)
         row = SimpleNamespace(section_ordinal=2, record_kind="TRANSACTION",
