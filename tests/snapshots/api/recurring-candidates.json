@@ -306,7 +306,7 @@
    "review_question": "Is SYNTHETIC POWER AND WATER a recurring bill?",
    "seed_entry_anchors": [
     "<digest>:pdf:dbs:<digest>:9",
-    "<digest>:pdf:dbs:<digest>:15",
+    "<digest>:pdf:dbs:<digest>:17",
     "<digest>:pdf:dbs:<digest>:12",
     "<digest>:pdf:dbs:<digest>:10"
    ],
@@ -347,7 +347,7 @@
      "account": "DBS My Account"
     },
     {
-     "anchor": "<digest>:pdf:dbs:<digest>:15",
+     "anchor": "<digest>:pdf:dbs:<digest>:17",
      "date": "2026-06-11",
      "amount": "68.54",
      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",

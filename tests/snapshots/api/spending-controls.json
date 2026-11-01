@@ -20483,7 +20483,7 @@
   "rule": "each canonical source id belongs to exactly one group; internal earmarks reduce unallocated cash but are not external cash outflows"
  },
  "free_cash_after_commitments": {
-  "amount": "-6398.90",
+  "amount": "-6398.91",
   "formula": "total cash − disjoint external commitment events − recorded internal earmarks",
   "income_included": false,
   "definitive_allowance": false
@@ -20516,9 +20516,9 @@
    "an obligation or fund lacks a supported amount or settlement date",
    "essential role coverage is incomplete; unresolved owner-cost contributions must be reviewed before a reserve amount is derived"
   ],
-  "minimum_conservative_unallocated_reserve_adjusted_balance": "-6398.90",
+  "minimum_conservative_unallocated_reserve_adjusted_balance": "-6398.91",
   "additional_spending_capacity": null,
-  "funding_need": "6398.90",
+  "funding_need": "6398.91",
   "weekly": null
  },
  "first_breach_drivers": {

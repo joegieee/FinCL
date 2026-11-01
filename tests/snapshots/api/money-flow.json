@@ -160,7 +160,7 @@
   "cash_at_cutoff": {
    "amount": {
     "total": {
-     "value": "16499.36",
+     "value": "16499.35",
      "currency": "SGD"
     },
     "status": "available",
@@ -222,7 +222,7 @@
     "total": null,
     "status": "partial",
     "partial_total": {
-     "value": "9079.31",
+     "value": "9079.30",
      "currency": "SGD"
     },
     "included": [
@@ -275,7 +275,7 @@
     "total": null,
     "status": "partial",
     "partial_total": {
-     "value": "-5550.33",
+     "value": "-5550.34",
      "currency": "SGD"
     },
     "included": [

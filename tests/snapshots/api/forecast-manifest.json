@@ -100,13 +100,6 @@
   "missing_intervals": [
    {
     "account_id": "acct_revolut_current",
-    "currency_pocket": "SGD",
-    "start": "2026-01-13",
-    "end": "2026-08-31",
-    "reason": "intervening movements do not reconcile the balance boundaries"
-   },
-   {
-    "account_id": "acct_revolut_current",
     "currency_pocket": "EUR",
     "start": "2026-09-01",
     "end": "2026-09-15",
@@ -218,8 +211,8 @@
     "kind": "resolve-categorization",
     "currency_pocket": "SGD",
     "entry_count": 77,
-    "absolute_amount": "2172.63",
-    "note": "77 unclassified entries in the baseline window (|2172.63| SGD); unknown role is not discretionary and not zero",
+    "absolute_amount": "2172.62",
+    "note": "77 unclassified entries in the baseline window (|2172.62| SGD); unknown role is not discretionary and not zero",
     "cuttable": false,
     "role": "unresolved_spending",
     "treatment": "retained at full observed value; not assigned a discretionary role and not treated as zero"
@@ -475,7 +468,7 @@
   "classified_income_evidenced": true,
   "gap": null,
   "pending_inflow_by_currency": {
-   "SGD": "644.12"
+   "SGD": "644.11"
   },
   "other_inflow_by_currency": {}
  },
@@ -564,7 +557,7 @@
       "owner_cost_baseline": "1749.09",
       "income": "2913.00",
       "other_inflow": "0",
-      "pending_inflow": "0.07"
+      "pending_inflow": "0.06"
      }
     }
    }
@@ -613,7 +606,7 @@
   "current_position_supported": false,
   "combined_liquid_position": {
    "EUR": "592.15",
-   "SGD": "15546.08",
+   "SGD": "15546.07",
    "USD": "42.17"
   },
   "withheld": {},
@@ -639,17 +632,10 @@
    },
    "SGD": {
     "readiness": "limited-history estimate",
-    "balance": "15546.08",
+    "balance": "15546.07",
     "observation_as_of": "2026-08-31",
     "stale_days": 15,
     "missing_intervals": [
-     {
-      "account_id": "acct_revolut_current",
-      "currency_pocket": "SGD",
-      "start": "2026-01-13",
-      "end": "2026-08-31",
-      "reason": "intervening movements do not reconcile the balance boundaries"
-     },
      {
       "account_id": "acct_revolut_current",
       "currency_pocket": "SGD",
@@ -933,11 +919,10 @@
     },
     "SGD": {
      "readiness": "limited-history estimate",
-     "balance": "15546.08",
+     "balance": "15546.07",
      "observation_as_of": "2026-08-31",
      "stale_days": 15,
      "missing_intervals": [
-      {"account_id":"acct_revolut_current","currency_pocket":"SGD","start":"2026-01-13","end":"2026-08-31","reason":"intervening movements do not reconcile the balance boundaries"},
       {"account_id":"acct_revolut_current","currency_pocket":"SGD","start":"2026-09-01","end":"2026-09-15","reason":"complete actual-movement coverage is not established through this date"},
       {"account_id":"dbs-my-account","currency_pocket":"SGD","start":"2026-09-01","end":"2026-09-15","reason":"complete actual-movement coverage is not established through this date"},
       {"account_id":"dbs-paylah-wallet","currency_pocket":"SGD","start":"2026-09-09","end":"2026-09-15","reason":"complete actual-movement coverage is not established through this date"},

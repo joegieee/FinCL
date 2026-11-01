@@ -72,16 +72,6 @@
    "incoming_type": null
   },
   {
-   "entry_anchor": "<digest>:pdf:dbs:<digest>:19",
-   "effective_at": "2026-08-23",
-   "economic_direction": "OUT",
-   "currency": "SGD",
-   "amount": "40.44",
-   "open_amount": "40.44",
-   "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 21AUG",
-   "incoming_type": null
-  },
-  {
    "entry_anchor": "<digest>:pdf:paylah:<digest>:13",
    "effective_at": "2026-08-23",
    "economic_direction": "OUT",
@@ -89,6 +79,16 @@
    "amount": "3.60",
    "open_amount": "3.60",
    "description": "CHICKEN RICE STALL",
+   "incoming_type": null
+  },
+  {
+   "entry_anchor": "<digest>:pdf:dbs:<digest>:19",
+   "effective_at": "2026-08-23",
+   "economic_direction": "OUT",
+   "currency": "SGD",
+   "amount": "40.44",
+   "open_amount": "40.44",
+   "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 21AUG",
    "incoming_type": null
   },
   {
@@ -272,16 +272,6 @@
    "incoming_type": null
   },
   {
-   "entry_anchor": "<digest>:pdf:dbs:<digest>:8",
-   "effective_at": "2026-08-10",
-   "economic_direction": "OUT",
-   "currency": "SGD",
-   "amount": "21.20",
-   "open_amount": "21.20",
-   "description": "Debit Card Transaction\nFRESH MARKET SINGAPORE SGP 09AUG",
-   "incoming_type": null
-  },
-  {
    "entry_anchor": "<digest>:pdf:dbs:<digest>:9",
    "effective_at": "2026-08-10",
    "economic_direction": "OUT",
@@ -289,6 +279,16 @@
    "amount": "39.06",
    "open_amount": "39.06",
    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 08AUG",
+   "incoming_type": null
+  },
+  {
+   "entry_anchor": "<digest>:pdf:dbs:<digest>:8",
+   "effective_at": "2026-08-10",
+   "economic_direction": "OUT",
+   "currency": "SGD",
+   "amount": "21.20",
+   "open_amount": "21.20",
+   "description": "Debit Card Transaction\nFRESH MARKET SINGAPORE SGP 09AUG",
    "incoming_type": null
   },
   {
@@ -382,16 +382,6 @@
    "incoming_type": null
   },
   {
-   "entry_anchor": "<digest>:pdf:dbs:<digest>:27",
-   "effective_at": "2026-07-25",
-   "economic_direction": "OUT",
-   "currency": "SGD",
-   "amount": "27.56",
-   "open_amount": "27.56",
-   "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 23JUL",
-   "incoming_type": null
-  },
-  {
    "entry_anchor": "<digest>:pdf:paylah:<digest>:15",
    "effective_at": "2026-07-25",
    "economic_direction": "OUT",
@@ -409,6 +399,16 @@
    "amount": "11.15",
    "open_amount": "11.15",
    "description": "Streaming Box",
+   "incoming_type": null
+  },
+  {
+   "entry_anchor": "<digest>:pdf:dbs:<digest>:27",
+   "effective_at": "2026-07-25",
+   "economic_direction": "OUT",
+   "currency": "SGD",
+   "amount": "27.56",
+   "open_amount": "27.56",
+   "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 23JUL",
    "incoming_type": null
   },
   {

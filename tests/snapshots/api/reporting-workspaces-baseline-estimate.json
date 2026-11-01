@@ -675,8 +675,8 @@
     "kind": "resolve-categorization",
     "currency_pocket": "SGD",
     "entry_count": 77,
-    "absolute_amount": "2172.63",
-    "note": "77 unclassified entries in the baseline window (|2172.63| SGD); unknown role is not discretionary and not zero"
+    "absolute_amount": "2172.62",
+    "note": "77 unclassified entries in the baseline window (|2172.62| SGD); unknown role is not discretionary and not zero"
    },
    {
     "kind": "resolve-categorization",
@@ -8319,11 +8319,11 @@
    "label": "absolute amount",
    "value": {
     "native": {
-     "value": "2172.63",
+     "value": "2172.62",
      "currency": "SGD"
     },
     "reported": {
-     "value": "2172.63",
+     "value": "2172.62",
      "currency": "SGD"
     },
     "purpose": "flow",

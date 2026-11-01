@@ -91,7 +91,7 @@
      "owner_cost_baseline": "1749.09",
      "income": "2913.00",
      "other_inflow": "0",
-     "pending_inflow": "0.07"
+     "pending_inflow": "0.06"
     }
    }
   }
@@ -309,8 +309,8 @@
    "kind": "resolve-categorization",
    "currency_pocket": "SGD",
    "entry_count": 77,
-   "absolute_amount": "2172.63",
-   "note": "77 unclassified entries in the baseline window (|2172.63| SGD); unknown role is not discretionary and not zero"
+   "absolute_amount": "2172.62",
+   "note": "77 unclassified entries in the baseline window (|2172.62| SGD); unknown role is not discretionary and not zero"
   },
   {
    "kind": "resolve-categorization",

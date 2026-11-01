@@ -24,23 +24,23 @@
    ],
    "starts_on": "2026-08-31",
    "ends_on": "2027-02-28",
-   "starting_total": "16499.36",
+   "starting_total": "16499.35",
    "base": {
-    "lowest": "6964.87",
+    "lowest": "6964.86",
     "lowest_on": "2027-02-25",
-    "closing": "9137.79",
+    "closing": "9137.78",
     "verdict": "enough",
     "first_short_on": null,
     "shortfall": null,
     "shortfall_on": null
    },
    "cautious": {
-    "lowest": "-5491.85",
+    "lowest": "-5491.86",
     "lowest_on": "2027-02-28",
-    "closing": "-5491.85",
+    "closing": "-5491.86",
     "verdict": "short",
     "first_short_on": "2027-01-05",
-    "shortfall": "5491.85",
+    "shortfall": "5491.86",
     "shortfall_on": "2027-02-28"
    },
    "only_safe_in_the_base_case": true,
@@ -76,8 +76,8 @@
       {"account":"maribank-savings","display_name":"MariBank Savings Account","evidence_through":"2026-08-31","age_days":15,"stale":true,"basis":"observation","holds_back_start":true},
       {"account":"trust-savings","display_name":"Trust Bank Savings Account","evidence_through":"2026-08-31","age_days":15,"stale":true,"basis":"statement","holds_back_start":true}
      ],
-     "starting_balance": "15546.08",
-     "starting_balance_reported": "15546.08",
+     "starting_balance": "15546.07",
+     "starting_balance_reported": "15546.07",
      "rate": null,
      "rate_display": null
     },
@@ -192,7 +192,7 @@
      "page": "Setup",
      "anchor": "setup-coverage",
      "title": "Fill gaps in older statements",
-     "detail": "No statement covers these months, so the starting balance and your usual spending can't be fully checked: DBS My Account: Sep 2026; DBS PayLah! Wallet: Sep 2026; Mari Credit Card: Sep 2026; MariBank Savings Account: Mar 2026, Sep 2026; Revolut Current: Jan 2026, Feb 2026, Mar 2026, Apr 2026, May 2026, Jun 2026, Jul 2026, Aug 2026, Sep 2026; Trust Bank Savings Account: Sep 2026."
+     "detail": "No statement covers these months, so the starting balance and your usual spending can't be fully checked: DBS My Account: Sep 2026; DBS PayLah! Wallet: Sep 2026; Mari Credit Card: Sep 2026; MariBank Savings Account: Mar 2026, Sep 2026; Revolut Current: Jan 2026, Sep 2026; Trust Bank Savings Account: Sep 2026."
     },
     {
      "key": "export-period",
@@ -266,7 +266,7 @@
     "answer": "Yes",
     "verdict": "enough",
     "readiness": "partial",
-    "starting_balance": "15546.08",
+    "starting_balance": "15546.07",
     "starting_balance_as_of": "2026-08-31",
     "horizon_end": "2027-02-28",
     "base": {
@@ -287,7 +287,7 @@
     },
     "conservative": {
      "verdict": "short",
-     "shortfall": "5636.48",
+     "shortfall": "5636.49",
      "shortfall_on": "2027-02-28",
      "first_short_on": "2027-01-02",
      "reserve_target": null,
@@ -500,11 +500,11 @@
    "label": "starting balance",
    "value": {
     "native": {
-     "value": "15546.08",
+     "value": "15546.07",
      "currency": "SGD"
     },
     "reported": {
-     "value": "15546.08",
+     "value": "15546.07",
      "currency": "SGD"
     },
     "purpose": "position",
@@ -984,11 +984,11 @@
    "label": "shortfall",
    "value": {
     "native": {
-     "value": "5636.48",
+     "value": "5636.49",
      "currency": "SGD"
     },
     "reported": {
-     "value": "5636.48",
+     "value": "5636.49",
      "currency": "SGD"
     },
     "purpose": "forecast",

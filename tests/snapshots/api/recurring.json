@@ -306,7 +306,7 @@
    "review_question": "Is SYNTHETIC POWER AND WATER a recurring bill?",
    "seed_entry_anchors": [
     "<digest>:pdf:dbs:<digest>:9",
-    "<digest>:pdf:dbs:<digest>:15",
+    "<digest>:pdf:dbs:<digest>:17",
     "<digest>:pdf:dbs:<digest>:12",
     "<digest>:pdf:dbs:<digest>:10"
    ],
@@ -347,7 +347,7 @@
      "account": "DBS My Account"
     },
     {
-     "anchor": "<digest>:pdf:dbs:<digest>:15",
+     "anchor": "<digest>:pdf:dbs:<digest>:17",
      "date": "2026-06-11",
      "amount": "68.54",
      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
@@ -676,7 +676,7 @@
    "review_question": "Is SYNTHETIC POWER AND WATER a recurring bill?",
    "seed_entry_anchors": [
     "<digest>:pdf:dbs:<digest>:9",
-    "<digest>:pdf:dbs:<digest>:15",
+    "<digest>:pdf:dbs:<digest>:17",
     "<digest>:pdf:dbs:<digest>:12",
     "<digest>:pdf:dbs:<digest>:10"
    ],
@@ -717,7 +717,7 @@
      "account": "DBS My Account"
     },
     {
-     "anchor": "<digest>:pdf:dbs:<digest>:15",
+     "anchor": "<digest>:pdf:dbs:<digest>:17",
      "date": "2026-06-11",
      "amount": "68.54",
      "description": "Bill Payment\nSYNTHETIC POWER AND WATER",
@@ -815,7 +815,7 @@
    "review_question": "Is Funds Transfer\nACME STUDIO PTE LTD SALARY a recurring income stream?",
    "seed_entry_anchors": [
     "<digest>:pdf:dbs:<digest>:22",
-    "<digest>:pdf:dbs:<digest>:24",
+    "<digest>:pdf:dbs:<digest>:28",
     "<digest>:pdf:dbs:<digest>:26",
     "<digest>:pdf:dbs:<digest>:22"
    ],
@@ -828,7 +828,7 @@
      "account": "DBS My Account"
     },
     {
-     "anchor": "<digest>:pdf:dbs:<digest>:24",
+     "anchor": "<digest>:pdf:dbs:<digest>:28",
      "date": "2026-02-25",
      "amount": "2404.09",
      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",
@@ -856,7 +856,7 @@
      "account": "DBS My Account"
     },
     {
-     "anchor": "<digest>:pdf:dbs:<digest>:24",
+     "anchor": "<digest>:pdf:dbs:<digest>:28",
      "date": "2026-06-25",
      "amount": "2406.49",
      "description": "Funds Transfer\nACME STUDIO PTE LTD SALARY",

@@ -7,7 +7,7 @@
    "source_type": "DBS_CONSOLIDATED",
    "display_name": "DBS My Account",
    "masked_identifier": "DBS deposit account (masked)",
-   "entry_count": 192,
+   "entry_count": 196,
    "pockets": [
     {
      "pocket": "SGD",
@@ -15,7 +15,7 @@
      "expected_end": null,
      "observed_start": "2026-01-01",
      "observed_end": "2026-08-31",
-     "entry_count": 192,
+     "entry_count": 196,
      "coverage_status": "unconfigured",
      "gaps": []
     }
@@ -34,7 +34,7 @@
    "source_type": "DBS_PAYLAH",
    "display_name": "DBS PayLah! Wallet",
    "masked_identifier": "PayLah wallet (masked)",
-   "entry_count": 137,
+   "entry_count": 139,
    "pockets": [
     {
      "pocket": "SGD",
@@ -42,7 +42,7 @@
      "expected_end": null,
      "observed_start": "2026-01-09",
      "observed_end": "2026-09-08",
-     "entry_count": 137,
+     "entry_count": 139,
      "coverage_status": "unconfigured",
      "gaps": []
     }
@@ -88,7 +88,7 @@
    "source_type": "MARI_SAVINGS",
    "display_name": "MariBank Savings Account",
    "masked_identifier": "MariBank savings 111 222 333",
-   "entry_count": 12,
+   "entry_count": 13,
    "pockets": [
     {
      "pocket": "SGD",
@@ -96,7 +96,7 @@
      "expected_end": null,
      "observed_start": "2026-03-12",
      "observed_end": "2026-08-31",
-     "entry_count": 12,
+     "entry_count": 13,
      "coverage_status": "unconfigured",
      "gaps": []
     }
@@ -153,7 +153,7 @@
    "source_type": "TRUST_SAVINGS",
    "display_name": "Trust Bank Savings Account",
    "masked_identifier": "Trust savings 01-2345678-9",
-   "entry_count": 6,
+   "entry_count": 7,
    "pockets": [
     {
      "pocket": "SGD",
@@ -161,7 +161,7 @@
      "expected_end": null,
      "observed_start": "2026-02-01",
      "observed_end": "2026-08-31",
-     "entry_count": 6,
+     "entry_count": 7,
      "coverage_status": "unconfigured",
      "gaps": []
     }
@@ -219,7 +219,7 @@
     "status": "ACCEPTED",
     "selection_state": "SELECTED",
     "pages": 2,
-    "transaction_rows": 23,
+    "transaction_rows": 25,
     "unresolved_pages": 0
    },
    {
@@ -252,7 +252,7 @@
     "status": "ACCEPTED",
     "selection_state": "SELECTED",
     "pages": 1,
-    "transaction_rows": 11,
+    "transaction_rows": 13,
     "unresolved_pages": 0
    },
    {
@@ -461,7 +461,7 @@
     "status": "ACCEPTED",
     "selection_state": "SELECTED",
     "pages": 2,
-    "transaction_rows": 26,
+    "transaction_rows": 28,
     "unresolved_pages": 0
    },
    {
@@ -483,7 +483,7 @@
     "status": "ACCEPTED",
     "selection_state": "SELECTED",
     "pages": 1,
-    "transaction_rows": 5,
+    "transaction_rows": 6,
     "unresolved_pages": 0
    },
    {
@@ -494,7 +494,7 @@
     "status": "ACCEPTED",
     "selection_state": "SELECTED",
     "pages": 1,
-    "transaction_rows": 3,
+    "transaction_rows": 4,
     "unresolved_pages": 0
    },
    {
@@ -641,7 +641,7 @@
     "unresolved_pages": 0
    }
   ],
-  "confirmed_transfer_links": 100,
+  "confirmed_transfer_links": 104,
   "dangling_decisions": 0,
   "needs_reextraction": [],
   "categories": {
@@ -650,7 +650,7 @@
     "Food & Dining": 66,
     "Housing": 16,
     "Income & Inflow": 12,
-    "Internal": 200,
+    "Internal": 208,
     "Shopping": 4,
     "Transport": 7,
     "Unclassified": 185

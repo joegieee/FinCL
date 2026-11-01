@@ -76,16 +76,6 @@
     "incoming_type": null
    },
    {
-    "entry_anchor": "<digest>:pdf:dbs:<digest>:19",
-    "effective_at": "2026-08-23",
-    "economic_direction": "OUT",
-    "currency": "SGD",
-    "amount": "40.44",
-    "open_amount": "40.44",
-    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 21AUG",
-    "incoming_type": null
-   },
-   {
     "entry_anchor": "<digest>:pdf:paylah:<digest>:13",
     "effective_at": "2026-08-23",
     "economic_direction": "OUT",
@@ -93,6 +83,16 @@
     "amount": "3.60",
     "open_amount": "3.60",
     "description": "CHICKEN RICE STALL",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:19",
+    "effective_at": "2026-08-23",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "40.44",
+    "open_amount": "40.44",
+    "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 21AUG",
     "incoming_type": null
    },
    {
@@ -276,16 +276,6 @@
     "incoming_type": null
    },
    {
-    "entry_anchor": "<digest>:pdf:dbs:<digest>:8",
-    "effective_at": "2026-08-10",
-    "economic_direction": "OUT",
-    "currency": "SGD",
-    "amount": "21.20",
-    "open_amount": "21.20",
-    "description": "Debit Card Transaction\nFRESH MARKET SINGAPORE SGP 09AUG",
-    "incoming_type": null
-   },
-   {
     "entry_anchor": "<digest>:pdf:dbs:<digest>:9",
     "effective_at": "2026-08-10",
     "economic_direction": "OUT",
@@ -293,6 +283,16 @@
     "amount": "39.06",
     "open_amount": "39.06",
     "description": "Debit Card Transaction\nCORNER GROCER SINGAPORE SGP 08AUG",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:8",
+    "effective_at": "2026-08-10",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "21.20",
+    "open_amount": "21.20",
+    "description": "Debit Card Transaction\nFRESH MARKET SINGAPORE SGP 09AUG",
     "incoming_type": null
    },
    {
@@ -386,16 +386,6 @@
     "incoming_type": null
    },
    {
-    "entry_anchor": "<digest>:pdf:dbs:<digest>:27",
-    "effective_at": "2026-07-25",
-    "economic_direction": "OUT",
-    "currency": "SGD",
-    "amount": "27.56",
-    "open_amount": "27.56",
-    "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 23JUL",
-    "incoming_type": null
-   },
-   {
     "entry_anchor": "<digest>:pdf:paylah:<digest>:15",
     "effective_at": "2026-07-25",
     "economic_direction": "OUT",
@@ -413,6 +403,16 @@
     "amount": "11.15",
     "open_amount": "11.15",
     "description": "Streaming Box",
+    "incoming_type": null
+   },
+   {
+    "entry_anchor": "<digest>:pdf:dbs:<digest>:27",
+    "effective_at": "2026-07-25",
+    "economic_direction": "OUT",
+    "currency": "SGD",
+    "amount": "27.56",
+    "open_amount": "27.56",
+    "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 23JUL",
     "incoming_type": null
    },
    {
@@ -882,11 +882,11 @@
    "label": "amount",
    "value": {
     "native": {
-     "value": "40.44",
+     "value": "3.60",
      "currency": "SGD"
     },
     "reported": {
-     "value": "40.44",
+     "value": "3.60",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -908,11 +908,11 @@
    "label": "open amount",
    "value": {
     "native": {
-     "value": "40.44",
+     "value": "3.60",
      "currency": "SGD"
     },
     "reported": {
-     "value": "40.44",
+     "value": "3.60",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -934,11 +934,11 @@
    "label": "amount",
    "value": {
     "native": {
-     "value": "3.60",
+     "value": "40.44",
      "currency": "SGD"
     },
     "reported": {
-     "value": "3.60",
+     "value": "40.44",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -960,11 +960,11 @@
    "label": "open amount",
    "value": {
     "native": {
-     "value": "3.60",
+     "value": "40.44",
      "currency": "SGD"
     },
     "reported": {
-     "value": "3.60",
+     "value": "40.44",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -1982,11 +1982,11 @@
    "label": "amount",
    "value": {
     "native": {
-     "value": "21.20",
+     "value": "39.06",
      "currency": "SGD"
     },
     "reported": {
-     "value": "21.20",
+     "value": "39.06",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -2008,11 +2008,11 @@
    "label": "open amount",
    "value": {
     "native": {
-     "value": "21.20",
+     "value": "39.06",
      "currency": "SGD"
     },
     "reported": {
-     "value": "21.20",
+     "value": "39.06",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -2034,11 +2034,11 @@
    "label": "amount",
    "value": {
     "native": {
-     "value": "39.06",
+     "value": "21.20",
      "currency": "SGD"
     },
     "reported": {
-     "value": "39.06",
+     "value": "21.20",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -2060,11 +2060,11 @@
    "label": "open amount",
    "value": {
     "native": {
-     "value": "39.06",
+     "value": "21.20",
      "currency": "SGD"
     },
     "reported": {
-     "value": "39.06",
+     "value": "21.20",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -2554,11 +2554,11 @@
    "label": "amount",
    "value": {
     "native": {
-     "value": "27.56",
+     "value": "4.90",
      "currency": "SGD"
     },
     "reported": {
-     "value": "27.56",
+     "value": "4.90",
      "currency": "SGD"
     },
     "purpose": "flow",
@@ -2580,32 +2580,6 @@
    "label": "open amount",
    "value": {
     "native": {
-     "value": "27.56",
-     "currency": "SGD"
-    },
-    "reported": {
-     "value": "27.56",
-     "currency": "SGD"
-    },
-    "purpose": "flow",
-    "basis": "identity",
-    "valuation_as_of": "2026-07-25",
-    "rate_as_of": null,
-    "rate_period": null,
-    "rate_path": [],
-    "forward_policy": null,
-    "unavailable": null
-   }
-  },
-  {
-   "path": [
-    "candidates",
-    39,
-    "amount"
-   ],
-   "label": "amount",
-   "value": {
-    "native": {
      "value": "4.90",
      "currency": "SGD"
     },
@@ -2627,32 +2601,6 @@
    "path": [
     "candidates",
     39,
-    "open_amount"
-   ],
-   "label": "open amount",
-   "value": {
-    "native": {
-     "value": "4.90",
-     "currency": "SGD"
-    },
-    "reported": {
-     "value": "4.90",
-     "currency": "SGD"
-    },
-    "purpose": "flow",
-    "basis": "identity",
-    "valuation_as_of": "2026-07-25",
-    "rate_as_of": null,
-    "rate_period": null,
-    "rate_path": [],
-    "forward_policy": null,
-    "unavailable": null
-   }
-  },
-  {
-   "path": [
-    "candidates",
-    40,
     "amount"
    ],
    "label": "amount",
@@ -2678,7 +2626,7 @@
   {
    "path": [
     "candidates",
-    40,
+    39,
     "open_amount"
    ],
    "label": "open amount",
@@ -2689,6 +2637,58 @@
     },
     "reported": {
      "value": "11.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    40,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "27.56",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "27.56",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "candidates",
+    40,
+    "open_amount"
+   ],
+   "label": "open amount",
+   "value": {
+    "native": {
+     "value": "27.56",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "27.56",
      "currency": "SGD"
     },
     "purpose": "flow",

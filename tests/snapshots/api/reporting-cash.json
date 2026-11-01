@@ -13,12 +13,12 @@
  ],
  "combined_liquid_position": {
   "EUR": "592.15",
-  "SGD": "15546.08",
+  "SGD": "15546.07",
   "USD": "42.17"
  },
  "liquid_total": {
   "EUR": "592.15",
-  "SGD": "15546.08",
+  "SGD": "15546.07",
   "USD": "42.17"
  },
  "liquid_total_withheld": {},
@@ -108,7 +108,7 @@
  "combined": {
   "amount": {
    "total": {
-    "value": "16499.36",
+    "value": "16499.35",
     "currency": "SGD"
    },
    "status": "available",
@@ -339,7 +339,7 @@
    "liquid": true,
    "excluded_reason": null,
    "basis": "statement-closing-balance",
-   "balance": "12612.46",
+   "balance": "12487.46",
    "as_of": "2026-08-31",
    "date_precision": null,
    "stale": true,
@@ -347,21 +347,21 @@
    "unavailable_reason": null,
    "statement_running_balance": null,
    "manual_observation": null,
-   "derived_balance": "12612.46",
+   "derived_balance": "12487.46",
    "derived_as_of": "2026-08-31",
    "derived_basis": "statement-closing-balance",
    "coverage_status": "supported",
    "best_supported_cutoff": "2026-08-31",
-   "best_supported_balance": "12612.46",
+   "best_supported_balance": "12487.46",
    "best_supported_basis": "statement-closing-balance",
    "blocking_reason": "complete actual-movement coverage is not established through this date",
    "reported_balance": {
     "native": {
-     "value": "12612.46",
+     "value": "12487.46",
      "currency": "SGD"
     },
     "reported": {
-     "value": "12612.46",
+     "value": "12487.46",
      "currency": "SGD"
     },
     "purpose": "position",
@@ -375,11 +375,11 @@
    },
    "reported_derived_balance": {
     "native": {
-     "value": "12612.46",
+     "value": "12487.46",
      "currency": "SGD"
     },
     "reported": {
-     "value": "12612.46",
+     "value": "12487.46",
      "currency": "SGD"
     },
     "purpose": "position",
@@ -583,7 +583,7 @@
    "liquid": true,
    "excluded_reason": null,
    "basis": "manual-observation",
-   "balance": "329.30",
+   "balance": "304.29",
    "as_of": "2026-08-31",
    "date_precision": null,
    "stale": true,
@@ -591,26 +591,26 @@
    "unavailable_reason": null,
    "statement_running_balance": null,
    "manual_observation": {
-    "balance": "329.30",
+    "balance": "304.29",
     "as_of": "2026-08-31",
     "basis": "manual-observation",
     "observation": "b3a364de-157f-5f13-be97-8975d8467b14"
    },
-   "derived_balance": "329.30",
+   "derived_balance": "304.29",
    "derived_as_of": "2026-08-31",
    "derived_basis": "manual-observation",
    "coverage_status": "supported",
    "best_supported_cutoff": "2026-08-31",
-   "best_supported_balance": "329.30",
+   "best_supported_balance": "304.29",
    "best_supported_basis": "manual-observation",
    "blocking_reason": "complete actual-movement coverage is not established through this date",
    "reported_balance": {
     "native": {
-     "value": "329.30",
+     "value": "304.29",
      "currency": "SGD"
     },
     "reported": {
-     "value": "329.30",
+     "value": "304.29",
      "currency": "SGD"
     },
     "purpose": "position",
@@ -624,11 +624,11 @@
    },
    "reported_derived_balance": {
     "native": {
-     "value": "329.30",
+     "value": "304.29",
      "currency": "SGD"
     },
     "reported": {
-     "value": "329.30",
+     "value": "304.29",
      "currency": "SGD"
     },
     "purpose": "position",
@@ -650,7 +650,7 @@
    "liquid": true,
    "excluded_reason": null,
    "basis": "statement-closing-balance",
-   "balance": "190.26",
+   "balance": "340.26",
    "as_of": "2026-08-31",
    "date_precision": null,
    "stale": true,
@@ -658,21 +658,21 @@
    "unavailable_reason": null,
    "statement_running_balance": null,
    "manual_observation": null,
-   "derived_balance": "190.26",
+   "derived_balance": "340.26",
    "derived_as_of": "2026-08-31",
    "derived_basis": "statement-closing-balance",
    "coverage_status": "supported",
    "best_supported_cutoff": "2026-08-31",
-   "best_supported_balance": "190.26",
+   "best_supported_balance": "340.26",
    "best_supported_basis": "statement-closing-balance",
    "blocking_reason": "complete actual-movement coverage is not established through this date",
    "reported_balance": {
     "native": {
-     "value": "190.26",
+     "value": "340.26",
      "currency": "SGD"
     },
     "reported": {
-     "value": "190.26",
+     "value": "340.26",
      "currency": "SGD"
     },
     "purpose": "position",
@@ -686,11 +686,11 @@
    },
    "reported_derived_balance": {
     "native": {
-     "value": "190.26",
+     "value": "340.26",
      "currency": "SGD"
     },
     "reported": {
-     "value": "190.26",
+     "value": "340.26",
      "currency": "SGD"
     },
     "purpose": "position",
@@ -706,13 +706,6 @@
  ],
  "stale": true,
  "missing_intervals": [
-  {
-   "account_id": "acct_revolut_current",
-   "currency_pocket": "SGD",
-   "start": "2026-01-13",
-   "end": "2026-08-31",
-   "reason": "intervening movements do not reconcile the balance boundaries"
-  },
   {
    "account_id": "acct_revolut_current",
    "currency_pocket": "EUR",
@@ -785,7 +778,7 @@
    {
     "account_id": "acct_revolut_current",
     "currency_pocket": "SGD",
-    "opening": "-2.04",
+    "opening": "0.00",
     "opening_as_of": "2026-01-13",
     "external_inflows": "0",
     "external_outflows": "570.74",
@@ -793,11 +786,11 @@
     "owned_transfer_outflows": "1399.71",
     "closing": "2396.88",
     "closing_as_of": "2026-08-31",
-    "calculated_closing": "2394.84",
-    "reconciled": false,
+    "calculated_closing": "2396.88",
+    "reconciled": true,
     "movement_count": 74,
     "paired_transfer_link_count": 0,
-    "unsupported_reason": "intervening movements do not reconcile the balance boundaries"
+    "unsupported_reason": null
    },
    {
     "account_id": "dbs-my-account",
@@ -806,13 +799,13 @@
     "opening_as_of": "2025-12-31",
     "external_inflows": "20279.21",
     "external_outflows": "11957.63",
-    "owned_transfer_inflows": "84.85",
-    "owned_transfer_outflows": "6093.97",
-    "closing": "12612.46",
+    "owned_transfer_inflows": "139.85",
+    "owned_transfer_outflows": "6273.97",
+    "closing": "12487.46",
     "closing_as_of": "2026-08-31",
-    "calculated_closing": "12612.46",
+    "calculated_closing": "12487.46",
     "reconciled": true,
-    "movement_count": 192,
+    "movement_count": 196,
     "paired_transfer_link_count": 0,
     "unsupported_reason": null
    },
@@ -840,13 +833,13 @@
     "opening_as_of": "2026-01-08",
     "external_inflows": "9.83",
     "external_outflows": "422.57",
-    "owned_transfer_inflows": "422.57",
-    "owned_transfer_outflows": "0",
+    "owned_transfer_inflows": "452.57",
+    "owned_transfer_outflows": "30.00",
     "closing": "17.18",
     "closing_as_of": "2026-09-08",
     "calculated_closing": "17.18",
     "reconciled": true,
-    "movement_count": 137,
+    "movement_count": 139,
     "paired_transfer_link_count": 0,
     "unsupported_reason": null
    },
@@ -855,15 +848,15 @@
     "currency_pocket": "SGD",
     "opening": "0.00",
     "opening_as_of": "2026-03-11",
-    "external_inflows": "0.09",
+    "external_inflows": "0.08",
     "external_outflows": "974.86",
     "owned_transfer_inflows": "1304.07",
-    "owned_transfer_outflows": "0",
-    "closing": "329.30",
+    "owned_transfer_outflows": "25.00",
+    "closing": "304.29",
     "closing_as_of": "2026-08-31",
-    "calculated_closing": "329.30",
+    "calculated_closing": "304.29",
     "reconciled": true,
-    "movement_count": 12,
+    "movement_count": 13,
     "paired_transfer_link_count": 0,
     "unsupported_reason": null
    },
@@ -874,13 +867,13 @@
     "opening_as_of": "2026-01-31",
     "external_inflows": "320.07",
     "external_outflows": "129.81",
-    "owned_transfer_inflows": "0",
+    "owned_transfer_inflows": "150.00",
     "owned_transfer_outflows": "0",
-    "closing": "190.26",
+    "closing": "340.26",
     "closing_as_of": "2026-08-31",
-    "calculated_closing": "190.26",
+    "calculated_closing": "340.26",
     "reconciled": true,
-    "movement_count": 6,
+    "movement_count": 7,
     "paired_transfer_link_count": 0,
     "unsupported_reason": null
    }
@@ -892,15 +885,15 @@
     "external_outflows": "301.94",
     "closing": "592.15",
     "reconciled": true,
-    "owned_transfer_pairs_cancelled": 96
+    "owned_transfer_pairs_cancelled": 100
    },
    "SGD": {
-    "opening": "10305.31",
-    "external_inflows": "20609.20",
+    "opening": "10307.35",
+    "external_inflows": "20609.19",
     "external_outflows": "14055.61",
-    "closing": "15546.08",
-    "reconciled": false,
-    "owned_transfer_pairs_cancelled": 96
+    "closing": "15546.07",
+    "reconciled": true,
+    "owned_transfer_pairs_cancelled": 100
    },
    "USD": {
     "opening": "42.17",
@@ -908,10 +901,10 @@
     "external_outflows": "0",
     "closing": "42.17",
     "reconciled": true,
-    "owned_transfer_pairs_cancelled": 96
+    "owned_transfer_pairs_cancelled": 100
    }
   },
-  "owned_transfer_pairs_cancelled": 96,
+  "owned_transfer_pairs_cancelled": 100,
   "policy": "each confirmed pair is removed once only when both legs are included liquid pockets"
  }
 }
