@@ -49,17 +49,34 @@ def _sum(values: list[ExactMoney]) -> tuple[int, int]:
 
 
 def _selected_entries(connection: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Selected movements in statement order.
+
+    A bank can print a row dated just before its statement opens. That statement's
+    balances still carry it, so ``position_at`` moves it to the opening day.
+    """
     return connection.execute(
         """
-        SELECT e.* FROM ledger_entries e
+        SELECT e.*,
+               CASE WHEN substr(e.effective_at, 1, 10) < s.period_start
+                    THEN s.period_start ELSE e.effective_at END AS position_at
+        FROM ledger_entries e
         JOIN extraction_runs x ON x.id=e.extraction_run_id
         LEFT JOIN statements s ON s.id=e.statement_id
+        LEFT JOIN document_records d ON d.id=e.document_record_id
         WHERE x.status='ACCEPTED' AND x.selection_state='SELECTED'
           AND (e.source_family='CSV' OR s.selection_state='SELECTED')
           AND e.lifecycle_state='COMPLETED' AND e.analytics_eligible=1
-        ORDER BY e.effective_at, e.natural_anchor, e.id
+        ORDER BY position_at, d.extraction_ordinal, e.natural_anchor, e.id
         """
     ).fetchall()
+
+
+def _cash_movement(row: sqlite3.Row) -> list[ExactMoney]:
+    """What an entry does to its printed balance: the amount, then any fee."""
+    amount = _money(row["amount_coefficient"], row["amount_scale"])
+    if not row["fee_coefficient"]:
+        return [amount]
+    return [amount, _money(-abs(row["fee_coefficient"]), row["fee_scale"])]
 
 
 def _statement_boundaries(
@@ -85,20 +102,22 @@ def _statement_boundaries(
           CASE c.check_type WHEN 'STATEMENT_BALANCE' THEN 0 ELSE 1 END
         """
     ).fetchall()
-    result: list[dict[str, Any]] = []
-    seen: set[tuple[str, str]] = set()
+    # Trust prints one STATEMENT_BALANCE per sub-account in a shared pocket, so
+    # the pocket closes at their sum.
+    closes: dict[tuple[str, str], list[sqlite3.Row]] = defaultdict(list)
     for row in rows:
-        key = (row["statement_id"], row["currency_pocket"])
-        if key in seen:
-            continue
-        seen.add(key)
+        kept = closes[(row["statement_id"], row["currency_pocket"])]
+        if not kept or row["check_type"] == kept[0]["check_type"] == "STATEMENT_BALANCE":
+            kept.append(row)
+    result: list[dict[str, Any]] = []
+    for key, kept in closes.items():
+        row = kept[0]
         movements = by_statement.get(key, [])
-        if any(item["effective_precision"] != "DAY" for item in movements):
-            continue
-        close = _money(row["actual_coefficient"], row["actual_scale"])
+        close = _money(*_sum([
+            _money(item["actual_coefficient"], item["actual_scale"]) for item in kept
+        ]))
         delta_coefficient, delta_scale = _sum([
-            _money(item["amount_coefficient"], item["amount_scale"])
-            for item in movements
+            money for item in movements for money in _cash_movement(item)
         ])
         scale = max(close.scale, delta_scale)
         opening = close.rescaled_coefficient(scale) - (
@@ -259,8 +278,8 @@ def _interval_covered(start: str, end: str, periods: list[tuple[str, str]]) -> b
     return cursor > final
 
 
-def _effective_at(row: sqlite3.Row) -> str:
-    return str(row["effective_at"])
+def _position_at(row: sqlite3.Row) -> str:
+    return str(row["position_at"])
 
 
 def _derived_at(
@@ -297,16 +316,16 @@ def _derived_at(
             "reason": "complete actual-movement coverage is not established through this date",
             "gap_start": start,
         }
-    # `~` sorts after every character in a timestamp, so this ends after the target day.
-    rows = entries[
-        bisect_right(entries, boundary["sort_at"], key=_effective_at):
-        bisect_right(entries, f"{target}~", key=_effective_at)
-    ]
-    if any(row["effective_precision"] != "DAY" for row in rows):
+    first = bisect_right(entries, boundary["sort_at"], key=_position_at)
+    # `~` sorts after every character in a timestamp, so each slice ends after its period.
+    # A month-dated row may have landed on any day of its month.
+    if any(
+        row["effective_precision"] != "DAY"
+        for row in entries[first:bisect_right(entries, f"{target[:7]}~", key=_position_at)]
+    ):
         return {"supported": False, "reason": "movement date precision is insufficient for an exact daily balance"}
-    delta, delta_scale = _sum([
-        _money(row["amount_coefficient"], row["amount_scale"]) for row in rows
-    ])
+    rows = entries[first:bisect_right(entries, f"{target}~", key=_position_at)]
+    delta, delta_scale = _sum([money for row in rows for money in _cash_movement(row)])
     scale = max(boundary["scale"], delta_scale)
     coefficient = boundary["coefficient"] * 10 ** (scale - boundary["scale"])
     coefficient += delta * 10 ** (scale - delta_scale)
@@ -330,9 +349,9 @@ def _bridge(
     opening, closing = boundaries[0], boundaries[-1]
     scope_rows = [row for row in entries if (row["account_id"], row["currency_pocket"]) == key]
     rows = [row for row in scope_rows
-            if row["effective_at"] > opening["sort_at"] and row["effective_at"] <= closing["sort_at"]]
+            if row["position_at"] > opening["sort_at"] and row["position_at"] <= closing["sort_at"]]
     ambiguous = opening["basis"] == "manual-observation" and any(
-        row["effective_at"][:10] == opening["as_of"] for row in scope_rows
+        row["position_at"][:10] == opening["as_of"] for row in scope_rows
     )
     same_certified_statement = (
         opening.get("statement_id") is not None
@@ -360,9 +379,8 @@ def _bridge(
     for row in rows:
         amount = _money(row["amount_coefficient"], row["amount_scale"])
         fee = _money(abs(row["fee_coefficient"] or 0), row["fee_scale"] or 0)
-        net.append(amount)
+        net.extend(_cash_movement(row))
         if fee.coefficient:
-            net.append(_money(-fee.coefficient, fee.scale))
             buckets["external_outflows"].append(fee)
         if row["id"] in paired:
             name = "owned_transfer_inflows" if amount.coefficient >= 0 else "owned_transfer_outflows"

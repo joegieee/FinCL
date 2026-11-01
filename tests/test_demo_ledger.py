@@ -125,7 +125,7 @@ class DemoLedgerTests(unittest.TestCase):
         self.assertLessEqual({"debt-dates", "card-statement", "recurring-history"}, set(todos))
         self.assertTrue(all(todo["page"] for todo in todos.values()))
 
-    def test_a_month_only_interest_row_leaves_savings_resting_on_an_observation(self) -> None:
+    def test_savings_rests_on_its_observation(self) -> None:
         accounts = [account for pocket in self.answer()["pockets"] for account in pocket["accounts"]]
         self.assertEqual(sorted({account["basis"] for account in accounts if account["account"] == "maribank-savings"}),
                          ["observation"])

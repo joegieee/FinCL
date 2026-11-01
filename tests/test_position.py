@@ -12,6 +12,7 @@ import sqlite3
 import tempfile
 import unittest
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from fincl.decision_journal import append_decision, default_journal_path
@@ -21,6 +22,15 @@ from fincl.position import position_page
 from fincl.position.queries import _derived_at
 from fincl.refresh import refresh_ledger
 from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
+from tests.statement_pdfs import (
+    DbsPocket,
+    Row,
+    SavingsRow,
+    TrustRow,
+    dbs_pdf_bytes,
+    mari_savings_pdf_bytes,
+    trust_pdf_bytes,
+)
 
 
 def _ledger(rows: list[list[str]]) -> Path:
@@ -50,9 +60,9 @@ class PositionReadTests(unittest.TestCase):
             "coefficient": 10000, "scale": 2, "basis": "statement-running-balance",
         }
         movements = [
-            {"effective_at": effective_at, "effective_precision": "DAY",
-             "amount_coefficient": cents, "amount_scale": 2}
-            for effective_at, cents in (
+            {"position_at": position_at, "effective_precision": "DAY",
+             "amount_coefficient": cents, "amount_scale": 2, "fee_coefficient": None}
+            for position_at, cents in (
                 ("2026-01-10T12:00:00", 100),
                 ("2026-01-10T12:00:01", 200),
                 ("2026-01-20", 400),
@@ -379,6 +389,96 @@ class PositionReadTests(unittest.TestCase):
             position_page(database, today=date(2026, 4, 2))["pockets"][0]["balance"],
             "360.00",
         )
+
+
+class StatementBoundaryTests(unittest.TestCase):
+    def _imported(self, name: str, data: bytes) -> Path:
+        root = Path(tempfile.mkdtemp())
+        source = root / "statement.pdf"
+        source.write_bytes(data)
+        getattr(DocumentImportService.plaintext_phase2(root / "ledger.sqlite3", root / "evidence"), name)(source)
+        refresh_ledger(root / "ledger.sqlite3")
+        return root / "ledger.sqlite3"
+
+    def test_a_fee_in_the_first_statement_still_bridges(self) -> None:
+        database = _ledger([
+            ["Topup", "Current", "2026-03-01 10:00:00", "2026-03-01 10:00:01",
+             "Seed", "500.00", "0.00", "SGD", "COMPLETED", "500.00"],
+            ["Card Payment", "Current", "2026-03-02 10:00:00", "2026-03-02 10:00:01",
+             "Shop", "-50.00", "2.00", "SGD", "COMPLETED", "448.00"],
+        ])
+
+        bridge = position_page(database, today=date(2026, 3, 2))["cash_bridge"]["pockets"][0]
+
+        self.assertTrue(bridge["reconciled"], bridge)
+        self.assertEqual(bridge["opening"], "0.00")
+
+    def test_same_day_rows_end_on_the_statements_last_balance(self) -> None:
+        rows = [["Topup", "Current", "2026-03-01 10:00:00", "2026-03-01 10:00:01",
+                 "Seed", "100.00", "0.00", "SGD", "COMPLETED", "100.00"]]
+        for shop in range(1, 13):
+            rows.append(["Card Payment", "Current", f"2026-03-05 10:{shop:02d}:00",
+                         f"2026-03-05 10:{shop:02d}:01", f"Shop {shop}", "-1.00", "0.00",
+                         "SGD", "COMPLETED", f"{100 - shop}.00"])
+        rows.append(["Card Payment", "Current", "2026-03-20 10:00:00", "2026-03-20 10:00:01",
+                     "Tail", "-5.00", "0.00", "SGD", "COMPLETED", "83.00"])
+
+        page = position_page(_ledger(rows), today=date(2026, 3, 10))
+
+        self.assertEqual(page["pockets"][0]["balance"], "88.00")
+
+    def test_a_pocket_closes_at_the_sum_of_its_trust_sub_accounts(self) -> None:
+        database = self._imported("import_trust", trust_pdf_bytes(
+            date(2026, 8, 1), date(2026, 8, 31), date(2026, 9, 1), Decimal("10.00"),
+            [TrustRow(date(2026, 8, 3), "SYNTHETIC HOLDER", Decimal("40.00"))],
+            Decimal("200.00"), [TrustRow(date(2026, 8, 5), "SYNTHETIC HOLDER", Decimal("100.00"))],
+        ))
+
+        page = position_page(database, today=date(2026, 8, 31))
+
+        self.assertEqual(page["pockets"][0]["balance"], "350.00")
+        self.assertEqual(page["cash_bridge"]["pockets"][0]["opening"], "210.00")
+
+    def test_a_row_dated_before_its_statement_stays_in_the_bridge(self) -> None:
+        database = self._imported("import_dbs", dbs_pdf_bytes(date(2026, 1, 31), [DbsPocket(
+            "SINGAPORE DOLLAR", Decimal("100.00"),
+            (Row(date(2025, 12, 31), "SYNTHETIC SHOP", Decimal("-3.60")),
+             Row(date(2026, 1, 10), "SYNTHETIC SHOP", Decimal("-5.00"))),
+        )]))
+        connection = sqlite3.connect(database)
+        dated = connection.execute("SELECT min(substr(effective_at, 1, 10)) FROM ledger_entries").fetchone()[0]
+        connection.close()
+        self.assertEqual(dated, "2025-12-31")
+
+        bridge = position_page(database, today=date(2026, 1, 31))["cash_bridge"]["pockets"][0]
+
+        self.assertTrue(bridge["reconciled"], bridge)
+        self.assertEqual(bridge["calculated_closing"], "91.40")
+
+    def test_no_balance_is_derived_inside_a_month_with_an_undated_row(self) -> None:
+        root = Path(tempfile.mkdtemp())
+        service = DocumentImportService.plaintext_phase2(root / "ledger.sqlite3", root / "evidence")
+        statements = (
+            (date(2026, 1, 1), date(2026, 1, 31), date(2026, 2, 1), Decimal("0.00"),
+             [SavingsRow(date(2026, 1, 5), "SYNTHETIC HOLDER", Decimal("10.00"), ("PayNow Transfer",))],
+             Decimal("0.00")),
+            (date(2026, 2, 1), date(2026, 2, 28), date(2026, 3, 1), Decimal("10.00"),
+             [SavingsRow(date(2026, 2, 5), "BOOK NOOK", Decimal("-4.00"), ("Card Payment",))],
+             Decimal("0.01")),
+        )
+        for index, statement in enumerate(statements):
+            source = root / f"savings-{index}.pdf"
+            source.write_bytes(mari_savings_pdf_bytes(*statement))
+            service.import_maribank(source)
+        refresh_ledger(root / "ledger.sqlite3")
+
+        pocket = position_page(root / "ledger.sqlite3", today=date(2026, 2, 20))["pockets"][0]
+
+        self.assertEqual(pocket["best_supported_cutoff"], "2026-01-31")
+        self.assertIn("precision", pocket["blocking_reason"])
+
+        closed = position_page(root / "ledger.sqlite3", today=date(2026, 2, 28))["pockets"][0]
+        self.assertEqual((closed["balance"], closed["basis"]), ("6.01", "statement-closing-balance"))
 
 
 def page_currency_total(database: Path, today: date) -> dict[str, str]:

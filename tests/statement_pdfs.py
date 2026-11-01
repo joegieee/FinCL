@@ -256,11 +256,14 @@ _TRUST_SGD_R = 543
 
 def trust_pdf_bytes(
     period_start: date, period_end: date, statement_date: date, opening: Decimal, rows: Sequence[TrustRow],
+    savings_opening: Decimal = _ZERO, savings_rows: Sequence[TrustRow] = (),
 ) -> bytes:
     """Interest is an ordinary row: ``+`` marks a credit, as the statement prints it."""
     interest = sum((row.amount for row in rows if row.description == "Interest"), _ZERO)
     money_in, money_out = _in_out([row for row in rows if row.description != "Interest"])
     closing = opening + money_in - money_out + interest
+    savings_in, savings_out = _in_out(savings_rows)
+    savings_closing = savings_opening + savings_in - savings_out
 
     buffer = io.BytesIO()
     canvas = _canvas(buffer)
@@ -293,8 +296,12 @@ def trust_pdf_bytes(
     main = {"opening": opening, "incoming": money_in, "outgoing": money_out,
             "interest": interest, "closing": closing}
     _summary(704, "Main Account", main)
-    _summary(688, "Savings", {"opening": _ZERO, "incoming": _ZERO, "outgoing": _ZERO, "closing": _ZERO})
-    _summary(672, "Total", main)
+    savings = {"opening": savings_opening, "incoming": savings_in, "outgoing": savings_out,
+               "closing": savings_closing}
+    _summary(688, "Savings", savings)
+    _summary(672, "Total", {"opening": opening + savings_opening, "incoming": money_in + savings_in,
+                            "outgoing": money_out + savings_out, "interest": interest,
+                            "closing": closing + savings_closing})
     canvas.drawString(53, 656, "*All interest earned will be credited to your Main Account.")
 
     canvas.drawString(53, 596, "TRANSACTION DETAILS")
@@ -321,7 +328,12 @@ def trust_pdf_bytes(
     y -= 24
     canvas.drawString(53, y, "Savings")
     canvas.drawString(53, y - 16, "Posting date Description Amount in FCY Amount in SGD")
-    _line(y - 34, period_start, "Previous balance", _money(_ZERO))
-    _line(y - 52, period_end, "Closing balance", _money(_ZERO))
+    y -= 34
+    _line(y, period_start, "Previous balance", _money(savings_opening))
+    y -= 18
+    for row in savings_rows:
+        _line(y, row.on, row.description, ("+" if row.amount > 0 else "") + _money(abs(row.amount)))
+        y -= 18
+    _line(y, period_end, "Closing balance", _money(savings_closing))
     canvas.save()
     return buffer.getvalue()

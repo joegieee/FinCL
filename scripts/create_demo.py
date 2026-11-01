@@ -457,8 +457,7 @@ def _decisions(database: Path, books: Books) -> None:
         decide("CATEGORY_RULE_SET", {"rule_id": rule_id_for(match)},
                {"match": match, "category": category, "reason": "Synthetic rule"}, "Synthetic rule")
 
-    # A month-only interest row stops a statement proving its closing balance, so the
-    # savings pocket needs a balance observation to reach the start of the forecast.
+    # A balance observation carries the savings pocket to the start of the forecast.
     decide("BALANCE_OBSERVATION_SET", {"observation": _stable_uuid("balance:savings")},
            {"account_id": "maribank-savings", "currency_pocket": "SGD", "observed_on": books.through.isoformat(),
             "balance": f"{books.savings_closing:.2f}", "reason": "Synthetic balance check"}, "Synthetic balance")
