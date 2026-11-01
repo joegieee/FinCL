@@ -52,7 +52,7 @@ VARIANCE_DECISION_KINDS = frozenset(
 )
 
 SNAPSHOT_CONTRACT_VERSION = "forecast-snapshot-v1"
-VARIANCE_VERSION = "forecast-variance-v1"
+VARIANCE_VERSION = "forecast-variance-v2"
 
 # The Stage 3B timeline columns, restated (see the module docstring). A flow
 # class is never netted into a neighbour: a month whose lifestyle held and whose
@@ -159,11 +159,16 @@ def variance_reading(
     actual_minor: int | None,
     scale: int,
     unresolved_reason: str | None = None,
+    open_minor: int = 0,
 ) -> dict[str, Any]:
     """One month/flow-class cell, with the sign explained rather than implied.
 
     ``actual_minor`` of ``None`` is the unresolved case and produces a null
     difference and an explanation — never a difference computed against zero.
+
+    ``open_minor`` is the part of ``expected_minor`` whose events nobody can yet
+    judge. It stays in the issued figure but is held out of the difference: the
+    cash may still move, so it is not a shortfall against this class.
     """
     if flow_class not in FLOW_CLASSES:
         raise ValueError(f"unknown flow class: {flow_class!r}")
@@ -180,13 +185,14 @@ def variance_reading(
                 None if expected_minor is None else format_decimal(expected_minor, scale)
             ),
             "actual": None if actual_minor is None else format_decimal(actual_minor, scale),
+            "open_expected": format_decimal(open_minor, scale),
             "actual_minus_expected": None,
             "cash_effect": None,
             "favourable": None,
             "resolved": False,
             "explanation": unresolved_reason or NEVER_ZERO_RULE,
         }
-    difference = actual_minor - expected_minor
+    difference = actual_minor - (expected_minor - open_minor)
     # The same difference, read as cash: more income helps, more spending hurts.
     cash_effect = difference if direction == DIRECTION_IN else -difference
     if difference == 0:
@@ -205,11 +211,17 @@ def variance_reading(
             + " left than the forecast issued; "
             + ("cash is behind" if difference > 0 else "cash is ahead")
         )
+    if open_minor:
+        explanation += (
+            f"; {format_decimal(open_minor, scale)} of the issued amount is still "
+            "open and is not scored"
+        )
     return {
         "flow_class": flow_class,
         "direction": direction,
         "expected": format_decimal(expected_minor, scale),
         "actual": format_decimal(actual_minor, scale),
+        "open_expected": format_decimal(open_minor, scale),
         "actual_minus_expected": format_decimal(difference, scale),
         "cash_effect": format_decimal(cash_effect, scale),
         "favourable": cash_effect > 0 if cash_effect != 0 else None,

@@ -97,12 +97,15 @@ class WorkspaceValuationTests(ApiTestBase):
 
     def test_zero_native_variance_values_actual_and_issued_operands_separately(self) -> None:
         native = {"currency": "USD", "snapshot": {"issued_at": "2026-02-15"}, "as_of": "2026-03-15",
-                  "months": [{"month": "2026-02", "net_cash_effect": "0", "by_flow_class": [
-                      {"direction": "outflow", "expected": "10.00", "actual": "10.00", "cash_effect": "0"}]}]}
+                  "months": [{"month": "2026-02", "net_cash_effect": "0",
+                              "actual_cash": {"receipts": "0.00", "payments": "10.00"}, "by_flow_class": [
+                                  {"direction": "outflow", "expected": "10.00", "actual": "10.00",
+                                   "open_expected": "0.00", "cash_effect": "0"}]}]}
         values = self.annotate(native, "forecast/variance/snapshot")
         self.assertEqual(values[("months", 0, "by_flow_class", 0, "expected")]["reported"]["value"], "12.00")
         self.assertEqual(values[("months", 0, "by_flow_class", 0, "actual")]["reported"]["value"], "14.00")
         self.assertEqual(values[("months", 0, "net_cash_effect")]["reported"]["value"], "-2.00")
+        self.assertEqual(values[("months", 0, "by_flow_class", 0, "cash_effect")]["reported"]["value"], "-2.00")
 
     def test_missing_rate_retains_native_amount_and_explicit_remedy(self) -> None:
         values = self.annotate({"currency": "EUR", "as_of": "2026-02-15", "remaining_principal": {"currency": "EUR", "value": "10.00"}}, "debts")

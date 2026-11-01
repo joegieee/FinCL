@@ -59,6 +59,7 @@ from .models import (
     PERIOD_UNRESOLVED_COVERAGE,
     PERIOD_UNRESOLVED_FUTURE,
     VARIANCE_VERSION,
+    flow_direction,
     realization,
     variance_reading,
 )
@@ -66,6 +67,7 @@ from .snapshots import stored_snapshot
 
 CONFIDENCE_LIKELY = "likely"
 _BIGGEST_MISSES = 5
+_OPEN_EVENT_STATUSES = (EVENT_AWAITED, EVENT_UNRESOLVED)
 
 TRANSFER_SEMANTICS = (
     "transfers and repayments are matched the way the forecast modelled them: a "
@@ -287,6 +289,7 @@ def _month_rows(
 ) -> list[dict[str, Any]]:
     """One row per issued month: expected, actual, variance and timing, by class."""
     expected: dict[str, dict[str, int]] = {}
+    still_open: dict[str, dict[str, int]] = {}
     landed: dict[str, dict[str, int]] = {}
     timing_out: dict[str, list[dict[str, Any]]] = {}
     timing_in: dict[str, list[dict[str, Any]]] = {}
@@ -295,6 +298,10 @@ def _month_rows(
         month = str(event["modelled_month"])
         cell = expected.setdefault(month, dict.fromkeys(FLOW_CLASSES, 0))
         cell[str(event["flow_class"])] += int(event["expected_minor"])
+        if event["status"] in _OPEN_EVENT_STATUSES:
+            still_open.setdefault(month, dict.fromkeys(FLOW_CLASSES, 0))[
+                str(event["flow_class"])
+            ] += int(event["expected_minor"])
         for item in event["matches"]:
             landed_month = _month_of(str(item["landed_on"]))
             landed.setdefault(landed_month, dict.fromkeys(FLOW_CLASSES, 0))[
@@ -317,11 +324,15 @@ def _month_rows(
     # of it somebody classified.
     unclassified: dict[str, dict[str, int]] = {}
     unclassified_items: dict[str, list[dict[str, Any]]] = {}
+    actual_cash: dict[str, dict[str, int]] = {}
     for movement in movements:
         month = _month_of(str(movement["on"]))
         amount = movement["amount_coefficient"] * (
             10 ** (scale - movement["amount_scale"])
         )
+        actual_cash.setdefault(month, {DIRECTION_IN: 0, "outflow": 0})[
+            str(movement["direction"])
+        ] += amount
         bound = bound_by_movement.get(str(movement["movement_id"]), 0)
         remainder = amount - bound
         cell = unclassified.setdefault(month, {DIRECTION_IN: 0, "outflow": 0})
@@ -350,25 +361,49 @@ def _month_rows(
         scored = status == PERIOD_SCORED
         expected_cell = expected.get(month, dict.fromkeys(FLOW_CLASSES, 0))
         landed_cell = landed.get(month, dict.fromkeys(FLOW_CLASSES, 0))
-        classes = [
-            variance_reading(
-                flow_class=flow_class,
-                expected_minor=expected_cell[flow_class],
-                actual_minor=landed_cell[flow_class] if scored else None,
-                scale=scale,
-                unresolved_reason=reason,
+        open_cell = still_open.get(month, dict.fromkeys(FLOW_CLASSES, 0))
+        classes = []
+        for flow_class in FLOW_CLASSES:
+            # With nothing landed and nothing yet answerable, a difference of
+            # zero would be a measured zero nobody measured.
+            unanswered = (
+                open_cell[flow_class] > 0
+                and open_cell[flow_class] == expected_cell[flow_class]
+                and landed_cell[flow_class] == 0
             )
-            for flow_class in FLOW_CLASSES
-        ]
-        cash_effect = (
-            sum(
-                _minor(str(cell["cash_effect"]), scale)
-                for cell in classes
-                if cell["cash_effect"] is not None
+            classes.append(
+                variance_reading(
+                    flow_class=flow_class,
+                    expected_minor=expected_cell[flow_class],
+                    actual_minor=(
+                        landed_cell[flow_class] if scored and not unanswered else None
+                    ),
+                    scale=scale,
+                    unresolved_reason=(
+                        "every event issued for this class is still open, so there "
+                        "is no answer to compare yet"
+                        if scored and unanswered
+                        else reason
+                    ),
+                    open_minor=open_cell[flow_class],
+                )
             )
-            if scored
-            else None
+        cash_cell = actual_cash.get(month, {DIRECTION_IN: 0, "outflow": 0})
+        issued_net = sum(
+            amount if flow_direction(flow_class) == DIRECTION_IN else -amount
+            for flow_class, amount in expected_cell.items()
         )
+        cash_effect = (
+            cash_cell[DIRECTION_IN] - cash_cell["outflow"] - issued_net if scored else None
+        )
+        open_flows = {
+            direction: sum(
+                amount
+                for flow_class, amount in open_cell.items()
+                if flow_direction(flow_class) == direction
+            )
+            for direction in (DIRECTION_IN, "outflow")
+        }
         unclassified_cell = unclassified.get(month, {DIRECTION_IN: 0, "outflow": 0})
         rows.append(
             {
@@ -384,9 +419,20 @@ def _month_rows(
                     None if cash_effect is None else format_decimal(cash_effect, scale)
                 ),
                 "net_cash_effect_note": (
-                    "the sum of every class's cash effect: positive means the month "
-                    "left more cash in the account than the forecast issued"
+                    "all dated bank cash in less out, matched or not, minus the net "
+                    "the forecast issued for the month: positive means the month "
+                    "left more cash in the account than the forecast issued. Open "
+                    "events stay on the issued side, so it can still move as they "
+                    "resolve"
                 ),
+                "actual_cash": {
+                    "receipts": format_decimal(cash_cell[DIRECTION_IN], scale) if scored else None,
+                    "payments": format_decimal(cash_cell["outflow"], scale) if scored else None,
+                },
+                "open_expected": {
+                    "receipts": format_decimal(open_flows[DIRECTION_IN], scale) if scored else None,
+                    "payments": format_decimal(open_flows["outflow"], scale) if scored else None,
+                },
                 "timing": {
                     "expected_here_landed_elsewhere": timing_out.get(month, []),
                     "expected_elsewhere_landed_here": timing_in.get(month, []),

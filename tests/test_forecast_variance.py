@@ -334,6 +334,18 @@ class VarianceSignTests(unittest.TestCase):
         self.assertFalse(short["favourable"])
         self.assertEqual(short["cash_effect"], "-200.00")
 
+    def test_an_open_part_of_the_expected_amount_is_held_out_of_the_difference(self) -> None:
+        cell = variance_reading(
+            flow_class=FLOW_INCOME, expected_minor=500000, actual_minor=300000,
+            scale=2, open_minor=200000,
+        )
+
+        self.assertEqual(cell["expected"], "5000.00")
+        self.assertEqual(cell["open_expected"], "2000.00")
+        self.assertEqual(cell["actual_minus_expected"], "0.00")
+        self.assertIsNone(cell["favourable"])
+        self.assertIn("2000.00 of the issued amount is still open", cell["explanation"])
+
     def test_an_unknown_actual_is_null_and_never_differenced_against_zero(self) -> None:
         cell = variance_reading(
             flow_class=FLOW_INCOME, expected_minor=300_000, actual_minor=None,
@@ -642,6 +654,14 @@ class ForecastVersusActualTests(unittest.TestCase):
             {f"{item['on']}|{item['label']}" for item in self.page["unmatched_movements"]},
         )
 
+    def test_the_net_cash_effect_counts_cash_nobody_matched(self) -> None:
+        march = _month(self.page, "2026-03")
+
+        # 1050 left the bank against an issued net of +1750: rent never left,
+        # the salary was late, and the groceries were never forecast.
+        self.assertEqual(march["actual_cash"], {"receipts": "0.00", "payments": "1050.00"})
+        self.assertEqual(march["net_cash_effect"], "-2800.00")
+
     def test_the_biggest_misses_rank_by_cash_effect_and_explain_themselves(self) -> None:
         misses = self.page["biggest_misses"]
 
@@ -729,6 +749,74 @@ class ForecastVersusActualTests(unittest.TestCase):
         self.assertIn("nothing here infers a match", semantics["matching"])
         self.assertIn("never reported as a measured zero", semantics["never_zero"])
         self.assertIn("cash effect", semantics["sign"])
+
+
+class UnmatchedMonthTests(unittest.TestCase):
+    """Before anything is matched, the month still has to tell the truth."""
+
+    def test_the_net_cash_effect_does_not_wait_for_matches(self) -> None:
+        database = _ledger([_CONTIGUOUS])
+        _issue(database)
+        _replay(database)
+
+        page = forecast_variance_page(database, snapshot="snap-1", as_of="2026-04-15")
+
+        # In 3000, out 2000, against an issued 3000 in and 1900 out. Summing the
+        # unmatched classes would have reported the issued net, negated.
+        self.assertEqual(_month(page, "2026-02")["net_cash_effect"], "-100.00")
+
+
+class OpenEventInClosedMonthTests(unittest.TestCase):
+    """A month can close while an event issued in it can still be answered."""
+
+    def setUp(self) -> None:
+        self.database = _ledger([_CONTIGUOUS])
+        document = _document()
+        salary = next(
+            item for item in document["events"] if item["event_id"] == "salary:2026-02"
+        )
+        salary["on"] = "2026-02-28"
+        salary["timing"].update(
+            earliest="2026-02-26", latest="2026-03-04", basis="inferred", precision="window"
+        )
+        _append(
+            self.database,
+            FORECAST_SNAPSHOT_ISSUE,
+            {"snapshot": "snap-open"},
+            {
+                "document": document,
+                "digest": snapshot_digest(document),
+                "reason": "a salary window that crosses the month end",
+            },
+        )
+        _replay(self.database)
+        self.page = forecast_variance_page(
+            self.database, snapshot="snap-open", as_of="2026-03-02"
+        )
+        self.february = _month(self.page, "2026-02")
+
+    def test_a_class_with_only_open_events_has_no_answer_yet(self) -> None:
+        self.assertEqual(_event(self.page, "salary:2026-02")["status"], EVENT_AWAITED)
+        self.assertEqual(self.february["period_status"], PERIOD_SCORED)
+
+        income = _cell(self.february, FLOW_INCOME)
+        self.assertIsNone(income["actual"])
+        self.assertIsNone(income["cash_effect"])
+        self.assertIsNone(income["favourable"])
+        self.assertFalse(income["resolved"])
+        self.assertEqual(income["open_expected"], "3000.00")
+
+    def test_the_answered_classes_are_still_scored(self) -> None:
+        lifestyle = _cell(self.february, FLOW_LIFESTYLE)
+
+        self.assertTrue(lifestyle["resolved"])
+        self.assertEqual(lifestyle["open_expected"], "0.00")
+
+    def test_the_month_says_how_much_of_its_net_is_still_open(self) -> None:
+        self.assertEqual(
+            self.february["open_expected"], {"receipts": "3000.00", "payments": "0.00"}
+        )
+        self.assertEqual(self.february["net_cash_effect"], "-100.00")
 
 
 class UncoveredPeriodTests(unittest.TestCase):
