@@ -2147,7 +2147,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
     if assets.exists():
         if (assets / 'assets').exists():
             app.mount('/assets',StaticFiles(directory=assets / 'assets'),name='assets')
-        @app.get('/')
+        @app.get('/', include_in_schema=False)
         def index() -> FileResponse:
             return FileResponse(assets / 'index.html')
     return app
