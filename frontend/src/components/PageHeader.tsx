@@ -5,7 +5,7 @@ import type { TabMeta } from '@/lib/tabs'
 // chain: a tab's heading lives in exactly one place.
 export function PageHeader({ meta, action }: { meta: TabMeta; action?: ReactNode }) {
   return <div className="page-heading">
-    <div>{meta.eyebrow && <p className="eyebrow">{meta.eyebrow}</p>}<h1>{meta.title}</h1><p className="subtitle">{meta.subtitle}</p></div>
+    <div>{meta.eyebrow && <p className="eyebrow">{meta.eyebrow}</p>}<h1>{meta.title}</h1>{meta.subtitle&&<p className="subtitle">{meta.subtitle}</p>}</div>
     {action}
   </div>
 }

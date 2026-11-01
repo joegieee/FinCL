@@ -93,13 +93,11 @@ async function mount(props: Partial<{ start: string; end: string; initialPocketC
 afterEach(() => { cleanup(); apiMock.mockReset(); apiMock.mockImplementation(defaultImpl) })
 
 describe('OverviewView', () => {
-  it('shows all four reported summary cards over all pockets by default, with no hidden pocket parameter', async () => {
+  it('shows the reported figures over all pockets by default, with no hidden pocket parameter', async () => {
     await mount()
     expect(await screen.findByText('4,200.00 SGD')).toBeInTheDocument()
     expect(screen.getAllByText('1,234.50 SGD').length).toBeGreaterThan(0)
     expect(screen.getByText('5,000.00 SGD')).toBeInTheDocument()
-    expect(screen.getByText('4,000.00 SGD')).toBeInTheDocument()
-    expect(screen.getByText('3,500.00 SGD')).toBeInTheDocument()
     expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('money-flow?'), undefined)
     expect(apiMock.mock.calls.some(([path]) => String(path).includes('pocket_currency'))).toBe(false)
   })
@@ -122,8 +120,20 @@ describe('OverviewView', () => {
     const onOpen = vi.fn()
     await mount({ onOpen })
     await screen.findByText('4,200.00 SGD')
-    fireEvent.click(screen.getByRole('button', { name: /^Open Cash/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Cash on/ }))
     expect(onOpen).toHaveBeenCalledWith('Cash')
+  })
+
+  it('folds limitations behind a count and never shows a raw record id', async () => {
+    apiMock.mockImplementation(async (path: string) => {
+      if (path === 'reporting-currency') return reportingPolicy
+      if (path.startsWith('money-flow?')) return moneyFlowPage({ limitations: ['debt:4d95af3b-0c6b-50c5-b6c5-9a99361cdd60 has no safe settlement date', 'Rates are missing'] })
+      throw new Error(`unmocked ${path}`)
+    })
+    await mount()
+    const summary = await screen.findByText('2 limits on these figures')
+    expect(summary.closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText('A debt has no safe settlement date')).toBeInTheDocument()
   })
 
   it('refetches the summary when the requested period changes', async () => {

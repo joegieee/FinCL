@@ -149,18 +149,16 @@ beforeEach(() => { window.history.replaceState(null, '', '/') })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('App state matrix', () => {
-  it('renders the calm overview with the four reported money-flow cards', async () => {
+  it('renders the overview from the reported money-flow read', async () => {
     vi.stubGlobal('fetch', mockFetch(() => ({ body: dashboard() })))
     await mountApp()
-    expect(await screen.findByText('A clearer picture.')).toBeInTheDocument()
-    // Economic flow, average monthly spending + fees, cash at cutoff and
-    // forecast closing all come from one GET /api/v1/money-flow read
-    // (M3b.3 step 10) — value-then-currency via the shared <ConsolidatedMoney>.
+    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+    // Economic flow, average monthly spending + fees and cash at cutoff all come
+    // from one GET /api/v1/money-flow read (M3b.3 step 10) — value-then-currency
+    // via the shared <ConsolidatedMoney>.
     expect(await screen.findByText('4,200.00 SGD')).toBeInTheDocument()
     expect(screen.getAllByText('1,234.50 SGD').length).toBeGreaterThan(0)
     expect(screen.getByText('5,000.00 SGD')).toBeInTheDocument()
-    expect(screen.getByText('4,000.00 SGD')).toBeInTheDocument()
-    expect(screen.getByText('3,500.00 SGD')).toBeInTheDocument()
     expect(screen.getByText(/Reporting in SGD/)).toBeInTheDocument()
   })
 
@@ -249,7 +247,7 @@ describe('Scope control follows tab metadata', () => {
   it('shows the period picker but no global currency select on the migrated Overview tab, with every pocket represented', async () => {
     vi.stubGlobal('fetch', mockFetch(() => ({ body: dashboard() })))
     await mountApp()
-    await screen.findByText('A clearer picture.')
+    await screen.findByRole('heading', { name: 'Overview' })
     expect(await screen.findByRole('group', { name: 'Period presets' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Display currency')).not.toBeInTheDocument()
   })
@@ -321,7 +319,7 @@ describe('Navigation rail', () => {
   it('opens every destination from the command palette on the keyboard shortcut', async () => {
     vi.stubGlobal('fetch', mockFetch(() => ({ body: dashboard() })))
     await mountApp()
-    await screen.findByText('A clearer picture.')
+    await screen.findByRole('heading', { name: 'Overview' })
     fireEvent.keyDown(document, { key: 'k', ctrlKey: true })
     const input = await screen.findByLabelText('Search destinations')
     fireEvent.change(input, { target: { value: 'Money Owed' } })
@@ -333,7 +331,7 @@ describe('Navigation rail', () => {
   it('opens the mobile drawer and closes it after navigating', async () => {
     vi.stubGlobal('fetch', mockFetch(() => ({ body: dashboard() })))
     await mountApp()
-    await screen.findByText('A clearer picture.')
+    await screen.findByRole('heading', { name: 'Overview' })
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
     const drawer = await screen.findByRole('dialog', { name: 'Main navigation' })
     await openTab('Debts', drawer)

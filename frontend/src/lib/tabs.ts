@@ -40,7 +40,7 @@ export type TabMeta = {
 // list that can drift from it. Aliases resolve to a primary tab's content in
 // App.tsx but carry no `section`, so they never render as a rail row.
 export const tabMeta: Record<string, TabMeta> = {
-  Overview: { scope: 'range', eyebrow: 'YOUR MONEY, UNDERSTOOD', title: 'A clearer picture.', subtitle: 'Review the evidence-backed picture and act deliberately.', section: 'Overview', icon: LayoutDashboard },
+  Overview: { scope: 'range', title: 'Overview', subtitle: '', section: 'Overview', icon: LayoutDashboard },
 
   Transactions: { scope: 'range', title: 'Every recorded transaction.', subtitle: 'Filter, search and open any transaction in the selected period.', section: 'Money in & out', icon: Receipt },
   Analysis: { scope: 'range', title: 'Where the money moved.', subtitle: 'Spending and income grouped and compared across the selected period.', section: 'Money in & out', icon: GitCompare },

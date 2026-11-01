@@ -35,6 +35,12 @@ const sufficiency = (over: Record<string, unknown> = {}) => ({ combined_answer: 
   ...over,
 } })
 
+const pocket = (closing: string, cautious: string) => ({
+  available: true, starting_balance: '1000.00', starting_balance_as_of: '2026-01-31',
+  base: { closing_balance: closing, days: [{ date: '2026-02-01', closing }] },
+  conservative: { closing_balance: cautious, days: [{ date: '2026-02-01', closing: cautious }] },
+})
+
 const apiMock = vi.fn()
 const analysisMock = vi.fn()
 const sufficiencyMock = vi.fn()
@@ -60,12 +66,25 @@ describe('lastFullMonth', () => {
   })
 })
 
+describe('CashTimeline', () => {
+  it('shows one pocket at a time, opening on the reporting currency, and names the ones it cannot forecast', async () => {
+    const { CashTimeline } = await import('./CashTimeline')
+    const page = { available: true, by_currency: { EUR: pocket('50.00', '40.00'), SGD: pocket('900.00', '-200.00'), USD: { available: false, reason: 'x' } } }
+    render(<CashTimeline page={page as never} today="2026-03-05" reportingCurrency="SGD" />)
+    expect(screen.getByText('SGD 900.00')).toBeInTheDocument()
+    expect(screen.getByText(/No forecast for USD/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'EUR' }))
+    expect(screen.getByText('EUR 50.00')).toBeInTheDocument()
+    expect(screen.queryByText('SGD 900.00')).toBeNull()
+  })
+})
+
 describe('MoneyJourneyPanel', () => {
   it('shows how far statements reach and which account holds them back', async () => {
     const onOpen = await mount()
     expect(await screen.findByText(/10 Jan 2026 \(8 weeks ago\)/)).toBeInTheDocument()
     expect(screen.getByText('Mari Credit Card').closest('li')).toHaveClass('is-behind')
-    fireEvent.click(screen.getByRole('button', { name: /Upload statements/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Statements' }))
     expect(onOpen).toHaveBeenCalledWith('Setup')
   })
 

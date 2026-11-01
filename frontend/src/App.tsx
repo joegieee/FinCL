@@ -35,8 +35,7 @@ import { PlanningView } from '@/features/planning'
 import { BaselineView } from '@/features/baseline'
 import { CashView } from '@/features/cash'
 import { CategorizationView } from '@/features/categorization/CategorizationView'
-import { ForecastEstimateSummary, ForecastView } from '@/features/forecast'
-import type { ForecastPage } from '@/features/forecast/api'
+import { ForecastView } from '@/features/forecast'
 import { AllControlsView } from '@/features/controls'
 import { SufficiencyView } from '@/features/sufficiency'
 import { OverviewView } from '@/features/overview'
@@ -66,7 +65,6 @@ export default function App(){
  const [legacyData,setLegacyData]=useState<Dashboard|null>(null)
  useEffect(()=>{if(!data||!['Plans','Recurring','Review'].includes(tab))return;let live=true;setLegacyData(null);reportedApi<Dashboard>(`overview?start=${data.start}&end=${data.end}`).then(value=>{if(live)setLegacyData(value)}).catch(e=>{if(live)setError((e as Error).message)});return()=>{live=false}},[tab,data?.generation,data?.start,data?.end])
  const [historyRows,setHistoryRows]=useState<Array<{sequence:number;date:string;kind:string;reason:string;category:string}>|null>(null)
- const [forecastPage,setForecastPage]=useState<ForecastPage|undefined>(undefined)
  async function showHistory(){try{setHistoryRows(await api('history'))}catch(e){setError((e as Error).message)}}
  const [railCollapsed,setRailCollapsed]=useState(()=>{try{return localStorage.getItem('fincl.rail.collapsed')==='1'}catch{return false}})
  useEffect(()=>{try{localStorage.setItem('fincl.rail.collapsed',railCollapsed?'1':'0')}catch{/* private browsing or storage disabled */}},[railCollapsed])
@@ -122,8 +120,7 @@ export default function App(){
    {meta.scope==='range'&&!data.covered&&<div className="alert" role="status"><div><strong>This period has missing coverage.</strong><p>Totals and charts are unavailable. You can still inspect recorded transactions. Choose a covered period or import the missing statements.</p></div></div>}
    <div aria-busy={loading} className={loading?'content-loading':''}>
    {tab==='Overview'&&<>
-    <OverviewView data={data} start={data.start} end={data.end} initialPocketCurrency={initialUrlPocketCurrency} onOpen={setTab} onForecast={setForecastPage}/>
-    <div className="insight-grid"><button className="insight" onClick={()=>setTab('Planning')}><span className="insight-icon"><RefreshCw size={18}/></span><div><h3>What keeps repeating?</h3><p>{data.recurring.length?`${data.recurring.length} recurring payment candidates to inspect in Planning.`:'Inspect commitments in the Planning editor.'}</p></div><ArrowRight size={17}/></button><button className="insight" onClick={()=>drill('','','review')}><span className="insight-icon sand"><CircleHelp size={18}/></span><div><h3>What needs a second look?</h3><p>{reviewCount?`${reviewCount} transactions need categorization or review.`:'Your eligible transactions are categorized.'}</p></div><ArrowRight size={17}/></button><ForecastEstimateSummary page={forecastPage??null} onOpen={()=>setTab('Forecast')}/></div>
+    <OverviewView data={data} start={data.start} end={data.end} initialPocketCurrency={initialUrlPocketCurrency} onOpen={setTab}/>
    </>}
    {(tab==='Analysis'||tab==='Cash Flow')&&<AnalysisView start={data.start} end={data.end} accounts={data.accounts} categories={data.categories} currencies={data.currencies} initialPocketCurrency={initialUrlPocketCurrency} onOpenTransactions={(cat,merchant)=>drill(cat,merchant,(cat||merchant)?'spending':'')} onOpenTransactionAnchor={openReportedAnchor} onOpenDebts={()=>setTab('Debts')}/>}
    {tab==='Categorization'&&<CategorizationView generation={data.generation} freshness={data.freshness} categories={data.categories} accounts={data.accounts} currencies={data.currencies} onSaved={saved} onOpenRules={()=>setTab('Rules')} onOpenTransactions={()=>drill('','','')} onOpenNext={setTab}/>}

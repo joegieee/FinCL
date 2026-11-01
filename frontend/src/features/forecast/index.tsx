@@ -285,13 +285,3 @@ function AssumptionsAndSources({ native, reported, currency }: { native: Forecas
   const events = reported.flatMap(cell => cell.base.events.map((event: ReportedForecastEventOut) => ({ currency: cell.currency, event })))
   return <Card className="forecast-card"><details><summary><span className="eyebrow">ASSUMPTIONS &amp; SOURCES</span><h2>How this estimate was formed</h2></summary><div className="forecast-drill"><p><strong>Base case:</strong> {casePolicy.base}</p><p><strong>Conservative case:</strong> {casePolicy.conservative}</p><p><strong>Upper-spend assumption:</strong> observed stress case — it uses observed spending, not a percentile or confidence interval.</p>{casePolicy.strong_income_interruption && <p><strong>Income interruption:</strong> stress case, not the expected outcome. {casePolicy.strong_income_interruption_note}</p>}{Object.entries(native.metadata ?? {}).map(([label, detail]) => <p key={label}><strong>{label.replaceAll('_', ' ')}:</strong> {detail}</p>)}<h3>Source adapters</h3><ul className="issue-list">{(native.provenance ?? []).map(source => <li key={source.input}><strong>{source.input}</strong> · {source.available ? 'available' : 'unavailable'}<p>{source.reason ?? `${source.module}; used for ${source.consumed_by.join(', ')}`}</p></li>)}</ul><h3>Modelled source events · base case · {currency}</h3>{events.length ? <ul className="issue-list">{events.map(({ currency: native_currency, event }) => <li key={`${native_currency}:${event.event_id}`}><strong><Money value={event.amount} /></strong><p>source {event.source_id} · {native_currency}</p></li>)}</ul> : <p>There are no safely placed source events to display. That is a named input limitation, not a zero event.</p>}</div></details></Card>
 }
-
-// Takes the already-fetched native page from OverviewActionPanel's own load
-// instead of issuing a second `loadForecast()` for the same data.
-// Deliberately native, single-currency and
-// unconverted -- an unrelated glance widget, not the Forecast workspace.
-export function ForecastEstimateSummary({ page, onOpen }: { page: ForecastPage | null; onOpen: () => void }) {
-  if (!page) return null
-  const first = Object.entries(page.by_currency).find((entry): entry is [string, ForecastCurrency] => entry[1].available)
-  return <button className="insight forecast-summary" onClick={onOpen}><span className="insight-icon sand"><AlertTriangle size={18} /></span><div><h3>Six-month forecast</h3><p>{first ? `${first[0]} conservative closing: ${money(first[1].conservative.closing_balance, first[0])}. Estimate only — open Forecast for cases and assumptions.` : `Forecast gap: ${page.reason ?? 'inputs are unavailable.'}`}</p></div><span>Forecast →</span></button>
-}

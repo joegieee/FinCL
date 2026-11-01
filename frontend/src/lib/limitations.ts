@@ -10,5 +10,5 @@
 const AUDIT_ONLY = [/^position_page is not generation-pinned/]
 
 export function readerLimitations(limitations: string[]): string[] {
-  return limitations.filter(text => !AUDIT_ONLY.some(pattern => pattern.test(text)))
+  return limitations.filter(text => !AUDIT_ONLY.some(pattern => pattern.test(text))).map(text => text.replace(/^debt:[0-9a-f-]{36}/, 'A debt'))
 }

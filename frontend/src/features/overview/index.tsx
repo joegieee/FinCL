@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight, CheckCircle2, CircleHelp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { ApiError, type Dashboard } from '@/lib/api'
 import { loadBaselineEstimate, loadBaselineReadiness, type BaselineEstimate, type BaselineReadiness, type CurrencyEstimate } from '@/features/baseline/api'
 import { loadCashPosition, type CashPosition } from '@/features/cash/api'
 import { loadForecast, type ForecastCurrency, type ForecastPage } from '@/features/forecast/api'
-import { loadReportedNetWorth, type NetWorthPageOut } from '@/features/networth/reportedApi'
 import { reportedMoney } from '@/lib/workspaceReporting'
-import { loadObligations, type ObligationsPage } from '@/features/obligations/api'
 import { MoneyJourneyPanel } from '@/features/journey'
 import { loadRecurring, type RecurringPage } from '@/features/planning/api'
 import { loadImports, type ImportsPage } from '@/features/setup/api'
-import { MoneyFlowCards } from './MoneyFlowCards'
+import { dateLabel } from '@/lib/format'
+import { readerLimitations } from '@/lib/limitations'
+import { Cv, MoneyFlowPanel } from './MoneyFlowCards'
 import { ReportingPolicySettings } from './ReportingPolicySettings'
 import {
   type MoneyFlowOut, type OverviewFilters, type ReportingPolicySummary,
@@ -30,8 +29,6 @@ type Snapshot = {
   estimate?: BaselineEstimate
   cash?: CashPosition
   forecast?: ForecastPage
-  netWorth?: NetWorthPageOut
-  obligations?: ObligationsPage
   recurring?: RecurringPage
 }
 
@@ -42,14 +39,14 @@ const unavailable = 'Evidence not available yet'
 
 /**
  * The Overview tab (M3b.3 step 10, plan §6.3, §3.3-3.4). One
- * `GET /api/v1/money-flow` read over *all* pockets by default drives the four
- * reported summary cards; reporting currency is shown as a setting via
+ * `GET /api/v1/money-flow` read over *all* pockets by default drives the
+ * reported figures; reporting currency is shown as a setting via
  * `ReportingPolicySettings`, never inferred from — or narrowed by — the
  * legacy per-currency Dashboard `data` this component also still reads for
  * its unrelated, still-native setup checklist and position glance below.
  */
 export function OverviewView({
-  data, start, end, initialPocketCurrency, onOpen, onForecast,
+  data, start, end, initialPocketCurrency, onOpen,
 }: {
   data: Dashboard
   start: string
@@ -59,7 +56,6 @@ export function OverviewView({
   // reporting-currency change.
   initialPocketCurrency: string
   onOpen: (destination: OverviewDestination) => void
-  onForecast?: (page: ForecastPage | undefined) => void
 }) {
   const [filters, setFilters] = useState<OverviewFilters>(() => ({ ...emptyOverviewFilters, pocketCurrency: initialPocketCurrency }))
   const [page, setPage] = useState<MoneyFlowOut | null>(null)
@@ -112,7 +108,7 @@ export function OverviewView({
 
   useEffect(() => { fetchMoneyFlow() }, [fetchMoneyFlow])
 
-  const reportingCurrency = page?.reporting_currency ?? policy?.currency ?? 'SGD'
+  const limitations = readerLimitations(page?.limitations ?? [])
 
   return (
     <div aria-busy={loading}>
@@ -157,48 +153,45 @@ export function OverviewView({
         </div>
       )}
 
-      <MoneyJourneyPanel generation={data.generation} onOpen={onOpen} />
+      <MoneyJourneyPanel
+        generation={data.generation} onOpen={onOpen}
+        cash={page && <div className="ov-stat">
+          <button className="linkish" onClick={() => onOpen('Cash')}>Cash on {page.summary.cash_at_cutoff.balance_as_of ? dateLabel(page.summary.cash_at_cutoff.balance_as_of) : 'an unknown date'} <ArrowRight size={13} /></button>
+          <strong><Cv result={page.summary.cash_at_cutoff.amount} currency={page.reporting_currency} /></strong>
+        </div>}
+      >
+        {page && <MoneyFlowPanel page={page} onOpen={() => onOpen('Analysis')} />}
+      </MoneyJourneyPanel>
 
-      {page && <MoneyFlowCards page={page} onOpen={onOpen} />}
+      {limitations.length > 0 && (
+        <details className="ov-more">
+          <summary>{limitations.length} limit{limitations.length === 1 ? '' : 's'} on these figures</summary>
+          <ul>{limitations.map(text => <li key={text}>{text}</li>)}</ul>
+        </details>
+      )}
 
-      <OverviewActionPanel data={data} currency={reportingCurrency} onOpen={onOpen} onForecast={onForecast} />
+      <OverviewActionPanel data={data} onOpen={onOpen} />
     </div>
   )
 }
 
-export function OverviewActionPanel({
-  data, currency, onOpen, onForecast,
-}: {
-  data: Dashboard
-  // §6.3: resolved from the ledger reporting policy, never the legacy
-  // pocket-filtered Dashboard `data.currency` selector — so switching that
-  // selector on another, still-native tab cannot narrow this glance.
-  currency: string
-  onOpen: (destination: OverviewDestination) => void
-  onForecast?: (page: ForecastPage | undefined) => void
-}) {
+export function OverviewActionPanel({ data, onOpen }: { data: Dashboard; onOpen: (destination: OverviewDestination) => void }) {
   const [snapshot, setSnapshot] = useState<Snapshot>({})
-  const [loading, setLoading] = useState(true)
   const sequence = useRef(0)
 
   const load = useCallback(() => {
     const id = ++sequence.current
-    setLoading(true)
     void Promise.allSettled([
-      loadImports(), loadBaselineReadiness(), loadBaselineEstimate(), loadCashPosition(),
-      loadForecast(), loadReportedNetWorth({}), loadObligations(), loadRecurring(),
+      loadImports(), loadBaselineReadiness(), loadBaselineEstimate(), loadCashPosition(), loadForecast(), loadRecurring(),
     ]).then(results => {
       if (id !== sequence.current) return
       const value = <T,>(index: number) => results[index].status === 'fulfilled' ? results[index].value as T : undefined
-      const forecast = value<ForecastPage>(4)
       setSnapshot({
         imports: value<ImportsPage>(0), readiness: value<BaselineReadiness>(1), estimate: value<BaselineEstimate>(2), cash: value<CashPosition>(3),
-        forecast, netWorth: value<NetWorthPageOut>(5), obligations: value<ObligationsPage>(6), recurring: value<RecurringPage>(7),
+        forecast: value<ForecastPage>(4), recurring: value<RecurringPage>(5),
       })
-      onForecast?.(forecast)
-      setLoading(false)
     })
-  }, [onForecast])
+  }, [])
   useEffect(() => { load() }, [load, data.generation])
 
   const reserve = reserveText(snapshot.estimate)
@@ -208,21 +201,21 @@ export function OverviewActionPanel({
   const estimate = snapshot.estimate
   const recurring = snapshot.recurring
 
-  return <div aria-busy={loading} className={loading && Object.keys(snapshot).length ? 'content-loading' : ''}>
+  const steps = [
+    { done: !!imports && imports.imports.length > 0, title: 'Import statements', detail: !imports ? unavailable : imports.imports.length === 0 ? 'No statements imported.' : `${imports.imports.length} import record${imports.imports.length === 1 ? '' : 's'} retained.`, open: 'Setup' as const },
+    { done: !!readiness && readiness.pockets.length > 0 && readiness.tasks.length === 0, title: 'Inspect account and month readiness', detail: !readiness ? unavailable : readiness.pockets.length === 0 ? 'No account or month evidence yet.' : readiness.tasks.length ? `${readiness.tasks.length} readiness item${readiness.tasks.length === 1 ? '' : 's'} still need attention.` : `${readiness.pockets.length} pocket${readiness.pockets.length === 1 ? '' : 's'} inspected.`, open: readiness?.tasks.some(task => task.kind === 'import-missing') ? 'Setup' as const : 'Baseline' as const },
+    { done: data.review_count === 0 && !!recurring && recurring.candidates.length === 0, title: 'Review detected classifications and commitments', detail: !recurring ? unavailable : `${data.review_count} classification${data.review_count === 1 ? '' : 's'} to review · ${recurring.candidates.length} detected commitment candidate${recurring.candidates.length === 1 ? '' : 's'}.`, open: data.review_count > 0 ? 'Categorization' as const : 'Planning' as const },
+    { done: estimate?.available === true && snapshot.cash?.current_position_supported === true, title: 'Inspect derived baseline and evidenced cash', detail: baselineAndCashText(estimate, snapshot.cash), open: estimate?.available ? 'Cash' as const : 'Baseline' as const },
+    { done: reserve.ready, title: 'Choose a reserve policy', detail: reserve.policyNote, open: 'Controls' as const },
+    { done: forecastReady(snapshot.forecast), title: 'Open forecast', detail: risk.detail, open: 'Forecast' as const },
+  ]
+  const done = steps.filter(step => step.done).length
+  if (done === steps.length) return null
 
-    <Card className="setup-checklist">
-      <div className="panel-title"><div><p className="eyebrow">SETUP CHECKLIST</p><h2>Build the picture from your records</h2></div></div>
-      <ol>
-        <ChecklistItem done={!!imports && imports.imports.length > 0} title="Import statements" detail={!imports ? unavailable : imports.imports.length === 0 ? 'No statements imported.' : `${imports.imports.length} import record${imports.imports.length === 1 ? '' : 's'} retained.`} onOpen={() => onOpen('Setup')} />
-        <ChecklistItem done={!!readiness && readiness.pockets.length > 0 && readiness.tasks.length === 0} title="Inspect account and month readiness" detail={!readiness ? unavailable : readiness.pockets.length === 0 ? 'No account or month evidence yet.' : readiness.tasks.length ? `${readiness.tasks.length} readiness item${readiness.tasks.length === 1 ? '' : 's'} still need attention.` : `${readiness.pockets.length} pocket${readiness.pockets.length === 1 ? '' : 's'} inspected.`} onOpen={() => onOpen(readiness?.tasks.some(task => task.kind === 'import-missing') ? 'Setup' : 'Baseline')} />
-        <ChecklistItem done={data.review_count === 0 && !!recurring && recurring.candidates.length === 0} title="Review detected classifications and commitments" detail={!recurring ? unavailable : `${data.review_count} classification${data.review_count === 1 ? '' : 's'} to review · ${recurring.candidates.length} detected commitment candidate${recurring.candidates.length === 1 ? '' : 's'}.`} onOpen={() => onOpen(data.review_count > 0 ? 'Categorization' : 'Planning')} />
-        <ChecklistItem done={estimate?.available === true && snapshot.cash?.current_position_supported === true} title="Inspect derived baseline and evidenced cash" detail={baselineAndCashText(estimate, snapshot.cash)} onOpen={() => onOpen(estimate?.available ? 'Cash' : 'Baseline')} />
-        <ChecklistItem done={reserve.ready} title="Choose a reserve policy" detail={reserve.policyNote} onOpen={() => onOpen('Controls')} />
-        <ChecklistItem done={forecastReady(snapshot.forecast)} title="Open forecast" detail={risk.detail} onOpen={() => onOpen('Forecast')} />
-      </ol>
-      <p className="muted-note">The checklist never substitutes a typed spending estimate for statement evidence. A zero is shown only when the ledger actually observed one.</p>
-    </Card>
-  </div>
+  return <details className="ov-more setup-checklist">
+    <summary><span className="ov-pips" aria-hidden="true">{steps.map(step => <i key={step.title} className={step.done ? 'is-done' : ''} />)}</span>{done} of {steps.length} setup steps done</summary>
+    <ol>{steps.map(step => <ChecklistItem key={step.title} done={step.done} title={step.title} detail={step.detail} onOpen={() => onOpen(step.open)} />)}</ol>
+  </details>
 }
 
 function ChecklistItem({ done, title, detail, onOpen }: { done: boolean; title: string; detail: string; onOpen: () => void }) {

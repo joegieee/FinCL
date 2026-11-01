@@ -42,7 +42,7 @@ for (const width of [320, 390, 768, 1280]) {
 test('phone navigation and transaction dialog remain usable', async ({ page }) => {
   test.skip(test.info().project.name !== 'narrow')
   await page.goto('/?start=2026-01-01&end=2026-09-30')
-  await expect(page.getByRole('heading', { name: 'A clearer picture.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible()
   await openTab(page, 'Transactions')
   await expect(page.getByRole('dialog', { name: 'Main navigation' })).toHaveCount(0)
   await page.locator('.transactions-table .category-chip').first().click()

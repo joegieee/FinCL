@@ -5,6 +5,6 @@ const authFile = 'e2e/.auth.json'
 
 setup('open the website without a launch key', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'A clearer picture.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible()
   await page.context().storageState({ path: authFile })
 })

@@ -42,7 +42,7 @@ async function classifyGroup(page: import('@playwright/test').Page, label: strin
 test('inadequate evidence names what is missing instead of asking onboarding budget questions', async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop')
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'A clearer picture.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible()
   await upload(page, 'inadequate-one-month.csv')
   await openTab(page, 'Baseline')
   await expect(page.getByRole('heading', { name: /2026-02.*1 month/ })).toBeVisible()

@@ -43,6 +43,7 @@ export type ForecastCase = {
   available: boolean
   reason?: string
   months: MonthRow[]
+  days: { date: string; closing: string }[]
   closing_balance: string
   lowest_balance: Milestone & { amount: string }
   first_zero: Milestone

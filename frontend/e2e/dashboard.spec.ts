@@ -10,11 +10,11 @@ test.beforeAll(async ({ request }) => {
 test.beforeEach(async ({ page }) => {
   test.skip(test.info().project.name !== 'desktop')
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'A clearer picture.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible()
 })
 
 test('overview shows an exact, currency-qualified spending total', async ({ page }) => {
-  const spending = page.getByText('Average monthly spending + fees').locator('..')
+  const spending = page.getByText(/^Monthly spending/).locator('..')
   // Reported surfaces print the amount before its currency ("2,000.00 SGD");
   // the legacy native `money()` helper prints it the other way round. This card
   // migrated to the reported component, so it is the first form here. What the
