@@ -67,6 +67,14 @@ class AtomicRefreshTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_a_refresh_leaves_query_planner_statistics(self) -> None:
+        connection = sqlite3.connect(self.database)
+        try:
+            tables = {row[0] for row in connection.execute("SELECT tbl FROM sqlite_stat1")}
+        finally:
+            connection.close()
+        self.assertIn("ledger_entries", tables)
+
     def test_a_failing_refresh_leaves_projection_and_generation_untouched(self) -> None:
         before = self._snapshot()
 

@@ -149,6 +149,9 @@ def refresh_ledger(database_path: Path) -> RefreshResult:
             initialize_schema(connection)
 
             run_id, token = rebuild_projection(connection)
+            # Without table statistics the planner picks scans that cost seconds
+            # on a real ledger. ANALYZE changes no ledger data.
+            connection.execute("ANALYZE")
 
             categorized = 0
             if run_id is not None:
