@@ -1,6 +1,6 @@
 import { reportedApi, reportedMoney, WorkspaceReportingDetails } from '@/lib/workspaceReporting'
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, BarChart3, Check, ChevronRight, CircleHelp, CreditCard, Layers3, Menu, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Target, Wallet, X } from 'lucide-react'
+import { ArrowRight, BarChart3, Check, ChevronRight, CircleHelp, CreditCard, Layers3, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, Target, Wallet, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,8 @@ import { api, ApiError, bootstrap, money, shortCategory, type Command, type Dash
 import { dateLabel } from '@/lib/format'
 import { tabAliases, tabMeta } from '@/lib/tabs'
 import { PeriodPicker } from '@/components/PeriodPicker'
-import { NavigationRail } from '@/components/NavigationRail'
+import { NavigationRail, SectionBar, SectionTabs, TopBar } from '@/components/NavigationRail'
+import { useCompactLayout } from '@/lib/useCompactLayout'
 import { CommandPalette } from '@/components/CommandPalette'
 import { PageHeader } from '@/components/PageHeader'
 import { AnalysisView } from '@/features/analysis'
@@ -66,28 +67,10 @@ export default function App(){
  useEffect(()=>{if(!data||!['Plans','Recurring','Review'].includes(tab))return;let live=true;setLegacyData(null);reportedApi<Dashboard>(`overview?start=${data.start}&end=${data.end}`).then(value=>{if(live)setLegacyData(value)}).catch(e=>{if(live)setError((e as Error).message)});return()=>{live=false}},[tab,data?.generation,data?.start,data?.end])
  const [historyRows,setHistoryRows]=useState<Array<{sequence:number;date:string;kind:string;reason:string;category:string}>|null>(null)
  async function showHistory(){try{setHistoryRows(await api('history'))}catch(e){setError((e as Error).message)}}
- const [railCollapsed,setRailCollapsed]=useState(()=>{try{return localStorage.getItem('fincl.rail.collapsed')==='1'}catch{return false}})
- useEffect(()=>{try{localStorage.setItem('fincl.rail.collapsed',railCollapsed?'1':'0')}catch{/* private browsing or storage disabled */}},[railCollapsed])
- const [drawerOpen,setDrawerOpen]=useState(false)
+ const compact=useCompactLayout()
  const [paletteOpen,setPaletteOpen]=useState(false)
  useEffect(()=>{function onKey(e:KeyboardEvent){if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();setPaletteOpen(o=>!o)}}document.addEventListener('keydown',onKey);return()=>document.removeEventListener('keydown',onKey)},[])
- const drawerRef=useRef<HTMLDivElement>(null)
- useEffect(()=>{
-  if(!drawerOpen)return
-  const focusable=()=>Array.from(drawerRef.current?.querySelectorAll<HTMLElement>('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')||[]).filter(el=>!el.hasAttribute('disabled'))
-  focusable()[0]?.focus()
-  function onKey(e:KeyboardEvent){
-   if(e.key==='Escape'){setDrawerOpen(false);return}
-   if(e.key!=='Tab')return
-   const items=focusable();if(!items.length)return
-   const first=items[0],last=items[items.length-1]
-   if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}
-   else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}
-  }
-  document.addEventListener('keydown',onKey)
-  return()=>document.removeEventListener('keydown',onKey)
- },[drawerOpen])
- function goTo(t:string){setTab(t as Tab);setDrawerOpen(false)}
+ function goTo(t:string){setTab(t as Tab)}
  const seq=useRef(0)
  async function load(s=start,e=end,c=currency){const id=++seq.current;setLoading(true);setError('');try{const q=new URLSearchParams({currency:c});if(s&&e){q.set('start',s);q.set('end',e)}const d=await api<Dashboard>('overview?'+q);if(id===seq.current){setData(d);setStart(d.start);setEnd(d.end);setCurrency(d.currency)}}catch(e){if(id===seq.current)setError((e as Error).message)}finally{if(id===seq.current)setLoading(false)}}
  useEffect(()=>{let mounted=true;bootstrap().then(h=>{if(mounted){setHealth(h);void load()}}).catch(e=>{if(mounted){setError(e.message);setLoading(false)}});return()=>{mounted=false}},[])
@@ -99,20 +82,17 @@ export default function App(){
  const proposalCount=data?.transfer_proposals.length||0
  const meta=tabMeta[tab]
  const railActiveTab=tabAliases[tab]??tab
+ const railActions={ledgerLabel:health?.label||'Your money, understood',onSearch:()=>setPaletteOpen(true),onHistory:showHistory,historyDisabled:!data,onRefresh:refresh,refreshDisabled:loading||!data,refreshing:loading,demo:!!health?.demo}
  return <div className="app-shell">
   <a className="skip-link" href="#main-content">Skip to content</a>
-  <NavigationRail tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} collapsed={railCollapsed} onToggleCollapse={()=>setRailCollapsed(c=>!c)} ledgerLabel={health?.label||'Your money, understood'} onHistory={showHistory} historyDisabled={!data} onRefresh={refresh} refreshDisabled={loading||!data} refreshing={loading} demo={!!health?.demo}/>
-  {drawerOpen&&<div className="rail-backdrop" onClick={()=>setDrawerOpen(false)}/>}
-  {drawerOpen&&<div className="rail-drawer" ref={drawerRef} role="dialog" aria-modal="true" aria-label="Main navigation">
-   <NavigationRail drawer tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} collapsed={false} onToggleCollapse={()=>{}} ledgerLabel={health?.label||'Your money, understood'} onHistory={showHistory} historyDisabled={!data} onRefresh={refresh} refreshDisabled={loading||!data} refreshing={loading} demo={!!health?.demo}/>
-  </div>}
-  <Button variant="ghost" size="sm" className="rail-drawer-toggle" aria-label="Open navigation" aria-expanded={drawerOpen} onClick={()=>setDrawerOpen(o=>!o)}><Menu size={18}/></Button>
+  {compact?<TopBar onSelect={goTo} {...railActions}/>:<NavigationRail tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount} {...railActions}/>}
   <div className="app-main-col">
   <main id="main-content" tabIndex={-1} className={tab==='Transactions'?'wide':''}>
    {error&&<div className="alert error" role="alert"><div><strong>We couldn’t complete that.</strong><p>{error}</p></div>{health&&<Button variant="outline" onClick={()=>load()}>Try again</Button>}</div>}
    {notice&&<div className="alert success" role="status"><span><Check size={15}/>{notice}</span><button aria-label="Dismiss message" onClick={()=>setNotice('')}><X size={16}/></button></div>}
    {!data&&loading?<div className="skeleton-page" aria-label="Loading dashboard"><div/><div/><div/></div>:!data?<Card className="empty"><Wallet/><h1>Open your personal ledger</h1><p>Launch FinCL locally, then open the website address. Your financial data stays on this computer.</p><code>fincl serve --database var/fincl.sqlite3</code></Card>:<>
    <PageHeader meta={meta} action={tab==='Categories'?<Button onClick={()=>setDialog('category')}><Plus size={16}/> New category</Button>:tab==='Plans'?<Button onClick={()=>{setEditingPlan(null);setDialog('budget')}}><Plus size={16}/> New budget</Button>:undefined}/>
+   {compact&&<SectionTabs tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount}/>}
    {meta.scope==='range'&&<><div className="scope-bar"><PeriodPicker start={data.start} end={data.end} applying={loading} onApply={(s,e)=>{setStart(s);setEnd(e);void load(s,e)}}/></div>
    {tab!=='Analysis'&&tab!=='Cash Flow'&&tab!=='Transactions'&&tab!=='Overview'&&tab!=='Categorization'&&<div className="scope-caption"><span>{dateLabel(data.start)} – {dateLabel(data.end)} · {data.currency} only · transfers excluded from spending</span><span className={data.covered?'covered':'coverage-missing'}><span className="status-dot"/>{data.covered?'Covered period':'Incomplete coverage'}</span></div>}</>}
 
@@ -158,6 +138,7 @@ export default function App(){
    </>}
   </main>
   </div>
+  {compact&&<SectionBar tab={railActiveTab} onSelect={goTo} reviewCount={reviewCount} proposalCount={proposalCount}/>}
   <CommandPalette open={paletteOpen} onClose={()=>setPaletteOpen(false)} onSelect={goTo}/>
  </div>
 }

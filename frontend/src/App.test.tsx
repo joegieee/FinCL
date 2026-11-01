@@ -328,15 +328,16 @@ describe('Navigation rail', () => {
     expect(screen.queryByLabelText('Jump to a destination')).not.toBeInTheDocument()
   })
 
-  it('opens the mobile drawer and closes it after navigating', async () => {
+  it('swaps the sidebar for a top bar, section bar and page tabs on a small screen, keeping its tools', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }))
     vi.stubGlobal('fetch', mockFetch(() => ({ body: dashboard() })))
     await mountApp()
     await screen.findByRole('heading', { name: 'Overview' })
-    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
-    const drawer = await screen.findByRole('dialog', { name: 'Main navigation' })
-    await openTab('Debts', drawer)
+    expect(screen.queryByRole('navigation', { name: 'Main navigation' })).not.toBeInTheDocument()
+    for (const name of ['Go anywhere', 'History', 'Theme: system', 'Refresh']) expect(within(screen.getByRole('banner')).getByRole('button', { name })).toBeInTheDocument()
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Sections' })).getByRole('button', { name: 'Commitments' }))
+    fireEvent.click(within(await screen.findByRole('navigation', { name: 'Commitments pages' })).getByRole('button', { name: 'Debts' }))
     await screen.findByText('Your debts, clearly separated.')
-    expect(screen.queryByRole('dialog', { name: 'Main navigation' })).not.toBeInTheDocument()
   })
 })
 

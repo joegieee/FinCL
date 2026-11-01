@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { NavigationRail } from './NavigationRail'
+import { NavigationRail, SectionBar, SectionTabs } from './NavigationRail'
 
 function renderRail(over: Partial<Parameters<typeof NavigationRail>[0]> = {}) {
   const onSelect = vi.fn()
   render(
     <NavigationRail
       tab="Overview" onSelect={onSelect} reviewCount={0} proposalCount={0}
-      collapsed={false} onToggleCollapse={() => {}} ledgerLabel="Personal ledger"
+      ledgerLabel="Personal ledger" onSearch={() => {}}
       onHistory={() => {}} historyDisabled={false} onRefresh={() => {}}
       refreshDisabled={false} refreshing={false} demo={false}
       {...over}
@@ -29,29 +29,30 @@ describe('NavigationRail grouping', () => {
     expect(screen.queryByRole('button', { name: /^Installments/ })).toBeNull()
   })
 
-  it('opens a group and its destinations, and navigates to its lead', () => {
+  it('navigates to a section\u2019s lead from its row', () => {
     const onSelect = renderRail()
 
     fireEvent.click(screen.getByRole('button', { name: /^Commitments/ }))
 
     expect(onSelect).toHaveBeenCalledWith('Obligations')
-    expect(screen.getByRole('button', { name: /^Installments/ })).toBeInTheDocument()
   })
 
-  it('keeps the active destination’s group open without being asked', () => {
+  it('opens only the section holding the current page', () => {
     renderRail({ tab: 'Installments' })
 
     expect(screen.getByRole('button', { name: /^Installments/ })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: /^Commitments/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: /^Money/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: /^Transactions/ })).toBeNull()
   })
 
-  it('leaves a browsed group open when another is opened', () => {
-    renderRail()
+  it('opens the command palette from the search row', () => {
+    const onSearch = vi.fn()
+    renderRail({ onSearch })
 
-    fireEvent.click(screen.getByRole('button', { name: /^Commitments/ }))
-    fireEvent.click(screen.getByRole('button', { name: /^Money$/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Go anywhere/ }))
 
-    expect(screen.getByRole('button', { name: /^Installments/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^Transactions/ })).toBeInTheDocument()
+    expect(onSearch).toHaveBeenCalled()
   })
 
   it('treats a single-destination group as its own row, not an expander', () => {
@@ -63,20 +64,14 @@ describe('NavigationRail grouping', () => {
     expect(onSelect).toHaveBeenCalledWith('Overview')
   })
 
-  it('rolls a closed group’s pending counts up onto the group row', () => {
+  it('marks a closed section when something inside it is waiting, and counts it on the page once open', () => {
     renderRail({ reviewCount: 4, proposalCount: 2 })
+    expect(screen.getByLabelText('6 waiting')).toBeInTheDocument()
 
-    const money = screen.getByRole('button', { name: /^Money/ })
-    expect(money).toHaveTextContent('6')
-  })
-
-  it('only expands a group in the mobile drawer, since navigating closes it', () => {
-    const onSelect = renderRail({ drawer: true })
-
-    fireEvent.click(screen.getByRole('button', { name: /^Commitments/ }))
-
-    expect(onSelect).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: /^Installments/ })).toBeInTheDocument()
+    cleanup()
+    renderRail({ tab: 'Review', reviewCount: 4, proposalCount: 2 })
+    expect(screen.queryByLabelText('6 waiting')).toBeNull()
+    expect(screen.getByRole('button', { name: /^Review/ })).toHaveTextContent('2')
   })
 
   it('walks only the destinations on screen with the arrow keys', () => {
@@ -88,6 +83,32 @@ describe('NavigationRail grouping', () => {
     fireEvent.keyDown(rows[0], { key: 'End' })
 
     expect(document.activeElement).toBe(rows[rows.length - 1])
+  })
+})
+
+describe('Small-screen navigation', () => {
+  it('lists the six sections and goes to the lead of the one chosen', () => {
+    const onSelect = vi.fn()
+    render(<SectionBar tab="Debts" onSelect={onSelect} reviewCount={0} proposalCount={0} />)
+
+    const buttons = within(screen.getByRole('navigation', { name: 'Sections' })).getAllByRole('button')
+    expect(buttons).toHaveLength(6)
+    expect(screen.getByRole('button', { name: 'Commitments' })).toHaveAttribute('aria-current', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Money' }))
+    expect(onSelect).toHaveBeenCalledWith('Transactions')
+  })
+
+  it('lists the current section\u2019s pages, and nothing for a section of one', () => {
+    const onSelect = vi.fn()
+    const { unmount } = render(<SectionTabs tab="Debts" onSelect={onSelect} reviewCount={0} proposalCount={0} />)
+
+    expect(screen.getByRole('button', { name: 'Debts' })).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(screen.getByRole('button', { name: 'Cards' }))
+    expect(onSelect).toHaveBeenCalledWith('Cards')
+    unmount()
+
+    render(<SectionTabs tab="Overview" onSelect={onSelect} reviewCount={0} proposalCount={0} />)
+    expect(screen.queryByRole('navigation')).toBeNull()
   })
 })
 
