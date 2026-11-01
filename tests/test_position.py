@@ -18,6 +18,7 @@ from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import replay_journal
 from fincl.document_service import DocumentImportService
 from fincl.position import position_page
+from fincl.position.queries import _derived_at
 from fincl.refresh import refresh_ledger
 from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
@@ -43,6 +44,28 @@ _ROWS = [
 
 
 class PositionReadTests(unittest.TestCase):
+    def test_a_derived_balance_counts_movements_after_its_boundary_through_the_target_day(self) -> None:
+        boundary = {
+            "as_of": "2026-01-10", "sort_at": "2026-01-10T12:00:00", "balance": "100.00",
+            "coefficient": 10000, "scale": 2, "basis": "statement-running-balance",
+        }
+        movements = [
+            {"effective_at": effective_at, "effective_precision": "DAY",
+             "amount_coefficient": cents, "amount_scale": 2}
+            for effective_at, cents in (
+                ("2026-01-10T12:00:00", 100),
+                ("2026-01-10T12:00:01", 200),
+                ("2026-01-20", 400),
+                ("2026-01-20T23:59:59", 800),
+                ("2026-01-21T00:00:00", 1600),
+            )
+        ]
+
+        derived = _derived_at("2026-01-20", [boundary], movements, [("2026-01-10", "2026-01-20")])
+
+        self.assertEqual(derived["balance"], "114.00")
+        self.assertEqual(derived["movement_count"], 3)
+
     def test_different_boundary_dates_bridge_to_a_common_coverage_cutoff(self) -> None:
         """Raw balance dates need not coincide when both pockets are complete onward."""
         rows = [

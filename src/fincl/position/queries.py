@@ -6,6 +6,7 @@ balance boundaries. Silence after a boundary is missing evidence, never zero.
 from __future__ import annotations
 
 import sqlite3
+from bisect import bisect_right
 from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
@@ -258,11 +259,15 @@ def _interval_covered(start: str, end: str, periods: list[tuple[str, str]]) -> b
     return cursor > final
 
 
+def _effective_at(row: sqlite3.Row) -> str:
+    return str(row["effective_at"])
+
+
 def _derived_at(
-    key: tuple[str, str], target: str, boundaries: list[dict[str, Any]],
+    target: str, boundaries: list[dict[str, Any]],
     entries: list[sqlite3.Row], periods: list[tuple[str, str]],
 ) -> dict[str, Any]:
-    """Derive one pocket through ``target`` from actual, complete movements."""
+    """Derive one pocket through ``target`` from its date-ordered actual movements."""
     eligible = [boundary for boundary in boundaries if boundary["as_of"] <= target]
     if not eligible:
         return {"supported": False, "reason": "no trusted balance boundary on or before this date"}
@@ -292,11 +297,10 @@ def _derived_at(
             "reason": "complete actual-movement coverage is not established through this date",
             "gap_start": start,
         }
-    rows = [
-        row for row in entries
-        if (row["account_id"], row["currency_pocket"]) == key
-        and row["effective_at"] > boundary["sort_at"]
-        and row["effective_at"][:10] <= target
+    # `~` sorts after every character in a timestamp, so this ends after the target day.
+    rows = entries[
+        bisect_right(entries, boundary["sort_at"], key=_effective_at):
+        bisect_right(entries, f"{target}~", key=_effective_at)
     ]
     if any(row["effective_precision"] != "DAY" for row in rows):
         return {"supported": False, "reason": "movement date precision is insufficient for an exact daily balance"}
@@ -613,6 +617,9 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
         key = (pocket["account_id"], pocket["currency_pocket"])
         candidate_dates.update(boundary["as_of"] for boundary in boundary_map.get(key, []) if boundary["as_of"] <= today.isoformat())
         candidate_dates.update(end for _start, end in periods_by_key[key] if end <= today.isoformat())
+    movements_by_key: dict[tuple[str, str], list[sqlite3.Row]] = defaultdict(list)
+    for row in movements:
+        movements_by_key[(row["account_id"], row["currency_pocket"])].append(row)
     cutoff: str | None = None
     derived: dict[tuple[str, str], dict[str, Any]] = {}
     # Every candidate is evaluated, not just those up to the first full hit:
@@ -625,9 +632,10 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
     for candidate in sorted(candidate_dates, reverse=True):
         attempt = {
             (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
-                (pocket["account_id"], pocket["currency_pocket"]), candidate,
+                candidate,
                 boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
-                movements, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+                movements_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+                periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
             )
             for pocket in included
         }
@@ -636,9 +644,10 @@ def position_page_from(connection: sqlite3.Connection, *, today: date) -> dict[s
             cutoff, derived = candidate, attempt
     today_attempt = {
         (pocket["account_id"], pocket["currency_pocket"]): _derived_at(
-            (pocket["account_id"], pocket["currency_pocket"]), today.isoformat(),
+            today.isoformat(),
             boundary_map.get((pocket["account_id"], pocket["currency_pocket"]), []),
-            movements, periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+            movements_by_key[(pocket["account_id"], pocket["currency_pocket"])],
+            periods_by_key[(pocket["account_id"], pocket["currency_pocket"])],
         )
         for pocket in included
     }
