@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ApiError } from '@/lib/api'
 import type { Dashboard } from '@/lib/api'
+import { moneyText } from '@/test/moneyText'
 
 type Cv = {
   total: { value: string; currency: string } | null
@@ -95,16 +96,16 @@ afterEach(() => { cleanup(); apiMock.mockReset(); apiMock.mockImplementation(def
 describe('OverviewView', () => {
   it('shows the reported figures over all pockets by default, with no hidden pocket parameter', async () => {
     await mount()
-    expect(await screen.findByText('4,200.00 SGD')).toBeInTheDocument()
-    expect(screen.getAllByText('1,234.50 SGD').length).toBeGreaterThan(0)
-    expect(screen.getByText('5,000.00 SGD')).toBeInTheDocument()
+    expect(await screen.findByText(moneyText('4,200.00 SGD'))).toBeInTheDocument()
+    expect(screen.getAllByText(moneyText('1,234.50 SGD')).length).toBeGreaterThan(0)
+    expect(screen.getByText(moneyText('5,000.00 SGD'))).toBeInTheDocument()
     expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('money-flow?'), undefined)
     expect(apiMock.mock.calls.some(([path]) => String(path).includes('pocket_currency'))).toBe(false)
   })
 
   it('shows reporting currency as a setting caption, not a record filter', async () => {
     await mount()
-    await screen.findByText('4,200.00 SGD')
+    await screen.findByText(moneyText('4,200.00 SGD'))
     expect(screen.getByText(/Reporting in SGD/)).toBeInTheDocument()
   })
 
@@ -119,7 +120,7 @@ describe('OverviewView', () => {
   it('navigates to a destination workspace through a plain link', async () => {
     const onOpen = vi.fn()
     await mount({ onOpen })
-    await screen.findByText('4,200.00 SGD')
+    await screen.findByText(moneyText('4,200.00 SGD'))
     fireEvent.click(screen.getByRole('button', { name: /^Cash on/ }))
     expect(onOpen).toHaveBeenCalledWith('Cash')
   })
@@ -138,7 +139,7 @@ describe('OverviewView', () => {
 
   it('refetches the summary when the requested period changes', async () => {
     const { rerender } = await mount()
-    await screen.findByText('4,200.00 SGD')
+    await screen.findByText(moneyText('4,200.00 SGD'))
     apiMock.mockClear()
     const { OverviewView } = await import('./index')
     rerender(<OverviewView data={dashboard()} start="2026-02-01" end="2026-02-28" initialPocketCurrency="" onOpen={() => {}} />)
@@ -157,10 +158,10 @@ describe('OverviewView', () => {
       throw new Error(`unmocked ${path}`)
     })
     await mount()
-    await screen.findByText('4,200.00 SGD')
+    await screen.findByText(moneyText('4,200.00 SGD'))
     fireEvent.click(screen.getAllByRole('button', { name: /refresh/i })[0])
     await waitFor(() => expect(screen.getByText(/last loaded values for this exact period/)).toBeInTheDocument())
-    expect(screen.getAllByText('4,200.00 SGD').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(moneyText('4,200.00 SGD')).length).toBeGreaterThan(0)
   })
 
   it('shows Refresh required with no numbers on a first-load stale response', async () => {
@@ -171,7 +172,7 @@ describe('OverviewView', () => {
     })
     await mount()
     await waitFor(() => expect(screen.getByText('Refresh required.')).toBeInTheDocument())
-    expect(screen.queryByText('4,200.00 SGD')).not.toBeInTheDocument()
+    expect(screen.queryByText(moneyText('4,200.00 SGD'))).not.toBeInTheDocument()
   })
 
   it('clears the last-good response on a reporting-policy change instead of reusing it', async () => {
@@ -188,10 +189,10 @@ describe('OverviewView', () => {
       throw new Error(`unmocked ${path}`)
     })
     await mount()
-    await screen.findByText('4,200.00 SGD')
+    await screen.findByText(moneyText('4,200.00 SGD'))
     fireEvent.click(screen.getAllByRole('button', { name: /refresh/i })[0])
     await waitFor(() => expect(screen.getByText('Refresh required.')).toBeInTheDocument())
-    expect(screen.queryByText('4,200.00 SGD')).not.toBeInTheDocument()
+    expect(screen.queryByText(moneyText('4,200.00 SGD'))).not.toBeInTheDocument()
   })
 
   it('changes the reporting currency through the existing preview/command path, without an automatic refresh', async () => {
@@ -206,7 +207,7 @@ describe('OverviewView', () => {
       throw new Error(`unmocked ${path}`)
     })
     await mount()
-    await screen.findByText('4,200.00 SGD')
+    await screen.findByText(moneyText('4,200.00 SGD'))
     fireEvent.click(screen.getByRole('button', { name: 'Change' }))
     await waitFor(() => expect(screen.getByLabelText('Reporting currency')).toHaveTextContent('US Dollar'))
     fireEvent.change(screen.getByLabelText('Reporting currency'), { target: { value: 'USD' } })

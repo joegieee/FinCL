@@ -71,7 +71,7 @@ export function Money({ value }: { value: ValuedMoneyDTO }) {
 
   return <span className={`money${isForward ? ' money-forward' : ''}`}>
     <span className="money-amount" data-basis={value.basis ?? undefined}>
-      {groupDigits(displayed.value)} {displayed.currency}
+      {groupDigits(displayed.value)} <span className="money-unit">{displayed.currency}</span>
     </span>
     {!isNative && basisLabel && <span className="money-basis-tag">{basisLabel}</span>}
     <details className="money-disclosure">
@@ -120,7 +120,7 @@ export function ConsolidatedMoney({
 }) {
   if (total) {
     return <span className="money">
-      <span className="money-amount">{groupDigits(total.value)} {currency}</span>
+      <span className="money-amount">{groupDigits(total.value)} <span className="money-unit">{currency}</span></span>
     </span>
   }
   const excludedDisclosure = excludedDetail.length > 0 && (
@@ -145,7 +145,7 @@ export function ConsolidatedMoney({
   )
   if (partialTotal) {
     return <span className="money">
-      <span className="money-amount">{groupDigits(partialTotal.value)} {currency}</span>
+      <span className="money-amount">{groupDigits(partialTotal.value)} <span className="money-unit">{currency}</span></span>
       <span className="money-basis-tag money-partial-tag">Known subtotal</span>
       {excludedDisclosure}
     </span>

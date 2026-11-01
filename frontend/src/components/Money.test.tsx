@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { moneyText } from '@/test/moneyText'
 import {
   ConsolidatedMoney, Money, RoundingReconciliationNote,
   type ExcludedScopeDetailDTO, type RateInputDTO, type ValuedMoneyDTO,
@@ -35,7 +36,7 @@ function valued(overrides: Partial<ValuedMoneyDTO> = {}): ValuedMoneyDTO {
 describe('Money', () => {
   it('renders the reported amount and currency, grouped, for an available valuation', () => {
     render(<Money value={valued({ reported: { value: '1234.00', currency: 'SGD' } })} />)
-    expect(screen.getByText('1,234.00 SGD')).toBeInTheDocument()
+    expect(screen.getByText(moneyText('1,234.00 SGD'))).toBeInTheDocument()
   })
 
   it('renders native currency directly for identity, without a basis tag', () => {
@@ -43,18 +44,18 @@ describe('Money', () => {
       basis: 'identity', reported: { value: '10.00', currency: 'SGD' },
       native: { value: '10.00', currency: 'SGD' }, rate_period: null,
     })} />)
-    expect(screen.getAllByText('10.00 SGD').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(moneyText('10.00 SGD')).length).toBeGreaterThan(0)
     expect(screen.queryByText(/rate period/i)).not.toBeInTheDocument()
   })
 
   it('does not pad a zero-scale currency like JPY to two decimal places', () => {
     render(<Money value={valued({ reported: { value: '300', currency: 'JPY' } })} />)
-    expect(screen.getByText('300 JPY')).toBeInTheDocument()
+    expect(screen.getByText(moneyText('300 JPY'))).toBeInTheDocument()
   })
 
   it('does not truncate a three-decimal currency like KWD', () => {
     render(<Money value={valued({ reported: { value: '12.340', currency: 'KWD' } })} />)
-    expect(screen.getByText('12.340 KWD')).toBeInTheDocument()
+    expect(screen.getByText(moneyText('12.340 KWD'))).toBeInTheDocument()
   })
 
   it('renders unavailable as an em dash plus a visible typed reason and a remedy', () => {
@@ -169,13 +170,13 @@ describe('Money', () => {
 describe('ConsolidatedMoney', () => {
   it('renders a complete total plainly', () => {
     render(<ConsolidatedMoney total={{ value: '500.00', currency: 'SGD' }} partialTotal={null} currency="SGD" />)
-    expect(screen.getByText('500.00 SGD')).toBeInTheDocument()
+    expect(screen.getByText(moneyText('500.00 SGD'))).toBeInTheDocument()
     expect(screen.queryByText('Known subtotal')).not.toBeInTheDocument()
   })
 
   it('labels a partial total as a known subtotal, never as a total', () => {
     render(<ConsolidatedMoney total={null} partialTotal={{ value: '120.00', currency: 'SGD' }} currency="SGD" />)
-    expect(screen.getByText('120.00 SGD')).toBeInTheDocument()
+    expect(screen.getByText(moneyText('120.00 SGD'))).toBeInTheDocument()
     expect(screen.getByText('Known subtotal')).toBeInTheDocument()
   })
 

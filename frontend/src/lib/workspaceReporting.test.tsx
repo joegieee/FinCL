@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { reportedApi, reportedMoney, reportedChartAmount, workspaceReportingCurrency, WorkspaceReportingDetails } from './workspaceReporting'
+import { moneyText } from '@/test/moneyText'
 
 const apiMock = vi.fn()
 vi.mock('./api', async original => ({ ...await original<typeof import('./api')>(), api: (...args: unknown[]) => apiMock(...args) }))
@@ -39,7 +40,7 @@ describe('workspace reporting', () => {
     expect(screen.queryByText(/January payment/)).toBeNull()
     open(container)
     expect(screen.getByText(/January payment/)).toBeInTheDocument()
-    expect(screen.getByText('12.00 SGD')).toBeInTheDocument()
+    expect(screen.getByText(moneyText('12.00 SGD'))).toBeInTheDocument()
   })
 
   it('shows missing-rate reasons and leaves the original row selectable', async () => {
@@ -64,7 +65,7 @@ describe('workspace reporting', () => {
     const { container } = render(<WorkspaceReportingDetails data={data}/>)
     open(container)
     expect(screen.getByText(/Showing the first 60 of 75 amounts/)).toBeInTheDocument()
-    expect(screen.getAllByText('1.20 SGD')).toHaveLength(60)
+    expect(screen.getAllByText(moneyText('1.20 SGD'))).toHaveLength(60)
   })
 
   it('never rounds server-provided currency precision and sends preview inputs unchanged', async () => {

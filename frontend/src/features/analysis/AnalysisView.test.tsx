@@ -2,6 +2,7 @@ import type React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ApiError } from '@/lib/api'
+import { moneyText } from '@/test/moneyText'
 
 vi.mock('recharts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('recharts')>()
@@ -268,7 +269,7 @@ describe('AnalysisView', () => {
       throw new Error(`unmocked ${path}`)
     })
     await mount()
-    await screen.findAllByText('10.00 SGD')
+    await screen.findAllByText(moneyText('10.00 SGD'))
     expect(screen.getByText('Known subtotal')).toBeInTheDocument()
     const disclosure = document.querySelector('.money-excluded-disclosure')
     expect(disclosure?.textContent).toContain('Import an fx rate for USD -> SGD covering 2026-02.')

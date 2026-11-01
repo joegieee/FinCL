@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ApiError } from '@/lib/api'
 import { TransactionsView } from './index'
+import { moneyText } from '@/test/moneyText'
 
 function nativeEntry(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -168,7 +169,7 @@ describe('TransactionsView', () => {
     // basis tag and no separate "Native:" evidence line (the amount is priced).
     // Appears twice: the visible amount, and Money's own disclosure panel
     // ("Native amount") — both identical, confirming no second conversion.
-    expect(screen.getAllByText('−100.00 SGD').length).toBe(2)
+    expect(screen.getAllByText(moneyText('−100.00 SGD')).length).toBe(2)
     expect(screen.queryByText('Native currency')).not.toBeInTheDocument()
     expect(screen.queryByText(/^Native:/)).not.toBeInTheDocument()
   })

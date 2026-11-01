@@ -1,6 +1,7 @@
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { moneyText } from '@/test/moneyText'
 
 // jsdom has no layout; let Recharts' ResponsiveContainer resolve to a fixed box.
 vi.mock('recharts', async (importOriginal) => {
@@ -156,9 +157,9 @@ describe('App state matrix', () => {
     // Economic flow, average monthly spending + fees and cash at cutoff all come
     // from one GET /api/v1/money-flow read (M3b.3 step 10) — value-then-currency
     // via the shared <ConsolidatedMoney>.
-    expect(await screen.findByText('4,200.00 SGD')).toBeInTheDocument()
-    expect(screen.getAllByText('1,234.50 SGD').length).toBeGreaterThan(0)
-    expect(screen.getByText('5,000.00 SGD')).toBeInTheDocument()
+    expect(await screen.findByText(moneyText('4,200.00 SGD'))).toBeInTheDocument()
+    expect(screen.getAllByText(moneyText('1,234.50 SGD')).length).toBeGreaterThan(0)
+    expect(screen.getByText(moneyText('5,000.00 SGD'))).toBeInTheDocument()
     expect(screen.getByText(/Reporting in SGD/)).toBeInTheDocument()
   })
 
@@ -176,7 +177,7 @@ describe('App state matrix', () => {
     await mountApp()
     expect(await screen.findByText(/missing coverage/i)).toBeInTheDocument()
     expect(await screen.findAllByText('Not available')).not.toHaveLength(0)
-    expect(screen.queryByText('0.00 SGD')).not.toBeInTheDocument()
+    expect(screen.queryByText(moneyText('0.00 SGD'))).not.toBeInTheDocument()
     expect(screen.queryByText('SGD 0.00')).not.toBeInTheDocument()
   })
 
