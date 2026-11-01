@@ -80,7 +80,7 @@ export function TrendChart({
               tickLine={false}
               tick={CHART_AXIS_TICK}
             />
-            <YAxis tickLine={false} axisLine={false} width={62} tick={CHART_AXIS_TICK} tickFormatter={currencyTick(currency)} />
+            <YAxis tickLine={false} axisLine={false} width={85} tick={CHART_AXIS_TICK} tickFormatter={currencyTick(currency)} />
             <Tooltip cursor={{ fill: 'var(--chart-hover)' }} content={({ active, label }) => {
               const row = trend.find(item => item.month === label)
               return <ChartTooltip active={active} title={label} items={row ? [

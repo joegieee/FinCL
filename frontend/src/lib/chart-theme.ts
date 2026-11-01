@@ -23,11 +23,11 @@ export const CHART_SEMANTIC = {
 
 export const CHART_TOOLTIP_STYLE: Record<string, string | number> = {
   background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12,
-  color: 'var(--foreground)', fontSize: 12, padding: '12px 16px',
+  color: 'var(--foreground)', fontSize: 13, padding: '12px 16px',
   boxShadow: '0 8px 30px var(--shadow-faint)',
 }
 
-export const CHART_AXIS_TICK = { fill: 'var(--muted)', fontSize: 11 } as const
+export const CHART_AXIS_TICK = { fill: 'var(--muted)', fontSize: 13 } as const
 
 export const CHART_GRID_STROKE = 'var(--border)'
 
