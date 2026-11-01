@@ -44,9 +44,9 @@ export function ComparisonCards({ analysis }: { analysis: ReportedAnalysis }) {
               total={entry.current.total} partialTotal={entry.current.partial_total} currency={currency}
               unavailableReasons={entry.current.unavailable_reasons} excludedDetail={entry.current.excluded_detail}
             /></strong>
-            {entry.comparison_available
+            {(entry.comparison_available || entry.current.total || entry.current.partial_total) && (entry.comparison_available
               ? <DeltaChip delta={entry.delta?.value ?? null} pct={entry.pct} currency={currency} />
-              : <span className="delta muted">{analysis.comparison_kind === 'none' ? 'Comparison off' : entry.comparison_reasons[0] ?? 'No comparison'}</span>}
+              : <span className="delta muted">{analysis.comparison_kind === 'none' ? 'Comparison off' : entry.comparison_reasons[0] ?? 'No comparison'}</span>)}
             <small>{note}</small>
             {entry.comparison_available && previousTotal && (
               <small className="comparison-prev">was {money(previousTotal.value, currency)}</small>

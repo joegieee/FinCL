@@ -155,6 +155,7 @@ export function OverviewView({
 
       <MoneyJourneyPanel
         generation={data.generation} onOpen={onOpen}
+        needs={data.review_count > 0 ? [{ label: `${data.review_count} transaction${data.review_count === 1 ? '' : 's'} need${data.review_count === 1 ? 's' : ''} a category`, open: 'Categorization' }] : []}
         cash={page && <div className="ov-stat">
           <button className="linkish" onClick={() => onOpen('Cash')}>Cash on {page.summary.cash_at_cutoff.balance_as_of ? dateLabel(page.summary.cash_at_cutoff.balance_as_of) : 'an unknown date'} <ArrowRight size={13} /></button>
           <strong><Cv result={page.summary.cash_at_cutoff.amount} currency={page.reporting_currency} /></strong>

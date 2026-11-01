@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { AlertTriangle, ArrowRight } from 'lucide-react'
+import { AlertTriangle, ArrowRight, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ConsolidatedMoney } from '@/components/Money'
 import { money, shortCategory } from '@/lib/api'
@@ -11,7 +11,7 @@ import { when } from '@/features/sufficiency'
 import { CashTimeline } from './CashTimeline'
 import { lastFullMonth, loadJourney, type MoneyJourney, type OwedGroup } from './api'
 
-export type JourneyDestination = 'Setup' | 'Analysis' | 'Obligations' | 'Debts' | 'Will I have enough'
+export type JourneyDestination = 'Setup' | 'Analysis' | 'Obligations' | 'Debts' | 'Will I have enough' | 'Categorization'
 
 const monthName = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-SG', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
@@ -27,10 +27,11 @@ const OWED_COLOR: Record<OwedGroup['origin'], string> = {
  * server; this view only lays them out. `cash` and `children` are the parts
  * that come from the Overview's own money-flow read.
  */
-export function MoneyJourneyPanel({ generation, onOpen, cash, children }: {
+export function MoneyJourneyPanel({ generation, onOpen, cash, needs = [], children }: {
   generation: string
   onOpen: (destination: JourneyDestination) => void
   cash?: ReactNode
+  needs?: { label: string; open: JourneyDestination }[]
   children?: ReactNode
 }) {
   const [journey, setJourney] = useState<MoneyJourney | null>(null)
@@ -61,19 +62,39 @@ export function MoneyJourneyPanel({ generation, onOpen, cash, children }: {
   const currency = journey?.reporting_currency ?? 'SGD'
   const owed = journey?.owed.groups.filter(group => group.count > 0) ?? []
   const uncounted = journey ? journey.owed.unknown_amount_count + journey.owed.unconverted_count : 0
+  const spent = spending?.summary.spending?.current
+  const behind = journey?.statements.accounts.filter(account => account.behind) ?? []
+  const attention = [
+    ...behind.map(account => ({ label: `${account.name} statements are ${account.days_behind} days behind`, open: 'Setup' as const })),
+    ...needs,
+  ]
 
   return (
     <section className="money-journey" aria-label="Your money">
       {journeyError && <p className="form-error" role="alert">{journeyError}</p>}
-      <div className="ov-hero">
+      <div className="ov-band">
         <div className="ov-answer">
           <h2>Will you have enough?</h2>
           <ShortAnswer page={sufficiency} error={sufficiencyError} today={today} />
           <Button variant="ghost" size="sm" onClick={() => onOpen('Will I have enough')}>See why <ArrowRight size={14} /></Button>
         </div>
         {cash}
+        <div className="ov-stat">
+          <button className="linkish" onClick={() => onOpen('Analysis')}>{journey?.statements.complete_through ? `Spent in ${monthName(lastFullMonth(journey.statements.complete_through)[0])}` : 'Spent'} <ArrowRight size={13} /></button>
+          {spent ? <strong><ConsolidatedMoney total={spent.total} partialTotal={spent.partial_total} currency={spending.reporting_currency} unavailableReasons={spent.unavailable_reasons} excludedDetail={spent.excluded_detail} /></strong> : <span className="ov-note">{journey?.statements.complete_through ? 'Adding up…' : 'Appears once statements are in.'}</span>}
+        </div>
+        <div className="ov-stat">
+          <button className="linkish" onClick={() => onOpen('Obligations')}>To pay <ArrowRight size={13} /></button>
+          {journey ? <strong>{money(journey.owed.total, currency)}</strong> : <span className="ov-note">Checking…</span>}
+        </div>
       </div>
-      {forecast?.available && <CashTimeline page={forecast} today={today} reportingCurrency={currency} />}
+      <div className={attention.length && forecast?.available ? 'ov-chart-row' : undefined}>
+        {forecast?.available && <CashTimeline page={forecast} today={today} reportingCurrency={currency} />}
+        {attention.length > 0 && <section className="ov-needs" aria-label="Needs you">
+          <h3>Needs you</h3>
+          <ul>{attention.map(item => <li key={item.label}><button onClick={() => onOpen(item.open)}><span>{item.label}</span><ChevronRight size={16} aria-hidden="true" /></button></li>)}</ul>
+        </section>}
+      </div>
 
       <div className="ov-panels">
         <Panel title="Statements" onOpen={() => onOpen('Setup')}>
@@ -92,23 +113,15 @@ export function MoneyJourneyPanel({ generation, onOpen, cash, children }: {
         <Panel title="Spent" onOpen={() => onOpen('Analysis')}>
           {!journey?.statements.complete_through ? <p className="muted-note">Appears once statements are in.</p>
             : !spending ? <p className="muted-note">Adding up…</p>
-            : <>
-              <p className="ov-lead"><strong><ConsolidatedMoney
-                total={spending.summary.spending?.current.total ?? null} partialTotal={spending.summary.spending?.current.partial_total ?? null}
-                currency={spending.reporting_currency} unavailableReasons={spending.summary.spending?.current.unavailable_reasons}
-                excludedDetail={spending.summary.spending?.current.excluded_detail} /></strong>
-              <small>{monthName(lastFullMonth(journey.statements.complete_through)[0])}</small></p>
-              <Bars rows={spending.category_ranking.slice(0, 5).map(row => ({
+            : <Bars rows={spending.category_ranking.slice(0, 5).map(row => ({
                 key: row.name, label: shortCategory(row.name), size: plotted(row.result),
                 value: <ConsolidatedMoney total={row.result.total} partialTotal={row.result.partial_total} currency={spending.reporting_currency}
                   unavailableReasons={row.result.unavailable_reasons} excludedDetail={row.result.excluded_detail} />,
-              }))} />
-            </>}
+              }))} />}
         </Panel>
 
         <Panel title="Owed" onOpen={() => onOpen('Obligations')}>
           {!journey ? <p className="muted-note">Checking…</p> : <>
-            <p className="ov-lead"><strong>{money(journey.owed.total, currency)}</strong><small>to pay</small></p>
             <div className="ov-stack" aria-hidden="true">
               {owed.filter(group => Number(group.total) > 0).map(group => <i key={group.origin} style={{ flexGrow: Number(group.total), background: OWED_COLOR[group.origin] }} />)}
             </div>

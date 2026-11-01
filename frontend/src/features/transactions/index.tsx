@@ -174,6 +174,8 @@ export function TransactionsView({
     return () => document.removeEventListener('keydown', onKey)
   }, [picked, rows, onOpenEntry])
 
+  const moreFilters = [filters.kind, filters.direction, filters.behavior, filters.need, filters.basis].filter(Boolean).length
+
   return (
     <Card className="transaction-card">
       <div className="transaction-filters">
@@ -190,6 +192,9 @@ export function TransactionsView({
           <option value="">All accounts</option>
           {accounts.map(a => <option key={a}>{a}</option>)}
         </select>
+        <details className="filter-more" open={moreFilters > 0 || undefined}>
+          <summary>{moreFilters > 0 ? `More filters (${moreFilters})` : 'More filters'}</summary>
+          <div>
         <select aria-label="Transaction type" value={filters.kind} onChange={e => setFilters(f => ({ ...f, kind: e.target.value }))}>
           <option value="">All types</option>
           {['spending', 'income', 'refunds', 'fees', 'pending_review', 'internal', 'debt', 'installment', 'review'].map(k => <option key={k} value={k}>{k.replaceAll('_', ' ')}</option>)}
@@ -211,6 +216,8 @@ export function TransactionsView({
           <option value="">Any basis</option>
           {['manual', 'recurring evidence', 'role rule', 'outlier review', 'category default'].map(v => <option key={v} value={v}>{v}</option>)}
         </select>
+          </div>
+        </details>
       </div>
       <div className="filter-secondary">
         <span>{page ? `${page.total} transaction${page.total === 1 ? '' : 's'}` : 'Loading…'}{policy && ` · Reporting in ${policy.currency}`}</span>
@@ -242,7 +249,7 @@ export function TransactionsView({
           <thead>
             <tr>
               <th className="pick-cell"><input type="checkbox" aria-label="Select all rows on this page" checked={rows.length > 0 && rows.every(r => picked.has(r.entry.anchor))} onChange={ev => { setMatchAll(null); setPicked(s => { const n = new Set(s); rows.forEach(r => ev.target.checked ? n.add(r.entry.anchor) : n.delete(r.entry.anchor)); return n }) }} /></th>
-              <th>Date</th><th>Merchant / description</th><th>Account</th><th>Category</th><th>Spending pattern</th><th>Need</th><th className="amount">Amount</th><th>Status</th><th><span className="sr-only">Details</span></th>
+              <th>Date</th><th>Merchant</th><th>Category</th><th className="amount">Amount</th><th>Status</th><th><span className="sr-only">Details</span></th>
             </tr>
           </thead>
           <tbody>
@@ -262,11 +269,8 @@ export function TransactionsView({
                 <tr key={e.id} tabIndex={0} data-anchor={e.anchor} data-index={i} onKeyDown={ev => { if (ev.key === ' ' && (ev.target as HTMLElement).tagName === 'TR') { ev.preventDefault(); togglePick(e.anchor, i, ev.shiftKey) } }} className={picked.has(e.anchor) ? 'row-picked' : ''}>
                   <td className="pick-cell" data-label="Select"><input type="checkbox" aria-label={`Select ${e.merchant}`} checked={picked.has(e.anchor)} onChange={() => {}} onClick={ev => togglePick(e.anchor, i, (ev as unknown as { shiftKey: boolean }).shiftKey)} /></td>
                   <td className="date-cell" data-label="Date">{e.precision === 'MONTH' ? e.date.slice(0, 7) : dateLabel(e.date)}{e.precision === 'MONTH' && <small>Month precision</small>}</td>
-                  <td data-label="Merchant"><strong>{e.merchant}</strong><small title={e.description}>{e.description}</small></td>
-                  <td data-label="Account">{e.account}</td>
-                  <td data-label="Category"><button className="category-chip" onClick={() => onOpenEntry(row)}>{debtOwned ? 'Personal debt' : shortCategory(e.category)}</button></td>
-                  <td data-label="Spending pattern"><button className="category-chip" title={`Basis: ${costBehaviorBasis}`} onClick={() => onOpenEntry(row)}>{costBehavior.replaceAll('_', ' ')}</button></td>
-                  <td data-label="Need"><button className="category-chip" title={`Basis: ${needBasis}`} onClick={() => onOpenEntry(row)}>{need}</button></td>
+                  <td data-label="Merchant"><strong>{e.merchant}</strong><small title={e.description}>{e.account} · {e.description}</small></td>
+                  <td data-label="Category"><button className="category-chip" onClick={() => onOpenEntry(row)}>{debtOwned ? 'Personal debt' : shortCategory(e.category)}</button><small title={`Spending pattern basis: ${costBehaviorBasis}. Need basis: ${needBasis}`}>{costBehavior.replaceAll('_', ' ')} · {need}</small></td>
                   <td className="amount" data-label="Amount">
                     <Money value={row.amount} />
                     {row.amount.unavailable && <small>Native: {money(e.amount, e.currency)}</small>}
