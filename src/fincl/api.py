@@ -17,6 +17,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import clock
+from .api_debts import (
+    AllocationCandidatesPage,
+    CommitmentScheduleDraft,
+    DebtDetail,
+    DebtEventRead,
+    DebtEventsPage,
+    DebtsPage,
+    DraftPreview,
+    EntryResidual,
+    SplitCandidatesPage,
+)
 from .application import record_batch, record_decision
 from .common import canonical_json, resolve_category
 from .custom_categories import custom_categories, validate_creation
@@ -1846,7 +1857,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise
 
-    @app.get('/api/v1/debts')
+    @app.get('/api/v1/debts',response_model=DebtsPage)
     def debts(as_of: str | None = None, currency: str | None = None,
               status: str | None = None, cursor: str | None = None,
               limit: int = 50, generation: str | None = None) -> Any:
@@ -1864,7 +1875,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(422, str(exc)) from exc
 
-    @app.get('/api/v1/debts/allocation-candidates')
+    @app.get('/api/v1/debts/allocation-candidates',response_model=AllocationCandidatesPage)
     def debt_allocation_candidates(debt: str, event_kind: str | None = None, search: str | None = None,
                                    cursor: str | None = None, limit: int = 50,
                                    generation: str | None = None, anchor: str | None = None,
@@ -1880,7 +1891,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
 
-    @app.get('/api/v1/debts/split-candidates')
+    @app.get('/api/v1/debts/split-candidates',response_model=SplitCandidatesPage)
     def debt_split_candidates(search: str | None = None, cursor: str | None = None, limit: int = 50,
                               generation: str | None = None) -> Any:
         from .debts.queries import split_candidates
@@ -1892,7 +1903,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(422, str(exc)) from exc
 
-    @app.get('/api/v1/debts/entry-residual')
+    @app.get('/api/v1/debts/entry-residual',response_model=EntryResidual)
     def debt_entry_residual(anchor: str, generation: str | None = None) -> Any:
         from .debts.queries import entry_residual
         try:
@@ -1902,7 +1913,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                 raise HTTPException(409, str(exc)) from exc
             raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
 
-    @app.post('/api/v1/debts/preview')
+    @app.post('/api/v1/debts/preview',response_model=DraftPreview)
     def debt_draft_preview(body: DebtDraft) -> Any:
         """What a debt draft would save and do to each debt's balances; nothing is recorded."""
         from .db import connect_sqlite, initialize_schema
@@ -1927,7 +1938,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
             finally:
                 connection.close()
 
-    @app.get('/api/v1/debts/{debt_id}')
+    @app.get('/api/v1/debts/{debt_id}',response_model=DebtDetail)
     def debt(debt_id: str, as_of: str | None = None, generation: str | None = None) -> Any:
         from .debts.queries import debt_detail
         with ledger_writer(database):
@@ -1938,7 +1949,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
 
-    @app.get('/api/v1/debts/{debt_id}/commitment-schedule')
+    @app.get('/api/v1/debts/{debt_id}/commitment-schedule',response_model=CommitmentScheduleDraft)
     def debt_commitment_schedule(debt_id: str, commitment: str, generation: str | None = None) -> Any:
         from .debts.queries import commitment_schedule_draft
         with ledger_writer(database):
@@ -1949,7 +1960,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
 
-    @app.get('/api/v1/debts/{debt_id}/events/{event_id}')
+    @app.get('/api/v1/debts/{debt_id}/events/{event_id}',response_model=DebtEventRead)
     def debt_event_read(debt_id: str, event_id: str, generation: str | None = None) -> Any:
         from .debts.queries import debt_event
         with ledger_writer(database):
@@ -1960,7 +1971,7 @@ def create_app(database: Path, *, port: int = 8765, public_host: str = '127.0.0.
                     raise HTTPException(409, str(exc)) from exc
                 raise HTTPException(404 if 'does not exist' in str(exc) else 422, str(exc)) from exc
 
-    @app.get('/api/v1/debts/{debt_id}/events')
+    @app.get('/api/v1/debts/{debt_id}/events',response_model=DebtEventsPage)
     def debt_event_list(debt_id: str, cursor: str | None = None, limit: int = 100,
                         generation: str | None = None) -> Any:
         from .debts.queries import debt_events

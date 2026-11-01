@@ -333,6 +333,29 @@ class DebtApiTests(ApiTestBase):
         self.assertEqual(len(detail["debt"]["principal_history"]), 1)
         self.assertTrue(detail["debt"]["principal_history"][0]["opening_balance"])
 
+    def test_events_page_lists_a_debts_events(self) -> None:
+        debt_id = str(uuid.uuid4())
+        self._command(
+            "PERSONAL_DEBT_OPEN",
+            {"debt": debt_id},
+            {"direction": "PAYABLE", "currency": "SGD", "counterparty_label": "Kim",
+             "opened_on": "2026-01-02", "due_on": None, "reason": "Owe Kim"},
+        )
+        event_id = str(uuid.uuid4())
+        self._command(
+            "PERSONAL_DEBT_EVENT_SET",
+            {"debt": debt_id, "event": event_id},
+            {"event_kind": "BORROWED", "direction": "PAYABLE", "principal_amount": "12.50",
+             "effective_on": "2026-01-02", "entry_allocations": [], "opening_balance": True,
+             "expense_category": None, "reason": "Opening balance"},
+        )
+        response = self.client.get(f"/api/v1/debts/{debt_id}/events")
+        self.assertEqual(response.status_code, 200, response.text)
+        page = response.json()
+        self.assertEqual([event["event_id"] for event in page["events"]], [event_id])
+        self.assertEqual(page["events"][0]["principal"], {"value": "12.50", "currency": None})
+        self.assertIsNone(page["next_cursor"])
+
     def test_missing_debt_is_404(self) -> None:
         self.assertEqual(self.client.get(f"/api/v1/debts/{uuid.uuid4()}").status_code, 404)
 

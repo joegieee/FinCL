@@ -3055,7 +3055,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debts Api V1 Debts Get"
+                  "$ref": "#/components/schemas/DebtsPage"
                 }
               }
             }
@@ -3200,7 +3200,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debt Allocation Candidates Api V1 Debts Allocation Candidates Get"
+                  "$ref": "#/components/schemas/AllocationCandidatesPage"
                 }
               }
             }
@@ -3288,7 +3288,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debt Split Candidates Api V1 Debts Split Candidates Get"
+                  "$ref": "#/components/schemas/SplitCandidatesPage"
                 }
               }
             }
@@ -3343,7 +3343,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debt Entry Residual Api V1 Debts Entry Residual Get"
+                  "$ref": "#/components/schemas/EntryResidual"
                 }
               }
             }
@@ -3382,7 +3382,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debt Draft Preview Api V1 Debts Preview Post"
+                  "$ref": "#/components/schemas/DraftPreview"
                 }
               }
             }
@@ -3453,7 +3453,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debt Api V1 Debts  Debt Id  Get"
+                  "$ref": "#/components/schemas/DebtDetail"
                 }
               }
             }
@@ -3517,7 +3517,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debt Commitment Schedule Api V1 Debts  Debt Id  Commitment Schedule Get"
+                  "$ref": "#/components/schemas/CommitmentScheduleDraft"
                 }
               }
             }
@@ -3581,7 +3581,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debt Event Read Api V1 Debts  Debt Id  Events  Event Id  Get"
+                  "$ref": "#/components/schemas/DebtEventRead"
                 }
               }
             }
@@ -3662,7 +3662,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Debt Event List Api V1 Debts  Debt Id  Events Get"
+                  "$ref": "#/components/schemas/DebtEventsPage"
                 }
               }
             }
@@ -10039,6 +10039,131 @@
   },
   "components": {
     "schemas": {
+      "AllocationCandidate": {
+        "properties": {
+          "entry_anchor": {
+            "type": "string",
+            "title": "Entry Anchor"
+          },
+          "effective_at": {
+            "type": "string",
+            "title": "Effective At"
+          },
+          "economic_direction": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "OUT"
+            ],
+            "title": "Economic Direction"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "open_amount": {
+            "type": "string",
+            "title": "Open Amount"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "incoming_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incoming Type"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "entry_anchor",
+          "effective_at",
+          "economic_direction",
+          "currency",
+          "amount",
+          "open_amount",
+          "description",
+          "incoming_type"
+        ],
+        "title": "AllocationCandidate"
+      },
+      "AllocationCandidatesPage": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "event_kind": {
+            "type": "string",
+            "title": "Event Kind"
+          },
+          "required_direction": {
+            "type": "string",
+            "enum": [
+              "IN",
+              "OUT"
+            ],
+            "title": "Required Direction"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "debt_id",
+          "event_kind",
+          "required_direction",
+          "currency",
+          "candidates",
+          "next_cursor"
+        ],
+        "title": "AllocationCandidatesPage"
+      },
       "Analysis": {
         "properties": {
           "generation": {
@@ -11585,6 +11710,28 @@
         ],
         "title": "Command"
       },
+      "CommitmentScheduleDraft": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DraftItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "items"
+        ],
+        "title": "CommitmentScheduleDraft"
+      },
       "ComparisonDTO": {
         "properties": {
           "kind": {
@@ -12330,6 +12477,275 @@
         ],
         "title": "Dashboard"
       },
+      "DebtCard": {
+        "properties": {
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "PAYABLE",
+              "RECEIVABLE"
+            ],
+            "title": "Direction"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "counterparty_label": {
+            "type": "string",
+            "title": "Counterparty Label"
+          },
+          "opened_on": {
+            "type": "string",
+            "title": "Opened On"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ],
+            "title": "Status"
+          },
+          "closed_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed On"
+          },
+          "remaining_principal": {
+            "$ref": "#/components/schemas/WireMoney"
+          },
+          "last_event": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DebtLastEvent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reconciliation_status": {
+            "type": "string",
+            "title": "Reconciliation Status"
+          },
+          "event_count": {
+            "type": "integer",
+            "title": "Event Count"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DebtPlanHeadline"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "debt_id",
+          "direction",
+          "currency",
+          "counterparty_label",
+          "opened_on",
+          "due_on",
+          "status",
+          "closed_on",
+          "remaining_principal",
+          "last_event",
+          "reconciliation_status",
+          "event_count",
+          "plan"
+        ],
+        "title": "DebtCard"
+      },
+      "DebtDetail": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "debt": {
+            "$ref": "#/components/schemas/DebtDetailCard"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "as_of",
+          "debt"
+        ],
+        "title": "DebtDetail"
+      },
+      "DebtDetailCard": {
+        "properties": {
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "PAYABLE",
+              "RECEIVABLE"
+            ],
+            "title": "Direction"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "counterparty_label": {
+            "type": "string",
+            "title": "Counterparty Label"
+          },
+          "opened_on": {
+            "type": "string",
+            "title": "Opened On"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ],
+            "title": "Status"
+          },
+          "closed_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed On"
+          },
+          "remaining_principal": {
+            "$ref": "#/components/schemas/WireMoney"
+          },
+          "last_event": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DebtLastEvent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reconciliation_status": {
+            "type": "string",
+            "title": "Reconciliation Status"
+          },
+          "event_count": {
+            "type": "integer",
+            "title": "Event Count"
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DebtPlanHeadline"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "principal_history": {
+            "items": {
+              "$ref": "#/components/schemas/DebtEvent"
+            },
+            "type": "array",
+            "title": "Principal History"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "overlapping_commitments": {
+            "items": {
+              "$ref": "#/components/schemas/OverlappingCommitment"
+            },
+            "type": "array",
+            "title": "Overlapping Commitments"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "debt_id",
+          "direction",
+          "currency",
+          "counterparty_label",
+          "opened_on",
+          "due_on",
+          "status",
+          "closed_on",
+          "remaining_principal",
+          "last_event",
+          "reconciliation_status",
+          "event_count",
+          "plan",
+          "principal_history",
+          "reason",
+          "overlapping_commitments",
+          "schedule"
+        ],
+        "title": "DebtDetailCard"
+      },
       "DebtDraft": {
         "properties": {
           "expected_generation": {
@@ -12355,6 +12771,612 @@
           "items"
         ],
         "title": "DebtDraft"
+      },
+      "DebtEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "event_kind": {
+            "type": "string",
+            "title": "Event Kind"
+          },
+          "effective_on": {
+            "type": "string",
+            "title": "Effective On"
+          },
+          "opening_balance": {
+            "type": "boolean",
+            "title": "Opening Balance"
+          },
+          "signed": {
+            "type": "integer",
+            "title": "Signed"
+          },
+          "principal": {
+            "$ref": "#/components/schemas/WireMoney"
+          },
+          "expense_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Category"
+          },
+          "bound": {
+            "type": "boolean",
+            "title": "Bound"
+          },
+          "dangling_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dangling Reason"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "journal_seq": {
+            "type": "integer",
+            "title": "Journal Seq"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_kind",
+          "effective_on",
+          "opening_balance",
+          "signed",
+          "principal",
+          "expense_category",
+          "bound",
+          "dangling_reason",
+          "reason",
+          "journal_seq"
+        ],
+        "title": "DebtEvent"
+      },
+      "DebtEventPayload": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "event_kind": {
+            "type": "string",
+            "title": "Event Kind"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "PAYABLE",
+              "RECEIVABLE"
+            ],
+            "title": "Direction"
+          },
+          "principal_amount": {
+            "type": "string",
+            "title": "Principal Amount"
+          },
+          "effective_on": {
+            "type": "string",
+            "title": "Effective On"
+          },
+          "entry_allocations": {
+            "items": {
+              "$ref": "#/components/schemas/EntryAllocation"
+            },
+            "type": "array",
+            "title": "Entry Allocations"
+          },
+          "opening_balance": {
+            "type": "boolean",
+            "title": "Opening Balance"
+          },
+          "expense_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Category"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_kind",
+          "direction",
+          "principal_amount",
+          "effective_on",
+          "entry_allocations",
+          "opening_balance",
+          "expense_category",
+          "reason"
+        ],
+        "title": "DebtEventPayload"
+      },
+      "DebtEventRead": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "event": {
+            "$ref": "#/components/schemas/DebtEventPayload"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationCandidate"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "debt_id",
+          "event",
+          "sources"
+        ],
+        "title": "DebtEventRead"
+      },
+      "DebtEventSummary": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "event_kind": {
+            "type": "string",
+            "title": "Event Kind"
+          },
+          "effective_on": {
+            "type": "string",
+            "title": "Effective On"
+          },
+          "opening_balance": {
+            "type": "boolean",
+            "title": "Opening Balance"
+          },
+          "principal": {
+            "$ref": "#/components/schemas/WireMoney"
+          },
+          "bound": {
+            "type": "boolean",
+            "title": "Bound"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_kind",
+          "effective_on",
+          "opening_balance",
+          "principal",
+          "bound",
+          "reason"
+        ],
+        "title": "DebtEventSummary"
+      },
+      "DebtEventsPage": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/DebtEventSummary"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "events",
+          "next_cursor"
+        ],
+        "title": "DebtEventsPage"
+      },
+      "DebtLastEvent": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "effective_on": {
+            "type": "string",
+            "title": "Effective On"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "effective_on"
+        ],
+        "title": "DebtLastEvent"
+      },
+      "DebtPlanHeadline": {
+        "properties": {
+          "next_due": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Due"
+          },
+          "overdue_count": {
+            "type": "integer",
+            "title": "Overdue Count"
+          },
+          "unscheduled_remainder": {
+            "type": "boolean",
+            "title": "Unscheduled Remainder"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "next_due",
+          "overdue_count",
+          "unscheduled_remainder"
+        ],
+        "title": "DebtPlanHeadline"
+      },
+      "DebtsPage": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "i_owe": {
+            "items": {
+              "$ref": "#/components/schemas/DebtCard"
+            },
+            "type": "array",
+            "title": "I Owe"
+          },
+          "owed_to_me": {
+            "items": {
+              "$ref": "#/components/schemas/DebtCard"
+            },
+            "type": "array",
+            "title": "Owed To Me"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "as_of",
+          "i_owe",
+          "owed_to_me",
+          "next_cursor"
+        ],
+        "title": "DebtsPage"
+      },
+      "DraftDebt": {
+        "properties": {
+          "debt_id": {
+            "type": "string",
+            "title": "Debt Id"
+          },
+          "counterparty_label": {
+            "type": "string",
+            "title": "Counterparty Label"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "PAYABLE",
+              "RECEIVABLE"
+            ],
+            "title": "Direction"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftDebtStanding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "$ref": "#/components/schemas/DraftDebtStanding"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/DraftTimelineEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/DraftSchedule"
+          },
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEvent"
+            },
+            "type": "array",
+            "title": "Removed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "debt_id",
+          "counterparty_label",
+          "direction",
+          "currency",
+          "before",
+          "after",
+          "events",
+          "schedule",
+          "removed"
+        ],
+        "title": "DraftDebt"
+      },
+      "DraftDebtStanding": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "closed_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed On"
+          },
+          "remaining": {
+            "type": "string",
+            "title": "Remaining"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "closed_on",
+          "remaining"
+        ],
+        "title": "DraftDebtStanding"
+      },
+      "DraftItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "anchors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Anchors"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "anchors",
+          "payload"
+        ],
+        "title": "DraftItem"
+      },
+      "DraftPreview": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DraftItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "debts": {
+            "items": {
+              "$ref": "#/components/schemas/DraftDebt"
+            },
+            "type": "array",
+            "title": "Debts"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "items",
+          "debts"
+        ],
+        "title": "DraftPreview"
+      },
+      "DraftSchedule": {
+        "properties": {
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "before",
+          "after"
+        ],
+        "title": "DraftSchedule"
+      },
+      "DraftTimelineEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "event_kind": {
+            "type": "string",
+            "title": "Event Kind"
+          },
+          "effective_on": {
+            "type": "string",
+            "title": "Effective On"
+          },
+          "signed": {
+            "type": "integer",
+            "title": "Signed"
+          },
+          "principal": {
+            "type": "string",
+            "title": "Principal"
+          },
+          "balance": {
+            "type": "string",
+            "title": "Balance"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "added",
+                  "changed",
+                  "balance"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "balance_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Before"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_kind",
+          "effective_on",
+          "signed",
+          "principal",
+          "balance",
+          "change",
+          "balance_before"
+        ],
+        "title": "DraftTimelineEvent"
       },
       "EconomicFlowOut": {
         "properties": {
@@ -12572,6 +13594,90 @@
           "debt_allocation"
         ],
         "title": "Entry"
+      },
+      "EntryAllocation": {
+        "properties": {
+          "entry_anchor": {
+            "type": "string",
+            "title": "Entry Anchor"
+          },
+          "principal_amount": {
+            "type": "string",
+            "title": "Principal Amount"
+          },
+          "interest_amount": {
+            "type": "string",
+            "title": "Interest Amount"
+          },
+          "fee_amount": {
+            "type": "string",
+            "title": "Fee Amount"
+          },
+          "separate_fee_amount": {
+            "type": "string",
+            "title": "Separate Fee Amount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "entry_anchor",
+          "principal_amount",
+          "interest_amount",
+          "fee_amount",
+          "separate_fee_amount"
+        ],
+        "title": "EntryAllocation"
+      },
+      "EntryResidual": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "entry_anchor": {
+            "type": "string",
+            "title": "Entry Anchor"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "available_amount": {
+            "type": "string",
+            "title": "Available Amount"
+          },
+          "unassigned_amount": {
+            "type": "string",
+            "title": "Unassigned Amount"
+          },
+          "owner_share": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnerShare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "entry_anchor",
+          "currency",
+          "amount",
+          "available_amount",
+          "unassigned_amount",
+          "owner_share"
+        ],
+        "title": "EntryResidual"
       },
       "EventDateChangeDraft": {
         "properties": {
@@ -14061,6 +15167,54 @@
         ],
         "title": "NetWorthTrendOut"
       },
+      "OverlappingCommitment": {
+        "properties": {
+          "commitment": {
+            "type": "string",
+            "title": "Commitment"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "payments": {
+            "type": "integer",
+            "title": "Payments"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "commitment",
+          "name",
+          "payments"
+        ],
+        "title": "OverlappingCommitment"
+      },
+      "OwnerShare": {
+        "properties": {
+          "expense_amount": {
+            "type": "string",
+            "title": "Expense Amount"
+          },
+          "expense_category": {
+            "type": "string",
+            "title": "Expense Category"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expense_amount",
+          "expense_category",
+          "reason"
+        ],
+        "title": "OwnerShare"
+      },
       "OwningSourceOut": {
         "properties": {
           "kind": {
@@ -14290,6 +15444,141 @@
           "remaining"
         ],
         "title": "Plan"
+      },
+      "PlanRow": {
+        "properties": {
+          "schedule_index": {
+            "type": "integer",
+            "title": "Schedule Index"
+          },
+          "due_on": {
+            "type": "string",
+            "title": "Due On"
+          },
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "paid": {
+            "type": "string",
+            "title": "Paid"
+          },
+          "remaining": {
+            "type": "string",
+            "title": "Remaining"
+          },
+          "trimmed": {
+            "type": "string",
+            "title": "Trimmed"
+          },
+          "was_trimmed": {
+            "type": "boolean",
+            "title": "Was Trimmed"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "part_paid",
+              "overdue",
+              "upcoming",
+              "trimmed"
+            ],
+            "title": "State"
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schedule_index",
+          "due_on",
+          "amount",
+          "paid",
+          "remaining",
+          "trimmed",
+          "was_trimmed",
+          "state",
+          "overdue"
+        ],
+        "title": "PlanRow"
+      },
+      "PlanState": {
+        "properties": {
+          "effective_from": {
+            "type": "string",
+            "title": "Effective From"
+          },
+          "plan_kind": {
+            "type": "string",
+            "enum": [
+              "rows",
+              "series"
+            ],
+            "title": "Plan Kind"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/PlanRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "remaining_principal": {
+            "type": "string",
+            "title": "Remaining Principal"
+          },
+          "scheduled_remaining": {
+            "type": "string",
+            "title": "Scheduled Remaining"
+          },
+          "unscheduled_remainder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UnscheduledRemainder"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next_due": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Due"
+          },
+          "overdue_count": {
+            "type": "integer",
+            "title": "Overdue Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "effective_from",
+          "plan_kind",
+          "reason",
+          "rows",
+          "remaining_principal",
+          "scheduled_remaining",
+          "unscheduled_remainder",
+          "next_due",
+          "overdue_count"
+        ],
+        "title": "PlanState"
       },
       "PlannedImpactDraft": {
         "properties": {
@@ -15387,6 +16676,40 @@
         ],
         "title": "SpendingWhatIfDraft"
       },
+      "SplitCandidatesPage": {
+        "properties": {
+          "generation": {
+            "type": "string",
+            "title": "Generation"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationCandidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "generation",
+          "candidates",
+          "next_cursor"
+        ],
+        "title": "SplitCandidatesPage"
+      },
       "StatementMoneyDetailOut": {
         "properties": {
           "original": {
@@ -15593,6 +16916,45 @@
           "pct"
         ],
         "title": "SummaryEntryOut"
+      },
+      "TimelineEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "title": "Event Id"
+          },
+          "event_kind": {
+            "type": "string",
+            "title": "Event Kind"
+          },
+          "effective_on": {
+            "type": "string",
+            "title": "Effective On"
+          },
+          "signed": {
+            "type": "integer",
+            "title": "Signed"
+          },
+          "principal": {
+            "type": "string",
+            "title": "Principal"
+          },
+          "balance": {
+            "type": "string",
+            "title": "Balance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_id",
+          "event_kind",
+          "effective_on",
+          "signed",
+          "principal",
+          "balance"
+        ],
+        "title": "TimelineEvent"
       },
       "Total": {
         "properties": {
@@ -15991,6 +17353,37 @@
         ],
         "title": "UnavailabilityDTO"
       },
+      "UnscheduledRemainder": {
+        "properties": {
+          "amount": {
+            "type": "string",
+            "title": "Amount"
+          },
+          "due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due On"
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "amount",
+          "due_on",
+          "overdue"
+        ],
+        "title": "UnscheduledRemainder"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -16167,6 +17560,32 @@
           "unavailable"
         ],
         "title": "ValuedMoneyDTO"
+      },
+      "WireMoney": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "currency"
+        ],
+        "title": "WireMoney"
       },
       "WorkspaceAmount": {
         "properties": {

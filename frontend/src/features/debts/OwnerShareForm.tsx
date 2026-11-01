@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { api, money } from '@/lib/api'
+import { api, money, type components } from '@/lib/api'
 import { useLedgerCommand } from '@/lib/command'
 import { CategoryPicker } from '@/features/classification/CategoryPicker'
 
-type OwnerShare = {
-  generation: string
-  entry_anchor: string
-  currency: string
-  amount: string
-  available_amount: string
-  unassigned_amount: string
-  owner_share: { expense_amount: string; expense_category: string; reason: string } | null
-}
+type OwnerShare = components['schemas']['EntryResidual']
 
 /** The owner share belongs to the source transaction, even when several debts
  * share it. Replacing it must not append a second expense or change principal. */

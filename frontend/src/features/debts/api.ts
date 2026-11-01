@@ -1,86 +1,19 @@
 import { reportedApi } from '@/lib/workspaceReporting'
-import { api } from '@/lib/api'
+import { api, type components } from '@/lib/api'
 
-// v0.3 slice 1 debt read shapes. These are hand-written until the integration
-// branch regenerates schema.d.ts from the FastAPI models.
-export type WireMoney = { value: string; currency: string | null }
+type Schemas = components['schemas']
 
-export type DebtCard = {
-  debt_id: string
-  direction: 'PAYABLE' | 'RECEIVABLE'
-  currency: string
-  counterparty_label: string
-  opened_on: string
-  due_on: string | null
-  status: 'OPEN' | 'CLOSED'
-  closed_on: string | null
-  remaining_principal: WireMoney
-  last_event: { kind: string; effective_on: string } | null
-  reconciliation_status: string
-  event_count: number
-  /** The repayment plan's headline, when the debt has one. */
-  plan?: { next_due: string | null; overdue_count: number; unscheduled_remainder: boolean } | null
-}
-
-export type PlanRowState = 'paid' | 'part_paid' | 'overdue' | 'upcoming' | 'trimmed'
-
-export type PlanRow = {
-  schedule_index: number
-  due_on: string
-  amount: string
-  paid: string
-  remaining: string
-  /** How much of the row the principal no longer needs. */
-  trimmed: string
-  was_trimmed: boolean
-  state: PlanRowState
-  overdue: boolean
-}
-
+export type WireMoney = Schemas['WireMoney']
+export type DebtCard = Schemas['DebtCard']
+export type PlanRow = Schemas['PlanRow']
+export type PlanRowState = PlanRow['state']
 /** A debt's repayment plan as the server reads it: every amount is computed there. */
-export type PlanState = {
-  effective_from: string
-  plan_kind: 'rows' | 'series'
-  reason: string
-  rows: PlanRow[]
-  remaining_principal: string
-  scheduled_remaining: string
-  /** What the rows do not cover; dated when the debt has its own due date. */
-  unscheduled_remainder: { amount: string; due_on: string | null; overdue: boolean } | null
-  next_due: string | null
-  overdue_count: number
-}
-
-export type DebtEvent = {
-  event_id: string
-  event_kind: string
-  effective_on: string
-  opening_balance: boolean
-  signed: number
-  principal: WireMoney
-  expense_category: string | null
-  bound: boolean
-  dangling_reason: string | null
-  reason: string
-  journal_seq: number
-}
-
-export type DebtsPage = {
-  generation: string
-  as_of: string
-  i_owe: DebtCard[]
-  owed_to_me: DebtCard[]
-  next_cursor: string | null
-}
-
+export type PlanState = Schemas['PlanState']
+export type DebtEvent = Schemas['DebtEvent']
+export type DebtsPage = Schemas['DebtsPage']
 /** An active recurring commitment whose payments are this debt's own movements. */
-export type OverlappingCommitment = { commitment: string; name: string; payments: number }
-
-export type DebtDetail = {
-  generation: string
-  as_of: string
-  debt: DebtCard & { principal_history: DebtEvent[]; reason: string; overlapping_commitments?: OverlappingCommitment[]; schedule?: PlanState | null }
-}
+export type OverlappingCommitment = Schemas['OverlappingCommitment']
+export type DebtDetail = Schemas['DebtDetail']
 
 /** Every debt, following the server's pages: the lists, the split form and the
  * classification hand-off all need the whole set, not the first page of it. */
@@ -139,27 +72,9 @@ export function kindsForMovement(debtDirection: 'PAYABLE' | 'RECEIVABLE', direct
   return EVENT_KINDS[debtDirection].filter(spec => !spec.offLedger && bankDirection(debtDirection, spec) === direction)
 }
 
-export type AllocationCandidate = {
-  entry_anchor: string
-  effective_at: string
-  economic_direction: 'IN' | 'OUT'
-  currency: string
-  amount: string
-  open_amount: string
-  description: string | null
-  /** An inflow's recorded incoming type, if any. */
-  incoming_type?: string | null
-}
+export type AllocationCandidate = Schemas['AllocationCandidate']
 
-export type AllocationCandidatesPage = {
-  generation: string
-  debt_id: string
-  event_kind: string
-  required_direction: 'IN' | 'OUT'
-  currency: string
-  candidates: AllocationCandidate[]
-  next_cursor: string | null
-}
+export type AllocationCandidatesPage = Schemas['AllocationCandidatesPage']
 
 export function loadAllocationCandidates(opts: {
   debtId: string
@@ -180,13 +95,7 @@ export function loadAllocationCandidates(opts: {
   return reportedApi<AllocationCandidatesPage>('debts/allocation-candidates?' + q)
 }
 
-export type AllocationInput = {
-  entry_anchor: string
-  principal_amount: string
-  interest_amount: string
-  fee_amount: string
-  separate_fee_amount: string
-}
+export type AllocationInput = Schemas['EntryAllocation']
 
 export type DebtCommandBody = {
   request_id: string
@@ -243,7 +152,7 @@ export const RECONCILIATION_LABEL: Record<string, string> = {
 
 // --- splitting a bill ------------------------------------------------------------
 
-export type SplitCandidatesPage = { generation: string; candidates: AllocationCandidate[]; next_cursor: string | null }
+export type SplitCandidatesPage = Schemas['SplitCandidatesPage']
 
 /** Outgoing bills that can still be split: an unclaimed amount and no owner share recorded yet. */
 export function loadSplitCandidates(opts: { generation: string; search?: string; limit?: number }): Promise<SplitCandidatesPage> {
@@ -293,31 +202,13 @@ export function splitItems(
 
 // --- drafts checked by the server --------------------------------------------
 
-export type DraftItem = { kind: string; anchors: Record<string, string>; payload: Record<string, unknown> }
+export type DraftItem = Schemas['DraftItem']
 
-export type TimelineEvent = {
-  event_id: string
-  event_kind: string
-  effective_on: string
-  signed: number
-  principal: string
-  /** The principal standing after this event. */
-  balance: string
-}
+export type TimelineEvent = Schemas['TimelineEvent']
 
-export type DraftDebt = {
-  debt_id: string
-  counterparty_label: string
-  direction: 'PAYABLE' | 'RECEIVABLE'
-  currency: string
-  before: { status: string; closed_on: string | null; remaining: string } | null
-  after: { status: string; closed_on: string | null; remaining: string }
-  events: (TimelineEvent & { change: 'added' | 'changed' | 'balance' | null; balance_before: string | null })[]
-  removed: TimelineEvent[]
-  schedule?: { before: PlanState | null; after: PlanState | null }
-}
+export type DraftDebt = Schemas['DraftDebt']
 
-export type DraftPreview = { generation: string; items: DraftItem[]; debts: DraftDebt[] }
+export type DraftPreview = Schemas['DraftPreview']
 
 /** Check a draft as one batch and see what it does to every later balance.
  * `items` comes back exactly as it should be saved, with any amount the draft
@@ -326,19 +217,9 @@ export function previewDebtDraft(generation: string, items: DraftItem[]): Promis
   return api<DraftPreview>('debts/preview', { expected_generation: generation, items })
 }
 
-export type DebtEventPayload = {
-  event_id: string
-  event_kind: string
-  direction: 'PAYABLE' | 'RECEIVABLE'
-  principal_amount: string
-  effective_on: string
-  entry_allocations: AllocationInput[]
-  opening_balance: boolean
-  expense_category: string | null
-  reason: string
-}
+export type DebtEventPayload = Schemas['DebtEventPayload']
 
-export type DebtEventRead = { generation: string; debt_id: string; event: DebtEventPayload; sources: AllocationCandidate[] }
+export type DebtEventRead = Schemas['DebtEventRead']
 
 /** One recorded event as its payload, with its sources described as candidates. */
 export function loadDebtEvent(debtId: string, eventId: string, generation: string): Promise<DebtEventRead> {
@@ -368,7 +249,7 @@ export function kindLabel(kind: string): string {
 
 /** The draft that makes a recurring commitment the debt's repayment plan and
  * ends the commitment; the server works out every row and amount. */
-export function loadCommitmentSchedule(debtId: string, commitment: string, generation: string): Promise<{ generation: string; items: DraftItem[] }> {
+export function loadCommitmentSchedule(debtId: string, commitment: string, generation: string): Promise<Schemas['CommitmentScheduleDraft']> {
   const q = new URLSearchParams({ commitment, generation })
   return api(`debts/${encodeURIComponent(debtId)}/commitment-schedule?` + q)
 }

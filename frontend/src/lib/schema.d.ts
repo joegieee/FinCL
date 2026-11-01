@@ -3289,6 +3289,48 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AllocationCandidate */
+        AllocationCandidate: {
+            /** Entry Anchor */
+            entry_anchor: string;
+            /** Effective At */
+            effective_at: string;
+            /**
+             * Economic Direction
+             * @enum {string}
+             */
+            economic_direction: "IN" | "OUT";
+            /** Currency */
+            currency: string;
+            /** Amount */
+            amount: string;
+            /** Open Amount */
+            open_amount: string;
+            /** Description */
+            description: string | null;
+            /** Incoming Type */
+            incoming_type: string | null;
+        };
+        /** AllocationCandidatesPage */
+        AllocationCandidatesPage: {
+            /** Generation */
+            generation: string;
+            /** Debt Id */
+            debt_id: string;
+            /** Event Kind */
+            event_kind: string;
+            /**
+             * Required Direction
+             * @enum {string}
+             */
+            required_direction: "IN" | "OUT";
+            /** Currency */
+            currency: string;
+            /** Candidates */
+            candidates: components["schemas"]["AllocationCandidate"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** Analysis */
         Analysis: {
             /** Generation */
@@ -3727,6 +3769,13 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** CommitmentScheduleDraft */
+        CommitmentScheduleDraft: {
+            /** Generation */
+            generation: string;
+            /** Items */
+            items: components["schemas"]["DraftItem"][];
+        };
         /** ComparisonDTO */
         ComparisonDTO: {
             /** Kind */
@@ -3950,12 +3999,279 @@ export interface components {
             /** Transfer Proposals */
             transfer_proposals: components["schemas"]["Proposal"][];
         };
+        /** DebtCard */
+        DebtCard: {
+            /** Debt Id */
+            debt_id: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "PAYABLE" | "RECEIVABLE";
+            /** Currency */
+            currency: string;
+            /** Counterparty Label */
+            counterparty_label: string;
+            /** Opened On */
+            opened_on: string;
+            /** Due On */
+            due_on: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "OPEN" | "CLOSED";
+            /** Closed On */
+            closed_on: string | null;
+            remaining_principal: components["schemas"]["WireMoney"];
+            last_event: components["schemas"]["DebtLastEvent"] | null;
+            /** Reconciliation Status */
+            reconciliation_status: string;
+            /** Event Count */
+            event_count: number;
+            plan: components["schemas"]["DebtPlanHeadline"] | null;
+        };
+        /** DebtDetail */
+        DebtDetail: {
+            /** Generation */
+            generation: string;
+            /** As Of */
+            as_of: string;
+            debt: components["schemas"]["DebtDetailCard"];
+        };
+        /** DebtDetailCard */
+        DebtDetailCard: {
+            /** Debt Id */
+            debt_id: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "PAYABLE" | "RECEIVABLE";
+            /** Currency */
+            currency: string;
+            /** Counterparty Label */
+            counterparty_label: string;
+            /** Opened On */
+            opened_on: string;
+            /** Due On */
+            due_on: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "OPEN" | "CLOSED";
+            /** Closed On */
+            closed_on: string | null;
+            remaining_principal: components["schemas"]["WireMoney"];
+            last_event: components["schemas"]["DebtLastEvent"] | null;
+            /** Reconciliation Status */
+            reconciliation_status: string;
+            /** Event Count */
+            event_count: number;
+            plan: components["schemas"]["DebtPlanHeadline"] | null;
+            /** Principal History */
+            principal_history: components["schemas"]["DebtEvent"][];
+            /** Reason */
+            reason: string;
+            /** Overlapping Commitments */
+            overlapping_commitments: components["schemas"]["OverlappingCommitment"][];
+            schedule: components["schemas"]["PlanState"] | null;
+        };
         /** DebtDraft */
         DebtDraft: {
             /** Expected Generation */
             expected_generation: string;
             /** Items */
             items: components["schemas"]["BatchItem"][];
+        };
+        /** DebtEvent */
+        DebtEvent: {
+            /** Event Id */
+            event_id: string;
+            /** Event Kind */
+            event_kind: string;
+            /** Effective On */
+            effective_on: string;
+            /** Opening Balance */
+            opening_balance: boolean;
+            /** Signed */
+            signed: number;
+            principal: components["schemas"]["WireMoney"];
+            /** Expense Category */
+            expense_category: string | null;
+            /** Bound */
+            bound: boolean;
+            /** Dangling Reason */
+            dangling_reason: string | null;
+            /** Reason */
+            reason: string;
+            /** Journal Seq */
+            journal_seq: number;
+        };
+        /** DebtEventPayload */
+        DebtEventPayload: {
+            /** Event Id */
+            event_id: string;
+            /** Event Kind */
+            event_kind: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "PAYABLE" | "RECEIVABLE";
+            /** Principal Amount */
+            principal_amount: string;
+            /** Effective On */
+            effective_on: string;
+            /** Entry Allocations */
+            entry_allocations: components["schemas"]["EntryAllocation"][];
+            /** Opening Balance */
+            opening_balance: boolean;
+            /** Expense Category */
+            expense_category: string | null;
+            /** Reason */
+            reason: string;
+        };
+        /** DebtEventRead */
+        DebtEventRead: {
+            /** Generation */
+            generation: string;
+            /** Debt Id */
+            debt_id: string;
+            event: components["schemas"]["DebtEventPayload"];
+            /** Sources */
+            sources: components["schemas"]["AllocationCandidate"][];
+        };
+        /** DebtEventSummary */
+        DebtEventSummary: {
+            /** Event Id */
+            event_id: string;
+            /** Event Kind */
+            event_kind: string;
+            /** Effective On */
+            effective_on: string;
+            /** Opening Balance */
+            opening_balance: boolean;
+            principal: components["schemas"]["WireMoney"];
+            /** Bound */
+            bound: boolean;
+            /** Reason */
+            reason: string;
+        };
+        /** DebtEventsPage */
+        DebtEventsPage: {
+            /** Generation */
+            generation: string;
+            /** Events */
+            events: components["schemas"]["DebtEventSummary"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DebtLastEvent */
+        DebtLastEvent: {
+            /** Kind */
+            kind: string;
+            /** Effective On */
+            effective_on: string;
+        };
+        /** DebtPlanHeadline */
+        DebtPlanHeadline: {
+            /** Next Due */
+            next_due: string | null;
+            /** Overdue Count */
+            overdue_count: number;
+            /** Unscheduled Remainder */
+            unscheduled_remainder: boolean;
+        };
+        /** DebtsPage */
+        DebtsPage: {
+            /** Generation */
+            generation: string;
+            /** As Of */
+            as_of: string;
+            /** I Owe */
+            i_owe: components["schemas"]["DebtCard"][];
+            /** Owed To Me */
+            owed_to_me: components["schemas"]["DebtCard"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** DraftDebt */
+        DraftDebt: {
+            /** Debt Id */
+            debt_id: string;
+            /** Counterparty Label */
+            counterparty_label: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "PAYABLE" | "RECEIVABLE";
+            /** Currency */
+            currency: string;
+            before: components["schemas"]["DraftDebtStanding"] | null;
+            after: components["schemas"]["DraftDebtStanding"];
+            /** Events */
+            events: components["schemas"]["DraftTimelineEvent"][];
+            schedule: components["schemas"]["DraftSchedule"];
+            /** Removed */
+            removed: components["schemas"]["TimelineEvent"][];
+        };
+        /** DraftDebtStanding */
+        DraftDebtStanding: {
+            /** Status */
+            status: string;
+            /** Closed On */
+            closed_on: string | null;
+            /** Remaining */
+            remaining: string;
+        };
+        /** DraftItem */
+        DraftItem: {
+            /** Kind */
+            kind: string;
+            /** Anchors */
+            anchors: {
+                [key: string]: string;
+            };
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        /** DraftPreview */
+        DraftPreview: {
+            /** Generation */
+            generation: string;
+            /** Items */
+            items: components["schemas"]["DraftItem"][];
+            /** Debts */
+            debts: components["schemas"]["DraftDebt"][];
+        };
+        /** DraftSchedule */
+        DraftSchedule: {
+            before: components["schemas"]["PlanState"] | null;
+            after: components["schemas"]["PlanState"] | null;
+        };
+        /** DraftTimelineEvent */
+        DraftTimelineEvent: {
+            /** Event Id */
+            event_id: string;
+            /** Event Kind */
+            event_kind: string;
+            /** Effective On */
+            effective_on: string;
+            /** Signed */
+            signed: number;
+            /** Principal */
+            principal: string;
+            /** Balance */
+            balance: string;
+            /** Change */
+            change: ("added" | "changed" | "balance") | null;
+            /** Balance Before */
+            balance_before: string | null;
         };
         /** EconomicFlowOut */
         EconomicFlowOut: {
@@ -4033,6 +4349,35 @@ export interface components {
             classification: string | null;
             /** Debt Allocation */
             debt_allocation: string | null;
+        };
+        /** EntryAllocation */
+        EntryAllocation: {
+            /** Entry Anchor */
+            entry_anchor: string;
+            /** Principal Amount */
+            principal_amount: string;
+            /** Interest Amount */
+            interest_amount: string;
+            /** Fee Amount */
+            fee_amount: string;
+            /** Separate Fee Amount */
+            separate_fee_amount: string;
+        };
+        /** EntryResidual */
+        EntryResidual: {
+            /** Generation */
+            generation: string;
+            /** Entry Anchor */
+            entry_anchor: string;
+            /** Currency */
+            currency: string;
+            /** Amount */
+            amount: string;
+            /** Available Amount */
+            available_amount: string;
+            /** Unassigned Amount */
+            unassigned_amount: string;
+            owner_share: components["schemas"]["OwnerShare"] | null;
         };
         /** EventDateChangeDraft */
         EventDateChangeDraft: {
@@ -4484,6 +4829,24 @@ export interface components {
             /** Comparability */
             comparability: string;
         };
+        /** OverlappingCommitment */
+        OverlappingCommitment: {
+            /** Commitment */
+            commitment: string;
+            /** Name */
+            name: string;
+            /** Payments */
+            payments: number;
+        };
+        /** OwnerShare */
+        OwnerShare: {
+            /** Expense Amount */
+            expense_amount: string;
+            /** Expense Category */
+            expense_category: string;
+            /** Reason */
+            reason: string;
+        };
         /** OwningSourceOut */
         OwningSourceOut: {
             /** Kind */
@@ -4555,6 +4918,53 @@ export interface components {
             actual: string | null;
             /** Remaining */
             remaining: string | null;
+        };
+        /** PlanRow */
+        PlanRow: {
+            /** Schedule Index */
+            schedule_index: number;
+            /** Due On */
+            due_on: string;
+            /** Amount */
+            amount: string;
+            /** Paid */
+            paid: string;
+            /** Remaining */
+            remaining: string;
+            /** Trimmed */
+            trimmed: string;
+            /** Was Trimmed */
+            was_trimmed: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "paid" | "part_paid" | "overdue" | "upcoming" | "trimmed";
+            /** Overdue */
+            overdue: boolean;
+        };
+        /** PlanState */
+        PlanState: {
+            /** Effective From */
+            effective_from: string;
+            /**
+             * Plan Kind
+             * @enum {string}
+             */
+            plan_kind: "rows" | "series";
+            /** Reason */
+            reason: string;
+            /** Rows */
+            rows: components["schemas"]["PlanRow"][];
+            /** Remaining Principal */
+            remaining_principal: string;
+            /** Scheduled Remaining */
+            scheduled_remaining: string;
+            unscheduled_remainder: components["schemas"]["UnscheduledRemainder"] | null;
+            /** Next Due */
+            next_due: string | null;
+            /** Overdue Count */
+            overdue_count: number;
         };
         /**
          * PlannedImpactDraft
@@ -4911,6 +5321,15 @@ export interface components {
             /** Hypothetical Income */
             hypothetical_income?: components["schemas"]["HypotheticalIncomeDraft"][];
         };
+        /** SplitCandidatesPage */
+        SplitCandidatesPage: {
+            /** Generation */
+            generation: string;
+            /** Candidates */
+            candidates: components["schemas"]["AllocationCandidate"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** StatementMoneyDetailOut */
         StatementMoneyDetailOut: {
             original: components["schemas"]["ExactAmountOut"] | null;
@@ -4945,6 +5364,21 @@ export interface components {
             delta: components["schemas"]["MoneyDTO"] | null;
             /** Pct */
             pct: string | null;
+        };
+        /** TimelineEvent */
+        TimelineEvent: {
+            /** Event Id */
+            event_id: string;
+            /** Event Kind */
+            event_kind: string;
+            /** Effective On */
+            effective_on: string;
+            /** Signed */
+            signed: number;
+            /** Principal */
+            principal: string;
+            /** Balance */
+            balance: string;
         };
         /** Total */
         Total: {
@@ -5053,6 +5487,15 @@ export interface components {
             /** Remedy */
             remedy: string;
         };
+        /** UnscheduledRemainder */
+        UnscheduledRemainder: {
+            /** Amount */
+            amount: string;
+            /** Due On */
+            due_on: string | null;
+            /** Overdue */
+            overdue: boolean;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -5099,6 +5542,13 @@ export interface components {
             /** Forward Policy */
             forward_policy: string | null;
             unavailable: components["schemas"]["UnavailabilityDTO"] | null;
+        };
+        /** WireMoney */
+        WireMoney: {
+            /** Value */
+            value: string;
+            /** Currency */
+            currency: string | null;
         };
         /** WorkspaceAmount */
         WorkspaceAmount: {
@@ -7077,7 +7527,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DebtsPage"];
                 };
             };
             /** @description Validation Error */
@@ -7115,7 +7565,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AllocationCandidatesPage"];
                 };
             };
             /** @description Validation Error */
@@ -7149,7 +7599,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SplitCandidatesPage"];
                 };
             };
             /** @description Validation Error */
@@ -7181,7 +7631,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["EntryResidual"];
                 };
             };
             /** @description Validation Error */
@@ -7214,7 +7664,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DraftPreview"];
                 };
             };
             /** @description Validation Error */
@@ -7248,7 +7698,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DebtDetail"];
                 };
             };
             /** @description Validation Error */
@@ -7282,7 +7732,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["CommitmentScheduleDraft"];
                 };
             };
             /** @description Validation Error */
@@ -7316,7 +7766,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DebtEventRead"];
                 };
             };
             /** @description Validation Error */
@@ -7351,7 +7801,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["DebtEventsPage"];
                 };
             };
             /** @description Validation Error */
