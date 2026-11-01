@@ -80,12 +80,12 @@ vi.mock('@/features/obligations/api', () => ({ loadObligations: async () => ({ o
 vi.mock('@/features/planning/api', () => ({ loadRecurring: async () => ({ candidates: [] }) }))
 vi.mock('@/features/setup/api', () => ({ loadImports: async () => ({ imports: [] }) }))
 
-async function mount(props: Partial<{ start: string; end: string; initialPocketCurrency: string; onOpen: (d: string) => void }> = {}) {
+async function mount(props: Partial<{ start: string; end: string; onOpen: (d: string) => void }> = {}) {
   const { OverviewView } = await import('./index')
   const onOpen = props.onOpen ?? (() => {})
   return render(
     <OverviewView
-      data={dashboard()} start="2026-01-01" end="2026-01-31" initialPocketCurrency=""
+      data={dashboard()} start="2026-01-01" end="2026-01-31"
       onOpen={onOpen as never} {...props}
     />,
   )
@@ -107,14 +107,6 @@ describe('OverviewView', () => {
     await mount()
     await screen.findByText(moneyText('4,200.00 SGD'))
     expect(screen.getByText(/Reporting in SGD/)).toBeInTheDocument()
-  })
-
-  it('seeds an explicit, clearable Account-currency filter from a legacy ?currency= value', async () => {
-    await mount({ initialPocketCurrency: 'USD' })
-    await waitFor(() => expect(apiMock).toHaveBeenCalledWith(expect.stringContaining('pocket_currency=USD'), undefined))
-    expect(screen.getByText('Show all pockets')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Show all pockets'))
-    await waitFor(() => expect(apiMock).toHaveBeenLastCalledWith(expect.not.stringContaining('pocket_currency'), undefined))
   })
 
   it('navigates to a destination workspace through a plain link', async () => {

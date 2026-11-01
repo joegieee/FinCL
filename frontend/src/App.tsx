@@ -102,7 +102,7 @@ export default function App(){
    {meta.scope==='range'&&!data.covered&&tab!=='Analysis'&&tab!=='Cash Flow'&&tab!=='Overview'&&<div className="alert" role="status"><div><strong>This period has missing coverage.</strong><p>Totals and charts are unavailable. You can still inspect recorded transactions. Choose a covered period or import the missing statements.</p></div></div>}
    <div aria-busy={loading} className={loading?'content-loading':''}>
    {tab==='Overview'&&<>
-    <OverviewView data={data} period={periodPicker(data)} start={data.start} end={data.end} initialPocketCurrency={initialUrlPocketCurrency} onOpen={setTab}/>
+    <OverviewView data={data} period={periodPicker(data)} start={data.start} end={data.end} onOpen={setTab}/>
    </>}
    {(tab==='Analysis'||tab==='Cash Flow')&&<AnalysisView start={data.start} end={data.end} accounts={data.accounts} categories={data.categories} currencies={data.currencies} initialPocketCurrency={initialUrlPocketCurrency} onOpenTransactions={(cat,merchant)=>drill(cat,merchant,(cat||merchant)?'spending':'')} onOpenTransactionAnchor={openReportedAnchor} onOpenDebts={()=>setTab('Debts')}/>}
    {tab==='Categorization'&&<CategorizationView generation={data.generation} freshness={data.freshness} categories={data.categories} accounts={data.accounts} currencies={data.currencies} onSaved={saved} onOpenRules={()=>setTab('Rules')} onOpenTransactions={()=>drill('','','')} onOpenNext={setTab}/>}

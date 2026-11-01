@@ -14,8 +14,8 @@ import { readerLimitations } from '@/lib/limitations'
 import { Cv, MoneyFlowPanel } from './MoneyFlowCards'
 import { ReportingPolicySettings } from './ReportingPolicySettings'
 import {
-  type MoneyFlowOut, type OverviewFilters, type ReportingPolicySummary,
-  emptyOverviewFilters, loadMoneyFlow, loadReportingPolicy, overviewScopeKey,
+  type MoneyFlowOut, type ReportingPolicySummary,
+  loadMoneyFlow, loadReportingPolicy, overviewScopeKey,
 } from './reportedApi'
 
 export type OverviewDestination =
@@ -46,20 +46,15 @@ const unavailable = 'Evidence not available yet'
  * its unrelated, still-native setup checklist and position glance below.
  */
 export function OverviewView({
-  data, period, start, end, initialPocketCurrency, onOpen,
+  data, period, start, end, onOpen,
 }: {
   data: Dashboard
   /** Chooses the window for "In and out"; the answer and forecast above it look ahead instead. */
   period?: ReactNode
   start: string
   end: string
-  // §6.3: a legacy `?currency=USD` URL seeds this screen's own explicit,
-  // clearable Account-currency filter once, on first mount only — never a
-  // reporting-currency change.
-  initialPocketCurrency: string
   onOpen: (destination: OverviewDestination) => void
 }) {
-  const [filters, setFilters] = useState<OverviewFilters>(() => ({ ...emptyOverviewFilters, pocketCurrency: initialPocketCurrency }))
   const [page, setPage] = useState<MoneyFlowOut | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -73,9 +68,9 @@ export function OverviewView({
 
   const fetchMoneyFlow = useCallback(() => {
     const id = ++seq.current
-    const key = overviewScopeKey({ historyStart: start, historyEnd: end, filters })
+    const key = overviewScopeKey({ historyStart: start, historyEnd: end })
     setLoading(true); setError('')
-    loadMoneyFlow({ historyStart: start, historyEnd: end, filters })
+    loadMoneyFlow({ historyStart: start, historyEnd: end })
       .then(response => {
         if (id !== seq.current) return
         lastGood.current = { key, policyCurrency: response.reporting_currency, response }
@@ -106,7 +101,7 @@ export function OverviewView({
         setError((caught as Error).message); setPage(null); setStaleBanner('none')
       })
       .finally(() => { if (id === seq.current) setLoading(false) })
-  }, [start, end, filters])
+  }, [start, end])
 
   useEffect(() => { fetchMoneyFlow() }, [fetchMoneyFlow])
 
@@ -122,12 +117,6 @@ export function OverviewView({
         <Button variant="ghost" size="sm" disabled={loading} onClick={fetchMoneyFlow}>Refresh</Button>
       </div>
 
-      {filters.pocketCurrency && (
-        <p className="analysis-scope-note">
-          Showing only {filters.pocketCurrency} pockets.{' '}
-          <button className="linkish" onClick={() => setFilters(emptyOverviewFilters)}>Show all pockets</button>
-        </p>
-      )}
 
       {error && (
         <div className="alert error" role="alert">
