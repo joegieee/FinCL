@@ -253,6 +253,22 @@ describe('Scope control follows tab metadata', () => {
     expect(screen.queryByLabelText('Display currency')).not.toBeInTheDocument()
   })
 
+  it('keeps a fresh visit from writing a pocket filter into the URL', async () => {
+    vi.stubGlobal('fetch', mockFetch(() => ({ body: dashboard() })))
+    await mountApp()
+    await screen.findByRole('heading', { name: 'Overview' })
+    await screen.findByRole('group', { name: 'Period presets' })
+    expect(new URLSearchParams(location.search).has('currency')).toBe(false)
+  })
+
+  it('keeps an explicit ?currency= in the URL across a reload', async () => {
+    window.history.replaceState(null, '', '/?currency=USD')
+    vi.stubGlobal('fetch', mockFetch(() => ({ body: dashboard() })))
+    await mountApp()
+    await screen.findByRole('group', { name: 'Period presets' })
+    expect(new URLSearchParams(location.search).get('currency')).toBe('USD')
+  })
+
   it('hides the scope control entirely on a scope: none tab', async () => {
     vi.stubGlobal('fetch', mockFetch(() => ({ body: dashboard() })))
     await mountApp()

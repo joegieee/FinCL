@@ -75,7 +75,8 @@ export default function App(){
  const periodPicker=(d:Dashboard)=><PeriodPicker start={d.start} end={d.end} applying={loading} onApply={(s,e)=>{setStart(s);setEnd(e);void load(s,e)}}/>
  async function load(s=start,e=end,c=currency){const id=++seq.current;setLoading(true);setError('');try{const q=new URLSearchParams({currency:c});if(s&&e){q.set('start',s);q.set('end',e)}const d=await api<Dashboard>('overview?'+q);if(id===seq.current){setData(d);setStart(d.start);setEnd(d.end);setCurrency(d.currency)}}catch(e){if(id===seq.current)setError((e as Error).message)}finally{if(id===seq.current)setLoading(false)}}
  useEffect(()=>{let mounted=true;bootstrap().then(h=>{if(mounted){setHealth(h);void load()}}).catch(e=>{if(mounted){setError(e.message);setLoading(false)}});return()=>{mounted=false}},[])
- useEffect(()=>{const params=new URLSearchParams({view:tab,currency});if(data){params.set('start',data.start);params.set('end',data.end)}history.replaceState(null,'','?'+params)},[tab,data,currency])
+ // Writing `currency`'s fallback here would make it an explicit value on reload, and narrow the pockets shown.
+ useEffect(()=>{const params=new URLSearchParams({view:tab});if(initialUrlPocketCurrency)params.set('currency',initialUrlPocketCurrency);if(data){params.set('start',data.start);params.set('end',data.end)}history.replaceState(null,'','?'+params)},[tab,data,initialUrlPocketCurrency])
  function drill(cat='',merchant='',bucket=''){setCategory(cat);setSearch(merchant);setKind(bucket);setTab('Transactions')}
  async function saved(status:string){setNotice(status==='recorded_refresh_pending'?'Saved; totals awaiting refresh. Use Refresh to retry.':'Saved to your ledger.');setEntry(null);setReportedRow(null);setDialog(null);setEditingPlan(null);await load()}
  async function refresh(){setLoading(true);try{await api('refresh',{});await load();setNotice('Ledger refreshed.')}catch(e){setError((e as Error).message);setLoading(false)}}
