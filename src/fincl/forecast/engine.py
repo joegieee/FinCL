@@ -361,13 +361,12 @@ def _day_timing(
         for event in events
         if event.timing_basis in (TIMING_INFERRED, TIMING_UNRESOLVED)
     ]
-    prior_ids = list((prior or {}).get("inferred_event_ids", []))
-    if not inferred and not prior_ids:
+    prior_inferred = prior is not None and prior["precision"] != PRECISION_DAY
+    if not inferred and not prior_inferred:
         return {
             "precision": PRECISION_DAY,
             "earliest": day,
             "latest": day,
-            "inferred_event_ids": [],
         }
     unresolved = (
         (prior or {}).get("precision") == PRECISION_UNRESOLVED
@@ -375,21 +374,18 @@ def _day_timing(
     )
     earliest = min(
         [day]
-        + ([str(prior["earliest"])] if prior_ids and prior is not None else [])
+        + ([str(prior["earliest"])] if prior_inferred and prior is not None else [])
         + [event.window_earliest or event.on for event in inferred]
     )
     latest = max(
         [day]
-        + ([str(prior["latest"])] if prior_ids and prior is not None else [])
+        + ([str(prior["latest"])] if prior_inferred and prior is not None else [])
         + [event.window_latest or event.on for event in inferred]
     )
     return {
         "precision": PRECISION_UNRESOLVED if unresolved else PRECISION_WINDOW,
         "earliest": earliest,
         "latest": latest,
-        "inferred_event_ids": list(
-            dict.fromkeys(prior_ids + [event.event_id for event in inferred])
-        ),
     }
 
 
@@ -508,7 +504,6 @@ def run_timeline(
         "precision": PRECISION_DAY,
         "earliest": start,
         "latest": start,
-        "inferred_event_ids": [],
     }
     zero_day: str | None = start if opening_minor <= 0 else None
     zero_timing: dict[str, Any] | None = cutoff_timing if zero_day else None
