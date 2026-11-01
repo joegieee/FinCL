@@ -67,8 +67,9 @@ ignore_missing_imports = true
 # under its own temporary directory (directly, or via a shared base such as
 # tests.test_api.ApiTestBase), so no writer flock is ever shared across workers.
 # Serial wall time was the cost paid on every commit under the full-CI
-# rule. Default to one worker per core; `-n0` turns that off to debug one test.
-addopts = ["-n", "auto"]
+# rule. Four workers leave the machine usable during development; `-n auto` uses
+# every core and `-n0` turns workers off to debug one test.
+addopts = ["-n", "4"]
 # A leaked SQLite connection under the ledger writer lock is a correctness bug,
 # not a warning; fail on it. The starlette/httpx TestClient
 # deprecation noise is third-party and not ours to fix here.
