@@ -7,7 +7,7 @@
    theme. The semantic names say what a colour means -- positive, warning,
    danger, caution -- rather than what hue it happens to be, which is what lets
    the dark values differ in lightness without any rule needing to know. */
-:root{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--foreground);background:var(--background);font-synthesis:none;color-scheme:light;
+:root{font-family:"Public Sans Variable",ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--foreground);background:var(--background);font-synthesis:none;color-scheme:light;
 --canvas:#ffffff;--surface:#ffffff;--surface-sunken:#f2f5f9;--border:#e6ebf1;--border-control:#808d9d;--ink:#14202e;--ink-muted:#4f5d6d;--ink-faint:#5e6b7a;--accent:#1d3a5c;--accent-hover:#152c47;--on-accent:#ffffff;--accent-subtle:#e6edf5;--positive:#1f6f5c;--positive-subtle:#e3f0ec;--caution:#80560a;--caution-subtle:#f9efd9;--danger:#a8321f;--danger-subtle:#fae6e1;--on-danger:#ffffff;--evidence-gap:#b4becb;--rail:#1d3a5c;--on-rail:#ffffff;--on-rail-muted:#c9d6e4;--rail-hover:#ffffff1f;--rail-current:#ffffff;--on-rail-current:#1d3a5c;--overlay:#14202e80;
 --chart-1:#2f6fb5;--chart-2:#c4623a;--chart-3:#2aa198;--chart-4:#8a4fa8;--chart-5:#ad8710;--chart-6:#d0658f;--chart-other:#808d9d;--chart-7:#e87ba4;--chart-8:#008300;--chart-base:var(--accent);--chart-conservative:var(--chart-2);
 --shadow-raised:0 1px 3px #14202e24;--shadow-float:0 8px 24px #14202e1f;--shadow-modal:0 16px 48px #14202e33;--shadow-faint:#14202e14;--shadow-subtle:#14202e1f;--shadow-soft:#14202e1f;--shadow-strong:#14202e33;--drawer-shadow:#14202e33;--backdrop:#14202e80;
