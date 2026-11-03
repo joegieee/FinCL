@@ -4,18 +4,19 @@ import { ConsolidatedMoney } from '@/components/Money'
 import { money } from '@/lib/api'
 import type { ReportedAnalysis } from './reportedApi'
 
-const CARDS: { key: string; title: string; note: string }[] = [
+const CARDS: { key: string; title: string; note: string; higherIsBetter?: boolean }[] = [
   { key: 'spending', title: 'Spending', note: 'Gross purchases; fees shown separately' },
   { key: 'fees', title: 'Fees', note: 'Charged fees, a separate series' },
-  { key: 'refunds', title: 'Refunds', note: 'Received in this period' },
-  { key: 'net_economic_flow', title: 'Recorded net flow', note: 'Classified inflows less spending and fees' },
+  { key: 'refunds', title: 'Refunds', note: 'Received in this period', higherIsBetter: true },
+  { key: 'net_economic_flow', title: 'Recorded net flow', note: 'Classified inflows less spending and fees', higherIsBetter: true },
 ]
 
-/** Direction of a spending-style delta: more spending is "up" (worse). */
-function DeltaChip({ delta, pct, currency }: { delta: string | null; pct: string | null; currency: string }) {
+/** `delta up` is the worse colour and `delta down` the better one, whichever way the arrow points. */
+function DeltaChip({ delta, pct, currency, higherIsBetter = false }: { delta: string | null; pct: string | null; currency: string; higherIsBetter?: boolean }) {
   if (delta === null) return <span className="delta muted">No comparison period</span>
   const n = Number(delta)
-  const cls = n > 0 ? 'delta up' : n < 0 ? 'delta down' : 'delta flat'
+  const worse = higherIsBetter ? n < 0 : n > 0
+  const cls = n === 0 ? 'delta flat' : worse ? 'delta up' : 'delta down'
   const Icon = n > 0 ? ArrowUpRight : n < 0 ? ArrowDownRight : Minus
   return (
     <span className={cls}>
@@ -33,7 +34,7 @@ export function ComparisonCards({ analysis }: { analysis: ReportedAnalysis }) {
   const currency = analysis.reporting_currency
   return (
     <div className="comparison-grid">
-      {CARDS.map(({ key, title, note }) => {
+      {CARDS.map(({ key, title, note, higherIsBetter }) => {
         const entry = analysis.summary[key]
         if (!entry) return null
         const previousTotal = entry.previous?.total ?? entry.previous?.partial_total ?? null
@@ -45,7 +46,7 @@ export function ComparisonCards({ analysis }: { analysis: ReportedAnalysis }) {
               unavailableReasons={entry.current.unavailable_reasons} excludedDetail={entry.current.excluded_detail}
             /></strong>
             {(entry.comparison_available || entry.current.total || entry.current.partial_total) && (entry.comparison_available
-              ? <DeltaChip delta={entry.delta?.value ?? null} pct={entry.pct} currency={currency} />
+              ? <DeltaChip delta={entry.delta?.value ?? null} pct={entry.pct} currency={currency} higherIsBetter={higherIsBetter} />
               : <span className="delta muted">{analysis.comparison_kind === 'none' ? 'Comparison off' : entry.comparison_reasons[0] ?? 'No comparison'}</span>)}
             <small>{note}</small>
             {entry.comparison_available && previousTotal && (

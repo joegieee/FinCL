@@ -18,7 +18,7 @@ from ..intervals import DateInterval, contains_range
 
 LENS_RECORDED_FLOW = "recorded_flow"
 
-_COMPARISON_KINDS = ("auto", "none", "previous_month", "preceding_equal_duration")
+_COMPARISON_KINDS = ("auto", "none", "previous_month", "preceding_months", "preceding_equal_duration")
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +105,18 @@ def is_full_calendar_month(start: str, end: str) -> bool:
     )
 
 
+def is_whole_months(start: str, end: str) -> bool:
+    first, last = _parse(start, "start"), _parse(end, "end")
+    return first.day == 1 and last.day == calendar.monthrange(last.year, last.month)[1]
+
+
+def _preceding_months(start: str, end: str) -> tuple[str, str]:
+    first, last = _parse(start, "start"), _parse(end, "end")
+    months = (last.year - first.year) * 12 + last.month - first.month + 1
+    year, month = divmod(first.year * 12 + first.month - 1 - months, 12)
+    return date(year, month + 1, 1).isoformat(), (first - timedelta(days=1)).isoformat()
+
+
 def _previous_month(start: str) -> tuple[str, str]:
     first = _parse(start, "start")
     year, month = (first.year - 1, 12) if first.month == 1 else (first.year, first.month - 1)
@@ -136,15 +148,21 @@ def resolve_comparison(
         kind = (
             "previous_month"
             if is_full_calendar_month(scope.start, scope.end)
+            else "preceding_months"
+            if is_whole_months(scope.start, scope.end)
             else "preceding_equal_duration"
         )
     elif kind == "previous_month" and not is_full_calendar_month(scope.start, scope.end):
         raise FinCLError(
             "a previous-month comparison needs a single complete calendar month"
         )
+    elif kind == "preceding_months" and not is_whole_months(scope.start, scope.end):
+        raise FinCLError("a preceding-months comparison needs whole calendar months")
 
     if kind == "previous_month":
         comp_start, comp_end = _previous_month(scope.start)
+    elif kind == "preceding_months":
+        comp_start, comp_end = _preceding_months(scope.start, scope.end)
     else:
         comp_start, comp_end = _preceding_equal_duration(scope.start, scope.end)
 

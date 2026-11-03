@@ -10,7 +10,7 @@ export type ContributorsPageOut = components['schemas']['ContributorsPageOut']
 export type ContributorRowOut = components['schemas']['ContributorRowOut']
 
 export type AnalysisFilters = {
-  comparison: 'auto' | 'previous_month' | 'preceding_equal_duration' | 'none'
+  comparison: 'auto' | 'previous_month' | 'preceding_months' | 'preceding_equal_duration' | 'none'
   trendRange: '6' | '12' | 'all'
   // §6.3: an explicit, locally-owned Account-currency record filter — never
   // the ledger's reporting currency, which this screen shows as a setting

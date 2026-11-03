@@ -116,7 +116,8 @@ def _delta_and_pct(
     delta = current.total - previous.total
     if previous.total == 0:
         return delta, None
-    pct_fraction = delta / previous.total * 100
+    # Over the magnitude, so a negative base keeps the direction of the change.
+    pct_fraction = delta / abs(previous.total) * 100
     return delta, quantize(pct_fraction, scale=1).text
 
 

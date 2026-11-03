@@ -23,8 +23,9 @@ export function ScopeBar({
 }) {
   const active = filtersActive(filters)
   const comparisonLabel: Record<string, string> = {
-    auto: comparisonKind === 'previous_month' ? 'Previous month' : comparisonKind === 'none' ? 'No comparison' : 'Equal period before',
+    auto: comparisonKind === 'previous_month' ? 'Previous month' : comparisonKind === 'none' ? 'No comparison' : comparisonKind === 'preceding_months' ? 'Same number of months before' : 'Equal period before',
     previous_month: 'Previous month',
+    preceding_months: 'Same number of months before',
     preceding_equal_duration: 'Equal period before',
     none: 'No comparison',
   }
@@ -39,6 +40,7 @@ export function ScopeBar({
         >
           <option value="auto">Automatic ({comparisonLabel.auto})</option>
           <option value="previous_month">Previous complete month</option>
+          <option value="preceding_months">Same number of months before</option>
           <option value="preceding_equal_duration">Equal-length period before</option>
           <option value="none">No comparison</option>
         </select>

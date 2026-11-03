@@ -60,7 +60,8 @@ def _pct(current: str, previous: str) -> str | None:
     prev = Decimal(previous)
     if prev == 0:
         return None
-    change = (Decimal(current) - prev) / prev * 100
+    # Over the magnitude, so a negative base keeps the direction of the change.
+    change = (Decimal(current) - prev) / abs(prev) * 100
     return str(change.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP))
 
 
