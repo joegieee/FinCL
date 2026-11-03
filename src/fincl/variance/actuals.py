@@ -34,8 +34,9 @@ from pathlib import Path
 from typing import Any
 
 from ..cards.models import CARD_SOURCE_TYPES
+from ..coverage import pocket_covered_intervals
 from ..db import connect_readonly
-from ..intervals import contains_range, uncovered_dates
+from ..intervals import DateInterval, contains_range, uncovered_dates
 from ..money import format_decimal
 from ..report import _coverage_contract
 from .models import CASH_BASIS_RULE, DIRECTION_IN, DIRECTION_OUT
@@ -191,6 +192,22 @@ def _rows_to_movements(rows: list[sqlite3.Row]) -> dict[str, Any]:
     return {"cash": cash, "card_channel": card_channel, "undated": undated}
 
 
+def bank_covered_intervals(connection: sqlite3.Connection, currency: str) -> list[DateInterval]:
+    """Coverage of this currency's bank cash, with every bank account answering."""
+    placeholders = ", ".join("?" for _ in CARD_SOURCE_TYPES)
+    accounts = [
+        str(row[0])
+        for row in connection.execute(
+            f"SELECT a.id FROM accounts a WHERE a.source_type NOT IN ({placeholders}) "
+            "AND NOT EXISTS (SELECT 1 FROM statements cs "
+            "JOIN card_statement_facts cf ON cf.statement_id = cs.id "
+            "WHERE cs.account_id = a.id)",
+            sorted(CARD_SOURCE_TYPES),
+        )
+    ]
+    return pocket_covered_intervals(connection, currency, accounts=accounts)
+
+
 def cash_movements(
     connection: sqlite3.Connection, *, currency: str, start: str, end: str
 ) -> dict[str, Any]:
@@ -198,8 +215,9 @@ def cash_movements(
     rows = connection.execute(_MOVEMENT_SELECT, (currency, start, end)).fetchall()
     split = _rows_to_movements(rows)
     contract = _coverage_contract(connection)
-    covered = contains_range(contract.covered_intervals, start, end)
-    gaps = uncovered_dates(contract.covered_intervals, start, end)
+    intervals = bank_covered_intervals(connection, currency)
+    covered = contains_range(intervals, start, end)
+    gaps = uncovered_dates(intervals, start, end)
     return {
         "currency": currency,
         "window": {"start": start, "end": end},
@@ -236,6 +254,7 @@ __all__ = [
     "CHANNEL_CARD",
     "ROLE_AMOUNT",
     "ROLE_FEE",
+    "bank_covered_intervals",
     "cash_movements",
     "cash_movements_page",
     "movement_id",

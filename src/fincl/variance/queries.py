@@ -40,8 +40,7 @@ from ..db import connect_readonly
 from ..errors import FinCLError
 from ..intervals import contains_range
 from ..money import ExactMoney, format_decimal
-from ..report import _coverage_contract
-from .actuals import cash_movements
+from .actuals import bank_covered_intervals, cash_movements
 from .models import (
     CASH_BASIS_RULE,
     DIRECTION_IN,
@@ -676,7 +675,7 @@ def forecast_variance(
             binding["movement_id"], 0
         ) + binding["amount_coefficient"] * (10 ** (scale - binding["amount_scale"]))
 
-    covered = _coverage_contract(connection).covered_intervals
+    covered = bank_covered_intervals(connection, currency)
     month_status = {
         str(issued["month"]): _period_status(
             first_day=str(issued["first_day"]),

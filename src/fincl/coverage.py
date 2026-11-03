@@ -31,8 +31,9 @@ guaranteed to be the same scope burn actually averages.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from .analysis.components import build_components
@@ -140,6 +141,58 @@ def account_statement_coverage(
             DateInterval(row["lo"][:10], row["hi"][:10])
         )
     return {account: normalize(spans) for account, spans in by_account.items()}
+
+
+def pocket_covered_intervals(
+    connection: sqlite3.Connection, currency: str, *, accounts: Iterable[str] | None = None
+) -> list[DateInterval]:
+    """The family contract narrowed to every account that holds ``currency``.
+
+    A family's intervals are a union across its accounts, so one account's
+    statement can stand in for another's that is missing. Here each account has
+    to answer for itself over the window the baseline expects it in: from its
+    stated start or first statement, to its stated end or the day it was
+    archived. An account that stopped reporting without either keeps later
+    periods open until it is archived or its remaining span is certified
+    through ``MOVEMENT_COVERAGE_CERTIFY``.
+    """
+    from .baseline.readiness import _account_scopes_from
+
+    held = {
+        str(row[0])
+        for row in connection.execute(
+            "SELECT DISTINCT account_id FROM ledger_entries WHERE currency_pocket = ?",
+            (currency,),
+        )
+    }
+    if accounts is not None:
+        held &= set(accounts)
+    statements = account_statement_coverage(connection)
+    certified: dict[str, list[DateInterval]] = {}
+    for row in connection.execute(
+        "SELECT account_id, period_start, period_end FROM movement_coverage_certifications "
+        "WHERE currency_pocket = ? AND retired = 0",
+        (currency,),
+    ):
+        certified.setdefault(row["account_id"], []).append(
+            DateInterval(row["period_start"], row["period_end"])
+        )
+    scopes, archived = _account_scopes_from(connection)
+    sets = [coverage_contract(connection).covered_intervals]
+    for account in sorted(held & set(statements)):
+        spans = statements[account]
+        scope = scopes.get((account, currency), {})
+        start = scope.get("expected_start") or spans[0].start
+        end = scope.get("expected_end") or archived.get(account)
+        unexpected = [DateInterval(date.min.isoformat(), _shift(start, -1))]
+        if end:
+            unexpected.append(DateInterval(_shift(end, 1), date.max.isoformat()))
+        sets.append(normalize([*unexpected, *spans, *certified.get(account, [])]))
+    return intersect_all(sets)
+
+
+def _shift(day: str, days: int) -> str:
+    return (date.fromisoformat(day[:10]) + timedelta(days=days)).isoformat()
 
 
 def _family_evidence_refs(connection: sqlite3.Connection, family: str) -> list[str]:

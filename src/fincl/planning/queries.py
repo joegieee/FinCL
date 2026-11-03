@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import clock
+from ..coverage import pocket_covered_intervals
 from ..db import connect_readonly
 from ..decision_journal import default_journal_path, read_records
 from ..errors import FinCLError
@@ -61,10 +62,14 @@ def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]
     try:
         connection.execute("BEGIN")
         generation = _generation(connection)
-        contract = _coverage_contract(connection)
         start, end = _month_bounds(month)
-        month_covered = any(i.contains_interval(DateInterval(start, end)) for i in contract.covered_intervals)
         month_past = end < clock.today().isoformat()
+
+        def pocket_covered(pocket: str) -> bool:
+            return any(i.contains_interval(DateInterval(start, end))
+                       for i in pocket_covered_intervals(connection, pocket))
+
+        month_covered = pocket_covered(currency)
         complete = month_covered and month_past
 
         revisions = connection.execute(
@@ -116,6 +121,8 @@ def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]
                 currency=effective["currency"], start=start, end=end,
             )
             archived = archived_for.get(plan, False)
+            plan_covered = pocket_covered(effective["currency"])
+            plan_complete = plan_covered and month_past
             budgets.append({
                 "plan": plan,
                 "name": effective["name"],
@@ -124,14 +131,14 @@ def budgets_page(database: Path, *, month: str, currency: str) -> dict[str, Any]
                 "effective_month": effective["effective_month"],
                 "limit": _money(limit_cents),
                 "actual": _money(actual_cents),
-                "remaining": _money(limit_cents - actual_cents) if complete else None,
-                "over_limit": actual_cents > limit_cents if complete else None,
+                "remaining": _money(limit_cents - actual_cents) if plan_complete else None,
+                "over_limit": actual_cents > limit_cents if plan_complete else None,
                 "archived": archived,
                 "legacy_undated": False,
                 "status": (
                     "archived" if archived
-                    else "settled" if complete
-                    else "observed_so_far" if month_covered
+                    else "settled" if plan_complete
+                    else "observed_so_far" if plan_covered
                     else "coverage_unknown"
                 ),
             })
@@ -225,7 +232,7 @@ def budget_backdate_preview(
     try:
         connection.execute("BEGIN")
         _generation(connection)
-        contract = _coverage_contract(connection)
+        pocket_intervals = pocket_covered_intervals(connection, currency)
         rows = connection.execute(
             "SELECT effective_month, category_key, limit_coefficient, limit_scale, currency "
             "FROM budget_revisions WHERE plan = ? ORDER BY effective_month, journal_seq", (plan,)
@@ -254,7 +261,7 @@ def budget_backdate_preview(
             if prev_limit == new_cents and prev_cat == category_key:
                 continue
             start, end = _month_bounds(month)
-            covered = any(i.contains_interval(DateInterval(start, end)) for i in contract.covered_intervals)
+            covered = any(i.contains_interval(DateInterval(start, end)) for i in pocket_intervals)
             actual = _budget_actual_cents(connection, category_key=category_key, currency=currency, start=start, end=end)
             affected.append({
                 "month": month,
