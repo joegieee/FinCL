@@ -4,15 +4,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 const month = (over: Record<string, unknown> = {}) => ({
   month: '2026-02', period_status: 'scored', scored: true, net_cash_effect: '-100.00',
   open_expected: { receipts: '0.00', payments: '0.00' },
+  modelled_spending: { expected: '0.00', actual: '0.00' },
   unclassified_actual: { receipts: '0.00', payments: '0.00' },
   ...over,
 })
 
-function page(months: ReturnType<typeof month>[]) {
+function page(months: ReturnType<typeof month>[], events: unknown[] = []) {
   return {
     snapshot: { snapshot: 'snap-1', issued_at: '2026-01-15', digest_verified: true, case: 'base' },
     as_of: '2026-03-02', currency: 'SGD', coverage: { covered: true, status: 'COVERED', reasons: [] },
-    months, events: [], unmatched_movements: [], biggest_misses: [], match_suggestions: [],
+    months, events, unmatched_movements: [], biggest_misses: [], match_suggestions: [],
     likely_income_realization: { available: false, sample_count: 0, issued_occurrences: 0, occurrence_rate: null, expected_amount: null, realized_amount: null, auto_applied: false, reason: 'none yet' },
   }
 }
@@ -49,4 +50,15 @@ describe('VarianceView months', () => {
     await compare()
     expect(screen.queryByText(/Still open/)).not.toBeInTheDocument()
   })
+
+  it('scores the allowance on its monthly total and leaves its slices out of the event list', async () => {
+    const slice = { event_id: 'residual:1', label: 'Daily slice', expected: '5.00', actual: null, status: 'modelled', status_reason: 'modelled', matches: [] }
+    const rent = { event_id: 'rent', label: 'Rent', expected: '1200.00', actual: null, status: 'missing', status_reason: 'gone', matches: [] }
+    loadVariance.mockResolvedValue(page([month({ modelled_spending: { expected: '300.00', actual: '280.00' } })], [slice, rent]))
+    await compare()
+    expect(screen.getByText('280.00 SGD of 300.00 SGD')).toBeInTheDocument()
+    expect(screen.getByText('Rent')).toBeInTheDocument()
+    expect(screen.queryByText('Daily slice')).not.toBeInTheDocument()
+  })
+
 })

@@ -25,6 +25,7 @@ from fincl.decision_journal import append_decision, default_journal_path
 from fincl.decisions import KNOWN_DECISION_KINDS, replay_journal
 from fincl.document_service import DocumentImportService
 from fincl.errors import FinCLError
+from fincl.forecast import engine
 from fincl.forecast.engine import COLUMNS as ENGINE_COLUMNS
 from fincl.forecast.engine import ENGINE_VERSION
 from fincl.migrations import apply_pending_migrations
@@ -39,6 +40,7 @@ from fincl.variance.models import (
     EVENT_AWAITED,
     EVENT_MATCHED,
     EVENT_MISSING,
+    EVENT_MODELLED,
     EVENT_PARTIALLY_MATCHED,
     EVENT_UNRESOLVED,
     FLOW_CLASSES,
@@ -48,6 +50,7 @@ from fincl.variance.models import (
     PERIOD_SCORED,
     PERIOD_UNRESOLVED_COVERAGE,
     PERIOD_UNRESOLVED_FUTURE,
+    RESIDUAL_EVENT_PREFIX,
     SNAPSHOT_CONTRACT_VERSION,
     realization,
     snapshot_digest,
@@ -716,6 +719,28 @@ class ForecastVersusActualTests(unittest.TestCase):
         self.assertIsNone(april["unclassified_actual"]["payments"])
         self.assertEqual(self.page["scored_months"], ["2026-01", "2026-02", "2026-03"])
 
+    def test_a_partial_match_inside_its_window_is_not_yet_a_shortfall(self) -> None:
+        ids = _movement_ids(self.database, "2026-04-01", "2026-04-30")
+        _match(self.database, match="m-apr-part", event_id="salary:2026-04",
+               movement=ids["2026-04-03|ACME PAYROLL"], on="2026-04-03",
+               amount="1000.00", kind="partial")
+        _replay(self.database)
+
+        page = forecast_variance_page(self.database, snapshot="snap-1", as_of=self.AS_OF)
+
+        self.assertEqual(_event(page, "salary:2026-04")["status"], EVENT_PARTIALLY_MATCHED)
+        self.assertNotIn("salary:2026-04", [item["event_id"] for item in page["biggest_misses"]])
+        summary = page["likely_income_realization"]
+        self.assertEqual(summary["sample_count"], 2)
+        self.assertIn("salary:2026-04", [item["event_id"] for item in summary["excluded_from_sample"]])
+
+    def test_a_match_after_as_of_is_not_an_answer_yet(self) -> None:
+        page = forecast_variance_page(self.database, snapshot="snap-1", as_of="2026-03-02")
+
+        salary = _event(page, "salary:2026-03")
+        self.assertEqual(salary["status"], EVENT_AWAITED)
+        self.assertIsNone(salary["actual"])
+
     def test_a_partial_match_leaves_the_remainder_visible(self) -> None:
         _match(self.database, match="m-mar-rent-part", event_id="rent:2026-03",
                movement=_movement_ids(self.database, "2026-03-01", "2026-03-31")[
@@ -764,6 +789,36 @@ class UnmatchedMonthTests(unittest.TestCase):
         # In 3000, out 2000, against an issued 3000 in and 1900 out. Summing the
         # unmatched classes would have reported the issued net, negated.
         self.assertEqual(_month(page, "2026-02")["net_cash_effect"], "-100.00")
+
+
+class BeyondTheHorizonTests(unittest.TestCase):
+    def test_a_receipt_landing_after_the_horizon_resolves_and_says_so(self) -> None:
+        database = _ledger([_CONTIGUOUS])
+        document = _document()
+        document["horizon"].update(end="2026-03-31", months=3)
+        document["outputs"]["months"] = document["outputs"]["months"][:3]
+        document["events"] = [item for item in document["events"] if item["on"] <= "2026-03-31"]
+        _append(
+            database,
+            FORECAST_SNAPSHOT_ISSUE,
+            {"snapshot": "snap-short"},
+            {
+                "document": document,
+                "digest": snapshot_digest(document),
+                "reason": "a horizon that ends before the salary lands",
+            },
+        )
+        ids = _movement_ids(database, "2026-04-01", "2026-04-30")
+        _replay(database)
+        _match(database, match="m-late", event_id="salary:2026-03", snapshot="snap-short",
+               movement=ids["2026-04-03|ACME PAYROLL"], on="2026-04-03", amount="3000.00")
+        _replay(database)
+
+        page = forecast_variance_page(database, snapshot="snap-short", as_of="2026-04-15")
+
+        self.assertEqual(page["unresolved_matches"], [])
+        shift = _month(page, "2026-03")["timing"]["expected_here_landed_elsewhere"][0]
+        self.assertTrue(shift["beyond_horizon"])
 
 
 class OpenEventInClosedMonthTests(unittest.TestCase):
@@ -817,6 +872,63 @@ class OpenEventInClosedMonthTests(unittest.TestCase):
             self.february["open_expected"], {"receipts": "3000.00", "payments": "0.00"}
         )
         self.assertEqual(self.february["net_cash_effect"], "-100.00")
+
+
+class ModelledAllowanceTests(unittest.TestCase):
+    """A daily slice of a spending allowance is scored on the month's total."""
+
+    def setUp(self) -> None:
+        self.database = _ledger([_CONTIGUOUS])
+        document = _document()
+        rent = next(item for item in document["events"] if item["event_id"] == "rent:2026-02")
+        slice_of_it = {
+            **rent,
+            "event_id": f"{RESIDUAL_EVENT_PREFIX}base:SGD:routine:2026-02:2026-02-11",
+            "on": "2026-02-11",
+            "amount": "25.00",
+            "timing": {**rent["timing"], "earliest": "2026-02-01", "latest": "2026-02-28"},
+            "confidence": "modelled",
+        }
+        document["events"].append(slice_of_it)
+        self.slice = slice_of_it["event_id"]
+        _append(
+            self.database,
+            FORECAST_SNAPSHOT_ISSUE,
+            {"snapshot": "snap-modelled"},
+            {
+                "document": document,
+                "digest": snapshot_digest(document),
+                "reason": "a residual slice beside the sourced events",
+            },
+        )
+        _replay(self.database)
+        self.page = forecast_variance_page(
+            self.database, snapshot="snap-modelled", as_of="2026-04-15"
+        )
+        self.february = _month(self.page, "2026-02")
+
+    def test_a_slice_is_neither_missing_nor_queued(self) -> None:
+        self.assertEqual(_event(self.page, self.slice)["status"], EVENT_MODELLED)
+        self.assertNotIn(self.slice, [item["event_id"] for item in self.page["biggest_misses"]])
+        self.assertNotIn(self.slice, [item["event_id"] for item in self.page["match_suggestions"]])
+
+    def test_the_slice_is_held_out_of_its_class(self) -> None:
+        lifestyle = _cell(self.february, FLOW_LIFESTYLE)
+
+        self.assertEqual(lifestyle["expected"], "1925.00")
+        self.assertEqual(lifestyle["modelled_expected"], "25.00")
+        self.assertEqual(lifestyle["cash_effect"], "1900.00")
+
+    def test_the_allowance_is_scored_against_unexplained_spending(self) -> None:
+        self.assertEqual(
+            {key: self.february["modelled_spending"][key] for key in ("expected", "actual", "cash_effect")},
+            {"expected": "25.00", "actual": "2000.00", "cash_effect": "-1975.00"},
+        )
+
+    def test_the_prefix_is_the_one_the_engine_writes(self) -> None:
+        self.assertIn(
+            f'f"{RESIDUAL_EVENT_PREFIX}{{scenario}}', Path(engine.__file__).read_text()
+        )
 
 
 class UncoveredPeriodTests(unittest.TestCase):

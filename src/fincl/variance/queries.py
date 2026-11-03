@@ -47,6 +47,7 @@ from .models import (
     EVENT_AWAITED,
     EVENT_MATCHED,
     EVENT_MISSING,
+    EVENT_MODELLED,
     EVENT_PARTIALLY_MATCHED,
     EVENT_UNRESOLVED,
     FLOW_CLASSES,
@@ -57,6 +58,7 @@ from .models import (
     PERIOD_SCORED,
     PERIOD_UNRESOLVED_COVERAGE,
     PERIOD_UNRESOLVED_FUTURE,
+    RESIDUAL_EVENT_PREFIX,
     VARIANCE_VERSION,
     flow_direction,
     realization,
@@ -67,6 +69,7 @@ from .snapshots import stored_snapshot
 CONFIDENCE_LIKELY = "likely"
 _BIGGEST_MISSES = 5
 _OPEN_EVENT_STATUSES = (EVENT_AWAITED, EVENT_UNRESOLVED)
+_UNSCORED_EVENT_STATUSES = (*_OPEN_EVENT_STATUSES, EVENT_MODELLED)
 
 TRANSFER_SEMANTICS = (
     "transfers and repayments are matched the way the forecast modelled them: a "
@@ -85,9 +88,15 @@ def _month_of(day: str) -> str:
     return day[:7]
 
 
+def _remainder_open(event: dict[str, Any]) -> bool:
+    """A partial match whose window has not closed: the rest may still arrive."""
+    return event["status"] == EVENT_PARTIALLY_MATCHED and bool(event["window_open"])
+
+
 def _live_matches(
-    connection: sqlite3.Connection, snapshot: str
+    connection: sqlite3.Connection, snapshot: str, *, as_of: str
 ) -> list[dict[str, Any]]:
+    """Matches as of ``as_of``: cash that moved later is not an answer yet."""
     return [
         {
             "match": str(row["match"]),
@@ -101,8 +110,9 @@ def _live_matches(
         for row in connection.execute(
             "SELECT match, event_id, movement_id, matched_on, amount_coefficient, "
             "amount_scale, match_kind FROM forecast_actual_matches "
-            "WHERE snapshot = ? AND retired = 0 ORDER BY matched_on, match",
-            (snapshot,),
+            "WHERE snapshot = ? AND retired = 0 AND matched_on <= ? "
+            "ORDER BY matched_on, match",
+            (snapshot, as_of),
         )
     ]
 
@@ -213,6 +223,12 @@ def _event_rows(
                 "part of this event is matched; the remainder has not been bound to "
                 "any actual movement"
             )
+        elif event_id.startswith(RESIDUAL_EVENT_PREFIX):
+            status = EVENT_MODELLED
+            reason = (
+                "this is one day's slice of a modelled spending allowance; no single "
+                "movement answers it, so the allowance is scored on the month's total"
+            )
         elif latest > as_of:
             status = EVENT_AWAITED
             reason = (
@@ -255,6 +271,7 @@ def _event_rows(
                 "expected_minor": expected,
                 "actual_minor": actual if bound else None,
                 "actual": format_decimal(actual, scale) if bound else None,
+                "window_open": latest > as_of,
                 "status": status,
                 "status_reason": reason,
                 "matches": landings,
@@ -287,8 +304,10 @@ def _month_rows(
     scale: int,
 ) -> list[dict[str, Any]]:
     """One row per issued month: expected, actual, variance and timing, by class."""
+    issued_months = {str(item["month"]) for item in document["outputs"]["months"]}
     expected: dict[str, dict[str, int]] = {}
     still_open: dict[str, dict[str, int]] = {}
+    modelled: dict[str, dict[str, int]] = {}
     landed: dict[str, dict[str, int]] = {}
     timing_out: dict[str, list[dict[str, Any]]] = {}
     timing_in: dict[str, list[dict[str, Any]]] = {}
@@ -297,8 +316,12 @@ def _month_rows(
         month = str(event["modelled_month"])
         cell = expected.setdefault(month, dict.fromkeys(FLOW_CLASSES, 0))
         cell[str(event["flow_class"])] += int(event["expected_minor"])
-        if event["status"] in _OPEN_EVENT_STATUSES:
+        if event["status"] in _OPEN_EVENT_STATUSES or _remainder_open(event):
             still_open.setdefault(month, dict.fromkeys(FLOW_CLASSES, 0))[
+                str(event["flow_class"])
+            ] += max(int(event["expected_minor"]) - int(event["actual_minor"] or 0), 0)
+        if event["status"] == EVENT_MODELLED:
+            modelled.setdefault(month, dict.fromkeys(FLOW_CLASSES, 0))[
                 str(event["flow_class"])
             ] += int(event["expected_minor"])
         for item in event["matches"]:
@@ -313,6 +336,7 @@ def _month_rows(
                     "amount": item["amount"],
                     "modelled_month": month,
                     "landed_month": landed_month,
+                    "beyond_horizon": landed_month not in issued_months,
                 }
                 timing_out.setdefault(month, []).append(shift)
                 timing_in.setdefault(landed_month, []).append(shift)
@@ -324,6 +348,7 @@ def _month_rows(
     unclassified: dict[str, dict[str, int]] = {}
     unclassified_items: dict[str, list[dict[str, Any]]] = {}
     actual_cash: dict[str, dict[str, int]] = {}
+    unallocated_spending: dict[str, int] = {}
     for movement in movements:
         month = _month_of(str(movement["on"]))
         amount = movement["amount_coefficient"] * (
@@ -338,6 +363,8 @@ def _month_rows(
         if remainder <= 0:
             continue
         cell[str(movement["direction"])] += remainder
+        if movement["direction"] == "outflow" and not movement["internal_transfer"]:
+            unallocated_spending[month] = unallocated_spending.get(month, 0) + remainder
         unclassified_items.setdefault(month, []).append(
             {
                 "movement_id": movement["movement_id"],
@@ -361,13 +388,15 @@ def _month_rows(
         expected_cell = expected.get(month, dict.fromkeys(FLOW_CLASSES, 0))
         landed_cell = landed.get(month, dict.fromkeys(FLOW_CLASSES, 0))
         open_cell = still_open.get(month, dict.fromkeys(FLOW_CLASSES, 0))
+        modelled_cell = modelled.get(month, dict.fromkeys(FLOW_CLASSES, 0))
         classes = []
         for flow_class in FLOW_CLASSES:
+            held_out = open_cell[flow_class] + modelled_cell[flow_class]
             # With nothing landed and nothing yet answerable, a difference of
             # zero would be a measured zero nobody measured.
             unanswered = (
-                open_cell[flow_class] > 0
-                and open_cell[flow_class] == expected_cell[flow_class]
+                held_out > 0
+                and held_out == expected_cell[flow_class]
                 and landed_cell[flow_class] == 0
             )
             classes.append(
@@ -379,12 +408,13 @@ def _month_rows(
                     ),
                     scale=scale,
                     unresolved_reason=(
-                        "every event issued for this class is still open, so there "
-                        "is no answer to compare yet"
+                        "every event issued for this class is still open or part of "
+                        "a modelled allowance, so there is no answer to compare here"
                         if scored and unanswered
                         else reason
                     ),
                     open_minor=open_cell[flow_class],
+                    modelled_minor=modelled_cell[flow_class],
                 )
             )
         cash_cell = actual_cash.get(month, {DIRECTION_IN: 0, "outflow": 0})
@@ -404,6 +434,8 @@ def _month_rows(
             for direction in (DIRECTION_IN, "outflow")
         }
         unclassified_cell = unclassified.get(month, {DIRECTION_IN: 0, "outflow": 0})
+        allowance = sum(modelled_cell.values())
+        spent = unallocated_spending.get(month, 0)
         rows.append(
             {
                 "month": month,
@@ -432,13 +464,23 @@ def _month_rows(
                     "receipts": format_decimal(open_flows[DIRECTION_IN], scale) if scored else None,
                     "payments": format_decimal(open_flows["outflow"], scale) if scored else None,
                 },
+                "modelled_spending": {
+                    "expected": format_decimal(allowance, scale),
+                    "actual": format_decimal(spent, scale) if scored else None,
+                    "cash_effect": format_decimal(allowance - spent, scale) if scored else None,
+                    "note": (
+                        "the month's modelled allowance against outgoing cash no match "
+                        "or internal transfer explains; a scheduled payment nobody has "
+                        "matched yet still counts here"
+                    ),
+                },
                 "timing": {
                     "expected_here_landed_elsewhere": timing_out.get(month, []),
                     "expected_elsewhere_landed_here": timing_in.get(month, []),
                     "note": (
                         "a shift moves cash between months without changing the "
-                        "horizon total; it is reported separately from a real "
-                        "difference in level"
+                        "horizon total, unless it landed beyond the horizon; it is "
+                        "reported separately from a real difference in level"
                     ),
                 },
                 "unclassified_actual": {
@@ -473,7 +515,7 @@ def _biggest_misses(events: list[dict[str, Any]], scale: int) -> list[dict[str, 
     """
     scored: list[tuple[int, dict[str, Any]]] = []
     for event in events:
-        if event["status"] == EVENT_UNRESOLVED or event["status"] == EVENT_AWAITED:
+        if event["status"] in _UNSCORED_EVENT_STATUSES or _remainder_open(event):
             continue
         actual = int(event["actual_minor"] or 0)
         difference = actual - int(event["expected_minor"])
@@ -513,6 +555,7 @@ def _likely_income(events: list[dict[str, Any]], scale: int) -> dict[str, Any]:
         event
         for event in candidates
         if event["status"] in (EVENT_MATCHED, EVENT_PARTIALLY_MATCHED, EVENT_MISSING)
+        and not _remainder_open(event)
     ]
     realized = [event for event in resolved if event["actual_minor"]]
     summary = realization(
@@ -666,9 +709,16 @@ def forecast_variance(
             connection, currency=currency, start=first_day, end=window_end
         )
     movements = list(movements_page["movements"])
-    matches = _live_matches(connection, snapshot)
-    scale = _working_scale(document, matches, movements)
-    movements_by_id = {str(item["movement_id"]): item for item in movements}
+    # Cash after the horizon is outside every month, but a late receipt can still
+    # land there and its match has to resolve.
+    beyond_horizon = (
+        cash_movements(connection, currency=currency, start=horizon_end, end=as_of)["movements"]
+        if as_of > horizon_end
+        else []
+    )
+    matches = _live_matches(connection, snapshot, as_of=as_of)
+    scale = _working_scale(document, matches, [*movements, *beyond_horizon])
+    movements_by_id = {str(item["movement_id"]): item for item in [*movements, *beyond_horizon]}
     bound_by_movement: dict[str, int] = {}
     for binding in matches:
         bound_by_movement[binding["movement_id"]] = bound_by_movement.get(

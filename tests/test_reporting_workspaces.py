@@ -100,7 +100,7 @@ class WorkspaceValuationTests(ApiTestBase):
                   "months": [{"month": "2026-02", "net_cash_effect": "0",
                               "actual_cash": {"receipts": "0.00", "payments": "10.00"}, "by_flow_class": [
                                   {"direction": "outflow", "expected": "10.00", "actual": "10.00",
-                                   "open_expected": "0.00", "cash_effect": "0"}]}]}
+                                   "open_expected": "0.00", "modelled_expected": "0.00", "cash_effect": "0"}]}]}
         values = self.annotate(native, "forecast/variance/snapshot")
         self.assertEqual(values[("months", 0, "by_flow_class", 0, "expected")]["reported"]["value"], "12.00")
         self.assertEqual(values[("months", 0, "by_flow_class", 0, "actual")]["reported"]["value"], "14.00")

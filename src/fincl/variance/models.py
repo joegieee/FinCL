@@ -80,13 +80,19 @@ EVENT_PARTIALLY_MATCHED = "partially_matched"
 EVENT_MISSING = "missing"
 EVENT_AWAITED = "awaited"
 EVENT_UNRESOLVED = "unresolved"
+EVENT_MODELLED = "modelled"
 EVENT_STATUSES = (
     EVENT_MATCHED,
     EVENT_PARTIALLY_MATCHED,
     EVENT_MISSING,
     EVENT_AWAITED,
     EVENT_UNRESOLVED,
+    EVENT_MODELLED,
 )
+
+# The engine spreads unscheduled spending into daily slices under this id prefix.
+# Restated like the flow classes above, and pinned to the engine by a test.
+RESIDUAL_EVENT_PREFIX = "residual:"
 
 # What became of one actual cash movement.
 MOVEMENT_MATCHED = "matched"
@@ -160,6 +166,7 @@ def variance_reading(
     scale: int,
     unresolved_reason: str | None = None,
     open_minor: int = 0,
+    modelled_minor: int = 0,
 ) -> dict[str, Any]:
     """One month/flow-class cell, with the sign explained rather than implied.
 
@@ -169,6 +176,8 @@ def variance_reading(
     ``open_minor`` is the part of ``expected_minor`` whose events nobody can yet
     judge. It stays in the issued figure but is held out of the difference: the
     cash may still move, so it is not a shortfall against this class.
+    ``modelled_minor`` is held out the same way: a modelled allowance is scored
+    on the month's total, not class by class.
     """
     if flow_class not in FLOW_CLASSES:
         raise ValueError(f"unknown flow class: {flow_class!r}")
@@ -186,13 +195,14 @@ def variance_reading(
             ),
             "actual": None if actual_minor is None else format_decimal(actual_minor, scale),
             "open_expected": format_decimal(open_minor, scale),
+            "modelled_expected": format_decimal(modelled_minor, scale),
             "actual_minus_expected": None,
             "cash_effect": None,
             "favourable": None,
             "resolved": False,
             "explanation": unresolved_reason or NEVER_ZERO_RULE,
         }
-    difference = actual_minor - (expected_minor - open_minor)
+    difference = actual_minor - (expected_minor - open_minor - modelled_minor)
     # The same difference, read as cash: more income helps, more spending hurts.
     cash_effect = difference if direction == DIRECTION_IN else -difference
     if difference == 0:
@@ -216,12 +226,18 @@ def variance_reading(
             f"; {format_decimal(open_minor, scale)} of the issued amount is still "
             "open and is not scored"
         )
+    if modelled_minor:
+        explanation += (
+            f"; {format_decimal(modelled_minor, scale)} is a modelled allowance, "
+            "scored on the month's total"
+        )
     return {
         "flow_class": flow_class,
         "direction": direction,
         "expected": format_decimal(expected_minor, scale),
         "actual": format_decimal(actual_minor, scale),
         "open_expected": format_decimal(open_minor, scale),
+        "modelled_expected": format_decimal(modelled_minor, scale),
         "actual_minus_expected": format_decimal(difference, scale),
         "cash_effect": format_decimal(cash_effect, scale),
         "favourable": cash_effect > 0 if cash_effect != 0 else None,
@@ -298,6 +314,7 @@ __all__ = [
     "EVENT_AWAITED",
     "EVENT_MATCHED",
     "EVENT_MISSING",
+    "EVENT_MODELLED",
     "EVENT_PARTIALLY_MATCHED",
     "EVENT_STATUSES",
     "EVENT_UNRESOLVED",
@@ -323,6 +340,7 @@ __all__ = [
     "PERIOD_STATUSES",
     "PERIOD_UNRESOLVED_COVERAGE",
     "PERIOD_UNRESOLVED_FUTURE",
+    "RESIDUAL_EVENT_PREFIX",
     "SNAPSHOT_CONTRACT_VERSION",
     "VARIANCE_DECISION_KINDS",
     "VARIANCE_VERSION",
