@@ -11,7 +11,7 @@ from __future__ import annotations
 import calendar
 import json
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -150,23 +150,23 @@ def _budget_actual_cents(connection: Any, *, category_key: str | None, currency:
     where = [
         "currency_pocket = :currency",
         "substr(effective_at, 1, 10) BETWEEN :start AND :end",
-        "amount_scale <= 2",
         "eligible",
     ]
     if category_key is None:
         where.append("bucket IN ('spending', 'fees')")
-        amount = "abs(amount_coefficient) * (CASE amount_scale WHEN 0 THEN 100 WHEN 1 THEN 10 ELSE 1 END) " \
-                 "+ abs(coalesce(fee_coefficient, 0)) * (CASE coalesce(fee_scale, 0) WHEN 0 THEN 100 WHEN 1 THEN 10 ELSE 1 END)"
     else:
         where.append("bucket = 'spending'")
         where.append("category = :category")
         params["category"] = category_key
-        amount = "abs(amount_coefficient) * (CASE amount_scale WHEN 0 THEN 100 WHEN 1 THEN 10 ELSE 1 END)"
-    row = connection.execute(
-        f"SELECT coalesce(SUM({amount}), 0) AS cents FROM ({_ENTRY_VIEW}) WHERE {' AND '.join(where)}",
+    rows = connection.execute(
+        "SELECT amount_coefficient, amount_scale, coalesce(fee_coefficient, 0) AS fee_coefficient, "
+        f"coalesce(fee_scale, 0) AS fee_scale FROM ({_ENTRY_VIEW}) WHERE {' AND '.join(where)}",
         params,
-    ).fetchone()
-    return int(row["cents"])
+    ).fetchall()
+    total = sum((Decimal(abs(row["amount_coefficient"])).scaleb(-row["amount_scale"]) for row in rows), Decimal(0))
+    if category_key is None:
+        total += sum((Decimal(abs(row["fee_coefficient"])).scaleb(-row["fee_scale"]) for row in rows), Decimal(0))
+    return int((total * 100).to_integral_value(rounding=ROUND_HALF_UP))
 
 
 def budget_history(database: Path, plan: str) -> dict[str, Any]:
