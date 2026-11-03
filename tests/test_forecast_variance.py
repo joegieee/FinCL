@@ -56,7 +56,7 @@ from fincl.variance.models import (
     snapshot_digest,
     variance_reading,
 )
-from fincl.variance.queries import forecast_variance_page
+from fincl.variance.queries import check_match, forecast_variance_page
 from fincl.variance.snapshots import snapshot_payload, stored_snapshot
 from tests.revolut_pdf import revolut_pdf_bytes as csv_bytes
 
@@ -819,6 +819,60 @@ class BeyondTheHorizonTests(unittest.TestCase):
         self.assertEqual(page["unresolved_matches"], [])
         shift = _month(page, "2026-03")["timing"]["expected_here_landed_elsewhere"][0]
         self.assertTrue(shift["beyond_horizon"])
+
+
+class MatchAuthoringTests(unittest.TestCase):
+    """The ledger can refuse a match the journal's shape checks cannot."""
+
+    def setUp(self) -> None:
+        self.database = _ledger([_CONTIGUOUS])
+        _issue(self.database)
+        _replay(self.database)
+        ids = _movement_ids(self.database, "2026-01-16", "2026-04-30")
+        self.salary = ids["2026-02-01|ACME PAYROLL"]
+        self.rent = ids["2026-02-10|LANDLORD RENT"]
+        self.connection = sqlite3.connect(self.database)
+        self.connection.row_factory = sqlite3.Row
+        self.addCleanup(self.connection.close)
+
+    def _check(self, **over: str) -> None:
+        payload = {
+            "event_id": "salary:2026-02", "movement_id": self.salary,
+            "matched_on": "2026-02-01", "amount": "3000.00", "match_kind": "full",
+            "reason": "matched by the operator", **over,
+        }
+        check_match(self.connection, snapshot="snap-1", match="new", payload=payload)
+
+    def test_a_movement_that_fits_is_accepted(self) -> None:
+        self._check()
+
+    def test_a_movement_going_the_other_way_is_refused(self) -> None:
+        with self.assertRaisesRegex(FinCLError, "same way"):
+            self._check(event_id="rent:2026-02")
+
+    def test_more_than_the_movement_holds_is_refused(self) -> None:
+        with self.assertRaisesRegex(FinCLError, "holds 3000.00"):
+            self._check(amount="3000.01")
+
+    def test_cash_already_bound_elsewhere_is_refused(self) -> None:
+        _match(self.database, match="first", event_id="salary:2026-03", movement=self.salary,
+               on="2026-02-01", amount="3000.00")
+        _replay(self.database)
+
+        with self.assertRaisesRegex(FinCLError, "already matched"):
+            self._check()
+
+    def test_a_partial_of_the_whole_event_is_refused(self) -> None:
+        with self.assertRaisesRegex(FinCLError, "less than the event"):
+            self._check(match_kind="partial")
+
+    def test_a_movement_outside_the_ledger_is_refused(self) -> None:
+        with self.assertRaisesRegex(FinCLError, "not a dated bank movement"):
+            self._check(movement_id="cash:nowhere:amount")
+
+    def test_a_date_the_movement_does_not_have_is_refused(self) -> None:
+        with self.assertRaisesRegex(FinCLError, "dated 2026-02-01"):
+            self._check(matched_on="2026-02-02")
 
 
 class OpenEventInClosedMonthTests(unittest.TestCase):

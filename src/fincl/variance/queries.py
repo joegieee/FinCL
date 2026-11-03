@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -820,6 +821,68 @@ def forecast_variance(
     }
 
 
+def check_match(
+    connection: sqlite3.Connection,
+    *,
+    snapshot: str,
+    match: str,
+    payload: dict[str, Any],
+) -> None:
+    """Refuse a match the ledger contradicts, before it reaches the journal.
+
+    This belongs at authoring rather than in the projection: a journal that
+    already holds such a match must still replay, and a movement can leave the
+    ledger after it was matched.
+    """
+    document = stored_snapshot(connection, snapshot)["document"]
+    event = next(
+        (item for item in document["events"] if str(item["event_id"]) == payload["event_id"]),
+        None,
+    )
+    if event is None:
+        raise FinCLError(f"forecast snapshot {snapshot} issued no cash event {payload['event_id']}")
+    movement = next(
+        (
+            item
+            for item in cash_movements(
+                connection,
+                currency=str(document["currency"]),
+                start=str(document["horizon"]["first_modelled_day"]),
+                end=clock.today().isoformat(),
+            )["movements"]
+            if item["movement_id"] == payload["movement_id"]
+        ),
+        None,
+    )
+    if movement is None:
+        raise FinCLError(
+            f"{payload['movement_id']} is not a dated bank movement in "
+            f"{document['currency']} since this forecast opened"
+        )
+    if movement["direction"] != event["direction"]:
+        raise FinCLError("a match needs a movement going the same way as its event")
+    if payload["matched_on"] != movement["on"]:
+        raise FinCLError(f"this movement is dated {movement['on']}, not {payload['matched_on']}")
+    amount = Decimal(str(payload["amount"]))
+    if payload["match_kind"] == MATCH_PARTIAL and amount >= Decimal(str(event["amount"])):
+        raise FinCLError("a partial match must be less than the event's issued amount")
+    bound = sum(
+        (
+            Decimal(row["amount_coefficient"]).scaleb(-row["amount_scale"])
+            for row in connection.execute(
+                "SELECT amount_coefficient, amount_scale FROM forecast_actual_matches "
+                "WHERE snapshot = ? AND movement_id = ? AND retired = 0 AND match <> ?",
+                (snapshot, payload["movement_id"], match),
+            )
+        ),
+        Decimal(0),
+    )
+    if bound + amount > Decimal(str(movement["amount"])):
+        raise FinCLError(
+            f"this movement holds {movement['amount']} and {bound} of it is already matched"
+        )
+
+
 def forecast_variance_page(
     database: Path, *, snapshot: str, as_of: str | None = None
 ) -> dict[str, Any]:
@@ -838,4 +901,4 @@ def forecast_variance_page(
         connection.close()
 
 
-__all__ = ["TRANSFER_SEMANTICS", "forecast_variance", "forecast_variance_page"]
+__all__ = ["TRANSFER_SEMANTICS", "check_match", "forecast_variance", "forecast_variance_page"]

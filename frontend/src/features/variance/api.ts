@@ -6,7 +6,7 @@ export type VariancePage = {
   snapshot: { snapshot: string; issued_at: string; digest_verified: boolean; case: string }
   as_of: string; currency: string; coverage: { covered: boolean; status: string; reasons: string[] }
   months: { month: string; period_status: string; scored: boolean; net_cash_effect: string | null; open_expected: { receipts: string | null; payments: string | null }; modelled_spending: { expected: string; actual: string | null }; unclassified_actual: { receipts: string | null; payments: string | null } }[]
-  events: { event_id: string; label: string; expected: string; actual: string | null; status: string; status_reason: string }[]
+  events: { event_id: string; label: string; expected: string; actual: string | null; status: string; status_reason: string; matches: { match: string; landed_on: string; amount: string }[] }[]
   unmatched_movements: { movement_id: string; on: string; amount: string; label: string }[]
   biggest_misses: { label: string; expected: string; actual: string; cash_effect: string }[]
   likely_income_realization: { available: boolean; sample_count: number; issued_occurrences: number; occurrence_rate: string | null; expected_amount: string | null; realized_amount: string | null; auto_applied: boolean; reason?: string }

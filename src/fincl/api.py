@@ -783,6 +783,10 @@ def _validate(database: Path, command: Command) -> dict[str,str]:
                 (command.anchors['snapshot'],),
             ).fetchone():
                 raise FinCLError('The forecast snapshot no longer exists')
+            if command.kind == 'FORECAST_MATCH_SET':
+                from .variance.queries import check_match
+                check_match(connection, snapshot=command.anchors['snapshot'], match=command.anchors['match'],
+                            payload=dict(command.payload))
             if command.kind == 'FORECAST_MATCH_RETIRE' and not connection.execute(
                 'SELECT 1 FROM forecast_actual_matches WHERE snapshot=? AND match=? AND retired=0',
                 (command.anchors['snapshot'], command.anchors['match']),
