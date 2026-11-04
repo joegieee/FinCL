@@ -24,6 +24,7 @@ from fincl.forecast.engine import (
     ResidualCategory,
     TimelineEvent,
     _action_items,
+    _candidate_income_events,
     _card_events,
     _manifest_categories,
     _overlap_items,
@@ -555,6 +556,20 @@ class CashTimelineTrapTests(unittest.TestCase):
         self.assertEqual(len(applied), 1)
         self.assertTrue(applied[0]["conditional"])
         self.assertEqual(applied[0]["condition"], "only if the policy renews")
+
+    def test_monthly_pay_received_before_the_cutoff_is_not_expected_again_that_month(self) -> None:
+        def windows(last_observed_on: str) -> list[tuple[str | None, str | None]]:
+            page = {"income_candidates": [{
+                "candidate": "income:employer", "merchant_key": "employer", "currency": "SGD",
+                "expected_amount": "5000.00", "cadence": "monthly",
+                "timing_window": {"day_of_month_min": 15, "day_of_month_max": 25,
+                                  "last_observed_on": last_observed_on},
+            }]}
+            events, _ = _candidate_income_events(page, start="2026-11-20", end="2027-01-31")
+            return [(event.window_earliest, event.window_latest) for event in events]
+
+        self.assertEqual(windows("2026-11-18"), [("2026-12-15", "2026-12-25"), ("2027-01-15", "2027-01-25")])
+        self.assertEqual(windows("2026-10-18")[0], ("2026-11-21", "2026-11-25"))
 
 
 if __name__ == "__main__":

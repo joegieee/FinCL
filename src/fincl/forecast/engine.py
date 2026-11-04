@@ -1971,6 +1971,11 @@ def _candidate_income_events(
         windows: list[tuple[str, str]] = []
         if cadence == "monthly" and timing.get("day_of_month_min") is not None:
             current = date(first.year, first.month, 1)
+            # A receipt on or before the cutoff is already in the opening balance,
+            # so its month owes no further pay.
+            received = timing.get("last_observed_on")
+            if received and received < first.isoformat() and received[:7] == current.isoformat()[:7]:
+                current = add_months(current, 1, 1)
             while current <= last:
                 length = calendar.monthrange(current.year, current.month)[1]
                 earliest = date(
