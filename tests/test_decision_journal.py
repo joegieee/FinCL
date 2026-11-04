@@ -8,7 +8,9 @@ projection self-heal, rebind across a rebuild, and the review CLI error paths.
 
 from __future__ import annotations
 
+import errno
 import json
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -112,6 +114,31 @@ class JournalIntegrityTests(unittest.TestCase):
         with self.assertRaises(FinCLError) as caught:
             read_records(self.journal)
         self.assertIn("incomplete record", str(caught.exception))
+
+    def test_a_short_write_completes_the_record_or_leaves_no_partial_one(self) -> None:
+        real_write = os.write
+
+        def half_then(failure: OSError | None):
+            calls = []
+
+            def write(descriptor: int, data: bytes) -> int:
+                calls.append(data)
+                if len(calls) == 1:
+                    return real_write(descriptor, data[: len(data) // 2])
+                if failure is not None:
+                    raise failure
+                return real_write(descriptor, data)
+            return write
+
+        with unittest.mock.patch("fincl.decision_journal.os.write", half_then(None)):
+            self._append("INBOUND_CLASSIFICATION", {"entry": "a"}, "one")
+        self.assertEqual([r.snapshot for r in read_records(self.journal)], ["one"])
+
+        full = OSError(errno.ENOSPC, "full")
+        with unittest.mock.patch("fincl.decision_journal.os.write", half_then(full)), self.assertRaises(OSError):
+            self._append("INBOUND_CLASSIFICATION", {"entry": "b"}, "two")
+        self._append("INBOUND_CLASSIFICATION", {"entry": "c"}, "three")
+        self.assertEqual([r.snapshot for r in read_records(self.journal)], ["one", "three"])
 
     def test_reordered_records_break_the_chain(self) -> None:
         self._append("INBOUND_CLASSIFICATION", {"entry": "a"}, "first")

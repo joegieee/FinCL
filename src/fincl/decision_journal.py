@@ -116,8 +116,17 @@ def append_decision(
             record_hash=_record_hash(unsigned),
             command=command,
         )
-        os.write(descriptor, (_canonical_json(record.as_mapping()) + "\n").encode())
-        os.fsync(descriptor)
+        data = (_canonical_json(record.as_mapping()) + "\n").encode()
+        size = os.fstat(descriptor).st_size
+        try:
+            written = 0
+            while written < len(data):
+                written += os.write(descriptor, data[written:])
+            os.fsync(descriptor)
+        except BaseException:
+            # A partial record left behind would stop every later read.
+            os.ftruncate(descriptor, size)
+            raise
     finally:
         fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
