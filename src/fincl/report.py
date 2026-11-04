@@ -686,7 +686,7 @@ def build_coverage_report(database_path: Path) -> str:
     )
     lines.append(f"confirmed_transfer_links={data['confirmed_transfer_links']}")
     lines.append(f"dangling_decisions={data['dangling_decisions']}")
-    lines.append(f"needs_reextraction={len(stale)}")
+    lines.append(f"needs_reextraction={len(stale)}" + (" (run `fincl rebuild`)" if stale else ""))
     for blob in stale:
         lines.append(
             f"  stale-version evidence {blob['evidence_sha256'][:12]} "

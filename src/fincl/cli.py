@@ -284,7 +284,7 @@ def coverage(
         if stale:
             console.print(
                 f"[yellow]Evidence needing re-extraction:[/yellow] {len(stale)} "
-                "(only stale-version extraction runs; not in analytics)"
+                "(only stale-version extraction runs; not in analytics; run `fincl rebuild`)"
             )
             for blob in stale:
                 console.print(f"  {blob['original_path']} ({blob['profiles']})")

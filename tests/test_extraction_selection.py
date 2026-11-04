@@ -12,6 +12,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -20,6 +21,7 @@ from fincl.cli import app
 from fincl.db import connect_sqlite, initialize_schema
 from fincl.decisions import _resolve, resolve_anchor
 from fincl.document_service import DocumentImportService
+from fincl.errors import FinCLError
 from fincl.selection import (
     CURRENT_EXTRACTION_TRIPLES,
     needs_reextraction,
@@ -202,7 +204,17 @@ class SelectionTests(unittest.TestCase):
             app, ["coverage", "--database", str(self.database), "--plain"]
         )
         self.assertEqual(result.exit_code, 0, result.output)
-        self.assertIn("needs_reextraction=1", result.output)
+        self.assertIn("needs_reextraction=1 (run `fincl rebuild`)", result.output)
+
+    def test_reimport_after_a_parser_bump_refuses_and_leaves_no_running_run(self) -> None:
+        service = DocumentImportService.plaintext_phase2(self.database, self.evidence)
+        with unittest.mock.patch("fincl.documents.PDF_PARSER_VERSION", "pdf-parser-next"), \
+                unittest.mock.patch("fincl.document_service.PDF_PARSER_VERSION", "pdf-parser-next"):
+            for _ in range(2):
+                with self.assertRaisesRegex(FinCLError, "fincl rebuild"):
+                    service.import_revolut_pdf(self.source)
+        self.assertEqual([(run["status"], run["selection_state"]) for run in self._runs()],
+                         [("ACCEPTED", "SELECTED")])
 
 
 if __name__ == "__main__":

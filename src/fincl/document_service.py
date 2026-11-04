@@ -197,6 +197,14 @@ class DocumentImportService:
                     links_created=0,
                 )
 
+            if connection.execute(
+                "SELECT 1 FROM statements WHERE statement_identity = ? AND evidence_sha256 = ?",
+                (parsed.statement_identity, capture.sha256),
+            ).fetchone() is not None:
+                raise FinCLError(
+                    "this statement was extracted by an earlier parser version; "
+                    "run `fincl rebuild` to re-extract it with the current one"
+                )
             connection.execute(
                 """
                 INSERT INTO extraction_runs(
