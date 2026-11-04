@@ -609,18 +609,19 @@ def register_workspace_reports(app: FastAPI, database: Any) -> None:
                         )]
                         currencies = currencies or [context.policy.currency]
                         pages = [endpoint(**{**kwargs, "currency": currency}) for currency in currencies]
-                        native = pages[0]
+                        requested = kwargs.get("currency")
+                        native = pages[currencies.index(requested)] if requested in currencies else pages[0]
                         keys = ("budgets",) if resource == "budgets" else ("plans", "recurring", "transfer_proposals")
                         for key in keys:
-                            items: list[dict[str, Any]] = []
-                            seen: set[str] = set()
+                            # Every page lists every plan, but only the plan's own
+                            # currency page fills its actuals.
+                            items: dict[str, dict[str, Any]] = {}
                             for currency, page in zip(currencies, pages, strict=True):
                                 for item in page[key]:
                                     identity = str(item.get("id") or item.get("plan") or (currency, item.get("merchant")))
-                                    if identity not in seen:
-                                        items.append({**item, "currency": item.get("currency", currency)})
-                                        seen.add(identity)
-                            native[key] = items
+                                    if identity not in items or item.get("currency") == currency:
+                                        items[identity] = {**item, "currency": item.get("currency", currency)}
+                            native[key] = list(items.values())
                     else:
                         native = endpoint(**kwargs)
                     concrete = resource

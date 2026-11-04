@@ -8,7 +8,7 @@
   "updated_at": "<recorded-at>",
   "start": "2026-07-01",
   "end": "2026-07-31",
-  "currency": "EUR",
+  "currency": "SGD",
   "currencies": [
    "EUR",
    "SGD"
@@ -16,14 +16,14 @@
   "covered": true,
   "coverage_reasons": [],
   "summary": {
-   "spending": "11.47",
-   "income": "0",
-   "fees": "0",
-   "refunds": "0",
+   "spending": "1747.02",
+   "income": "2913.00",
+   "fees": "2.07",
+   "refunds": "31.73",
    "reimbursements": "0",
    "non_income_inflow": "0",
-   "pending_review": "0",
-   "net_economic_flow": "-11.47"
+   "pending_review": "0.06",
+   "net_economic_flow": "1195.64"
   },
   "summary_handles": {
    "spending": "<handle>",
@@ -87,22 +87,184 @@
   "custom_categories": [],
   "category_totals": [
    {
+    "name": "Housing / Rent",
+    "value": "1180.00",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
     "name": "Unclassified / Unclassified",
-    "value": "11.47",
+    "value": "380.95",
+    "count": 19,
+    "handle": "<handle>"
+   },
+   {
+    "name": "Housing / Utilities",
+    "value": "77.14",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "Food & Dining / Dining Out",
+    "value": "60.95",
+    "count": 4,
+    "handle": "<handle>"
+   },
+   {
+    "name": "Transport / Public Transit",
+    "value": "40.92",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "Food & Dining / Cafes & Drinks",
+    "value": "7.06",
     "count": 2,
     "handle": "<handle>"
    }
   ],
   "merchant_totals": [
    {
-    "name": "SUSHI TEN",
-    "value": "8.23",
+    "name": "PayNow Transfer\nTO: LANDLORD SYNTHETIC",
+    "value": "1180.00",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "SYNTHETIC POWER AND WATER",
+    "value": "77.14",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "PET PANTRY CARD PAYMENT",
+    "value": "71.63",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "BOOK NOOK SINGAPORE SGP 18JUL",
+    "value": "47.19",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "LUNCH COUNTER SINGAPORE SGP 06JUL",
+    "value": "44.88",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "TRANSIT TOP-UP SINGAPORE SGP 08JUL",
+    "value": "40.92",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "NEIGHBOURHOOD BAKERY SINGAPORE SGP 12JUL",
+    "value": "36.51",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "BOOK NOOK SINGAPORE SGP 23JUL",
+    "value": "27.56",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "SPLIT PAYMENT",
+    "value": "27.35",
     "count": 1,
     "handle": "<handle>"
    },
    {
     "name": "KONBINI MART",
-    "value": "3.24",
+    "value": "22.82",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "BISTRO DU PORT",
+    "value": "21.17",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "PHARMACY PLUS SINGAPORE SGP 03JUL",
+    "value": "19.71",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "STREAMING BOX",
+    "value": "18.71",
+    "count": 2,
+    "handle": "<handle>"
+   },
+   {
+    "name": "PHARMACY PLUS SINGAPORE SGP 11JUL",
+    "value": "17.79",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "PASTELARIA SOL",
+    "value": "15.28",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "NIGHT MARKET GRILL",
+    "value": "12.49",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "HAWKER STALL 12",
+    "value": "12.21",
+    "count": 2,
+    "handle": "<handle>"
+   },
+   {
+    "name": "LUNCH COUNTER SINGAPORE SGP 01JUL",
+    "value": "10.13",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "PHARMACY PLUS SINGAPORE SGP 02JUL",
+    "value": "10.05",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "BUBBLE TEA BAR",
+    "value": "8.72",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "CHICKEN RICE STALL",
+    "value": "8.00",
+    "count": 1,
+    "handle": "<handle>"
+   },
+   {
+    "name": "KOPI CORNER",
+    "value": "7.06",
+    "count": 2,
+    "handle": "<handle>"
+   },
+   {
+    "name": "NOODLE HOUSE",
+    "value": "5.94",
+    "count": 2,
+    "handle": "<handle>"
+   },
+   {
+    "name": "RIDE-HAIL",
+    "value": "3.76",
     "count": 1,
     "handle": "<handle>"
    }
@@ -128,20 +290,20 @@
    },
    {
     "month": "2026-05",
-    "spending": "22.74",
-    "income": "0",
+    "spending": "2157.63",
+    "income": "2381.17",
     "complete": true
    },
    {
     "month": "2026-06",
-    "spending": "213.56",
-    "income": "0",
+    "spending": "1978.87",
+    "income": "2406.49",
     "complete": true
    },
    {
     "month": "2026-07",
-    "spending": "11.47",
-    "income": "0",
+    "spending": "1749.09",
+    "income": "2913.00",
     "complete": true
    }
   ],
@@ -167,8 +329,8 @@
     "saved": "0",
     "target": "320.00",
     "type": "budget",
-    "actual": null,
-    "remaining": null
+    "actual": "0",
+    "remaining": "320.00"
    },
    {
     "id": "emergency",
@@ -185,16 +347,16 @@
   ],
   "recent": [
    {
-    "id": "entry_798a4bf8e69628d874e9104bf18ea05259356fddb7b0574144125010ff8f5a3e",
-    "anchor": "<digest>:pdf:revolut:<digest>:16",
-    "date": "2026-07-15",
+    "id": "entry_37f257766b2624b441c22e6ab803c62fd9c896e452bcb5e1cec4305ceaebd2d8",
+    "anchor": "<digest>:pdf:revolut:<digest>:12",
+    "date": "2026-07-29",
     "precision": "DAY",
-    "amount": "-8.23",
+    "amount": "-3.76",
     "fee": "0",
-    "currency": "EUR",
+    "currency": "SGD",
     "account": "Revolut Current",
-    "merchant": "SUSHI TEN",
-    "description": "Sushi Ten",
+    "merchant": "RIDE-HAIL",
+    "description": "Ride-hail",
     "category": "Unclassified / Unclassified",
     "basis": "unclassified",
     "source_location": "Page 1",
@@ -214,16 +376,190 @@
     "debt_allocation": null
    },
    {
-    "id": "entry_a1a836607fb4917c446996f43b3475ef39bd1ff186399db8121067803ac6c74d",
-    "anchor": "<digest>:pdf:revolut:<digest>:15",
-    "date": "2026-07-14",
+    "id": "entry_8e0252d27645919a4a6c29bcdadaf5943f36dd7c2751eaa43f219a09aa1ca56c",
+    "anchor": "<digest>:pdf:paylah:<digest>:17",
+    "date": "2026-07-26",
     "precision": "DAY",
-    "amount": "-3.24",
+    "amount": "-8.72",
     "fee": "0",
-    "currency": "EUR",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "BUBBLE TEA BAR",
+    "description": "BUBBLE TEA BAR",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": 1,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": 0,
+    "classification": null,
+    "debt_allocation": null
+   },
+   {
+    "id": "entry_72a46d39be4f756cdcfe34e542542ac9f67068f437075de5b8f46368df71b043",
+    "anchor": "<digest>:pdf:paylah:<digest>:15",
+    "date": "2026-07-25",
+    "precision": "DAY",
+    "amount": "-4.90",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS PayLah! Wallet",
+    "merchant": "KOPI CORNER",
+    "description": "KOPI CORNER",
+    "category": "Food & Dining / Cafes & Drinks",
+    "basis": "rule:74f0986987681cfb",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": 1,
+    "review": false,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "variable_routine",
+    "cost_behavior_basis": "category default",
+    "need": "discretionary",
+    "need_basis": "category default",
+    "role_review_state": "automatic",
+    "suggested_classification": "",
+    "linked": 0,
+    "classification": null,
+    "debt_allocation": null
+   },
+   {
+    "id": "entry_6d3dec19d23dc95e2b8baa9dda12d420ee1d26d2640bdff947c7fbaf307cd87b",
+    "anchor": "<digest>:pdf:revolut:<digest>:11",
+    "date": "2026-07-25",
+    "precision": "DAY",
+    "amount": "-11.15",
+    "fee": "0",
+    "currency": "SGD",
     "account": "Revolut Current",
-    "merchant": "KONBINI MART",
-    "description": "Konbini Mart",
+    "merchant": "STREAMING BOX",
+    "description": "Streaming Box",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": 1,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": 0,
+    "classification": null,
+    "debt_allocation": null
+   },
+   {
+    "id": "entry_9cc5ffb138afa18d1f5e151d0154a82e86bf4744d09d559a97404b9887214983",
+    "anchor": "<digest>:pdf:dbs:<digest>:27",
+    "date": "2026-07-25",
+    "precision": "DAY",
+    "amount": "-27.56",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "BOOK NOOK SINGAPORE SGP 23JUL",
+    "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 23JUL",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 2",
+    "bucket": "spending",
+    "eligible": 1,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": 0,
+    "classification": null,
+    "debt_allocation": null
+   },
+   {
+    "id": "entry_9afa9373e8c3f96627f03cc1a71e91066315769f39d76f34558a5eb882c59835",
+    "anchor": "<digest>:pdf:revolut:<digest>:10",
+    "date": "2026-07-23",
+    "precision": "DAY",
+    "amount": "-21.17",
+    "fee": "0.06",
+    "currency": "SGD",
+    "account": "Revolut Current",
+    "merchant": "BISTRO DU PORT",
+    "description": "Bistro du Port",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": 1,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": 0,
+    "classification": null,
+    "debt_allocation": null
+   },
+   {
+    "id": "entry_0c9ebddb9e64615374c82b3f687e9565a38c23f151ea4da279a56db638cb516a",
+    "anchor": "<digest>:pdf:mari-card:<digest>:9",
+    "date": "2026-07-21",
+    "precision": "DAY",
+    "amount": "-27.35",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "Mari Credit Card",
+    "merchant": "SPLIT PAYMENT",
+    "description": "Split Payment 1/4 Instalment",
+    "category": "Unclassified / Unclassified",
+    "basis": "unclassified",
+    "source_location": "Page 1",
+    "bucket": "spending",
+    "eligible": 1,
+    "review": true,
+    "source_family": "DOCUMENT",
+    "lifecycle_state": "COMPLETED",
+    "cost_behavior": "unresolved",
+    "cost_behavior_basis": "category default",
+    "need": "unresolved",
+    "need_basis": "category default",
+    "role_review_state": "unresolved",
+    "suggested_classification": "",
+    "linked": 0,
+    "classification": null,
+    "debt_allocation": null
+   },
+   {
+    "id": "entry_d3c314e6657e5225dddf4564e539da6fba1fcd04236128c87ddbba7f7c45e99a",
+    "anchor": "<digest>:pdf:dbs:<digest>:23",
+    "date": "2026-07-20",
+    "precision": "DAY",
+    "amount": "-47.19",
+    "fee": "0",
+    "currency": "SGD",
+    "account": "DBS My Account",
+    "merchant": "BOOK NOOK SINGAPORE SGP 18JUL",
+    "description": "Debit Card Transaction\nBOOK NOOK SINGAPORE SGP 18JUL",
     "category": "Unclassified / Unclassified",
     "basis": "unclassified",
     "source_location": "Page 1",
@@ -265,34 +601,19 @@
    "label": "income",
    "value": {
     "native": {
-     "value": "0",
-     "currency": "EUR"
+     "value": "2913.00",
+     "currency": "SGD"
     },
     "reported": {
-     "value": "0.00",
+     "value": "2913.00",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
+    "basis": "identity",
     "valuation_as_of": "2026-07-31",
     "rate_as_of": null,
-    "rate_period": "2026-07",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-07",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "15038",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.5038"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
@@ -305,34 +626,19 @@
    "label": "refunds",
    "value": {
     "native": {
-     "value": "0",
-     "currency": "EUR"
+     "value": "31.73",
+     "currency": "SGD"
     },
     "reported": {
-     "value": "0.00",
+     "value": "31.73",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
+    "basis": "identity",
     "valuation_as_of": "2026-07-31",
     "rate_as_of": null,
-    "rate_period": "2026-07",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-07",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "15038",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.5038"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
@@ -346,34 +652,19 @@
    "label": "income",
    "value": {
     "native": {
-     "value": "0",
-     "currency": "EUR"
+     "value": "2381.17",
+     "currency": "SGD"
     },
     "reported": {
-     "value": "0.00",
+     "value": "2381.17",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
+    "basis": "identity",
     "valuation_as_of": "2026-05-31",
     "rate_as_of": null,
-    "rate_period": "2026-05",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-05",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "14892",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.4892"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
@@ -387,34 +678,19 @@
    "label": "income",
    "value": {
     "native": {
-     "value": "0",
-     "currency": "EUR"
+     "value": "2406.49",
+     "currency": "SGD"
     },
     "reported": {
-     "value": "0.00",
+     "value": "2406.49",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
+    "basis": "identity",
     "valuation_as_of": "2026-06-30",
     "rate_as_of": null,
-    "rate_period": "2026-06",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-06",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "14965",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.4965"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
@@ -428,34 +704,19 @@
    "label": "income",
    "value": {
     "native": {
-     "value": "0",
-     "currency": "EUR"
+     "value": "2913.00",
+     "currency": "SGD"
     },
     "reported": {
-     "value": "0.00",
+     "value": "2913.00",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
+    "basis": "identity",
     "valuation_as_of": "2026-07-31",
     "rate_as_of": null,
-    "rate_period": "2026-07",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-07",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "15038",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.5038"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
@@ -529,6 +790,58 @@
      "currency": "SGD"
     },
     "purpose": "position",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    0,
+    "actual"
+   ],
+   "label": "Groceries, with room to spare · actual",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-31",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "plans",
+    0,
+    "remaining"
+   ],
+   "label": "Groceries, with room to spare · remaining",
+   "value": {
+    "native": {
+     "value": "320.00",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "320.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
     "basis": "identity",
     "valuation_as_of": "2026-07-31",
     "rate_as_of": null,
@@ -651,34 +964,19 @@
    "label": "amount",
    "value": {
     "native": {
-     "value": "-8.23",
-     "currency": "EUR"
+     "value": "-3.76",
+     "currency": "SGD"
     },
     "reported": {
-     "value": "-12.38",
+     "value": "-3.76",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
-    "valuation_as_of": "2026-07-15",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-29",
     "rate_as_of": null,
-    "rate_period": "2026-07",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-07",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "15038",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.5038"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
@@ -693,33 +991,18 @@
    "value": {
     "native": {
      "value": "0",
-     "currency": "EUR"
+     "currency": "SGD"
     },
     "reported": {
      "value": "0.00",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
-    "valuation_as_of": "2026-07-15",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-29",
     "rate_as_of": null,
-    "rate_period": "2026-07",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-07",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "15038",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.5038"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
@@ -733,34 +1016,19 @@
    "label": "amount",
    "value": {
     "native": {
-     "value": "-3.24",
-     "currency": "EUR"
+     "value": "-8.72",
+     "currency": "SGD"
     },
     "reported": {
-     "value": "-4.87",
+     "value": "-8.72",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
-    "valuation_as_of": "2026-07-14",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-26",
     "rate_as_of": null,
-    "rate_period": "2026-07",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-07",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "15038",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.5038"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
@@ -775,33 +1043,330 @@
    "value": {
     "native": {
      "value": "0",
-     "currency": "EUR"
+     "currency": "SGD"
     },
     "reported": {
      "value": "0.00",
      "currency": "SGD"
     },
     "purpose": "flow",
-    "basis": "monthly_proxy",
-    "valuation_as_of": "2026-07-14",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-26",
     "rate_as_of": null,
-    "rate_period": "2026-07",
-    "rate_path": [
-     {
-      "base_currency": "EUR",
-      "quote_currency": "SGD",
-      "period_month": "2026-07",
-      "effective_on": null,
-      "observation_kind": "MONTHLY_PROXY",
-      "source": "Synthetic monthly rates",
-      "source_version": "synthetic-demo-v2",
-      "inverted": false,
-      "applied_numerator": "15038",
-      "applied_denominator": "10000",
-      "direction": "direct",
-      "imported_rate_text": "1.5038"
-     }
-    ],
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    2,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "-4.90",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-4.90",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    2,
+    "fee"
+   ],
+   "label": "fee",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    3,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "-11.15",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-11.15",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    3,
+    "fee"
+   ],
+   "label": "fee",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    4,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "-27.56",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-27.56",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    4,
+    "fee"
+   ],
+   "label": "fee",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-25",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    5,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "-21.17",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-21.17",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-23",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    5,
+    "fee"
+   ],
+   "label": "fee",
+   "value": {
+    "native": {
+     "value": "0.06",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.06",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-23",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    6,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "-27.35",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-27.35",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    6,
+    "fee"
+   ],
+   "label": "fee",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-21",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    7,
+    "amount"
+   ],
+   "label": "amount",
+   "value": {
+    "native": {
+     "value": "-47.19",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "-47.19",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-20",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
+    "forward_policy": null,
+    "unavailable": null
+   }
+  },
+  {
+   "path": [
+    "recent",
+    7,
+    "fee"
+   ],
+   "label": "fee",
+   "value": {
+    "native": {
+     "value": "0",
+     "currency": "SGD"
+    },
+    "reported": {
+     "value": "0.00",
+     "currency": "SGD"
+    },
+    "purpose": "flow",
+    "basis": "identity",
+    "valuation_as_of": "2026-07-20",
+    "rate_as_of": null,
+    "rate_period": null,
+    "rate_path": [],
     "forward_policy": null,
     "unavailable": null
    }
