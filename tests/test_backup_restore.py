@@ -9,6 +9,7 @@ framework's refusals, rollback, and post-migration reads.
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 import sqlite3
@@ -174,6 +175,21 @@ class BackupRestoreTests(unittest.TestCase):
         (bundle / "sneaky").symlink_to(self.root)
         with self.assertRaisesRegex(FinCLError, "symlink"):
             verify_backup_bundle(bundle)
+
+    def test_an_evidence_key_outside_the_bundle_is_rejected_before_restore_copies_it(self) -> None:
+        bundle = self._backup()
+        planted = b"planted\n"
+        (bundle.parent / "planted").write_bytes(planted)
+        manifest = json.loads((bundle / "manifest.json").read_text())
+        manifest["evidence"].append({"key": "../../planted", "sha256": hashlib.sha256(planted).hexdigest(),
+                                     "byte_size": len(planted)})
+        (bundle / "manifest.json").write_text(json.dumps(manifest))
+        output = self.root / "restores" / "sub" / "restored"
+        output.parent.mkdir(parents=True)
+        with self.assertRaisesRegex(FinCLError, "unsafe evidence path"):
+            restore_ledger(bundle, output)
+        self.assertEqual(list(output.parent.parent.iterdir()), [output.parent])
+        self.assertEqual(list(output.parent.iterdir()), [])
 
     def test_newer_schema_bundle_is_refused_with_the_app_version(self) -> None:
         bundle = self._backup()

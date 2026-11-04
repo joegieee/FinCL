@@ -359,7 +359,10 @@ def verify_backup_bundle(backup_dir: Path) -> BackupManifest:
     if _sha256_file(backup_dir / JOURNAL_IDENTITY_FILENAME) != manifest.identity_sha256:
         raise FinCLError("backup identity file checksum does not match the manifest")
     for item in manifest.evidence:
-        path = backup_dir / "evidence" / str(item["key"])
+        key = Path(str(item["key"]))
+        if key.is_absolute() or ".." in key.parts:
+            raise FinCLError(f"backup manifest names an unsafe evidence path: {key}")
+        path = backup_dir / "evidence" / key
         if not path.is_file() or _sha256_file(path) != item["sha256"]:
             raise FinCLError(
                 f"backup evidence object {str(item['sha256'])[:12]} is missing or corrupt"
